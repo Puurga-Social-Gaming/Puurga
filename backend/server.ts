@@ -1,0 +1,120 @@
+import express, { Request, Response, NextFunction } from 'express';
+import cors from 'cors';
+import dotenv from 'dotenv';
+import rateLimit from 'express-rate-limit';
+import { initializeStorage, getUploadPath } from './config/storage';
+import jwt from 'jsonwebtoken';
+import WebSocketManager from './websocket';
+import { createServer } from 'http';
+import authRoutes from './routes/auth';
+import notificationRoutes from './routes/notifications';
+import userRoutes from './routes/users';
+import friendsRoutes from './routes/friends';
+import statusesRoutes from './routes/statuses';
+
+dotenv.config();
+
+const app = express();
+const PORT = 3005;
+
+// Initialize storage before setting up multer
+initializeStorage();
+
+// CORS configuration
+app.use(cors({
+  origin: [
+    'http://localhost:5173',
+    'http://localhost:5174', 
+    'http://localhost:5175', 
+    'http://localhost:5176',
+    'http://localhost:5177'
+  ],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
+// Body parsing middleware
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Serve uploaded files statically
+app.use('/uploads', express.static(getUploadPath(), {
+  setHeaders: (res) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Access-Control-Allow-Methods', 'GET');
+    res.set('Cache-Control', 'public, max-age=31557600');
+    res.set('Cross-Origin-Resource-Policy', 'cross-origin');
+  }
+}));
+
+console.log('Serving uploads from:', getUploadPath());
+
+// Request logging middleware
+app.use((req: Request, res: Response, next: NextFunction) => {
+  console.log(`${req.method} ${req.path}`, {
+    body: req.method === 'POST' ? { ...req.body, password: undefined } : undefined,
+    query: req.query,
+    headers: {
+      'content-type': req.headers['content-type'],
+      'authorization': req.headers['authorization'] ? '***present***' : '***not-present***'
+    }
+  });
+  next();
+});
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// Add rate limiting
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per windowMs
+  message: 'Too many requests from this IP, please try again after 15 minutes'
+});
+
+// Apply to auth routes
+app.use('/api/auth', apiLimiter);
+
+// Use auth routes
+app.use('/api/auth', authRoutes);
+
+// Use notifications routes
+app.use('/api/notifications', notificationRoutes);
+
+// Use user routes
+app.use('/api/users', userRoutes);
+
+// Use friends routes
+app.use('/api/friends', friendsRoutes);
+
+// Use statuses routes
+app.use('/api/statuses', statusesRoutes);
+
+// Create HTTP server and WebSocket manager
+const server = createServer(app);
+new WebSocketManager(server);
+
+const startServer = async () => {
+  try {
+    server.listen(PORT, () => {
+      console.log(`Server running on port ${PORT}`);
+    });
+  } catch (error) {
+    console.error('Failed to start server:', error);
+    process.exit(1);
+  }
+};
+
+// Helper function to generate JWT tokens
+export const generateToken = (user: { id: string }): string => {
+  return jwt.sign(
+    { userId: user.id },
+    process.env.JWT_SECRET || 'your-secret-key',
+    { expiresIn: '24h' }
+  );
+};
+
+startServer(); 

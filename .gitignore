@@ -1,0 +1,39 @@
+# Dependencies
+node_modules/
+.env
+
+# Build output
+dist/
+build/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Media storage - ignore contents but keep structure
+storage/*
+!storage/.gitkeep
+!storage/media/
+storage/media/*
+!storage/media/.gitkeep
+!storage/media/uploads/
+storage/media/uploads/*
+!storage/media/uploads/.gitkeep
+
+# Testing
+coverage/
+
+# OS files
+.DS_Store
+Thumbs.db

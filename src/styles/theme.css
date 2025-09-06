@@ -1,0 +1,55 @@
+/* Theme tokens and color scheme */
+:root {
+  --accent: #f97316; /* brand accent */
+  --bg: #ffffff;
+  --fg: #0a0a0a;
+  --muted: #6b7280;
+  --card: #ffffff;
+  --card-foreground: #0a0a0a;
+  --border: #e5e7eb;
+  --ring: var(--accent);
+  --radius: 12px;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.06);
+  --shadow-md: 0 4px 10px rgba(0,0,0,0.08);
+  --shadow-lg: 0 10px 25px rgba(0,0,0,0.12);
+}
+
+/* Dark theme overrides when .dark is on html element */
+.dark {
+  /* Approved dark palette */
+  --bg: #0c1117;              /* deep navy-black */
+  --fg: #e5e7eb;              /* neutral-200/300 for readable text */
+  --muted: #9ca3af;           /* muted text */
+  --card: #0f1720;            /* charcoal-blue surfaces */
+  --card-foreground: #e5e7eb; 
+  --border: #1f2937;          /* subtle borders */
+  --ring: #fb923c;            /* softer orange ring */
+  --surface: #111827;         /* slightly lighter surface for hover/elevation */
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.30);
+  --shadow-md: 0 6px 16px rgba(0,0,0,0.35);
+  --shadow-lg: 0 14px 28px rgba(0,0,0,0.45);
+}
+
+/* Apply base styles using Tailwind's preflight reset layering */
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  background-color: var(--bg);
+  color: var(--fg);
+}
+
+/* Utility classes bridging tokens to Tailwind when desired */
+.token-bg { background-color: var(--bg); }
+.token-fg { color: var(--fg); }
+.token-card { background-color: var(--card); color: var(--card-foreground); }
+.token-border { border-color: var(--border); }
+.token-shadow-sm { box-shadow: var(--shadow-sm); }
+.token-shadow-md { box-shadow: var(--shadow-md); }
+.token-shadow-lg { box-shadow: var(--shadow-lg); }
+
+/* Accent helpers */
+.token-accent { color: var(--accent); }
+.token-accent-bg { background-color: var(--accent); }
+.token-ring { outline-color: var(--ring); }

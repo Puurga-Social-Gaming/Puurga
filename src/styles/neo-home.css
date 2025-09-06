@@ -1,0 +1,143 @@
+/* Scoped styles for the experimental Home redesign. Loaded only by Home.tsx. */
+
+.neo-home {
+  position: relative;
+  --neo-bg: #0b0b0b;
+  --neo-card: #121212;
+  --neo-elev: #1a1a1a;
+  --neo-border: rgba(255,255,255,0.06);
+  --neo-accent: var(--accent, #f97316);
+}
+
+/* Soft gradient background orbs */
+.neo-home .neo-orb {
+  position: absolute;
+  filter: blur(60px);
+  opacity: 0.25;
+  pointer-events: none;
+}
+.neo-home .neo-orb--1 {
+  top: -80px;
+  right: 10%;
+  width: 280px;
+  height: 280px;
+  background: radial-gradient(circle at 30% 30%, var(--neo-accent), transparent 60%);
+}
+.neo-home .neo-orb--2 {
+  bottom: -120px;
+  left: -60px;
+  width: 320px;
+  height: 320px;
+  background: radial-gradient(circle at 60% 60%, #8b5cf6, transparent 60%);
+}
+
+/* Neumorphic card */
+.neo-home .neo-card {
+  background: linear-gradient(180deg, var(--neo-card), var(--neo-elev));
+  border: 1px solid var(--neo-border);
+  border-radius: 16px;
+  box-shadow:
+    0 1px 0 rgba(255,255,255,0.02) inset,
+    0 12px 24px rgba(0,0,0,0.35);
+}
+
+/* Gradient pill buttons */
+.neo-home .neo-pill {
+  background: linear-gradient(90deg, var(--neo-accent), #fb923c);
+  color: #111;
+  border-radius: 9999px;
+}
+.neo-home .neo-pill--ghost {
+  background: rgba(249, 115, 22, 0.08);
+  color: #fff;
+  border: 1px solid rgba(249, 115, 22, 0.25);
+}
+
+/* Hero block */
+.neo-home .neo-hero {
+  background: linear-gradient(180deg, rgba(249, 115, 22, 0.12), rgba(249,115,22,0.02));
+  border: 1px solid var(--neo-border);
+  border-radius: 20px;
+}
+
+/* Sticky composer panel shadow */
+.neo-home .neo-sticky {
+  background: transparent;
+  border-bottom: 1px solid var(--neo-border);
+}
+
+/* Feed skeleton blocks */
+.neo-home .neo-skel {
+  background: linear-gradient(180deg, #101010, #151515);
+  border: 1px solid var(--neo-border);
+  border-radius: 14px;
+}
+
+/* Reusable input surface to match post tone */
+.neo-home .neo-input {
+  background: linear-gradient(180deg, var(--neo-card), var(--neo-elev));
+  border: 1px solid var(--neo-border);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.03),
+    0 6px 16px rgba(0,0,0,0.3);
+}
+
+/* Top fade below sticky to avoid text showing beneath icons */
+/* Sticky header with frosted glass effect */
+.neo-sticky {
+  position: sticky;
+  top: 3.5rem; /* matches top-14 */
+  z-index: 40;
+  background: rgba(18, 18, 18, 0.8); /* Semi-transparent dark */
+  backdrop-filter: blur(12px) saturate(180%);
+  -webkit-backdrop-filter: blur(12px) saturate(180%);
+  padding: 0.75rem 0 0.5rem;
+  margin: -0.75rem -1rem 0;
+  width: calc(100% + 2rem);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow: 0 4px 20px -10px rgba(0, 0, 0, 0.5);
+}
+
+/* On larger screens, match the container width */
+@media (min-width: 640px) {
+  .neo-sticky {
+    margin: -0.75rem auto 0;
+    width: 100%;
+    max-width: 42rem; /* 2xl = 42rem */
+    border-radius: 0 0 1rem 1rem;
+  }
+}
+
+/* Fade mask for content under sticky header */
+.neo-home .neo-top-fade {
+  position: sticky;
+  top: 3.5rem;
+  height: 40px;
+  margin-top: -20px;
+  pointer-events: none;
+  z-index: 39; /* Just below sticky */
+  background: linear-gradient(180deg, 
+    rgba(18, 18, 18, 0.95) 0%, 
+    rgba(18, 18, 18, 0.8) 60%, 
+    rgba(18, 18, 18, 0) 100%
+  );
+  mask-image: linear-gradient(to bottom, 
+    rgba(0,0,0,1) 0%, 
+    rgba(0,0,0,0) 100%
+  );
+  -webkit-mask-image: linear-gradient(to bottom, 
+    rgba(0,0,0,1) 0%, 
+    rgba(0,0,0,0) 100%
+  );
+}
+
+/* Mask fade at the very top of the feed so only the content near the sticky fades */
+.neo-home .neo-feed-mask {
+  /* Smoothly reveal from transparent to opaque over ~32px at the top */
+  -webkit-mask-image: linear-gradient(to bottom, rgba(0,0,0,0) 0, rgba(0,0,0,1) 36px);
+  mask-image: linear-gradient(to bottom, rgba(0,0,0,0) 0, rgba(0,0,0,1) 36px);
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+}

@@ -1,0 +1,411 @@
+import express from 'express';
+import { UserService } from '../services/userService';
+import { supabase } from '../config/supabase';
+import { supabaseAuth } from '../middleware/supabaseAuth';
+
+const router = express.Router();
+
+// Register
+router.post('/register', async (req, res) => {
+  try {
+    const { full_name, email, password, username } = req.body;
+
+    // Validate input
+    if (!full_name?.trim() || !email?.trim() || !password || !username?.trim()) {
+      return res.status(400).json({ message: 'All fields are required' });
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ message: 'Invalid email format' });
+    }
+
+    // Validate password strength
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+    if (!passwordRegex.test(password)) {
+      return res.status(400).json({ 
+        message: 'Password must contain at least 8 characters, one uppercase, one lowercase, one number and one special character' 
+      });
+    }
+
+    // Check if email or username already exists
+    const { data: existingUser, error: checkError } = await supabase
+      .from('users')
+      .select('email, username')
+      .or(`email.eq.${email},username.eq.${username}`)
+      .maybeSingle();
+
+    if (checkError) {
+      console.error('Error checking existing user:', checkError);
+      return res.status(500).json({ message: 'Error checking existing user' });
+    }
+
+    if (existingUser) {
+      return res.status(400).json({ 
+        message: existingUser.email === email ? 'Email already exists' : 'Username already exists' 
+      });
+    }
+
+    // Create auth user
+    const { data: authData, error: authError } = await supabase.auth.signUp({
+      email: email.trim().toLowerCase(),
+      password,
+      options: {
+        data: {
+          full_name,
+          username
+        }
+      }
+    });
+
+    if (authError) {
+      console.error('Auth signup error:', authError);
+      return res.status(400).json({ message: 'Error creating user account' });
+    }
+
+    if (!authData.user) {
+      return res.status(400).json({ message: 'Failed to create user account' });
+    }
+
+    // Create user profile
+    const { data: profile, error: profileError } = await supabase
+      .from('users')
+      .insert({
+        id: authData.user.id,
+        email: email.trim().toLowerCase(),
+        full_name: full_name.trim(),
+        username: username.trim().toLowerCase(),
+        role: 'user',
+        is_private: false,
+        hide_from_suggestions: false,
+        message_requests: 'everyone',
+        show_read_receipts: true,
+        show_online_status: true,
+        comment_privacy: 'everyone',
+        story_privacy: 'everyone',
+        is_blocked: false
+      })
+      .select()
+      .single();
+
+    if (profileError) {
+      console.error('Profile creation error:', profileError);
+      // Try to clean up auth user if profile creation fails
+      await supabase.auth.admin.deleteUser(authData.user.id);
+      return res.status(400).json({ message: 'Error creating user profile' });
+    }
+
+    res.status(201).json({
+      message: 'User registered successfully',
+      user: {
+        id: profile.id,
+        full_name: profile.full_name,
+        email: profile.email,
+        username: profile.username
+      }
+    });
+  } catch (error) {
+    console.error('Registration error:', error);
+    res.status(500).json({ 
+      message: 'Error during registration',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+// Login
+router.post('/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    // Validate input
+    if (!email?.trim() || !password) {
+      return res.status(400).json({ message: 'Email and password are required' });
+    }
+
+    // Sign in with Supabase
+    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+      email: email.trim().toLowerCase(),
+      password
+    });
+
+    if (authError) {
+      console.error('Login error:', authError);
+      return res.status(401).json({ message: 'Invalid email or password' });
+    }
+
+    if (!authData.session) {
+      return res.status(401).json({ message: 'No session created' });
+    }
+
+    // Get user profile
+    const { data: profile, error: profileError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', authData.user.id)
+      .single();
+
+    if (profileError || !profile) {
+      console.error('Profile fetch error:', profileError);
+      return res.status(401).json({ message: 'User profile not found' });
+    }
+
+    res.json({
+      token: authData.session.access_token,
+      user: {
+        id: profile.id,
+        full_name: profile.full_name,
+        email: profile.email,
+        username: profile.username,
+        avatar_url: profile.avatar_url,
+        is_private: profile.is_private,
+        hide_from_suggestions: profile.hide_from_suggestions,
+        message_requests: profile.message_requests,
+        show_read_receipts: profile.show_read_receipts,
+        show_online_status: profile.show_online_status,
+        comment_privacy: profile.comment_privacy,
+        story_privacy: profile.story_privacy
+      }
+    });
+  } catch (error) {
+    console.error('Login error:', error);
+    res.status(500).json({ 
+      message: 'Error during login',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+// Get current user
+router.get('/me', supabaseAuth, async (req, res) => {
+  try {
+    const { data: profile, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', req.user.id)
+      .single();
+
+    if (error || !profile) {
+      return res.status(404).json({ message: 'User profile not found' });
+    }
+
+    res.json({
+      id: profile.id,
+      full_name: profile.full_name,
+      email: profile.email,
+      username: profile.username,
+      avatar_url: profile.avatar_url,
+      is_private: profile.is_private,
+      hide_from_suggestions: profile.hide_from_suggestions,
+      message_requests: profile.message_requests,
+      show_read_receipts: profile.show_read_receipts,
+      show_online_status: profile.show_online_status,
+      comment_privacy: profile.comment_privacy,
+      story_privacy: profile.story_privacy
+    });
+  } catch (error) {
+    console.error('Get user error:', error);
+    res.status(500).json({ 
+      message: 'Error fetching user profile',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+// Logout
+router.post('/logout', supabaseAuth, async (req, res) => {
+  try {
+    const { error } = await supabase.auth.signOut();
+    if (error) throw error;
+    res.json({ message: 'Logged out successfully' });
+  } catch (error) {
+    console.error('Logout error:', error);
+    res.status(500).json({ 
+      message: 'Error during logout',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+// Request password reset
+router.post('/reset-password', async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email?.trim()) {
+      return res.status(400).json({ message: 'Email is required' });
+    }
+
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
+      redirectTo: `${process.env.FRONTEND_URL}/reset-password`,
+    });
+
+    if (error) {
+      console.error('Password reset error:', error);
+      return res.status(400).json({ message: 'Error sending password reset email' });
+    }
+
+    res.json({ message: 'Password reset email sent' });
+  } catch (error) {
+    console.error('Password reset request error:', error);
+    res.status(500).json({ 
+      message: 'Error processing password reset request',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+// Update password (after reset)
+router.post('/update-password', async (req, res) => {
+  try {
+    const { password } = req.body;
+
+    if (!password) {
+      return res.status(400).json({ message: 'New password is required' });
+    }
+
+    // Validate password strength
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+    if (!passwordRegex.test(password)) {
+      return res.status(400).json({ 
+        message: 'Password must contain at least 8 characters, one uppercase, one lowercase, one number and one special character' 
+      });
+    }
+
+    const { error } = await supabase.auth.updateUser({
+      password: password
+    });
+
+    if (error) {
+      console.error('Password update error:', error);
+      return res.status(400).json({ message: 'Error updating password' });
+    }
+
+    res.json({ message: 'Password updated successfully' });
+  } catch (error) {
+    console.error('Password update error:', error);
+    res.status(500).json({ 
+      message: 'Error updating password',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+// Request email verification
+router.post('/verify-email', async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email?.trim()) {
+      return res.status(400).json({ message: 'Email is required' });
+    }
+
+    const { error } = await supabase.auth.resend({
+      type: 'signup',
+      email: email.trim().toLowerCase(),
+    });
+
+    if (error) {
+      console.error('Email verification error:', error);
+      return res.status(400).json({ message: 'Error sending verification email' });
+    }
+
+    res.json({ message: 'Verification email sent' });
+  } catch (error) {
+    console.error('Email verification request error:', error);
+    res.status(500).json({ 
+      message: 'Error processing email verification request',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+// Change email
+router.post('/change-email', supabaseAuth, async (req, res) => {
+  try {
+    const { newEmail } = req.body;
+
+    if (!newEmail?.trim()) {
+      return res.status(400).json({ message: 'New email is required' });
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(newEmail)) {
+      return res.status(400).json({ message: 'Invalid email format' });
+    }
+
+    // Check if email is already in use
+    const { data: existingUser } = await supabase
+      .from('users')
+      .select('email')
+      .eq('email', newEmail.trim().toLowerCase())
+      .single();
+
+    if (existingUser) {
+      return res.status(400).json({ message: 'Email is already in use' });
+    }
+
+    const { error } = await supabase.auth.updateUser({
+      email: newEmail.trim().toLowerCase()
+    });
+
+    if (error) {
+      console.error('Email change error:', error);
+      return res.status(400).json({ message: 'Error changing email' });
+    }
+
+    // Update user profile
+    const { error: profileError } = await supabase
+      .from('users')
+      .update({ email: newEmail.trim().toLowerCase() })
+      .eq('id', req.user.id);
+
+    if (profileError) {
+      console.error('Profile update error:', profileError);
+      return res.status(400).json({ message: 'Error updating user profile' });
+    }
+
+    res.json({ message: 'Email change request sent. Please check your new email for verification.' });
+  } catch (error) {
+    console.error('Email change error:', error);
+    res.status(500).json({ 
+      message: 'Error processing email change request',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+// Delete account
+router.delete('/delete-account', supabaseAuth, async (req, res) => {
+  try {
+    // Delete user profile
+    const { error: profileError } = await supabase
+      .from('users')
+      .delete()
+      .eq('id', req.user.id);
+
+    if (profileError) {
+      console.error('Profile deletion error:', profileError);
+      return res.status(400).json({ message: 'Error deleting user profile' });
+    }
+
+    // Delete auth user
+    const { error: authError } = await supabase.auth.admin.deleteUser(req.user.id);
+    if (authError) {
+      console.error('Auth user deletion error:', authError);
+      return res.status(400).json({ message: 'Error deleting auth user' });
+    }
+
+    res.json({ message: 'Account deleted successfully' });
+  } catch (error) {
+    console.error('Account deletion error:', error);
+    res.status(500).json({ 
+      message: 'Error deleting account',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+export default router; 
