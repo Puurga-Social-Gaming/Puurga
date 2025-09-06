@@ -202,6 +202,15 @@ export const useAuth = () => {
         throw new Error('No session created');
       }
 
+      // Store access token so backend API receives Authorization header
+      try {
+        const token = authData.session.access_token;
+        if (token) localStorage.setItem('token', token);
+      } catch (e) {
+        // ignore storage errors (private mode or quota)
+        console.debug('Token storage failed (non-fatal).');
+      }
+
       console.log('Auth successful, fetching user profile...');
       // Get user profile from 'profiles' table
       const { data: profile, error: profileError } = await supabase
@@ -281,6 +290,11 @@ export const useAuth = () => {
       
       setUser(null);
       navigate('/login');
+      // Clear persisted token used by backend API
+      try { localStorage.removeItem('token'); } catch (e) {
+        // ignore storage errors
+        console.debug('Token removal failed (non-fatal).');
+      }
     } catch (error) {
       console.error('Logout error:', error);
       const message = error instanceof Error ? error.message : 'Logout failed';

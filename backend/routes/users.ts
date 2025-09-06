@@ -47,15 +47,22 @@ router.get('/profile', auth, async (req: AuthRequest, res) => {
       return res.status(404).json({ error: 'Profile not found' });
     }
 
-    // Fetch avatar_url and cover_photo from users table for consistency
-    const { data: userRow, error: userError } = await supabase
+    // Fetch avatar_url and cover_photo from users table for consistency (if available)
+    let userRow: { avatar_url?: string | null; cover_photo?: string | null; email?: string | null } | null = null;
+    const userTbl = await supabase
       .from('users')
       .select('avatar_url, cover_photo, email')
       .eq('id', user.id)
-      .single();
-    if (userError) {
-      // Log but don't fail the entire request
-      console.warn('Warning: failed to fetch users row for profile merge', userError);
+      .maybeSingle();
+    if (userTbl.error) {
+      // If table/column missing, proceed without users row
+      if ((userTbl.error as any).code === '42P01' || (userTbl.error as any).code === '42703') {
+        userRow = null;
+      } else {
+        console.warn('Warning: failed to fetch users row for profile merge', userTbl.error);
+      }
+    } else {
+      userRow = userTbl.data as any;
     }
 
     const pRec = profile as unknown as Record<string, unknown>;
@@ -265,14 +272,14 @@ router.get('/posts/feed', async (req, res) => {
     // 2) Collect unique user_ids
     const userIds = Array.from(new Set(safePosts.map(p => p.user_id).filter(Boolean)));
 
-    // 3) Fetch profile data from profiles and avatar from users
+    // 3) Fetch profile data from profiles and avatar from users (if table exists)
     const [profilesRes, usersRes] = await Promise.all([
       supabase.from('profiles').select('id, full_name, username, avatar_url').in('id', userIds),
       supabase.from('users').select('id, avatar_url').in('id', userIds),
     ]);
 
     const profiles = (profilesRes.data || []) as Array<{ id: string; full_name?: string | null; username?: string | null; avatar_url?: string | null }>;
-    const usersTbl = (usersRes.data || []) as Array<{ id: string; avatar_url?: string | null }>;
+    const usersTbl = Array.isArray(usersRes.data) ? (usersRes.data as Array<{ id: string; avatar_url?: string | null }>) : [];
 
     const profileMap = new Map<string, { id: string; full_name?: string | null; username?: string | null; avatar_url?: string | null }>();
     for (const p of profiles) profileMap.set(p.id, p);
@@ -284,6 +291,7 @@ router.get('/posts/feed', async (req, res) => {
       const prof = profileMap.get(post.user_id as string);
       const urow = usersMap.get(post.user_id as string);
       const avatar = (urow?.avatar_url) ?? (prof?.avatar_url) ?? '';
+
       const name = prof?.full_name ?? '';
       const username = prof?.username ?? '';
       return {
@@ -321,7 +329,13 @@ router.get('/:id/stats', auth, async (req: AuthRequest, res) => {
       .from('posts')
       .select('id')
       .eq('user_id', userId);
-    if (postsError) throw postsError;
+    if (postsError) {
+      if ((postsError as any).code === '42P01' || (postsError as any).code === '42703') {
+        return res.json({ followers: 0, following: 0, posts: 0, puurgas: 0 });
+      }
+      throw postsError;
+    }
+
     const postIds: string[] = (posts || []).map((p: { id: string }) => p.id);
 
     // Followers: users who follow this user
@@ -329,14 +343,24 @@ router.get('/:id/stats', auth, async (req: AuthRequest, res) => {
       .from('followers')
       .select('id')
       .eq('following_id', userId);
-    if (followersError) throw followersError;
+    if (followersError) {
+      if ((followersError as any).code === '42P01' || (followersError as any).code === '42703') {
+        return res.json({ followers: 0, following: 0, posts: (posts || []).length, puurgas: 0 });
+      }
+      throw followersError;
+    }
 
     // Following: users this user follows
     const { data: followingRows, error: followingError } = await supabase
       .from('followers')
       .select('id')
       .eq('follower_id', userId);
-    if (followingError) throw followingError;
+    if (followingError) {
+      if ((followingError as any).code === '42P01' || (followingError as any).code === '42703') {
+        return res.json({ followers: (followersRows || []).length, following: 0, posts: (posts || []).length, puurgas: 0 });
+      }
+      throw followingError;
+    }
 
     // Puurgas: total likes received on this user's posts
     let puurgas = 0;
@@ -345,8 +369,15 @@ router.get('/:id/stats', auth, async (req: AuthRequest, res) => {
         .from('likes')
         .select('id')
         .in('post_id', postIds);
-      if (likesError) throw likesError;
-      puurgas = (likesRows || []).length;
+      if (likesError) {
+        if ((likesError as any).code === '42P01' || (likesError as any).code === '42703') {
+          puurgas = 0;
+        } else {
+          throw likesError;
+        }
+      } else {
+        puurgas = (likesRows || []).length;
+      }
     }
 
     res.json({

@@ -12,24 +12,29 @@ router.get('/suggestions', auth, async (req: AuthRequest, res) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    // For demonstration, let's fetch some random users as suggestions.
-    // In a real application, this would involve more complex logic
-    // based on user networks, interests, etc.
+    // Fetch from 'profiles' (canonical profile table). If missing, fall back gracefully.
     const { data: suggestions, error } = await supabase
-      .from('users')
-      .select('id, full_name, username, avatar_url, bio, email')
-      .neq('id', user.id); // Exclude current user
+      .from('profiles')
+      .select('id, full_name, username, avatar_url')
+      .neq('id', user.id)
+      .limit(20);
 
-    if (error) throw error;
+    if (error) {
+      // If table is missing in Supabase (42P01) or column missing (42703), return empty list gracefully
+      if ((error as any).code === '42P01' || (error as any).code === '42703') {
+        return res.json([]);
+      }
+      throw error;
+    }
 
     res.json((suggestions || []).map((s: any) => ({
       id: s.id,
-      name: s.full_name || s.email || 'Unknown',
-      username: s.username || s.email?.split('@')[0] || 'user',
+      name: s.full_name || 'Unknown',
+      username: s.username || 'user',
       avatar: s.avatar_url,
-      bio: s.bio,
-      email: s.email,
-      requestStatus: null // No pending/accepted status for initial suggestions
+      bio: undefined,
+      email: undefined,
+      requestStatus: null
     })));
   } catch (error) {
     console.error('Error fetching friend suggestions:', error);
@@ -48,19 +53,24 @@ router.get('/requests', auth, async (req: AuthRequest, res) => {
     // Fetch pending friend requests where the current user is the receiver
     const { data: requests, error } = await supabase
       .from('friend_requests')
-      .select('id, sender_id, users:sender_id(id, full_name, username, avatar_url)')
+      .select('id, sender_id, profiles:sender_id(id, full_name, username, avatar_url)')
       .eq('receiver_id', user.id)
       .eq('status', 'pending');
 
-    if (error) throw error;
+    if (error) {
+      if ((error as any).code === '42P01' || (error as any).code === '42703') {
+        return res.json([]);
+      }
+      throw error;
+    }
 
     // Map to clean structure
     const result = (requests || []).map((req: any) => ({
       id: req.id,
       sender_id: req.sender_id,
-      sender_name: req.users?.full_name || '',
-      sender_username: req.users?.username || '',
-      sender_avatar: req.users?.avatar_url || '/default-avatar.png',
+      sender_name: req.profiles?.full_name || '',
+      sender_username: req.profiles?.username || '',
+      sender_avatar: req.profiles?.avatar_url || '/default-avatar.png',
     }));
 
     res.json(result);
@@ -84,7 +94,12 @@ router.get('/accepted', auth, async (req: AuthRequest, res) => {
       .select('friend_id, user_id')
       .or(`user_id.eq.${user.id},friend_id.eq.${user.id}`);
 
-    if (error) throw error;
+    if (error) {
+      if ((error as any).code === '42P01' || (error as any).code === '42703') {
+        return res.json([]);
+      }
+      throw error;
+    }
 
     // Get the IDs of the user's friends (exclude self)
     const friendIds = (friends || [])
@@ -95,19 +110,24 @@ router.get('/accepted', auth, async (req: AuthRequest, res) => {
 
     // Fetch user info for all friends, only those who are online
     const { data: users, error: userError } = await supabase
-      .from('users')
-      .select('id, full_name, username, avatar_url, show_online_status')
+      .from('profiles')
+      .select('id, full_name, username, avatar_url')
       .in('id', friendIds)
-      .eq('show_online_status', true);
+      .limit(50);
 
-    if (userError) throw userError;
+    if (userError) {
+      if ((userError as any).code === '42P01' || (userError as any).code === '42703') {
+        return res.json([]);
+      }
+      throw userError;
+    }
 
-    res.json((users || []).map(u => ({
+    res.json((users || []).map((u: any) => ({
       id: u.id,
       name: u.full_name,
       username: u.username,
       avatar: u.avatar_url,
-      online: u.show_online_status
+      online: undefined
     })));
   } catch (error) {
     console.error('Error fetching accepted friends:', error);

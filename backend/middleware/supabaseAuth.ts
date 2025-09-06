@@ -44,32 +44,51 @@ export const supabaseAuth = async (req: Request, res: Response, next: NextFuncti
       return res.status(401).json({ message: 'Invalid token' });
     }
 
-    // Get user profile from the database
-    const { data: profile, error: profileError } = await supabase
-      .from('users')
-      .select('*')
-      .eq('id', user.id)
-      .single();
+    // Try to fetch canonical profile from 'profiles'
+    const [{ data: prof, error: profErr }, { data: usersRow, error: usersErr }] = await Promise.all([
+      supabase.from('profiles').select('id, full_name, username').eq('id', user.id).maybeSingle(),
+      supabase.from('users').select('*').eq('id', user.id).maybeSingle()
+    ]);
 
-    if (profileError || !profile) {
-      return res.status(401).json({ message: 'User profile not found' });
+    if (profErr) {
+      // Non-fatal; continue with users table or auth user metadata
+      console.warn('supabaseAuth: profiles fetch error (non-fatal):', profErr.message);
+    }
+    if (usersErr) {
+      // Non-fatal as well
+      console.warn('supabaseAuth: users fetch error (non-fatal):', usersErr.message);
     }
 
-    // Add user data to request
+    // Merge data with sensible defaults
+    const full_name = (prof?.full_name as string) || (usersRow?.full_name as string) || (user.user_metadata?.full_name as string) || (user.email ?? '');
+    const username = (prof?.username as string) || (usersRow?.username as string) || (user.user_metadata?.username as string) || (user.email?.split('@')[0] ?? 'user');
+    const email = (usersRow?.email as string) || (user.email ?? '');
+
+    const role = (usersRow?.role as AuthUser['role']) || 'user';
+    const is_private = Boolean(usersRow?.is_private);
+    const hide_from_suggestions = Boolean(usersRow?.hide_from_suggestions);
+    const message_requests = (usersRow?.message_requests as AuthUser['message_requests']) || 'everyone';
+    const show_read_receipts = Boolean(usersRow?.show_read_receipts);
+    const show_online_status = Boolean(usersRow?.show_online_status);
+    const comment_privacy = (usersRow?.comment_privacy as AuthUser['comment_privacy']) || 'everyone';
+    const story_privacy = (usersRow?.story_privacy as AuthUser['story_privacy']) || 'everyone';
+    const is_blocked = Boolean(usersRow?.is_blocked);
+
+    // Add user data to request (never 401 just because rows are missing; use defaults)
     (req as AuthRequest).user = {
-      id: profile.id,
-      full_name: profile.full_name,
-      email: profile.email,
-      username: profile.username,
-      role: profile.role,
-      is_private: profile.is_private,
-      hide_from_suggestions: profile.hide_from_suggestions,
-      message_requests: profile.message_requests,
-      show_read_receipts: profile.show_read_receipts,
-      show_online_status: profile.show_online_status,
-      comment_privacy: profile.comment_privacy,
-      story_privacy: profile.story_privacy,
-      is_blocked: profile.is_blocked
+      id: user.id,
+      full_name,
+      email,
+      username,
+      role,
+      is_private,
+      hide_from_suggestions,
+      message_requests,
+      show_read_receipts,
+      show_online_status,
+      comment_privacy,
+      story_privacy,
+      is_blocked
     };
 
     next();
@@ -77,4 +96,4 @@ export const supabaseAuth = async (req: Request, res: Response, next: NextFuncti
     console.error('Auth error:', error);
     res.status(401).json({ message: 'Invalid token' });
   }
-}; 
+};

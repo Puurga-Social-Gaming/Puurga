@@ -1,10 +1,19 @@
 import axios from 'axios';
 
 const getToken = () => {
+  // Preferred: Supabase/Backend token stored directly
+  const direct = localStorage.getItem('token');
+  if (direct && typeof direct === 'string') return direct;
+
+  // Legacy: some flows store a user object with token
   const user = localStorage.getItem('user');
   if (user) {
-    const userData = JSON.parse(user);
-    return userData?.token || null;
+    try {
+      const userData = JSON.parse(user);
+      return userData?.token || null;
+    } catch {
+      return null;
+    }
   }
   return null;
 };

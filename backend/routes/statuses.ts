@@ -1,6 +1,6 @@
 import express from 'express';
 import multer from 'multer';
-import { auth, AuthRequest } from '../middleware/auth';
+import { supabaseAuth as auth, AuthRequest } from '../middleware/supabaseAuth';
 import { supabase } from '../config/supabase';
 import { getUploadPath, generateUniqueFilename } from '../config/storage';
 
@@ -28,7 +28,8 @@ router.get('/', auth, async (req: AuthRequest, res) => {
     // Fetch active statuses
     const { data: statuses, error: statusError } = await supabase
       .from('statuses')
-      .select('id, user_id, content, media_url, type, created_at, expires_at')
+      // Avoid selecting non-existent columns like 'content'
+      .select('id, user_id, media_url, type, created_at, expires_at')
       .gt('expires_at', nowIso)
       .order('created_at', { ascending: false });
 
@@ -58,7 +59,8 @@ router.get('/', auth, async (req: AuthRequest, res) => {
       const avatar = (urow?.avatar_url) ?? (prof?.avatar_url) ?? '';
       return {
         id: s.id,
-        content: s.content ?? undefined,
+        // 'content' may not exist in schema; omit if absent
+        content: (s as any).content ?? undefined,
         mediaUrl: s.media_url ?? undefined,
         type: (s.type as 'text' | 'media') ?? 'text',
         createdAt: s.created_at,
@@ -76,8 +78,12 @@ router.get('/', auth, async (req: AuthRequest, res) => {
     res.json(mapped);
   } catch (error) {
     console.error('Error fetching statuses:', error);
-    // Graceful empty response to avoid UI crash
-    res.status(200).json([]);
+    // Graceful empty response for missing table/column
+    const code = (error as any)?.code;
+    if (code === '42P01' || code === '42703') {
+      return res.status(200).json([]);
+    }
+    res.status(500).json({ error: 'Failed to fetch statuses' });
   }
 });
 
@@ -96,17 +102,20 @@ router.post('/', auth, upload.single('media'), async (req: AuthRequest, res) => 
 
     const type: 'text' | 'media' = mediaUrl ? 'media' : 'text';
 
+    // Insert only fields guaranteed to exist (omit 'content' if schema lacks it)
+    const insertPayload: any = {
+      user_id: userId,
+      media_url: mediaUrl,
+      type,
+      expires_at: expiresAt.toISOString(),
+    };
+    if (typeof content === 'string') {
+      insertPayload.content = content;
+    }
+
     const { data, error } = await supabase
       .from('statuses')
-      .insert([
-        {
-          user_id: userId,
-          content: content || null,
-          media_url: mediaUrl,
-          type,
-          expires_at: expiresAt.toISOString(),
-        }
-      ])
+      .insert([insertPayload])
       .select('*')
       .single();
 
@@ -114,7 +123,7 @@ router.post('/', auth, upload.single('media'), async (req: AuthRequest, res) => 
 
     res.status(201).json({
       id: data.id,
-      content: data.content ?? undefined,
+      content: (data as any).content ?? undefined,
       mediaUrl: data.media_url ?? undefined,
       type: data.type as 'text' | 'media',
       createdAt: data.created_at,
@@ -123,6 +132,10 @@ router.post('/', auth, upload.single('media'), async (req: AuthRequest, res) => 
     });
   } catch (error) {
     console.error('Error creating status:', error);
+    const code = (error as any)?.code;
+    if (code === '42P01' || code === '42703') {
+      return res.status(400).json({ error: 'Statuses feature is not available (missing table/column)' });
+    }
     res.status(500).json({ error: 'Failed to create status' });
   }
 });

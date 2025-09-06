@@ -39,7 +39,7 @@ const FriendRequestButton: React.FC<FriendRequestButtonProps> = ({
 
     try {
       setIsCheckingStatus(true);
-      const response = await api.get(`/api/friend-requests/status/${targetUserId}`, {
+      const response = await api.get(`/friend-requests/status/${targetUserId}`, {
         headers: {
           'Cache-Control': 'no-cache',
           'Pragma': 'no-cache'
@@ -67,7 +67,7 @@ const FriendRequestButton: React.FC<FriendRequestButtonProps> = ({
 
     setIsLoading(true);
     try {
-      const response = await api.post('/api/friend-requests/send', {
+      const response = await api.post('/friend-requests/send', {
         receiverId: targetUserId
       });
       

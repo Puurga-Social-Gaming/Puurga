@@ -58,7 +58,8 @@ const RightSidebar: React.FC = () => {
     const fetchUserStats = async () => {
       if (!user) return;
       try {
-        const response = await api.get(`/api/users/${user.id}/stats`);
+        // axios baseURL is '/api', so we call without extra '/api'
+        const response = await api.get(`/users/${user.id}/stats`);
         setStats(response.data);
       } catch (error) {
         console.error('Error fetching user stats:', error);
@@ -146,11 +147,17 @@ const RightSidebar: React.FC = () => {
       try {
         const { data, error } = await supabase
           .from('profiles')
-          .select('id, username, name, avatar')
+          .select('id, username, full_name, avatar_url')
           .neq('id', user.id)
           .limit(10);
         if (error) throw error;
-        setSupabaseUsers((data as SupabaseProfile[]) || []);
+        const mapped = (data || []).map((p: any) => ({
+          id: p.id,
+          username: p.username,
+          name: p.full_name,
+          avatar: p.avatar_url,
+        })) as SupabaseProfile[];
+        setSupabaseUsers(mapped);
       } catch (err) {
         console.error('Error fetching Supabase profiles:', err);
         setSupabaseUsers([]);
