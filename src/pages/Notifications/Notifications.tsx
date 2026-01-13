@@ -2,24 +2,39 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../lib/axios';
 import { toast } from 'react-hot-toast';
-import { UserCheck, UserX } from 'lucide-react';
+import { UserCheck, UserX, Heart, MessageCircle } from 'lucide-react';
 import Avatar from '../../components/Avatar';
+import { DEFAULT_IMAGES } from '../../constants/defaultImages';
+
+interface NotificationUser {
+  id: string;
+  name: string;
+  username: string;
+  avatar: string;
+}
 
 interface Notification {
   id: string;
   type: 'friend_request' | 'friend_request_accepted' | 'like' | 'comment';
   read: boolean;
   createdAt: string;
-  fromUser: {
-    id: string;
-    name: string;
-    username: string;
-    avatar: string;
-  };
+  fromUser?: NotificationUser;
   data: {
     friendRequestId?: string;
+    postId?: string;
+    commentId?: string;
   };
 }
+
+// Safe accessor for fromUser with defaults
+const getFromUser = (notification: Notification): NotificationUser => {
+  return notification.fromUser || {
+    id: '',
+    name: 'Unknown User',
+    username: 'unknown',
+    avatar: DEFAULT_IMAGES.avatar,
+  };
+};
 
 const Notifications: React.FC = () => {
   const navigate = useNavigate();
@@ -87,40 +102,49 @@ const Notifications: React.FC = () => {
   };
 
   const renderNotification = (notification: Notification) => {
+    const fromUser = getFromUser(notification);
+    const data = notification.data || {};
+    
     switch (notification.type) {
       case 'friend_request':
         return (
-          <div key={notification.id} className={`p-4 ${notification.read ? 'bg-[#1a1a1a]' : 'bg-[#1a1a1a] border-l-4 border-blue-500'}`}>
+          <div key={notification.id} className={`p-4 rounded-lg ${notification.read ? 'bg-[#1a1a1a]' : 'bg-[#1a1a1a] border-l-4 border-blue-500'}`}>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <Avatar src={notification.fromUser.avatar} alt={notification.fromUser.name} size="md" />
+                <Avatar src={fromUser.avatar || DEFAULT_IMAGES.avatar} alt={fromUser.name} size="md" />
                 <div>
                   <p className="text-white">
-                    <span className="font-semibold">{notification.fromUser.name}</span>
+                    <span className="font-semibold">{fromUser.name || 'Someone'}</span>
                     <span className="text-gray-400"> sent you a friend request</span>
                   </p>
                   <p className="text-sm text-gray-500">{formatDate(notification.createdAt)}</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <button
-                  onClick={() => handleAcceptFriendRequest(notification.data.friendRequestId!, notification.id)}
-                  className="p-2 bg-green-500 hover:bg-green-600 text-white rounded-full"
-                >
-                  <UserCheck size={18} />
-                </button>
-                <button
-                  onClick={() => handleRejectFriendRequest(notification.data.friendRequestId!, notification.id)}
-                  className="p-2 bg-red-500 hover:bg-red-600 text-white rounded-full"
-                >
-                  <UserX size={18} />
-                </button>
-                <button
-                  onClick={() => handleViewProfile(notification.fromUser.username)}
-                  className="px-3 py-1 bg-[#333] hover:bg-[#444] text-white rounded-lg text-sm"
-                >
-                  View Profile
-                </button>
+                {data.friendRequestId && (
+                  <>
+                    <button
+                      onClick={() => handleAcceptFriendRequest(data.friendRequestId!, notification.id)}
+                      className="p-2 bg-green-500 hover:bg-green-600 text-white rounded-full"
+                    >
+                      <UserCheck size={18} />
+                    </button>
+                    <button
+                      onClick={() => handleRejectFriendRequest(data.friendRequestId!, notification.id)}
+                      className="p-2 bg-red-500 hover:bg-red-600 text-white rounded-full"
+                    >
+                      <UserX size={18} />
+                    </button>
+                  </>
+                )}
+                {fromUser.username && (
+                  <button
+                    onClick={() => handleViewProfile(fromUser.username)}
+                    className="px-3 py-1 bg-[#333] hover:bg-[#444] text-white rounded-lg text-sm"
+                  >
+                    View Profile
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -128,24 +152,88 @@ const Notifications: React.FC = () => {
 
       case 'friend_request_accepted':
         return (
-          <div key={notification.id} className={`p-4 ${notification.read ? 'bg-[#1a1a1a]' : 'bg-[#1a1a1a] border-l-4 border-green-500'}`}>
+          <div key={notification.id} className={`p-4 rounded-lg ${notification.read ? 'bg-[#1a1a1a]' : 'bg-[#1a1a1a] border-l-4 border-green-500'}`}>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <Avatar src={notification.fromUser.avatar} alt={notification.fromUser.name} size="md" />
+                <Avatar src={fromUser.avatar || DEFAULT_IMAGES.avatar} alt={fromUser.name} size="md" />
                 <div>
                   <p className="text-white">
-                    <span className="font-semibold">{notification.fromUser.name}</span>
+                    <span className="font-semibold">{fromUser.name || 'Someone'}</span>
                     <span className="text-gray-400"> accepted your friend request</span>
                   </p>
                   <p className="text-sm text-gray-500">{formatDate(notification.createdAt)}</p>
                 </div>
               </div>
-              <button
-                onClick={() => handleViewProfile(notification.fromUser.username)}
-                className="px-3 py-1 bg-[#333] hover:bg-[#444] text-white rounded-lg text-sm"
-              >
-                View Profile
-              </button>
+              {fromUser.username && (
+                <button
+                  onClick={() => handleViewProfile(fromUser.username)}
+                  className="px-3 py-1 bg-[#333] hover:bg-[#444] text-white rounded-lg text-sm"
+                >
+                  View Profile
+                </button>
+              )}
+            </div>
+          </div>
+        );
+
+      case 'like':
+        return (
+          <div key={notification.id} className={`p-4 rounded-lg ${notification.read ? 'bg-[#1a1a1a]' : 'bg-[#1a1a1a] border-l-4 border-pink-500'}`}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="relative">
+                  <Avatar src={fromUser.avatar || DEFAULT_IMAGES.avatar} alt={fromUser.name} size="md" />
+                  <div className="absolute -bottom-1 -right-1 bg-pink-500 rounded-full p-1">
+                    <Heart size={12} className="text-white fill-white" />
+                  </div>
+                </div>
+                <div>
+                  <p className="text-white">
+                    <span className="font-semibold">{fromUser.name || 'Someone'}</span>
+                    <span className="text-gray-400"> liked your post</span>
+                  </p>
+                  <p className="text-sm text-gray-500">{formatDate(notification.createdAt)}</p>
+                </div>
+              </div>
+              {fromUser.username && (
+                <button
+                  onClick={() => handleViewProfile(fromUser.username)}
+                  className="px-3 py-1 bg-[#333] hover:bg-[#444] text-white rounded-lg text-sm"
+                >
+                  View Profile
+                </button>
+              )}
+            </div>
+          </div>
+        );
+
+      case 'comment':
+        return (
+          <div key={notification.id} className={`p-4 rounded-lg ${notification.read ? 'bg-[#1a1a1a]' : 'bg-[#1a1a1a] border-l-4 border-orange-500'}`}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="relative">
+                  <Avatar src={fromUser.avatar || DEFAULT_IMAGES.avatar} alt={fromUser.name} size="md" />
+                  <div className="absolute -bottom-1 -right-1 bg-orange-500 rounded-full p-1">
+                    <MessageCircle size={12} className="text-white" />
+                  </div>
+                </div>
+                <div>
+                  <p className="text-white">
+                    <span className="font-semibold">{fromUser.name || 'Someone'}</span>
+                    <span className="text-gray-400"> commented on your post</span>
+                  </p>
+                  <p className="text-sm text-gray-500">{formatDate(notification.createdAt)}</p>
+                </div>
+              </div>
+              {fromUser.username && (
+                <button
+                  onClick={() => handleViewProfile(fromUser.username)}
+                  className="px-3 py-1 bg-[#333] hover:bg-[#444] text-white rounded-lg text-sm"
+                >
+                  View Profile
+                </button>
+              )}
             </div>
           </div>
         );

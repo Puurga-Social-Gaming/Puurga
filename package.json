@@ -15,6 +15,7 @@
     "@emoji-mart/react": "^1.1.1",
     "@supabase/supabase-js": "^2.50.0",
     "@types/express-rate-limit": "^6.0.2",
+    "@types/three": "^0.182.0",
     "@types/ws": "^8.18.0",
     "axios": "^1.6.7",
     "bcrypt": "^5.1.1",
@@ -36,6 +37,7 @@
     "react-router-dom": "^6.22.3",
     "sequelize": "^6.37.5",
     "tailwind-merge": "^3.0.2",
+    "three": "^0.182.0",
     "ws": "^8.18.1",
     "zod": "^3.24.1",
     "zustand": "^4.5.2"

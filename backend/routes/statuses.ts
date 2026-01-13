@@ -23,14 +23,15 @@ const upload = multer({
 // GET /api/statuses - list active statuses for friends/self
 router.get('/', auth, async (req: AuthRequest, res) => {
   try {
-    const nowIso = new Date().toISOString();
+    // Calculate 24 hours ago for filtering active statuses
+    const twentyFourHoursAgo = new Date();
+    twentyFourHoursAgo.setHours(twentyFourHoursAgo.getHours() - 24);
 
-    // Fetch active statuses
+    // Fetch statuses from last 24 hours (since we don't have expires_at column)
     const { data: statuses, error: statusError } = await supabase
       .from('statuses')
-      // Avoid selecting non-existent columns like 'content'
-      .select('id, user_id, media_url, type, created_at, expires_at')
-      .gt('expires_at', nowIso)
+      .select('id, user_id, media_url, created_at, updated_at')
+      .gte('created_at', twentyFourHoursAgo.toISOString())
       .order('created_at', { ascending: false });
 
     if (statusError) throw statusError;
@@ -57,14 +58,17 @@ router.get('/', auth, async (req: AuthRequest, res) => {
       const prof = profileMap.get(s.user_id as string);
       const urow = usersMap.get(s.user_id as string);
       const avatar = (urow?.avatar_url) ?? (prof?.avatar_url) ?? '';
+      
+      // Calculate expiry time (24 hours from creation)
+      const expiresAt = new Date(s.created_at);
+      expiresAt.setHours(expiresAt.getHours() + 24);
+      
       return {
         id: s.id,
-        // 'content' may not exist in schema; omit if absent
-        content: (s as any).content ?? undefined,
         mediaUrl: s.media_url ?? undefined,
-        type: (s.type as 'text' | 'media') ?? 'text',
+        type: s.media_url ? 'media' as const : 'text' as const,
         createdAt: s.created_at,
-        expiresAt: s.expires_at,
+        expiresAt: expiresAt.toISOString(),
         User: {
           id: s.user_id,
           name: prof?.full_name ?? '',
@@ -92,26 +96,19 @@ router.post('/', auth, upload.single('media'), async (req: AuthRequest, res) => 
   try {
     const { id: userId } = req.user;
     const { content } = req.body as { content?: string };
-    const expiresAt = new Date();
-    expiresAt.setHours(expiresAt.getHours() + 24);
 
     let mediaUrl: string | null = null;
     if (req.file) {
       mediaUrl = `http://localhost:3005/uploads/${req.file.filename}`;
     }
 
-    const type: 'text' | 'media' = mediaUrl ? 'media' : 'text';
-
-    // Insert only fields guaranteed to exist (omit 'content' if schema lacks it)
+    // Insert only fields that exist in the current statuses table schema
     const insertPayload: any = {
       user_id: userId,
       media_url: mediaUrl,
-      type,
-      expires_at: expiresAt.toISOString(),
     };
-    if (typeof content === 'string') {
-      insertPayload.content = content;
-    }
+
+    console.log('Creating status with payload:', insertPayload);
 
     const { data, error } = await supabase
       .from('statuses')
@@ -119,15 +116,23 @@ router.post('/', auth, upload.single('media'), async (req: AuthRequest, res) => 
       .select('*')
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error('Supabase insert error:', error);
+      throw error;
+    }
+
+    console.log('Status created successfully:', data);
+
+    // Calculate expiry time (24 hours from creation)
+    const expiresAt = new Date(data.created_at);
+    expiresAt.setHours(expiresAt.getHours() + 24);
 
     res.status(201).json({
       id: data.id,
-      content: (data as any).content ?? undefined,
       mediaUrl: data.media_url ?? undefined,
-      type: data.type as 'text' | 'media',
+      type: data.media_url ? 'media' as const : 'text' as const,
       createdAt: data.created_at,
-      expiresAt: data.expires_at,
+      expiresAt: expiresAt.toISOString(),
       User: { id: userId }
     });
   } catch (error) {
@@ -136,7 +141,7 @@ router.post('/', auth, upload.single('media'), async (req: AuthRequest, res) => 
     if (code === '42P01' || code === '42703') {
       return res.status(400).json({ error: 'Statuses feature is not available (missing table/column)' });
     }
-    res.status(500).json({ error: 'Failed to create status' });
+    res.status(500).json({ error: 'Failed to create status', details: (error as any)?.message });
   }
 });
 

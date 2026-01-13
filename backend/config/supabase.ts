@@ -74,6 +74,7 @@ export type Tables = {
     comment_privacy: 'everyone' | 'followers' | 'none';
     story_privacy: 'everyone' | 'followers' | 'close_friends';
     is_blocked: boolean;
+    perga_points?: number;
     created_at: string;
     updated_at: string;
   };
@@ -142,4 +143,12 @@ export type Tables = {
     type: string;
     created_at: string;
   };
-}; 
+  statuses: {
+    id: string;
+    user_id: string;
+    media_url?: string;
+    type: 'text' | 'media';
+    created_at: string;
+    expires_at: string;
+  };
+};

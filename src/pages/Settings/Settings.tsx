@@ -1,27 +1,36 @@
 import React, { useState } from 'react';
-import { useUser } from '../../context/UserContext';
 import { toast } from 'react-hot-toast';
-import api from '../../lib/axios';
-import ProfilePictureUpload from '../../components/ProfilePictureUpload/ProfilePictureUpload';
+import { Bell, Shield, Eye, Moon, Volume2, Globe } from 'lucide-react';
 
 const Settings: React.FC = () => {
-  const { user, updateUser } = useUser();
   const [isLoading, setIsLoading] = useState(false);
-  const [formData, setFormData] = useState({
-    name: user?.name || '',
-    email: user?.email || '',
-    isPrivate: user?.isPrivate || false,
-    hideFromSuggestions: user?.hideFromSuggestions || false,
-    messageRequests: user?.messageRequests || 'everyone',
-    showReadReceipts: user?.showReadReceipts || true,
-    showOnlineStatus: user?.showOnlineStatus || true,
-    commentPrivacy: user?.commentPrivacy || 'everyone',
-    storyPrivacy: user?.storyPrivacy || 'everyone'
+  const [appSettings, setAppSettings] = useState({
+    // Privacy & Security
+    dataCollection: true,
+    analyticsTracking: false,
+    crashReporting: true,
+    
+    // Notifications
+    pushNotifications: true,
+    emailNotifications: false,
+    soundEnabled: true,
+    vibrationEnabled: true,
+    
+    // Display & Accessibility
+    darkMode: true,
+    language: 'en',
+    fontSize: 'medium',
+    highContrast: false,
+    
+    // Content & Feed
+    autoplayVideos: true,
+    showSensitiveContent: false,
+    dataUsage: 'standard'
   });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
-    setFormData(prev => ({
+    setAppSettings(prev => ({
       ...prev,
       [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : value
     }));
@@ -32,12 +41,12 @@ const Settings: React.FC = () => {
     setIsLoading(true);
 
     try {
-      const response = await api.put('/api/users/profile', formData);
-      updateUser(response.data);
-      toast.success('Settings updated successfully');
+      // Save app settings to localStorage for now
+      localStorage.setItem('appSettings', JSON.stringify(appSettings));
+      toast.success('App settings updated successfully');
     } catch (error) {
-      console.error('Error updating settings:', error);
-      toast.error('Failed to update settings');
+      console.error('Error updating app settings:', error);
+      toast.error('Failed to update app settings');
     } finally {
       setIsLoading(false);
     }
@@ -46,137 +55,226 @@ const Settings: React.FC = () => {
   return (
     <>
       <div className="max-w-3xl mx-auto py-8 px-4">
-        <h1 className="text-2xl font-bold text-white mb-8">Settings</h1>
+        <h1 className="text-2xl font-bold text-white mb-8">App Settings</h1>
+        <p className="text-gray-400 mb-8">Manage your app preferences, privacy, and notification settings.</p>
 
-        <div className="bg-[#1a1a1a] rounded-xl p-6 mb-8">
-          <h2 className="text-xl font-semibold text-white mb-6">Profile Picture</h2>
-          <ProfilePictureUpload />
-        </div>
-
-        <form onSubmit={handleSubmit} className="bg-[#1a1a1a] rounded-xl p-6 space-y-6">
-          <h2 className="text-xl font-semibold text-white mb-6">Account Settings</h2>
-
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-400 mb-1">Name</label>
-              <input
-                type="text"
-                name="name"
-                value={formData.name}
-                onChange={handleChange}
-                className="w-full px-3 py-2 bg-[#222] border border-[#333] rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
-              />
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Privacy & Security */}
+          <div className="bg-[#1a1a1a] rounded-xl p-6">
+            <div className="flex items-center gap-3 mb-6">
+              <Shield className="w-6 h-6 text-orange-500" />
+              <h2 className="text-xl font-semibold text-white">Privacy & Security</h2>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-400 mb-1">Email</label>
-              <input
-                type="email"
-                name="email"
-                value={formData.email}
-                onChange={handleChange}
-                className="w-full px-3 py-2 bg-[#222] border border-[#333] rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
-              />
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <label className="text-sm font-medium text-white">Data Collection</label>
+                  <p className="text-xs text-gray-400">Allow app to collect usage data for improvements</p>
+                </div>
+                <input
+                  type="checkbox"
+                  name="dataCollection"
+                  checked={appSettings.dataCollection}
+                  onChange={handleChange}
+                  className="w-4 h-4 bg-[#222] border border-[#333] rounded text-orange-500 focus:ring-orange-500"
+                />
+              </div>
+              
+              <div className="flex items-center justify-between">
+                <div>
+                  <label className="text-sm font-medium text-white">Analytics Tracking</label>
+                  <p className="text-xs text-gray-400">Help improve the app with anonymous analytics</p>
+                </div>
+                <input
+                  type="checkbox"
+                  name="analyticsTracking"
+                  checked={appSettings.analyticsTracking}
+                  onChange={handleChange}
+                  className="w-4 h-4 bg-[#222] border border-[#333] rounded text-orange-500 focus:ring-orange-500"
+                />
+              </div>
+              
+              <div className="flex items-center justify-between">
+                <div>
+                  <label className="text-sm font-medium text-white">Crash Reporting</label>
+                  <p className="text-xs text-gray-400">Automatically send crash reports to help fix bugs</p>
+                </div>
+                <input
+                  type="checkbox"
+                  name="crashReporting"
+                  checked={appSettings.crashReporting}
+                  onChange={handleChange}
+                  className="w-4 h-4 bg-[#222] border border-[#333] rounded text-orange-500 focus:ring-orange-500"
+                />
+              </div>
             </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-400 mb-1">Message Requests</label>
-              <select
-                name="messageRequests"
-                value={formData.messageRequests}
-                onChange={handleChange}
-                className="w-full px-3 py-2 bg-[#222] border border-[#333] rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
-              >
-                <option value="everyone">Everyone</option>
-                <option value="followers">Followers Only</option>
-                <option value="none">No One</option>
-              </select>
+          </div>
+          
+          {/* Notifications */}
+          <div className="bg-[#1a1a1a] rounded-xl p-6">
+            <div className="flex items-center gap-3 mb-6">
+              <Bell className="w-6 h-6 text-orange-500" />
+              <h2 className="text-xl font-semibold text-white">Notifications</h2>
             </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-400 mb-1">Comment Privacy</label>
-              <select
-                name="commentPrivacy"
-                value={formData.commentPrivacy}
-                onChange={handleChange}
-                className="w-full px-3 py-2 bg-[#222] border border-[#333] rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
-              >
-                <option value="everyone">Everyone</option>
-                <option value="followers">Followers Only</option>
-                <option value="none">No One</option>
-              </select>
+            
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <label className="text-sm font-medium text-white">Push Notifications</label>
+                  <p className="text-xs text-gray-400">Receive notifications on your device</p>
+                </div>
+                <input
+                  type="checkbox"
+                  name="pushNotifications"
+                  checked={appSettings.pushNotifications}
+                  onChange={handleChange}
+                  className="w-4 h-4 bg-[#222] border border-[#333] rounded text-orange-500 focus:ring-orange-500"
+                />
+              </div>
+              
+              <div className="flex items-center justify-between">
+                <div>
+                  <label className="text-sm font-medium text-white">Email Notifications</label>
+                  <p className="text-xs text-gray-400">Receive notifications via email</p>
+                </div>
+                <input
+                  type="checkbox"
+                  name="emailNotifications"
+                  checked={appSettings.emailNotifications}
+                  onChange={handleChange}
+                  className="w-4 h-4 bg-[#222] border border-[#333] rounded text-orange-500 focus:ring-orange-500"
+                />
+              </div>
+              
+              <div className="flex items-center justify-between">
+                <div>
+                  <label className="text-sm font-medium text-white">Sound</label>
+                  <p className="text-xs text-gray-400">Play sounds for notifications</p>
+                </div>
+                <input
+                  type="checkbox"
+                  name="soundEnabled"
+                  checked={appSettings.soundEnabled}
+                  onChange={handleChange}
+                  className="w-4 h-4 bg-[#222] border border-[#333] rounded text-orange-500 focus:ring-orange-500"
+                />
+              </div>
             </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-400 mb-1">Story Privacy</label>
-              <select
-                name="storyPrivacy"
-                value={formData.storyPrivacy}
-                onChange={handleChange}
-                className="w-full px-3 py-2 bg-[#222] border border-[#333] rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
-              >
-                <option value="everyone">Everyone</option>
-                <option value="followers">Followers Only</option>
-                <option value="close_friends">Close Friends Only</option>
-              </select>
+          </div>
+          
+          {/* Display & Accessibility */}
+          <div className="bg-[#1a1a1a] rounded-xl p-6">
+            <div className="flex items-center gap-3 mb-6">
+              <Eye className="w-6 h-6 text-orange-500" />
+              <h2 className="text-xl font-semibold text-white">Display & Accessibility</h2>
             </div>
-
-            <div className="flex items-center gap-3">
-              <input
-                type="checkbox"
-                name="isPrivate"
-                id="isPrivate"
-                checked={formData.isPrivate}
-                onChange={handleChange}
-                className="w-4 h-4 bg-[#222] border border-[#333] rounded text-orange-500 focus:ring-orange-500"
-              />
-              <label htmlFor="isPrivate" className="text-sm text-gray-400">Private Account</label>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-white mb-2">Language</label>
+                <select
+                  name="language"
+                  value={appSettings.language}
+                  onChange={handleChange}
+                  className="w-full px-3 py-2 bg-[#222] border border-[#333] rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
+                >
+                  <option value="en">English</option>
+                  <option value="es">Español</option>
+                  <option value="fr">Français</option>
+                  <option value="de">Deutsch</option>
+                </select>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-white mb-2">Font Size</label>
+                <select
+                  name="fontSize"
+                  value={appSettings.fontSize}
+                  onChange={handleChange}
+                  className="w-full px-3 py-2 bg-[#222] border border-[#333] rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
+                >
+                  <option value="small">Small</option>
+                  <option value="medium">Medium</option>
+                  <option value="large">Large</option>
+                </select>
+              </div>
+              
+              <div className="flex items-center justify-between">
+                <div>
+                  <label className="text-sm font-medium text-white">High Contrast</label>
+                  <p className="text-xs text-gray-400">Improve readability with higher contrast</p>
+                </div>
+                <input
+                  type="checkbox"
+                  name="highContrast"
+                  checked={appSettings.highContrast}
+                  onChange={handleChange}
+                  className="w-4 h-4 bg-[#222] border border-[#333] rounded text-orange-500 focus:ring-orange-500"
+                />
+              </div>
             </div>
-
-            <div className="flex items-center gap-3">
-              <input
-                type="checkbox"
-                name="hideFromSuggestions"
-                id="hideFromSuggestions"
-                checked={formData.hideFromSuggestions}
-                onChange={handleChange}
-                className="w-4 h-4 bg-[#222] border border-[#333] rounded text-orange-500 focus:ring-orange-500"
-              />
-              <label htmlFor="hideFromSuggestions" className="text-sm text-gray-400">Hide from Suggestions</label>
+          </div>
+          
+          {/* Content & Feed */}
+          <div className="bg-[#1a1a1a] rounded-xl p-6">
+            <div className="flex items-center gap-3 mb-6">
+              <Globe className="w-6 h-6 text-orange-500" />
+              <h2 className="text-xl font-semibold text-white">Content & Feed</h2>
             </div>
-
-            <div className="flex items-center gap-3">
-              <input
-                type="checkbox"
-                name="showReadReceipts"
-                id="showReadReceipts"
-                checked={formData.showReadReceipts}
-                onChange={handleChange}
-                className="w-4 h-4 bg-[#222] border border-[#333] rounded text-orange-500 focus:ring-orange-500"
-              />
-              <label htmlFor="showReadReceipts" className="text-sm text-gray-400">Show Read Receipts</label>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <input
-                type="checkbox"
-                name="showOnlineStatus"
-                id="showOnlineStatus"
-                checked={formData.showOnlineStatus}
-                onChange={handleChange}
-                className="w-4 h-4 bg-[#222] border border-[#333] rounded text-orange-500 focus:ring-orange-500"
-              />
-              <label htmlFor="showOnlineStatus" className="text-sm text-gray-400">Show Online Status</label>
+            
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <label className="text-sm font-medium text-white">Autoplay Videos</label>
+                  <p className="text-xs text-gray-400">Automatically play videos in feed</p>
+                </div>
+                <input
+                  type="checkbox"
+                  name="autoplayVideos"
+                  checked={appSettings.autoplayVideos}
+                  onChange={handleChange}
+                  className="w-4 h-4 bg-[#222] border border-[#333] rounded text-orange-500 focus:ring-orange-500"
+                />
+              </div>
+              
+              <div className="flex items-center justify-between">
+                <div>
+                  <label className="text-sm font-medium text-white">Show Sensitive Content</label>
+                  <p className="text-xs text-gray-400">Display content marked as sensitive</p>
+                </div>
+                <input
+                  type="checkbox"
+                  name="showSensitiveContent"
+                  checked={appSettings.showSensitiveContent}
+                  onChange={handleChange}
+                  className="w-4 h-4 bg-[#222] border border-[#333] rounded text-orange-500 focus:ring-orange-500"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-white mb-2">Data Usage</label>
+                <select
+                  name="dataUsage"
+                  value={appSettings.dataUsage}
+                  onChange={handleChange}
+                  className="w-full px-3 py-2 bg-[#222] border border-[#333] rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
+                >
+                  <option value="low">Low (Save Data)</option>
+                  <option value="standard">Standard</option>
+                  <option value="high">High Quality</option>
+                </select>
+              </div>
             </div>
           </div>
 
-          <div className="pt-6">
+          <div className="bg-[#1a1a1a] rounded-xl p-6">
             <button
               type="submit"
               disabled={isLoading}
               className="w-full px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors disabled:opacity-50"
             >
-              {isLoading ? 'Saving...' : 'Save Changes'}
+              {isLoading ? 'Saving...' : 'Save App Settings'}
             </button>
           </div>
         </form>
@@ -185,4 +283,4 @@ const Settings: React.FC = () => {
   );
 };
 
-export default Settings; 
+export default Settings;

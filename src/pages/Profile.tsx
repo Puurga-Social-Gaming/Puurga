@@ -1,17 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { MapPin, Link2, Calendar, Shield, Trophy, Users, Zap, Flame, Loader2, AlertCircle, Camera, Briefcase, GraduationCap, Heart, Settings } from 'lucide-react';
+import { MapPin, Link2, Calendar, Shield, Trophy, Users, Zap, Flame, Loader2, AlertCircle, Camera, Briefcase, GraduationCap, Heart, Settings, Gamepad2 } from 'lucide-react';
 import { useUser } from '../context/UserContext';
 import api from '../api/api';
 import toast from 'react-hot-toast';
-import { motion } from 'framer-motion';
 
-type ProfileTab = 'posts' | 'puurgas' | 'achievements' | 'groups' | 'settings';
+type ProfileTab = 'posts' | 'puurgas' | 'achievements' | 'gaming' | 'settings';
 
 const Profile: React.FC = () => {
   const [activeTab, setActiveTab] = useState<ProfileTab>('posts');
   const { user: profileData, updateUser, loading } = useUser();
   const profilePictureRef = useRef<HTMLInputElement>(null);
   const coverPhotoRef = useRef<HTMLInputElement>(null);
+  const [showChangeButtons, setShowChangeButtons] = useState(true);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -72,6 +72,18 @@ const Profile: React.FC = () => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // Validate file type and size
+    const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+    if (!validTypes.includes(file.type)) {
+      toast.error('Please select a valid image file (JPEG, PNG, or WebP)');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) { // 5MB limit
+      toast.error('Image size must be less than 5MB');
+      return;
+    }
+
     const formData = new FormData();
     const fieldName = type === 'profile' ? 'avatar' : 'coverPhoto';
     formData.append(fieldName, file);
@@ -86,11 +98,17 @@ const Profile: React.FC = () => {
         },
       });
 
-      if (type === 'profile') {
-        updateUser({ avatar: response.data.avatar });
-      } else {
-        updateUser({ coverPhoto: response.data.coverPhoto });
-      }
+      // Update user context with new image URL
+      const updatedData = type === 'profile' 
+        ? { avatar: response.data.avatar }
+        : { coverPhoto: response.data.coverPhoto };
+      
+      updateUser(updatedData);
+
+      // Store in localStorage for persistence
+      const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+      const updatedUser = { ...currentUser, ...updatedData };
+      localStorage.setItem('user', JSON.stringify(updatedUser));
 
       toast.success(`${type.charAt(0).toUpperCase() + type.slice(1)} photo updated!`, { id: toastId });
     } catch (error) {
@@ -102,9 +120,17 @@ const Profile: React.FC = () => {
   const handleSave = async () => {
     const toastId = toast.loading('Updating profile...');
     try {
+      console.log('Saving profile with data:', formData);
       const response = await api.put('/users/profile', formData);
+      console.log('Profile update response:', response.data);
       updateUser(response.data);
+      setShowChangeButtons(false);
       toast.success('Profile updated successfully!', { id: toastId });
+      
+      // Show change buttons again after 3 seconds
+      setTimeout(() => {
+        setShowChangeButtons(true);
+      }, 3000);
     } catch (error) {
       console.error('Failed to update profile:', error);
       toast.error('Failed to update profile.', { id: toastId });
@@ -136,53 +162,52 @@ const Profile: React.FC = () => {
   ];
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5 }}
-      className="p-4 space-y-6 bg-[#0d0d0d] text-white"
-    >
-      {/* Profile Header */}
-      <div className="bg-[#1a1a1a] rounded-xl p-6 shadow-lg">
-        <div className="relative">
-          {/* Cover Image */}
-          <div 
-            className="h-32 md:h-48 rounded-lg bg-cover bg-center relative"
-            style={{
-              backgroundImage: profileData.coverPhoto ? `url(${profileData.coverPhoto})` : undefined,
-              backgroundColor: '#2d2d2d'
-            }}
+    <div className="bg-black text-white w-full overflow-x-hidden">
+      {/* Cover Image - Full width at top */}
+      <div 
+        className="w-full h-32 md:h-48 bg-cover bg-center relative overflow-hidden"
+        style={{
+          backgroundImage: profileData.coverPhoto ? `url(${profileData.coverPhoto})` : undefined,
+          backgroundColor: '#2d2d2d'
+        }}
+      >
+        {showChangeButtons && (
+          <button
+            onClick={() => coverPhotoRef.current?.click()}
+            className="absolute bottom-4 right-4 bg-white/10 backdrop-blur-sm text-white px-4 py-2 rounded-lg hover:bg-white/20 transition-colors flex items-center gap-2 z-10"
           >
-            <button
-              onClick={() => coverPhotoRef.current?.click()}
-              className="absolute bottom-4 right-4 bg-white/10 backdrop-blur-sm text-white px-4 py-2 rounded-lg hover:bg-white/20 transition-colors flex items-center gap-2"
-            >
-              <Camera size={20} />
-              Change Cover
-            </button>
-            <input
-              type="file"
-              ref={coverPhotoRef}
-              onChange={(e) => handleImageUpload(e, 'cover')}
-              accept="image/*"
-              className="hidden"
-            />
-          </div>
-          
+            <Camera size={20} />
+            Change Cover
+          </button>
+        )}
+        <input
+          type="file"
+          ref={coverPhotoRef}
+          onChange={(e) => handleImageUpload(e, 'cover')}
+          accept="image/*"
+          className="hidden"
+        />
+      </div>
+
+      {/* Profile Header */}
+      <div className="w-full p-4 sm:p-6 border-b border-gray-800 overflow-hidden">
+        <div className="relative">
           {/* Profile Picture */}
-          <div className="absolute -bottom-12 left-4">
+          <div className="absolute -top-12 left-4 z-20">
             <div className="relative">
               <img 
                 src={profileData.avatar || '/default-avatar.png'}
                 alt={profileData.name}
-                className="w-24 h-24 rounded-full border-4 border-[#1a1a1a] object-cover bg-[#2d2d2d]"
+                className="w-24 h-24 rounded-full border-4 border-black object-cover bg-[#2d2d2d] relative z-20"
               />
-              <button
-                onClick={() => profilePictureRef.current?.click()}
-                className="absolute bottom-2 right-2 bg-white/10 backdrop-blur-sm p-2 rounded-full hover:bg-white/20 transition-colors"
-              >
-                <Camera size={20} className="text-white" />
-              </button>
+              {showChangeButtons && (
+                <button
+                  onClick={() => profilePictureRef.current?.click()}
+                  className="absolute bottom-2 right-2 bg-white/10 backdrop-blur-sm p-2 rounded-full hover:bg-white/20 transition-colors z-30"
+                >
+                  <Camera size={20} className="text-white" />
+                </button>
+              )}
               <input
                 type="file"
                 ref={profilePictureRef}
@@ -194,14 +219,14 @@ const Profile: React.FC = () => {
           </div>
         </div>
 
-        <div className="mt-14 flex flex-col md:flex-row md:items-center md:justify-between">
+        <div className="mt-14 flex flex-col md:flex-row md:items-center md:justify-between w-full">
           <div>
             <h1 className="text-3xl font-bold text-white">{profileData.name}</h1>
             <p className="text-gray-400 text-lg">@{profileData.username}</p>
             {profileData.bio && (
               <p className="text-gray-300 mt-2 max-w-xl">{profileData.bio}</p>
             )}
-            <div className="flex items-center gap-4 mt-3 text-sm text-gray-400 flex-wrap">
+            <div className="flex items-center gap-2 sm:gap-4 mt-3 text-xs sm:text-sm text-gray-400 flex-wrap">
               {profileData.location && (
                 <span className="flex items-center gap-1">
                   <MapPin size={16} className="text-orange-400" /> {profileData.location}
@@ -244,7 +269,7 @@ const Profile: React.FC = () => {
               )}
             </div>
           </div>
-          <div className="flex gap-4 mt-4 md:mt-0">
+          <div className="flex gap-4 mt-4 md:mt-0 flex-shrink-0">
             <div className="text-center">
               <span className="block text-xl font-bold text-white">{profileData.stats?.posts || 0}</span>
               <span className="text-gray-400">Posts</span>
@@ -262,8 +287,8 @@ const Profile: React.FC = () => {
       </div>
 
       {/* Profile Tabs */}
-      <div className="bg-[#1a1a1a] rounded-xl p-2 shadow-lg">
-        <div className="flex justify-around border-b border-gray-700">
+      <div className="bg-black w-full">
+        <div className="flex justify-around border-b border-gray-800 px-2 sm:px-4 overflow-x-auto">
           <TabButton 
             label="Posts" 
             icon={<Trophy size={18} />} 
@@ -283,10 +308,10 @@ const Profile: React.FC = () => {
             onClick={() => setActiveTab('achievements')} 
           />
           <TabButton 
-            label="Groups" 
-            icon={<Users size={18} />} 
-            isActive={activeTab === 'groups'} 
-            onClick={() => setActiveTab('groups')} 
+            label="Gaming" 
+            icon={<Gamepad2 size={18} />} 
+            isActive={activeTab === 'gaming'} 
+            onClick={() => setActiveTab('gaming')} 
           />
           <TabButton 
             label="Settings" 
@@ -295,13 +320,13 @@ const Profile: React.FC = () => {
             onClick={() => setActiveTab('settings')} 
           />
         </div>
-        <div className="p-4 min-h-[300px]">
+        <div className="p-2 sm:p-4 min-h-[300px] w-full overflow-hidden">
           {activeTab === 'posts' && <div className="text-center text-gray-500 py-8">No posts yet.</div>}
           {activeTab === 'puurgas' && <div className="text-center text-gray-500 py-8">No Puurgas yet.</div>}
           {activeTab === 'achievements' && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {ACHIEVEMENTS.map((achievement, index) => (
-                <div key={index} className="bg-[#2d2d2d] p-4 rounded-lg flex items-center gap-3">
+                <div key={index} className="bg-black p-4 border border-gray-800 flex items-center gap-3">
                   {achievement.icon}
                   <div>
                     <h4 className="font-medium text-white">{achievement.name}</h4>
@@ -311,7 +336,27 @@ const Profile: React.FC = () => {
               ))}
             </div>
           )}
-          {activeTab === 'groups' && <div className="text-center text-gray-500 py-8">No groups joined yet.</div>}
+          {activeTab === 'gaming' && (
+            <div className="space-y-4">
+              <div className="text-center text-gray-500 py-4">
+                <Gamepad2 className="w-12 h-12 mx-auto mb-4 text-orange-500" />
+                <h3 className="text-lg font-semibold text-white mb-2">Gaming Stats</h3>
+                <p className="text-gray-400">Your gaming achievements and progress will appear here.</p>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="bg-black p-4 rounded-lg border border-gray-800">
+                  <h4 className="font-medium text-white mb-2">Sword of Judgment</h4>
+                  <p className="text-sm text-gray-400 mb-2">High Score: 0</p>
+                  <p className="text-sm text-gray-400">Games Played: 0</p>
+                </div>
+                <div className="bg-black p-4 rounded-lg border border-gray-800">
+                  <h4 className="font-medium text-white mb-2">Total Points</h4>
+                  <p className="text-sm text-gray-400 mb-2">Earned: 0</p>
+                  <p className="text-sm text-gray-400">Rank: Novice</p>
+                </div>
+              </div>
+            </div>
+          )}
           {activeTab === 'settings' && (
             <div className="space-y-6">
               <h3 className="text-xl font-bold text-white mb-4">Edit Profile Information</h3>
@@ -522,7 +567,7 @@ const Profile: React.FC = () => {
           )}
         </div>
       </div>
-    </motion.div>
+    </div>
   );
 };
 
@@ -535,7 +580,7 @@ interface TabButtonProps {
 
 const TabButton: React.FC<TabButtonProps> = ({ label, icon, isActive, onClick }) => (
   <button
-    className={`flex items-center gap-2 px-6 py-3 text-sm font-medium focus:outline-none transition-colors duration-200
+    className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-4 md:px-6 py-3 text-xs sm:text-sm font-medium focus:outline-none transition-colors duration-200 whitespace-nowrap flex-shrink-0
       ${isActive
         ? 'text-orange-500 border-b-2 border-orange-500'
         : 'text-gray-400 hover:text-gray-200 hover:border-gray-500 border-b-2 border-transparent'
@@ -543,7 +588,7 @@ const TabButton: React.FC<TabButtonProps> = ({ label, icon, isActive, onClick })
     onClick={onClick}
   >
     {icon}
-    <span>{label}</span>
+    <span className="hidden sm:inline">{label}</span>
   </button>
 );
 

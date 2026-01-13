@@ -83,61 +83,65 @@
 }
 
 /* Top fade below sticky to avoid text showing beneath icons */
-/* Sticky header with frosted glass effect */
+/* Fixed header with frosted glass effect - covers full top area and stays truly fixed */
 .neo-sticky {
-  position: sticky;
-  top: 3.5rem; /* matches top-14 */
-  z-index: 40;
-  background: rgba(18, 18, 18, 0.8); /* Semi-transparent dark */
-  backdrop-filter: blur(12px) saturate(180%);
-  -webkit-backdrop-filter: blur(12px) saturate(180%);
-  padding: 0.75rem 0 0.5rem;
-  margin: -0.75rem -1rem 0;
-  width: calc(100% + 2rem);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-  box-shadow: 0 4px 20px -10px rgba(0, 0, 0, 0.5);
+  position: fixed;
+  top: env(safe-area-inset-top, 0);
+  left: 0;
+  right: 0;
+  z-index: 50;
+  background: rgba(11, 11, 11, 0.95); /* More opaque to hide content */
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  padding: 1rem 0 1rem;
+  padding-top: calc(1rem + env(safe-area-inset-top, 0));
+  margin: 0;
+  width: 100vw;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 32px -12px rgba(0, 0, 0, 0.6);
+  transform: translateZ(0); /* Force hardware acceleration */
+  will-change: transform;
 }
 
-/* On larger screens, match the container width */
+/* On larger screens, still cover full width but center content */
 @media (min-width: 640px) {
   .neo-sticky {
-    margin: -0.75rem auto 0;
-    width: 100%;
-    max-width: 42rem; /* 2xl = 42rem */
-    border-radius: 0 0 1rem 1rem;
+    padding: 1rem 0 1rem;
+  }
+  .neo-sticky .max-w-4xl {
+    max-width: 56rem;
+    margin: 0 auto;
+    padding: 0 1rem;
   }
 }
 
-/* Fade mask for content under sticky header */
+/* Enhanced fade mask for content under fixed header */
 .neo-home .neo-top-fade {
-  position: sticky;
-  top: 3.5rem;
-  height: 40px;
-  margin-top: -20px;
+  position: fixed;
+  top: env(safe-area-inset-top, 0);
+  left: 0;
+  right: 0;
+  height: calc(80px + env(safe-area-inset-top, 0));
   pointer-events: none;
-  z-index: 39; /* Just below sticky */
+  z-index: 49; /* Just below fixed header */
+  width: 100vw;
   background: linear-gradient(180deg, 
-    rgba(18, 18, 18, 0.95) 0%, 
-    rgba(18, 18, 18, 0.8) 60%, 
-    rgba(18, 18, 18, 0) 100%
+    rgba(11, 11, 11, 1) 0%, 
+    rgba(11, 11, 11, 0.95) 30%, 
+    rgba(11, 11, 11, 0.7) 60%,
+    rgba(11, 11, 11, 0) 100%
   );
-  mask-image: linear-gradient(to bottom, 
-    rgba(0,0,0,1) 0%, 
-    rgba(0,0,0,0) 100%
-  );
-  -webkit-mask-image: linear-gradient(to bottom, 
-    rgba(0,0,0,1) 0%, 
-    rgba(0,0,0,0) 100%
-  );
+  transform: translateZ(0);
 }
 
-/* Mask fade at the very top of the feed so only the content near the sticky fades */
+/* Enhanced mask fade at the very top of the feed */
 .neo-home .neo-feed-mask {
-  /* Smoothly reveal from transparent to opaque over ~32px at the top */
-  -webkit-mask-image: linear-gradient(to bottom, rgba(0,0,0,0) 0, rgba(0,0,0,1) 36px);
-  mask-image: linear-gradient(to bottom, rgba(0,0,0,0) 0, rgba(0,0,0,1) 36px);
+  /* Smoothly reveal from transparent to opaque over larger area */
+  -webkit-mask-image: linear-gradient(to bottom, rgba(0,0,0,0) 0, rgba(0,0,0,0.3) 20px, rgba(0,0,0,1) 60px);
+  mask-image: linear-gradient(to bottom, rgba(0,0,0,0) 0, rgba(0,0,0,0.3) 20px, rgba(0,0,0,1) 60px);
   -webkit-mask-repeat: no-repeat;
   mask-repeat: no-repeat;
   -webkit-mask-size: 100% 100%;
   mask-size: 100% 100%;
+  padding-top: 2rem;
 }

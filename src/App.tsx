@@ -14,6 +14,7 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import Messages from './pages/Messages';
 import PuurgaDashboard from './pages/PuurgaDashboard';
+import PurgaGames from './pages/PurgaGames/PurgaGames';
 import ErrorBoundary from './components/ErrorBoundary';
 import Settings from './pages/Settings/Settings';
 import Groups from './pages/Groups';
@@ -49,10 +50,11 @@ const router = createBrowserRouter(
         <Route path="/profile" element={<Profile />} />
         <Route path="/notifications" element={<Notifications />} />
         <Route path="/messages" element={<Messages />} />
-        <Route path="/dashboard" element={<PuurgaDashboard />} />
-        <Route path="/settings" element={<Settings />} />
         <Route path="/groups" element={<Groups />} />
+        <Route path="/puurga-games" element={<PurgaGames />} />
+        <Route path="/puurga-dashboard" element={<PuurgaDashboard />} />
         <Route path="/help" element={<Help />} />
+        <Route path="/settings" element={<Settings />} />
         <Route path="/profile/:username" element={<UserProfile />} />
         <Route path="/admin/users" element={<UserList />} />
         <Route path="/super-admin" element={<SuperAdmin />} />

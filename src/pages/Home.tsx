@@ -5,7 +5,6 @@ import PostList from '../components/Post/PostList';
 import StatusBar from '../components/StatusBar/StatusBar';
 import api from '../api/api';
 import { toast } from 'react-hot-toast';
-import { motion } from 'framer-motion';
 import '../styles/neo-home.css';
 
 // Safe helpers to coerce unknown values without using 'any'
@@ -48,6 +47,8 @@ function mapBackendPost(post: unknown): Post {
       liked: (p.liked as boolean) || false,
       puurgas: (p.puurgas as number) || 0,
       puurged: (p.puurged as boolean) || false,
+      purges: (p.purges as number) || (p.purge_count as number) || 0,
+      purged: (p.purged as boolean) || false,
       comments: (p.comments as number) || 0,
       Comments: Array.isArray(p.Comments)
         ? (p.Comments as Array<Record<string, unknown>>).map((c) => {
@@ -114,6 +115,7 @@ function mapBackendPost(post: unknown): Post {
     user: { id: '', name: '', username: '', avatar: '' },
     likes: 0,
     puurgas: 0,
+    purges: 0,
     comments: 0,
     visibility: 'public',
     reactions: {},
@@ -137,7 +139,6 @@ export default function Home() {
       // api has baseURL '/api', try root posts feed first, then fallback to users namespace
       const tryEndpoints = ['/posts/feed', '/users/posts/feed'];
       let data: unknown = [] as unknown[];
-      let lastError: unknown = null;
 
       for (const ep of tryEndpoints) {
         try {
@@ -148,7 +149,6 @@ export default function Home() {
             break;
           }
         } catch (e) {
-          lastError = e;
           console.warn(`Feed fetch failed at ${ep}`, e);
         }
       }
@@ -179,35 +179,28 @@ export default function Home() {
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5 }}
-      className="neo-home relative space-y-6"
-    >
+    <div className="neo-home relative w-full min-h-screen overflow-x-hidden">
       {/* Background orbs */}
       <div className="neo-orb neo-orb--1" />
       <div className="neo-orb neo-orb--2" />
 
-      {/* Top accent removed per request */}
-
-      <div className="space-y-0">
-        {/* Sticky header with matching background */}
-        <div className="neo-sticky">
-          <div className="max-w-2xl mx-auto w-full px-3 sm:px-0">
-            <StatusBar />
-            <div className="mt-2">
-              <CreatePost onPostCreated={handlePostCreated} />
-            </div>
+      {/* Fixed header covering full top area */}
+      <div className="neo-sticky">
+        <div className="max-w-4xl mx-auto w-full px-3 sm:px-0">
+          <StatusBar />
+          <div className="mt-2">
+            <CreatePost onPostCreated={handlePostCreated} />
           </div>
         </div>
-        
-        {/* Main feed content */}
-        <div className="max-w-2xl mx-auto w-full px-3 sm:px-0">
-          {/* Top fade to prevent content showing underneath sticky */}
-          <div className="neo-top-fade" />
-          
-          <div className="mt-2 neo-feed-mask">
+      </div>
+      
+      {/* Top fade to prevent content showing underneath fixed header */}
+      <div className="neo-top-fade" />
+      
+      {/* Main feed content with proper top spacing accounting for safe area */}
+      <div className="pt-40 sm:pt-44" style={{ paddingTop: 'calc(10rem + env(safe-area-inset-top, 0))' }}>
+        <div className="max-w-4xl mx-auto w-full px-3 sm:px-0 relative">
+          <div className="neo-feed-mask">
             {loading ? (
               <div className="space-y-4">
                 {[...Array(3)].map((_, i) => (
@@ -238,6 +231,6 @@ export default function Home() {
           </div>
         </div>
       </div>
-    </motion.div>
+    </div>
   );
 }

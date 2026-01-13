@@ -25,6 +25,8 @@ export interface Post {
   liked?: boolean;
   puurgas: number;
   puurged?: boolean;
+  purges: number;
+  purged?: boolean;
   comments: number;
   Comments?: Array<{
     id: string;

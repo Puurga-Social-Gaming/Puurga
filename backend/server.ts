@@ -11,6 +11,7 @@ import notificationRoutes from './routes/notifications';
 import userRoutes from './routes/users';
 import friendsRoutes from './routes/friends';
 import statusesRoutes from './routes/statuses';
+import postsRoutes from './routes/posts';
 
 dotenv.config();
 
@@ -92,6 +93,9 @@ app.use('/api/friends', friendsRoutes);
 
 // Use statuses routes
 app.use('/api/statuses', statusesRoutes);
+
+// Use posts routes
+app.use('/api/posts', postsRoutes);
 
 // Create HTTP server and WebSocket manager
 const server = createServer(app);

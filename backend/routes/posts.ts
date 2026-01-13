@@ -1,0 +1,309 @@
+import express from 'express';
+import { supabase } from '../config/supabase';
+import { auth } from '../middleware/auth';
+
+const router = express.Router();
+
+// --- GET /api/posts/feed ---
+router.get('/feed', async (req, res) => {
+  try {
+    // 1) Fetch posts
+    const { data: posts, error: postsError } = await supabase
+      .from('posts')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (postsError) throw postsError;
+
+    const safePosts = posts || [];
+    if (safePosts.length === 0) {
+      return res.json([]);
+    }
+
+    // 2) Collect unique user_ids
+    const userIds = Array.from(new Set(safePosts.map(p => p.user_id).filter(Boolean)));
+
+    // 3) Fetch profile data from profiles and avatar from users (if table exists)
+    const [profilesRes, usersRes] = await Promise.all([
+      supabase.from('profiles').select('id, full_name, username, avatar_url').in('id', userIds),
+      supabase.from('users').select('id, avatar_url').in('id', userIds),
+    ]);
+
+    const profiles = (profilesRes.data || []) as Array<{ id: string; full_name?: string | null; username?: string | null; avatar_url?: string | null }>;
+    const usersTbl = Array.isArray(usersRes.data) ? (usersRes.data as Array<{ id: string; avatar_url?: string | null }>) : [];
+
+    const profileMap = new Map<string, { id: string; full_name?: string | null; username?: string | null; avatar_url?: string | null }>();
+    for (const p of profiles) profileMap.set(p.id, p);
+    const usersMap = new Map<string, { id: string; avatar_url?: string | null }>();
+    for (const u of usersTbl) usersMap.set(u.id, u);
+
+    // Helper function to normalize image URLs
+    const normalizeImageUrl = (url: string): string => {
+      if (!url) return '';
+      
+      // If it's already a localhost URL, keep it
+      if (url.startsWith('http://localhost:3005/')) return url;
+      
+      // If it's a Supabase URL, extract filename and use local server
+      if (url.includes('supabase.co/storage')) {
+        const filename = url.split('/').pop();
+        return filename ? `http://localhost:3005/uploads/${filename}` : '';
+      }
+      
+      // If it's an external URL, try to extract filename and use local server
+      if (url.includes('http')) {
+        const filename = url.split('/').pop();
+        return filename ? `http://localhost:3005/uploads/${filename}` : '';
+      }
+      
+      // If it's just a filename, add the localhost prefix
+      return `http://localhost:3005/uploads/${url}`;
+    };
+
+    // 4) Map posts with images and merged user object
+    const mapped = safePosts.map(post => {
+      const prof = profileMap.get(post.user_id as string);
+      const urow = usersMap.get(post.user_id as string);
+      const avatar = (urow?.avatar_url) ?? (prof?.avatar_url) ?? '';
+
+      const name = prof?.full_name ?? '';
+      const username = prof?.username ?? '';
+      
+      // Process images with URL normalization
+      let images: string[] = [];
+      if (typeof post.media_url === 'string' && post.media_url.length > 0) {
+        try {
+          // Try to parse as JSON array first
+          const parsed = JSON.parse(post.media_url);
+          if (Array.isArray(parsed)) {
+            images = parsed
+              .map((url: string) => normalizeImageUrl(url))
+              .filter(Boolean);
+          } else {
+            // Fallback to comma-separated parsing
+            images = post.media_url
+              .split(',')
+              .map((s: string) => s.trim())
+              .filter(Boolean)
+              .map(normalizeImageUrl)
+              .filter(Boolean);
+          }
+        } catch {
+          // If JSON parsing fails, try comma-separated parsing
+          images = post.media_url
+            .split(',')
+            .map((s: string) => s.trim())
+            .filter(Boolean)
+            .map(normalizeImageUrl)
+            .filter(Boolean);
+        }
+      }
+      
+      return {
+        ...post,
+        images,
+        user: {
+          id: post.user_id,
+          name,
+          username,
+          avatar,
+        },
+      };
+    });
+
+    res.json(mapped);
+  } catch (error) {
+    console.error('Error fetching posts:', error);
+    res.status(500).json({ error: 'Failed to fetch posts' });
+  }
+});
+
+// --- POST /api/posts/:id/purge ---
+router.post('/:id/purge', auth, async (req, res) => {
+  try {
+    const postId = req.params.id;
+    const userId = req.user.id;
+
+    // Get post to find the target user
+    const { data: post, error: postError } = await supabase
+      .from('posts')
+      .select('user_id')
+      .eq('id', postId)
+      .single();
+
+    if (postError || !post) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+
+    const targetUserId = post.user_id;
+
+    // Check if user has already purged this post
+    const { data: existingPurge, error: checkError } = await supabase
+      .from('purges')
+      .select('*')
+      .eq('target_type', 'post')
+      .eq('target_id', postId)
+      .eq('actor_id', userId)
+      .single();
+
+    if (checkError && checkError.code !== 'PGRST116') {
+      throw checkError;
+    }
+
+    let purged = false;
+    let totalPurges = 0;
+
+    if (existingPurge) {
+      // Remove purge
+      const { error: deleteError } = await supabase
+        .from('purges')
+        .delete()
+        .eq('id', existingPurge.id);
+
+      if (deleteError) throw deleteError;
+      purged = false;
+    } else {
+      // Add purge
+      const { error: insertError } = await supabase
+        .from('purges')
+        .insert({
+          actor_id: userId,
+          target_user_id: targetUserId,
+          target_type: 'post',
+          target_id: postId,
+          created_at: new Date().toISOString()
+        });
+
+      if (insertError) throw insertError;
+      purged = true;
+    }
+
+    // Get total purge count for this post
+    const { data: purgeCount, error: countError } = await supabase
+      .from('purges')
+      .select('*', { count: 'exact' })
+      .eq('target_type', 'post')
+      .eq('target_id', postId);
+
+    if (countError) throw countError;
+    totalPurges = purgeCount?.length || 0;
+
+    // Update user's total purge count
+    const { data: userPurgeCount, error: userCountError } = await supabase
+      .from('purges')
+      .select('*', { count: 'exact' })
+      .eq('target_user_id', targetUserId);
+
+    if (!userCountError && userPurgeCount) {
+      const userTotalPurges = userPurgeCount.length;
+      
+      // Check if user should go into ghost mode (5+ total purges)
+      if (userTotalPurges >= 5) {
+        const { error: ghostError } = await supabase
+          .from('profiles')
+          .update({ 
+            is_ghost: true,
+            ghosted_at: new Date().toISOString(),
+            purge_count: userTotalPurges,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', targetUserId);
+
+        if (ghostError) {
+          console.error('Error setting ghost mode:', ghostError);
+        }
+      } else {
+        // Update purge count
+        const { error: updateError } = await supabase
+          .from('profiles')
+          .update({ 
+            purge_count: userTotalPurges,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', targetUserId);
+
+        if (updateError) {
+          console.error('Error updating purge count:', updateError);
+        }
+      }
+    }
+
+    res.json({
+      purged,
+      purges: totalPurges,
+      ghostModeTriggered: totalPurges >= 5
+    });
+
+  } catch (error) {
+    console.error('Error handling post purge:', error);
+    res.status(500).json({ error: 'Failed to purge post' });
+  }
+});
+
+// --- POST /api/posts/:id/puurga ---
+router.post('/:id/puurga', auth, async (req, res) => {
+  try {
+    const postId = req.params.id;
+    const userId = req.user.id;
+
+    // Check if user has already puurga'd this post
+    const { data: existingPuurga, error: checkError } = await supabase
+      .from('reactions')
+      .select('*')
+      .eq('post_id', postId)
+      .eq('user_id', userId)
+      .eq('type', 'puurga')
+      .single();
+
+    if (checkError && checkError.code !== 'PGRST116') {
+      throw checkError;
+    }
+
+    let puurged = false;
+    let totalPuurgas = 0;
+
+    if (existingPuurga) {
+      // Remove puurga
+      const { error: deleteError } = await supabase
+        .from('reactions')
+        .delete()
+        .eq('id', existingPuurga.id);
+
+      if (deleteError) throw deleteError;
+      puurged = false;
+    } else {
+      // Add puurga
+      const { error: insertError } = await supabase
+        .from('reactions')
+        .insert({
+          post_id: postId,
+          user_id: userId,
+          type: 'puurga',
+          created_at: new Date().toISOString()
+        });
+
+      if (insertError) throw insertError;
+      puurged = true;
+    }
+
+    // Get total puurga count for this post
+    const { data: puurgas, error: countError } = await supabase
+      .from('reactions')
+      .select('*', { count: 'exact' })
+      .eq('post_id', postId)
+      .eq('type', 'puurga');
+
+    if (countError) throw countError;
+    totalPuurgas = puurgas?.length || 0;
+
+    res.json({
+      puurged,
+      puurgas: totalPuurgas
+    });
+
+  } catch (error) {
+    console.error('Error handling puurga:', error);
+    res.status(500).json({ error: 'Failed to puurga post' });
+  }
+});
+
+export default router;

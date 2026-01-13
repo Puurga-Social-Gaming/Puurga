@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { MessageCircle, Share2, MoreHorizontal, Award, Pencil, X } from 'lucide-react';
+import { MessageCircle, Share2, MoreHorizontal, Award, Pencil, X, Trash2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'react-hot-toast';
 import type { Post as PostType, ReactionCount } from '../../types';
@@ -22,6 +22,9 @@ const Post: React.FC<PostProps> = ({ post, onUpdate }) => {
   const [isPuurging, setIsPuurging] = useState(false);
   const [localPuurgas, setLocalPuurgas] = useState(post.puurgas);
   const [isPuurged, setIsPuurged] = useState(post.puurged || false);
+  const [isPurging, setIsPurging] = useState(false);
+  const [localPurges, setLocalPurges] = useState(post.purges || 0);
+  const [isPurged, setIsPurged] = useState(post.purged || false);
   const [showMenu, setShowMenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const [showComments, setShowComments] = useState(false);
@@ -112,6 +115,41 @@ const Post: React.FC<PostProps> = ({ post, onUpdate }) => {
     } catch (error) {
       console.error('Error deleting post:', error);
       toast.error('Failed to delete post');
+    }
+  };
+
+  const handlePurgeClick = async () => {
+    if (isPurging) return;
+    
+    try {
+      setIsPurging(true);
+      const response = await api.post(`/posts/${post.id}/purge`);
+      
+      const newPurgeCount = response.data.purges;
+      const newPurgedState = response.data.purged;
+      
+      setLocalPurges(newPurgeCount);
+      setIsPurged(newPurgedState);
+      
+      // Check if user should go into ghost mode (5+ purges)
+      if (newPurgeCount >= 5) {
+        toast.error(`⚠️ This post has been purged ${newPurgeCount} times. User may enter ghost mode.`, {
+          duration: 4000
+        });
+      } else {
+        toast.success(newPurgedState ? 'Post purged' : 'Purge removed');
+      }
+      
+      if (onUpdate) onUpdate({
+        ...post,
+        purges: newPurgeCount,
+        purged: newPurgedState
+      });
+    } catch (error) {
+      console.error('Error purging post:', error);
+      toast.error('Failed to purge post');
+    } finally {
+      setIsPurging(false);
     }
   };
 
@@ -285,6 +323,20 @@ const Post: React.FC<PostProps> = ({ post, onUpdate }) => {
               className="flex items-center gap-1 text-gray-400 hover:text-green-500 transition-colors"
             >
               <Share2 size={20} />
+            </motion.button>
+
+            <motion.button
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.9 }}
+              onClick={handlePurgeClick}
+              disabled={isPurging}
+              className={`flex items-center gap-1 transition-colors ${
+                isPurged ? 'text-red-500' : 'text-gray-400 hover:text-red-500'
+              } ${isPurging ? 'opacity-50 cursor-not-allowed' : ''}`}
+              title="Purge post"
+            >
+              <Trash2 size={20} />
+              <span className="text-sm">{localPurges}</span>
             </motion.button>
 
             <motion.button

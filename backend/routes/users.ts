@@ -37,49 +37,114 @@ router.get('/profile', auth, async (req: AuthRequest, res) => {
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
-    // Fetch base profile
+    
+    // Fetch profile from profiles table
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('*')
       .eq('id', user.id)
       .single();
+      
     if (profileError || !profile) {
       return res.status(404).json({ error: 'Profile not found' });
     }
 
-    // Fetch avatar_url and cover_photo from users table for consistency (if available)
-    let userRow: { avatar_url?: string | null; cover_photo?: string | null; email?: string | null } | null = null;
-    const userTbl = await supabase
-      .from('users')
-      .select('avatar_url, cover_photo, email')
-      .eq('id', user.id)
-      .maybeSingle();
-    if (userTbl.error) {
-      // If table/column missing, proceed without users row
-      if ((userTbl.error as any).code === '42P01' || (userTbl.error as any).code === '42703') {
-        userRow = null;
-      } else {
-        console.warn('Warning: failed to fetch users row for profile merge', userTbl.error);
-      }
-    } else {
-      userRow = userTbl.data as any;
-    }
-
-    const pRec = profile as unknown as Record<string, unknown>;
-    const pCover = typeof pRec.cover_photo === 'string' ? pRec.cover_photo : null;
-    const pEmail = typeof pRec.email === 'string' ? pRec.email : null;
-
-    const merged = {
-      ...profile,
-      avatar_url: userRow?.avatar_url ?? (typeof pRec.avatar_url === 'string' ? pRec.avatar_url : null),
-      cover_photo: userRow?.cover_photo ?? pCover,
-      email: userRow?.email ?? pEmail,
-    };
-
-    res.json(merged);
+    // Return the profile data directly since all data is in profiles table
+    res.json(profile);
   } catch (error) {
     console.error('Error fetching profile:', error);
     res.status(500).json({ error: 'Failed to fetch profile' });
+  }
+});
+
+router.get('/points', auth, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.user;
+
+    const { data, error } = await supabase
+      .from('users')
+      .select('perga_points')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (error) {
+      const msg = String((error as any).message || '').toLowerCase();
+      const code = String((error as any).code || '');
+      if (code === '42703' || msg.includes('perga_points')) {
+        return res.json({ points: null, supported: false });
+      }
+      return res.status(500).json({ error: 'Failed to fetch points' });
+    }
+
+    const points = Number((data as any)?.perga_points ?? 0);
+    res.json({ points: Number.isFinite(points) ? points : 0, supported: true });
+  } catch (error) {
+    console.error('Error fetching points:', error);
+    res.status(500).json({ error: 'Failed to fetch points' });
+  }
+});
+
+router.put('/points', auth, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.user;
+    const rawPoints = (req.body as any)?.points;
+    const rawDelta = (req.body as any)?.delta;
+
+    const hasPoints = typeof rawPoints === 'number' && Number.isFinite(rawPoints);
+    const hasDelta = typeof rawDelta === 'number' && Number.isFinite(rawDelta);
+    if (!hasPoints && !hasDelta) {
+      return res.status(400).json({ error: 'Provide either numeric points or delta' });
+    }
+    if (hasPoints && hasDelta) {
+      return res.status(400).json({ error: 'Provide either points or delta, not both' });
+    }
+
+    let nextPoints = 0;
+
+    if (hasDelta) {
+      const { data: existing, error: existingErr } = await supabase
+        .from('users')
+        .select('perga_points')
+        .eq('id', id)
+        .maybeSingle();
+
+      if (existingErr) {
+        const msg = String((existingErr as any).message || '').toLowerCase();
+        const code = String((existingErr as any).code || '');
+        if (code === '42703' || msg.includes('perga_points')) {
+          return res.json({ points: null, supported: false });
+        }
+        return res.status(500).json({ error: 'Failed to fetch points' });
+      }
+
+      const current = Number((existing as any)?.perga_points ?? 0);
+      const safeCurrent = Number.isFinite(current) ? current : 0;
+      nextPoints = Math.max(0, safeCurrent + Number(rawDelta));
+    } else {
+      nextPoints = Math.max(0, Number(rawPoints));
+    }
+
+    const { data: updated, error: updateErr } = await supabase
+      .from('users')
+      .update({ perga_points: nextPoints, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select('perga_points')
+      .maybeSingle();
+
+    if (updateErr) {
+      const msg = String((updateErr as any).message || '').toLowerCase();
+      const code = String((updateErr as any).code || '');
+      if (code === '42703' || msg.includes('perga_points')) {
+        return res.json({ points: null, supported: false });
+      }
+      return res.status(500).json({ error: 'Failed to update points' });
+    }
+
+    const points = Number((updated as any)?.perga_points ?? nextPoints);
+    res.json({ points: Number.isFinite(points) ? points : nextPoints, supported: true });
+  } catch (error) {
+    console.error('Error updating points:', error);
+    res.status(500).json({ error: 'Failed to update points' });
   }
 });
 
@@ -151,50 +216,100 @@ router.put('/profile', auth, async (req: AuthRequest, res) => {
 // Upload profile avatar
 router.put('/profile/avatar', auth, upload.single('avatar'), async (req: AuthRequest, res) => {
   try {
+    console.log('Avatar upload request received');
+    console.log('User ID:', req.user?.id);
+    console.log('File info:', req.file ? {
+      filename: req.file.filename,
+      originalname: req.file.originalname,
+      mimetype: req.file.mimetype,
+      size: req.file.size
+    } : 'No file');
+
     const { id } = req.user;
     if (!req.file) {
+      console.log('No file uploaded in request');
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
     const publicUrl = `http://localhost:3005/uploads/${req.file.filename}`;
+    console.log('Generated public URL:', publicUrl);
 
+    console.log('Updating profile with avatar URL...');
     const { data, error } = await supabase
-      .from('users')
+      .from('profiles')
       .update({ avatar_url: publicUrl, updated_at: new Date().toISOString() })
       .eq('id', id)
       .select();
 
-    if (error) throw error;
+    if (error) {
+      console.error('Supabase error updating avatar:', error);
+      throw error;
+    }
 
+    if (!data || data.length === 0) {
+      console.error('No data returned from avatar update');
+      throw new Error('No profile found to update');
+    }
+
+    console.log('Avatar updated successfully:', data[0].avatar_url);
     res.json({ avatar: data[0].avatar_url });
   } catch (error) {
-    console.error('Error uploading avatar:', error);
-    res.status(500).json({ error: 'Failed to upload avatar' });
+    console.error('Error uploading avatar:', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+      error: error
+    });
+    res.status(500).json({ error: 'Failed to upload avatar', details: error instanceof Error ? error.message : 'Unknown error' });
   }
 });
 
 // Upload cover photo
 router.put('/profile/cover-photo', auth, upload.single('coverPhoto'), async (req: AuthRequest, res) => {
   try {
+    console.log('Cover photo upload request received');
+    console.log('User ID:', req.user?.id);
+    console.log('File info:', req.file ? {
+      filename: req.file.filename,
+      originalname: req.file.originalname,
+      mimetype: req.file.mimetype,
+      size: req.file.size
+    } : 'No file');
+
     const { id } = req.user;
     if (!req.file) {
+      console.log('No file uploaded in request');
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
     const publicUrl = `http://localhost:3005/uploads/${req.file.filename}`;
+    console.log('Generated public URL:', publicUrl);
 
+    console.log('Updating profile with cover photo URL...');
     const { data, error } = await supabase
-      .from('users')
+      .from('profiles')
       .update({ cover_photo: publicUrl, updated_at: new Date().toISOString() })
       .eq('id', id)
       .select();
 
-    if (error) throw error;
+    if (error) {
+      console.error('Supabase error updating cover photo:', error);
+      throw error;
+    }
 
+    if (!data || data.length === 0) {
+      console.error('No data returned from cover photo update');
+      throw new Error('No profile found to update');
+    }
+
+    console.log('Cover photo updated successfully:', data[0].cover_photo);
     res.json({ coverPhoto: data[0].cover_photo });
   } catch (error) {
-    console.error('Error uploading cover photo:', error);
-    res.status(500).json({ error: 'Failed to upload cover photo' });
+    console.error('Error uploading cover photo:', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+      error: error
+    });
+    res.status(500).json({ error: 'Failed to upload cover photo', details: error instanceof Error ? error.message : 'Unknown error' });
   }
 });
 
@@ -286,6 +401,29 @@ router.get('/posts/feed', async (req, res) => {
     const usersMap = new Map<string, { id: string; avatar_url?: string | null }>();
     for (const u of usersTbl) usersMap.set(u.id, u);
 
+    // Helper function to normalize image URLs
+    const normalizeImageUrl = (url: string): string => {
+      if (!url) return '';
+      
+      // If it's already a localhost URL, keep it
+      if (url.startsWith('http://localhost:3005/')) return url;
+      
+      // If it's a Supabase URL, extract filename and use local server
+      if (url.includes('supabase.co/storage')) {
+        const filename = url.split('/').pop();
+        return filename ? `http://localhost:3005/uploads/${filename}` : '';
+      }
+      
+      // If it's an external URL, try to extract filename and use local server
+      if (url.includes('http')) {
+        const filename = url.split('/').pop();
+        return filename ? `http://localhost:3005/uploads/${filename}` : '';
+      }
+      
+      // If it's just a filename, add the localhost prefix
+      return `http://localhost:3005/uploads/${url}`;
+    };
+
     // 4) Map posts with images and merged user object
     const mapped = safePosts.map(post => {
       const prof = profileMap.get(post.user_id as string);
@@ -294,11 +432,40 @@ router.get('/posts/feed', async (req, res) => {
 
       const name = prof?.full_name ?? '';
       const username = prof?.username ?? '';
+      
+      // Process images with URL normalization
+      let images: string[] = [];
+      if (typeof post.media_url === 'string' && post.media_url.length > 0) {
+        try {
+          // Try to parse as JSON array first
+          const parsed = JSON.parse(post.media_url);
+          if (Array.isArray(parsed)) {
+            images = parsed
+              .map((url: string) => normalizeImageUrl(url))
+              .filter(Boolean);
+          } else {
+            // Fallback to comma-separated parsing
+            images = post.media_url
+              .split(',')
+              .map((s: string) => s.trim())
+              .filter(Boolean)
+              .map(normalizeImageUrl)
+              .filter(Boolean);
+          }
+        } catch {
+          // If JSON parsing fails, try comma-separated parsing
+          images = post.media_url
+            .split(',')
+            .map((s: string) => s.trim())
+            .filter(Boolean)
+            .map(normalizeImageUrl)
+            .filter(Boolean);
+        }
+      }
+      
       return {
         ...post,
-        images: typeof post.media_url === 'string' && post.media_url.length > 0
-          ? post.media_url.split(',').map((s: string) => s.trim()).filter(Boolean)
-          : [],
+        images,
         user: {
           id: post.user_id,
           name,

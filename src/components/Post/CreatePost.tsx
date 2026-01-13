@@ -186,18 +186,21 @@ const CreatePost: React.FC<CreatePostProps> = ({ onPostCreated }) => {
         </div>
       )}
       <form onSubmit={handleSubmit}>
-        <div className="flex items-start gap-3">
-          <img
-            src={user.avatar || DEFAULT_IMAGES.avatar}
-            alt={user.name}
-            className="w-10 h-10 rounded-full object-cover"
-          />
+        <div className="flex items-start gap-4">
+          <div className="flex-shrink-0">
+            <img
+              src={user.avatar || DEFAULT_IMAGES.avatar}
+              alt={user.name}
+              className="w-12 h-12 rounded-full object-cover border-2 border-orange-500/20 hover:border-orange-500/40 transition-colors"
+              title={`Posting as ${user.name} (@${user.username || 'user'})`}
+            />
+          </div>
           <div className="flex-1">
             <textarea
               value={content}
               onChange={(e) => setContent(e.target.value)}
               onFocus={() => setIsExpanded(true)}
-              placeholder="What's on your mind?"
+              placeholder={`What's on your mind, ${user.name?.split(' ')[0] || 'there'}?`}
               className={`w-full ${isExpanded ? 'rounded-2xl py-3' : 'rounded-2xl py-2'} neo-input px-4 text-white placeholder-gray-400 resize-none focus:outline-none focus:ring-2 focus:ring-orange-500/80 focus:border-orange-500/40`}
               rows={isExpanded ? 3 : 1}
             />
