@@ -64,15 +64,33 @@ interface WebSocketMessage {
 }
 
 class WebSocketManager {
-  private wss: WebSocketServer;
+  private wss: WebSocketServer | null = null;
   private clients: Map<string, WebSocketClient[]> = new Map();
+  private static instance: WebSocketManager | null = null;
 
-  constructor(server: Server) {
+  private constructor() {}
+
+  public static getInstance(): WebSocketManager {
+    if (!WebSocketManager.instance) {
+      WebSocketManager.instance = new WebSocketManager();
+    }
+    return WebSocketManager.instance;
+  }
+
+  public initialize(server: Server) {
+    if (this.wss) {
+      console.warn('WebSocket server already initialized');
+      return;
+    }
+
     this.wss = new WebSocketServer({ server });
     this.setupWebSocket();
+    console.log('✅ WebSocket server initialized');
   }
 
   private setupWebSocket() {
+    if (!this.wss) return;
+
     this.wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
       const wsClient = ws as WebSocketClient;
       try {
@@ -178,4 +196,6 @@ class WebSocketManager {
   }
 }
 
+// Export singleton instance
+export const wsManager = WebSocketManager.getInstance();
 export default WebSocketManager;

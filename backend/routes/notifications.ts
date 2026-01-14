@@ -1,6 +1,7 @@
 import express from 'express';
 import { supabase } from '../config/supabase';
 import { supabaseAuth as auth } from '../middleware/supabaseAuth';
+import { wsManager } from '../websocketManager';
 
 const router = express.Router();
 

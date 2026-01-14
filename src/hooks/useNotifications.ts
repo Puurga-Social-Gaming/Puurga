@@ -3,6 +3,9 @@ import { supabase } from '../lib/supabaseClient';
 import { useUser } from '../context/UserContext';
 import { Notification } from '../types/notification';
 import { RealtimePostgresChangesPayload, RealtimeChannel } from '@supabase/supabase-js';
+import { useWebSocket } from './useWebSocket';
+import api from '../api/api';
+import toast from 'react-hot-toast';
 
 export const useNotifications = () => {
   const { user } = useUser();
@@ -14,19 +17,12 @@ export const useNotifications = () => {
     if (!user) return;
 
     try {
-      const { data, error } = await supabase
-        .from('notifications')
-        .select('*')
-        .eq('receiver_id', user.id)
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        console.error('Error fetching notifications:', error);
-        return;
-      }
-
-      setNotifications(data || []);
-      setUnreadCount(data?.filter((n: Notification) => !n.read).length || 0);
+      // Use API endpoint instead of direct Supabase call for consistency
+      const response = await api.get('/api/notifications');
+      const data = response.data || [];
+      
+      setNotifications(data);
+      setUnreadCount(data.filter((n: any) => !n.read).length);
     } catch (error) {
       console.error('Error fetching notifications:', error);
     }
@@ -36,15 +32,8 @@ export const useNotifications = () => {
     if (!user) return;
 
     try {
-      const { error } = await supabase
-        .from('notifications')
-        .update({ read: true })
-        .in('id', notificationIds);
-
-      if (error) {
-        console.error('Error marking notifications as read:', error);
-        return;
-      }
+      // Use API endpoint for marking as read
+      await api.put('/api/notifications/read', { notificationIds });
 
       // Update local state
       setNotifications(prev =>
@@ -65,16 +54,36 @@ export const useNotifications = () => {
     }
   }, [user]);
 
-  // Set up real-time subscription for notifications
+  // Set up WebSocket for real-time notifications
+  const { isConnected } = useWebSocket({
+    onNotification: (notification) => {
+      console.log('Received live notification:', notification);
+      
+      // Add notification to state
+      setNotifications(prev => [notification, ...prev]);
+      setUnreadCount(prev => prev + 1);
+      
+      // Show toast notification
+      toast.success(`New ${notification.type.replace('_', ' ')}: ${notification.fromUser.name}`, {
+        duration: 4000,
+        position: 'top-right',
+      });
+    },
+    onConnectionChange: (connected) => {
+      console.log('WebSocket connection status:', connected);
+    }
+  });
+
+  // Fallback: Set up Supabase real-time subscription if WebSocket is not connected
   useEffect(() => {
-    if (!user) return;
+    if (!user || isConnected) return;
 
     // Clean up existing subscription if it exists
     if (subscriptionRef.current) {
       subscriptionRef.current.unsubscribe();
     }
 
-    // Create new subscription
+    // Create new subscription as fallback
     subscriptionRef.current = supabase
       .channel('notifications')
       .on(
@@ -100,7 +109,7 @@ export const useNotifications = () => {
         subscriptionRef.current = null;
       }
     };
-  }, [user]);
+  }, [user, isConnected]);
 
   return {
     notifications,

@@ -248,14 +248,16 @@ const Notifications: React.FC = () => {
   }
 
   return (
-    <div className="max-w-3xl mx-auto py-6">
-      <h1 className="text-2xl font-bold text-white mb-6">Notifications</h1>
-      <div className="space-y-2">
-        {notifications.length === 0 ? (
-          <div className="text-center text-gray-400 py-8">No notifications yet</div>
-        ) : (
-          notifications.map(notification => renderNotification(notification))
-        )}
+    <div className="min-h-screen bg-[#0a0a0a] p-6">
+      <div className="max-w-7xl mx-auto space-y-8">
+        <h1 className="text-2xl font-bold text-white">Notifications</h1>
+        <div className="space-y-2">
+          {notifications.length === 0 ? (
+            <div className="text-center text-gray-400 py-8">No notifications yet</div>
+          ) : (
+            notifications.map(notification => renderNotification(notification))
+          )}
+        </div>
       </div>
     </div>
   );

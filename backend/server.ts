@@ -4,7 +4,7 @@ import dotenv from 'dotenv';
 import rateLimit from 'express-rate-limit';
 import { initializeStorage, getUploadPath } from './config/storage';
 import jwt from 'jsonwebtoken';
-import WebSocketManager from './websocket';
+import WebSocketManager from './websocketManager';
 import { createServer } from 'http';
 import authRoutes from './routes/auth';
 import notificationRoutes from './routes/notifications';
@@ -12,6 +12,8 @@ import userRoutes from './routes/users';
 import friendsRoutes from './routes/friends';
 import statusesRoutes from './routes/statuses';
 import postsRoutes from './routes/posts';
+import onlineStatusRoutes from './routes/onlineStatus';
+import testNotificationRoutes from './routes/testNotifications';
 
 dotenv.config();
 
@@ -97,9 +99,19 @@ app.use('/api/statuses', statusesRoutes);
 // Use posts routes
 app.use('/api/posts', postsRoutes);
 
-// Create HTTP server and WebSocket manager
+// Use online status routes
+app.use('/api/status', onlineStatusRoutes);
+
+// Use test notification routes (for development/testing)
+app.use('/api/test', testNotificationRoutes);
+
+// Create HTTP server and initialize WebSocket manager
 const server = createServer(app);
-new WebSocketManager(server);
+const wsManager = WebSocketManager.getInstance();
+wsManager.initialize(server);
+
+// Export wsManager for use in other modules
+export { wsManager };
 
 const startServer = async () => {
   try {

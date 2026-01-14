@@ -73,6 +73,12 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
         .then(res => res.ok ? res.json() : null)
         .then(data => {
           if (data) {
+            console.log('Raw profile data from API:', {
+              avatar: data.avatar,
+              avatar_url: data.avatar_url,
+              cover_photo: data.cover_photo,
+              coverPhoto: data.coverPhoto
+            });
             // Normalize backend profile payload (snake_case) to frontend User shape (camelCase)
             const normalized = {
               id: data.id,
