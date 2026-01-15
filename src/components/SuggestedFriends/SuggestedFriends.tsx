@@ -33,11 +33,35 @@ const SuggestedFriends: React.FC = () => {
   const loadSuggestions = async () => {
     try {
       setLoading(true);
+      
+      // Check if we have a token
+      const token = localStorage.getItem('token');
+      console.log('Token exists:', !!token);
+      
+      if (!token) {
+        console.warn('No authentication token found');
+        setError('Authentication required');
+        return;
+      }
+      
       const response = await api.get('/friends/suggestions');
       setSuggestions(response.data);
+      setError(''); // Clear any previous errors
     } catch (err) {
-      setError('Failed to load suggestions');
-      console.error('Error loading suggestions:', err);
+      const axiosError = err as AxiosError;
+      console.error('Error loading suggestions:', {
+        status: axiosError.response?.status,
+        statusText: axiosError.response?.statusText,
+        data: axiosError.response?.data,
+        message: axiosError.message
+      });
+      
+      if (axiosError.response?.status === 401) {
+        setError('Authentication failed');
+        // Optionally redirect to login or refresh token
+      } else {
+        setError('Failed to load suggestions');
+      }
     } finally {
       setLoading(false);
     }

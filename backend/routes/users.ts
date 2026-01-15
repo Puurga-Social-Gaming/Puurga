@@ -49,8 +49,23 @@ router.get('/profile', auth, async (req: AuthRequest, res) => {
       return res.status(404).json({ error: 'Profile not found' });
     }
 
-    // Return the profile data directly since all data is in profiles table
-    res.json(profile);
+    // Return profile with both snake_case and camelCase for compatibility
+    const responseData = {
+      ...profile,
+      name: profile.full_name,
+      avatar: profile.avatar_url,
+      coverPhoto: profile.cover_photo,
+      email: user.email
+    };
+
+    console.log('Profile fetched with images:', {
+      avatar_url: profile.avatar_url,
+      cover_photo: profile.cover_photo,
+      avatar: responseData.avatar,
+      coverPhoto: responseData.coverPhoto
+    });
+
+    res.json(responseData);
   } catch (error) {
     console.error('Error fetching profile:', error);
     res.status(500).json({ error: 'Failed to fetch profile' });
@@ -154,6 +169,7 @@ router.put('/profile', auth, async (req: AuthRequest, res) => {
     const { id } = req.user;
     const {
       name,
+      username,
       email,
       bio,
       location,
@@ -170,43 +186,83 @@ router.put('/profile', auth, async (req: AuthRequest, res) => {
       storyPrivacy
     } = req.body;
 
+    // Check if username is being changed and if it's already taken
+    if (username && username !== req.user.username) {
+      const { data: existingUsername, error: usernameCheckError } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('username', username.trim().toLowerCase())
+        .neq('id', id)
+        .maybeSingle();
+
+      if (usernameCheckError) {
+        console.error('Error checking username:', usernameCheckError);
+        return res.status(500).json({ error: 'Failed to validate username' });
+      }
+
+      if (existingUsername) {
+        return res.status(400).json({ error: 'Username already taken' });
+      }
+    }
+
     // Update email in the auth.users table if it has changed
     if (email && email !== req.user.email) {
       const { error: userError } = await supabase.auth.admin.updateUserById(id, { email });
       if (userError) {
         console.error('Error updating user email:', userError);
-        // Decide if this should be a critical error
         return res.status(500).json({ error: 'Failed to update email' });
       }
     }
 
     // Update the rest of the profile in the profiles table
+    const updateData: any = {
+      full_name: name,
+      bio,
+      location,
+      website,
+      occupation,
+      education,
+      relationship,
+      is_private: isPrivate,
+      hide_from_suggestions: hideFromSuggestions,
+      message_requests: messageRequests,
+      show_read_receipts: showReadReceipts,
+      show_online_status: showOnlineStatus,
+      comment_privacy: commentPrivacy,
+      story_privacy: storyPrivacy,
+      updated_at: new Date().toISOString(),
+    };
+
+    // Only update username if provided
+    if (username) {
+      updateData.username = username.trim().toLowerCase();
+    }
+
     const { data, error: profileError } = await supabase
       .from('profiles')
-      .update({
-        full_name: name,
-        bio,
-        location,
-        website,
-        occupation,
-        education,
-        relationship,
-        is_private: isPrivate,
-        hide_from_suggestions: hideFromSuggestions,
-        message_requests: messageRequests,
-        show_read_receipts: showReadReceipts,
-        show_online_status: showOnlineStatus,
-        comment_privacy: commentPrivacy,
-        story_privacy: storyPrivacy,
-        updated_at: new Date().toISOString(),
-      })
+      .update(updateData)
       .eq('id', id)
       .select()
       .single();
 
     if (profileError) throw profileError;
 
-    res.json(data);
+    // Return complete profile with both snake_case and camelCase for compatibility
+    const responseData = {
+      ...data,
+      name: data.full_name,
+      avatar: data.avatar_url,
+      coverPhoto: data.cover_photo,
+      email: email || req.user.email
+    };
+
+    console.log('Profile updated successfully:', {
+      username: data.username,
+      full_name: data.full_name,
+      email: responseData.email
+    });
+
+    res.json(responseData);
   } catch (error) {
     console.error('Error updating profile:', error);
     res.status(500).json({ error: 'Failed to update profile' });
@@ -234,7 +290,42 @@ router.put('/profile/avatar', auth, upload.single('avatar'), async (req: AuthReq
     const publicUrl = `http://localhost:3005/uploads/${req.file.filename}`;
     console.log('Generated public URL:', publicUrl);
 
-    console.log('Updating profile with avatar URL...');
+    // First check if profile exists
+    const { data: existingProfile, error: checkError } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (checkError) {
+      console.error('Error checking profile existence:', checkError);
+      throw checkError;
+    }
+
+    if (!existingProfile) {
+      console.log('Profile does not exist, creating one...');
+      // Create profile if it doesn't exist
+      const { data: newProfile, error: createError } = await supabase
+        .from('profiles')
+        .insert({
+          id: id,
+          avatar_url: publicUrl,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+
+      if (createError) {
+        console.error('Error creating profile:', createError);
+        throw createError;
+      }
+
+      console.log('Profile created with avatar:', newProfile.avatar_url);
+      return res.json({ avatar: newProfile.avatar_url });
+    }
+
+    console.log('Updating existing profile with avatar URL...');
     const { data, error } = await supabase
       .from('profiles')
       .update({ avatar_url: publicUrl, updated_at: new Date().toISOString() })
@@ -284,7 +375,42 @@ router.put('/profile/cover-photo', auth, upload.single('coverPhoto'), async (req
     const publicUrl = `http://localhost:3005/uploads/${req.file.filename}`;
     console.log('Generated public URL:', publicUrl);
 
-    console.log('Updating profile with cover photo URL...');
+    // First check if profile exists
+    const { data: existingProfile, error: checkError } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (checkError) {
+      console.error('Error checking profile existence:', checkError);
+      throw checkError;
+    }
+
+    if (!existingProfile) {
+      console.log('Profile does not exist, creating one...');
+      // Create profile if it doesn't exist
+      const { data: newProfile, error: createError } = await supabase
+        .from('profiles')
+        .insert({
+          id: id,
+          cover_photo: publicUrl,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+
+      if (createError) {
+        console.error('Error creating profile:', createError);
+        throw createError;
+      }
+
+      console.log('Profile created with cover photo:', newProfile.cover_photo);
+      return res.json({ coverPhoto: newProfile.cover_photo });
+    }
+
+    console.log('Updating existing profile with cover photo URL...');
     const { data, error } = await supabase
       .from('profiles')
       .update({ cover_photo: publicUrl, updated_at: new Date().toISOString() })
@@ -556,6 +682,251 @@ router.get('/:id/stats', auth, async (req: AuthRequest, res) => {
   } catch (error) {
     console.error('Error fetching user stats:', error);
     res.status(500).json({ error: 'Failed to fetch user stats' });
+  }
+});
+
+// GET /api/users/groups - Get all groups (temporary endpoint)
+router.get('/groups', auth, async (req: AuthRequest, res) => {
+  try {
+    const { data: groups, error } = await supabase
+      .from('groups')
+      .select(`
+        *,
+        profiles!groups_created_by_fkey(username, full_name, avatar_url)
+      `)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    // Get member counts for each group
+    const groupsWithCounts = await Promise.all(
+      (groups || []).map(async (group) => {
+        const { count } = await supabase
+          .from('group_members')
+          .select('*', { count: 'exact', head: true })
+          .eq('group_id', group.id);
+
+        return {
+          ...group,
+          member_count: count || 0,
+          creator: group.profiles
+        };
+      })
+    );
+
+    res.json(groupsWithCounts);
+  } catch (error) {
+    console.error('Error fetching groups:', error);
+    res.status(500).json({ error: 'Failed to fetch groups' });
+  }
+});
+
+// POST /api/users/groups/create - Create new group (temporary endpoint)
+router.post('/groups/create', auth, async (req: AuthRequest, res) => {
+  try {
+    console.log('Creating group with body:', req.body);
+    console.log('User ID:', req.user?.id);
+    
+    const { name, description, is_private = false } = req.body;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      console.error('No user ID found in request');
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+
+    if (!name?.trim()) {
+      return res.status(400).json({ error: 'Group name is required' });
+    }
+
+    console.log('Inserting group into database...');
+    const insertData: any = {
+      name: name.trim(),
+      description: description?.trim() || null,
+      is_private: is_private || false,
+      created_by: userId
+    };
+    console.log('Insert data:', insertData);
+    
+    const { data: group, error } = await supabase
+      .from('groups')
+      .insert(insertData)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Supabase error creating group:', error);
+      throw error;
+    }
+
+    console.log('Group created:', group);
+
+    // Add creator as admin member
+    console.log('Adding creator as admin member...');
+    const { error: memberError } = await supabase
+      .from('group_members')
+      .insert({
+        group_id: group.id,
+        user_id: userId,
+        role: 'admin'
+      });
+
+    if (memberError) {
+      console.error('Supabase error adding member:', memberError);
+      throw memberError;
+    }
+
+    console.log('Group creation complete');
+    res.status(201).json(group);
+  } catch (error: any) {
+    console.error('Error creating group:', error);
+    console.error('Error details:', error?.message, error?.code, error?.details);
+    res.status(500).json({ error: 'Failed to create group', details: error?.message });
+  }
+});
+
+// POST /api/users/groups/:id/join - Join group (temporary endpoint)
+router.post('/groups/:id/join', auth, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user?.id;
+
+    console.log('Join group request - Group ID:', id, 'User ID:', userId);
+
+    if (!userId) {
+      console.error('No user ID found in request');
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+
+    // Check if group exists
+    const { data: group, error: groupError } = await supabase
+      .from('groups')
+      .select('id, is_private')
+      .eq('id', id)
+      .single();
+
+    console.log('Group lookup result:', group, 'Error:', groupError);
+
+    if (groupError || !group) {
+      console.error('Group not found:', id, groupError);
+      return res.status(404).json({ error: 'Group not found' });
+    }
+
+    // Check if user is already a member
+    const { data: existingMember } = await supabase
+      .from('group_members')
+      .select('id')
+      .eq('group_id', id)
+      .eq('user_id', userId)
+      .single();
+
+    if (existingMember) {
+      return res.status(400).json({ error: 'Already a member of this group' });
+    }
+
+    // Add user to group
+    const { data: membership, error } = await supabase
+      .from('group_members')
+      .insert({
+        group_id: id,
+        user_id: userId,
+        role: 'member'
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    res.status(201).json({ message: 'Successfully joined group', membership });
+  } catch (error) {
+    console.error('Error joining group:', error);
+    res.status(500).json({ error: 'Failed to join group' });
+  }
+});
+
+// PUT /api/users/groups/:id/profile-image - Upload group profile image (temporary endpoint)
+router.put('/groups/:id/profile-image', auth, upload.single('profileImage'), async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const { id: userId } = req.user;
+
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    // Check if user is admin of the group
+    const { data: membership, error: memberError } = await supabase
+      .from('group_members')
+      .select('role')
+      .eq('group_id', id)
+      .eq('user_id', userId)
+      .single();
+
+    if (memberError || !membership || membership.role !== 'admin') {
+      return res.status(403).json({ error: 'Only group admins can update images' });
+    }
+
+    const publicUrl = `http://localhost:3005/uploads/${req.file.filename}`;
+
+    const { data: group, error } = await supabase
+      .from('groups')
+      .update({ 
+        profile_image_url: publicUrl,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    res.json({ profileImage: publicUrl, group });
+  } catch (error) {
+    console.error('Error uploading profile image:', error);
+    res.status(500).json({ error: 'Failed to upload profile image' });
+  }
+});
+
+// PUT /api/users/groups/:id/cover-image - Upload group cover image (temporary endpoint)
+router.put('/groups/:id/cover-image', auth, upload.single('coverImage'), async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const { id: userId } = req.user;
+
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    // Check if user is admin of the group
+    const { data: membership, error: memberError } = await supabase
+      .from('group_members')
+      .select('role')
+      .eq('group_id', id)
+      .eq('user_id', userId)
+      .single();
+
+    if (memberError || !membership || membership.role !== 'admin') {
+      return res.status(403).json({ error: 'Only group admins can update images' });
+    }
+
+    const publicUrl = `http://localhost:3005/uploads/${req.file.filename}`;
+
+    const { data: group, error } = await supabase
+      .from('groups')
+      .update({ 
+        cover_image_url: publicUrl,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    res.json({ coverImage: publicUrl, group });
+  } catch (error) {
+    console.error('Error uploading cover image:', error);
+    res.status(500).json({ error: 'Failed to upload cover image' });
   }
 });
 

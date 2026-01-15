@@ -60,7 +60,7 @@ const Notifications: React.FC = () => {
   const handleAcceptFriendRequest = async (friendRequestId: string, notificationId: string) => {
     try {
       await api.post(`/api/friend-requests/${friendRequestId}/accept`);
-      await api.put(`/api/notifications/${notificationId}/read`);
+      await api.put(`/api/notifications/read`, { notificationIds: [notificationId] });
       toast.success('Friend request accepted');
       fetchNotifications();
     } catch (error) {
@@ -72,7 +72,7 @@ const Notifications: React.FC = () => {
   const handleRejectFriendRequest = async (friendRequestId: string, notificationId: string) => {
     try {
       await api.post(`/api/friend-requests/${friendRequestId}/reject`);
-      await api.put(`/api/notifications/${notificationId}/read`);
+      await api.put(`/api/notifications/read`, { notificationIds: [notificationId] });
       toast.success('Friend request rejected');
       fetchNotifications();
     } catch (error) {

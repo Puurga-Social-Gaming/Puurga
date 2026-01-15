@@ -3,10 +3,21 @@ import { Outlet } from 'react-router-dom';
 import MainNav from './Navigation/MainNav';
 import RightSidebar from './Sidebar/RightSidebar';
 import SuggestedFriends from '../components/SuggestedFriends/SuggestedFriends';
+import GhostModeOverlay from './GhostMode/GhostModeOverlay';
+import { useGhostMode } from '../hooks/useGhostMode';
 
 const Layout: React.FC = () => {
+  const { isGhost, purgeCount, ghostedAt, loading } = useGhostMode();
+
   return (
     <div className="flex min-h-screen bg-black text-white overflow-hidden">
+      {/* Ghost Mode Overlay */}
+      {!loading && isGhost && ghostedAt && (
+        <GhostModeOverlay
+          purgeCount={purgeCount}
+          ghostedAt={ghostedAt}
+        />
+      )}
       {/* Left Sidebar - Hidden on mobile, visible on large screens */}
       <div className="hidden lg:flex lg:flex-shrink-0 lg:w-[220px] xl:w-[240px]">
         <div className="fixed left-0 top-0 bottom-0 w-[220px] xl:w-[240px] bg-black border-r border-gray-800 overflow-y-auto z-40">

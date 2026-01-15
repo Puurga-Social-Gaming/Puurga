@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { SmilePlus } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import api from '../../lib/axios';
+import { useUser } from '../../context/UserContext';
 import type { ReactionCount } from '../../types';
 
 interface PostReactionsProps {
@@ -25,9 +26,24 @@ const PostReactions: React.FC<PostReactionsProps> = ({
   initialReactions,
   onReactionChange
 }) => {
+  const { user } = useUser();
   const [showPicker, setShowPicker] = useState(false);
   const [reactions, setReactions] = useState<{ [key: string]: ReactionCount }>(initialReactions || {});
   const [isLoading, setIsLoading] = useState(false);
+  const [userReaction, setUserReaction] = useState<string | null>(null);
+
+  // Find user's current reaction
+  useEffect(() => {
+    if (!user) return;
+    
+    for (const [type, data] of Object.entries(reactions)) {
+      if (data.users.some(u => u.id === user.id)) {
+        setUserReaction(type);
+        return;
+      }
+    }
+    setUserReaction(null);
+  }, [reactions, user]);
 
   const handleReaction = async (type: string) => {
     if (isLoading) return;
@@ -38,6 +54,17 @@ const PostReactions: React.FC<PostReactionsProps> = ({
       setReactions(response.data);
       onReactionChange?.(response.data);
       setShowPicker(false);
+      
+      // Update user's reaction
+      if (user) {
+        for (const [reactionType, data] of Object.entries(response.data as { [key: string]: ReactionCount })) {
+          if (data.users.some((u: any) => u.id === user.id)) {
+            setUserReaction(reactionType);
+            return;
+          }
+        }
+        setUserReaction(null);
+      }
     } catch {
       toast.error('Failed to add reaction');
     } finally {
@@ -49,87 +76,95 @@ const PostReactions: React.FC<PostReactionsProps> = ({
     return Object.values(reactions).reduce((sum, reaction) => sum + reaction.count, 0);
   };
 
-  const getTopReactions = () => {
-    return Object.entries(reactions)
-      .map(([type, data]) => ({
-        type,
-        count: data.count,
-        users: data.users
-      }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 3);
+  const getUserReactionEmoji = () => {
+    if (!userReaction) return null;
+    return REACTIONS.find(r => r.name === userReaction)?.emoji;
+  };
+
+  const getUserReactionCount = () => {
+    if (!userReaction || !reactions[userReaction]) return 0;
+    return reactions[userReaction].count;
   };
 
   return (
     <div className="relative">
-      {/* Quick Reaction Bar */}
+      {/* Main Reaction Button */}
       <div className="flex items-center gap-2">
-        {getTopReactions().map((reaction) => (
-          <motion.button
-            key={reaction.type}
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.9 }}
-            onClick={() => handleReaction(reaction.type)}
-            className="p-1 hover:bg-white/5 rounded-full transition-colors relative group"
-          >
-            <span className="text-lg">{REACTIONS.find(r => r.name === reaction.type)?.emoji}</span>
-            <span className="text-xs text-gray-400 ml-1">{reaction.count}</span>
-            
-            {/* Tooltip */}
-            <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-[#2d2d2d] rounded-lg text-sm text-white whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
-              {reaction.users.slice(0, 3).map(user => user.name).join(', ')}
-              {reaction.users.length > 3 && ` and ${reaction.users.length - 3} others`}
-            </div>
-          </motion.button>
-        ))}
-
-        {/* Add Reaction Button */}
         <motion.button
           whileHover={{ scale: 1.1 }}
           whileTap={{ scale: 0.9 }}
-          onClick={() => setShowPicker(true)}
-          className="p-1 text-gray-400 hover:text-white hover:bg-white/5 rounded-full transition-colors"
+          onClick={() => setShowPicker(!showPicker)}
+          className={`flex items-center gap-1 transition-colors ${
+            userReaction 
+              ? 'text-orange-500 hover:text-orange-400' 
+              : 'text-gray-400 hover:text-white'
+          }`}
         >
-          <SmilePlus size={20} />
+          {userReaction ? (
+            <>
+              <span className="text-lg">{getUserReactionEmoji()}</span>
+              <span className="text-sm">{getUserReactionCount()}</span>
+            </>
+          ) : (
+            <>
+              <SmilePlus size={20} />
+              {getTotalReactions() > 0 && (
+                <span className="text-sm">{getTotalReactions()}</span>
+              )}
+            </>
+          )}
         </motion.button>
-
-        {/* Total Reactions Count */}
-        {getTotalReactions() > 0 && (
-          <span className="text-sm text-gray-400">
-            {getTotalReactions()}
-          </span>
-        )}
       </div>
 
       {/* Reaction Picker */}
       <AnimatePresence>
         {showPicker && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 10 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 10 }}
-            className="absolute bottom-full left-0 mb-2 p-2 bg-[#2d2d2d] rounded-lg shadow-lg z-50 flex gap-1"
-          >
-            {REACTIONS.map((reaction) => (
-              <motion.button
-                key={reaction.name}
-                whileHover={{ scale: 1.2 }}
-                whileTap={{ scale: 0.9 }}
-                onClick={() => handleReaction(reaction.name)}
-                className="p-2 hover:bg-white/5 rounded-full transition-colors relative group"
-                disabled={isLoading}
-              >
-                <span className="text-xl">{reaction.emoji}</span>
-                <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-1 px-2 py-0.5 bg-black/90 rounded text-xs text-white whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
-                  {reaction.label}
-                </div>
-              </motion.button>
-            ))}
-          </motion.div>
+          <>
+            {/* Backdrop to close picker */}
+            <div 
+              className="fixed inset-0 z-40" 
+              onClick={() => setShowPicker(false)}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="absolute bottom-full left-0 mb-2 p-2 bg-[#2d2d2d] rounded-lg shadow-lg z-50 flex gap-1"
+            >
+              {REACTIONS.map((reaction) => {
+                const reactionData = reactions[reaction.name];
+                const count = reactionData?.count || 0;
+                const isUserReaction = userReaction === reaction.name;
+                
+                return (
+                  <motion.button
+                    key={reaction.name}
+                    whileHover={{ scale: 1.2 }}
+                    whileTap={{ scale: 0.9 }}
+                    onClick={() => handleReaction(reaction.name)}
+                    className={`p-2 hover:bg-white/5 rounded-full transition-colors relative group ${
+                      isUserReaction ? 'bg-orange-500/20' : ''
+                    }`}
+                    disabled={isLoading}
+                  >
+                    <span className="text-xl">{reaction.emoji}</span>
+                    {count > 0 && (
+                      <span className="absolute -top-1 -right-1 bg-orange-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">
+                        {count}
+                      </span>
+                    )}
+                    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-1 px-2 py-0.5 bg-black/90 rounded text-xs text-white whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
+                      {reaction.label}
+                    </div>
+                  </motion.button>
+                );
+              })}
+            </motion.div>
+          </>
         )}
       </AnimatePresence>
     </div>
   );
 };
 
-export default PostReactions; 
+export default PostReactions;

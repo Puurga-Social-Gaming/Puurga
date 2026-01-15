@@ -1,14 +1,16 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { MessageCircle, Share2, MoreHorizontal, Award, Pencil, X, Trash2 } from 'lucide-react';
+import { MessageCircle, MoreHorizontal, Pencil, X } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'react-hot-toast';
 import type { Post as PostType, ReactionCount } from '../../types';
 import { useUser } from '../../context/UserContext';
-import api from '../../api/api';
+import api from '../../lib/axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import CommentSection from '../Comment/CommentSection';
 import PostReactions from './PostReactions';
+import ShareButton from './ShareButton';
+import PuurgaLogo from '../Icons/PuurgaLogo';
 
 interface PostProps {
   post: PostType;
@@ -19,15 +21,14 @@ const Post: React.FC<PostProps> = ({ post, onUpdate }) => {
   const { user } = useUser();
   const [isEditing, setIsEditing] = useState(false);
   const [editedContent, setEditedContent] = useState(post.content);
-  const [isPuurging, setIsPuurging] = useState(false);
-  const [localPuurgas, setLocalPuurgas] = useState(post.puurgas);
-  const [isPuurged, setIsPuurged] = useState(post.puurged || false);
   const [isPurging, setIsPurging] = useState(false);
   const [localPurges, setLocalPurges] = useState(post.purges || 0);
   const [isPurged, setIsPurged] = useState(post.purged || false);
   const [showMenu, setShowMenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const [showComments, setShowComments] = useState(false);
+  const [commentCount, setCommentCount] = useState(post.comments || 0);
+  const commentSectionRef = useRef<HTMLDivElement>(null);
 
   const isPostCreator = user?.id === post.user.id;
 
@@ -35,6 +36,11 @@ const Post: React.FC<PostProps> = ({ post, onUpdate }) => {
     const handleClickOutside = (event: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
         setShowMenu(false);
+      }
+      
+      // Close comments if clicking outside the comment section
+      if (commentSectionRef.current && !commentSectionRef.current.contains(event.target as Node)) {
+        setShowComments(false);
       }
     };
 
@@ -54,7 +60,7 @@ const Post: React.FC<PostProps> = ({ post, onUpdate }) => {
 
   const handleSaveEdit = async () => {
     try {
-      const response = await api.put(`/posts/${post.id}`, {
+      const response = await api.put(`/api/posts/${post.id}`, {
         content: editedContent
       });
       
@@ -83,34 +89,28 @@ const Post: React.FC<PostProps> = ({ post, onUpdate }) => {
     setShowComments(!showComments);
   };
 
-  const handlePuurgeClick = async () => {
-    if (isPuurging) return;
-    
-    try {
-      setIsPuurging(true);
-      const response = await api.post(`/posts/${post.id}/puurga`);
-      setLocalPuurgas(response.data.puurgas);
-      setIsPuurged(!isPuurged);
-      if (onUpdate) onUpdate({
-        ...post,
-        puurgas: response.data.puurgas,
-        puurged: response.data.puurged
-      });
-    } catch (error) {
-      console.error('Error puurging post:', error);
-      toast.error('Failed to puurga post');
-    } finally {
-      setIsPuurging(false);
+  const handleCommentUpdate = (updatedPost: PostType) => {
+    // Update comment count when comments change
+    if (updatedPost.comments !== undefined) {
+      setCommentCount(updatedPost.comments);
+    }
+    if (onUpdate) {
+      onUpdate(updatedPost);
     }
   };
 
   const handleDeletePost = async () => {
+    if (!window.confirm('Are you sure you want to delete this post?')) {
+      return;
+    }
+    
     try {
-      const response = await api.delete(`/posts/${post.id}`);
+      const response = await api.delete(`/api/posts/${post.id}`);
       
       if (response.status === 200) {
         toast.success('Post deleted successfully');
-        if (onUpdate) onUpdate(post);
+        // Signal parent to remove this post from the list
+        if (onUpdate) onUpdate({ ...post, deleted: true } as PostType);
       }
     } catch (error) {
       console.error('Error deleting post:', error);
@@ -123,7 +123,7 @@ const Post: React.FC<PostProps> = ({ post, onUpdate }) => {
     
     try {
       setIsPurging(true);
-      const response = await api.post(`/posts/${post.id}/purge`);
+      const response = await api.post(`/api/posts/${post.id}/purge`);
       
       const newPurgeCount = response.data.purges;
       const newPurgedState = response.data.purged;
@@ -137,7 +137,7 @@ const Post: React.FC<PostProps> = ({ post, onUpdate }) => {
           duration: 4000
         });
       } else {
-        toast.success(newPurgedState ? 'Post purged' : 'Purge removed');
+        toast.success(newPurgedState ? '🔥 Post purged!' : 'Purge removed');
       }
       
       if (onUpdate) onUpdate({
@@ -145,9 +145,23 @@ const Post: React.FC<PostProps> = ({ post, onUpdate }) => {
         purges: newPurgeCount,
         purged: newPurgedState
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error purging post:', error);
-      toast.error('Failed to purge post');
+      
+      // Handle specific error cases
+      if (error.response?.status === 403 && error.response?.data?.code === 'OWN_POST') {
+        toast.error('🚫 You cannot purge your own posts', {
+          duration: 3000
+        });
+      } else if (error.response?.data?.message) {
+        toast.error(error.response.data.message, {
+          duration: 3000
+        });
+      } else if (error.message) {
+        toast.error(error.message);
+      } else {
+        toast.error('Failed to purge post');
+      }
     } finally {
       setIsPurging(false);
     }
@@ -314,16 +328,14 @@ const Post: React.FC<PostProps> = ({ post, onUpdate }) => {
               type="button"
             >
               <MessageCircle size={20} className={showComments ? 'text-blue-500' : ''} />
-              <span className="text-sm">{post.comments}</span>
+              <span className="text-sm">{commentCount}</span>
             </motion.button>
             
-            <motion.button 
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.9 }}
-              className="flex items-center gap-1 text-gray-400 hover:text-green-500 transition-colors"
-            >
-              <Share2 size={20} />
-            </motion.button>
+            <ShareButton
+              postId={post.id}
+              postContent={post.content}
+              postAuthor={post.user.name}
+            />
 
             <motion.button
               whileHover={{ scale: 1.1 }}
@@ -331,24 +343,12 @@ const Post: React.FC<PostProps> = ({ post, onUpdate }) => {
               onClick={handlePurgeClick}
               disabled={isPurging}
               className={`flex items-center gap-1 transition-colors ${
-                isPurged ? 'text-red-500' : 'text-gray-400 hover:text-red-500'
+                isPurged ? 'text-orange-500' : 'text-gray-400 hover:text-orange-500'
               } ${isPurging ? 'opacity-50 cursor-not-allowed' : ''}`}
               title="Purge post"
             >
-              <Trash2 size={20} />
+              <PuurgaLogo size={20} />
               <span className="text-sm">{localPurges}</span>
-            </motion.button>
-
-            <motion.button
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.9 }}
-              onClick={handlePuurgeClick}
-              className={`flex items-center gap-1 transition-colors ${
-                isPuurged ? 'text-orange-500' : 'text-gray-400 hover:text-orange-500'
-              }`}
-            >
-              <Award size={20} />
-              <span className="text-sm">{localPuurgas}</span>
             </motion.button>
           </div>
 
@@ -356,6 +356,7 @@ const Post: React.FC<PostProps> = ({ post, onUpdate }) => {
           <AnimatePresence>
             {showComments && (
               <motion.div
+                ref={commentSectionRef}
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
@@ -365,7 +366,8 @@ const Post: React.FC<PostProps> = ({ post, onUpdate }) => {
                 <CommentSection
                   postId={post.id}
                   comments={post.Comments || []}
-                  onUpdate={onUpdate}
+                  onUpdate={handleCommentUpdate}
+                  onCommentCountChange={setCommentCount}
                 />
               </motion.div>
             )}

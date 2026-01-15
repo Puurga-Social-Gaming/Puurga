@@ -18,7 +18,7 @@ export const useNotifications = () => {
 
     try {
       // Use API endpoint instead of direct Supabase call for consistency
-      const response = await api.get('/api/notifications');
+      const response = await api.get('/notifications');
       const data = response.data || [];
       
       setNotifications(data);
@@ -33,7 +33,7 @@ export const useNotifications = () => {
 
     try {
       // Use API endpoint for marking as read
-      await api.put('/api/notifications/read', { notificationIds });
+      await api.put('/notifications/read', { notificationIds });
 
       // Update local state
       setNotifications(prev =>

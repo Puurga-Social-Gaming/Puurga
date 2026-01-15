@@ -103,6 +103,22 @@
   will-change: transform;
 }
 
+/* On desktop, position between sidebars */
+@media (min-width: 1024px) {
+  .neo-sticky {
+    left: 220px; /* Left sidebar width */
+    right: 260px; /* Right sidebar width */
+    width: auto;
+  }
+}
+
+@media (min-width: 1280px) {
+  .neo-sticky {
+    left: 240px; /* Left sidebar width on xl screens */
+    right: 300px; /* Right sidebar width on xl screens */
+  }
+}
+
 /* On larger screens, still cover full width but center content */
 @media (min-width: 640px) {
   .neo-sticky {
@@ -132,6 +148,22 @@
     rgba(11, 11, 11, 0) 100%
   );
   transform: translateZ(0);
+}
+
+/* On desktop, position fade between sidebars */
+@media (min-width: 1024px) {
+  .neo-home .neo-top-fade {
+    left: 220px; /* Left sidebar width */
+    right: 260px; /* Right sidebar width */
+    width: auto;
+  }
+}
+
+@media (min-width: 1280px) {
+  .neo-home .neo-top-fade {
+    left: 240px; /* Left sidebar width on xl screens */
+    right: 300px; /* Right sidebar width on xl screens */
+  }
 }
 
 /* Enhanced mask fade at the very top of the feed */

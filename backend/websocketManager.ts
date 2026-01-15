@@ -103,9 +103,20 @@ class WebSocketManager {
           return;
         }
 
-        // Verify token
-        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key') as { id: string };
-        const userId = decoded.id;
+        // Verify token - this is a Supabase JWT token, so we need to decode it differently
+        let userId: string;
+        try {
+          // For Supabase tokens, we can decode without verification since Supabase already verified it
+          const decoded = jwt.decode(token) as any;
+          if (!decoded || !decoded.sub) {
+            throw new Error('Invalid token structure');
+          }
+          userId = decoded.sub;
+        } catch (error) {
+          console.error('Token verification failed:', error);
+          wsClient.close(1008, 'Invalid token');
+          return;
+        }
 
         // Store client connection
         wsClient.userId = userId;

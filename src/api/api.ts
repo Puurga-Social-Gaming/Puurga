@@ -19,7 +19,7 @@ const getToken = () => {
 };
 
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: 'http://localhost:3005/api',
 });
 
 api.interceptors.request.use(
@@ -27,10 +27,34 @@ api.interceptors.request.use(
     const token = getToken();
     if (token) {
       config.headers['Authorization'] = `Bearer ${token}`;
+      console.log('API Request with token:', {
+        url: config.url,
+        method: config.method,
+        hasToken: !!token,
+        tokenPreview: token.substring(0, 20) + '...'
+      });
+    } else {
+      console.warn('API Request WITHOUT token:', {
+        url: config.url,
+        method: config.method
+      });
     }
     return config;
   },
   (error) => {
+    return Promise.reject(error);
+  }
+);
+
+// Add response interceptor to handle 401 errors
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      console.error('401 Unauthorized - Token may be invalid or expired');
+      console.log('Current token in localStorage:', localStorage.getItem('token')?.substring(0, 20) + '...');
+      console.log('Current user in localStorage:', localStorage.getItem('user'));
+    }
     return Promise.reject(error);
   }
 );

@@ -18,6 +18,7 @@ import PurgaGames from './pages/PurgaGames/PurgaGames';
 import ErrorBoundary from './components/ErrorBoundary';
 import Settings from './pages/Settings/Settings';
 import Groups from './pages/Groups';
+import GroupDetail from './pages/GroupDetail';
 import Help from './pages/Help';
 import { UserProvider } from './context/UserContext';
 import UserProfile from './pages/UserProfile';
@@ -25,6 +26,7 @@ import UserList from './pages/Admin/UserList';
 import SuperAdmin from './pages/SuperAdmin/SuperAdmin';
 import ProtectedRoute from './components/ProtectedRoute/index.tsx';
 import { NotificationProvider } from './context/NotificationContext';
+import { NotificationsProvider } from './context/NotificationsContext';
 import { MessagesProvider } from './context/MessagesContext';
 import Layout from './components/Layout';
 import 'leaflet/dist/leaflet.css';
@@ -51,6 +53,7 @@ const router = createBrowserRouter(
         <Route path="/notifications" element={<Notifications />} />
         <Route path="/messages" element={<Messages />} />
         <Route path="/groups" element={<Groups />} />
+        <Route path="/groups/:id" element={<GroupDetail />} />
         <Route path="/puurga-games" element={<PurgaGames />} />
         <Route path="/puurga-dashboard" element={<PuurgaDashboard />} />
         <Route path="/help" element={<Help />} />
@@ -74,32 +77,34 @@ const App: React.FC = () => {
       <ErrorBoundary>
         <UserProvider>
           <NotificationProvider>
-            <MessagesProvider>
-              <Toaster
-                position="top-right"
-                toastOptions={{
-                  duration: 4000,
-                  style: {
-                    background: 'var(--card)',
-                    color: 'var(--fg)',
-                    border: '1px solid var(--border)',
-                  },
-                  success: {
-                    iconTheme: {
-                      primary: '#22c55e',
-                      secondary: '#fff',
+            <NotificationsProvider>
+              <MessagesProvider>
+                <Toaster
+                  position="top-right"
+                  toastOptions={{
+                    duration: 4000,
+                    style: {
+                      background: 'var(--card)',
+                      color: 'var(--fg)',
+                      border: '1px solid var(--border)',
                     },
-                  },
-                  error: {
-                    iconTheme: {
-                      primary: '#ef4444',
-                      secondary: '#fff',
+                    success: {
+                      iconTheme: {
+                        primary: '#22c55e',
+                        secondary: '#fff',
+                      },
                     },
-                  },
-                }}
-              />
-              <RouterProvider router={router} />
-            </MessagesProvider>
+                    error: {
+                      iconTheme: {
+                        primary: '#ef4444',
+                        secondary: '#fff',
+                      },
+                    },
+                  }}
+                />
+                <RouterProvider router={router} />
+              </MessagesProvider>
+            </NotificationsProvider>
           </NotificationProvider>
         </UserProvider>
       </ErrorBoundary>

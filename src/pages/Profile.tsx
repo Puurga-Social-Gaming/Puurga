@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { MapPin, Link2, Calendar, Shield, Trophy, Users, Zap, Flame, Loader2, AlertCircle, Camera, Briefcase, GraduationCap, Heart, Settings, Gamepad2 } from 'lucide-react';
+import { MapPin, Link2, Calendar, Trophy, Flame, Loader2, AlertCircle, Camera, Briefcase, GraduationCap, Heart, Settings, Gamepad2 } from 'lucide-react';
 import { useUser } from '../context/UserContext';
-import api from '../api/api';
+import api from '../lib/axios';
 import toast from 'react-hot-toast';
+import PurgasTab from '../components/Profile/PurgasTab';
 
 type ProfileTab = 'posts' | 'puurgas' | 'achievements' | 'gaming' | 'settings';
 
@@ -11,9 +12,10 @@ const Profile: React.FC = () => {
   const { user: profileData, updateUser, loading } = useUser();
   const profilePictureRef = useRef<HTMLInputElement>(null);
   const coverPhotoRef = useRef<HTMLInputElement>(null);
-  const [showChangeButtons, setShowChangeButtons] = useState(true);
+  const [isEditMode, setIsEditMode] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
+    username: '',
     email: '',
     bio: '',
     location: '',
@@ -34,6 +36,7 @@ const Profile: React.FC = () => {
     if (profileData) {
       setFormData({
         name: profileData.name || '',
+        username: profileData.username || '',
         email: profileData.email || '',
         bio: profileData.bio || '',
         location: profileData.location || '',
@@ -88,7 +91,7 @@ const Profile: React.FC = () => {
     const fieldName = type === 'profile' ? 'avatar' : 'coverPhoto';
     formData.append(fieldName, file);
 
-    const endpoint = type === 'profile' ? '/users/profile/avatar' : '/users/profile/cover-photo';
+    const endpoint = type === 'profile' ? '/api/users/profile/avatar' : '/api/users/profile/cover-photo';
     const toastId = toast.loading(`Uploading ${type} photo...`);
 
     try {
@@ -105,9 +108,14 @@ const Profile: React.FC = () => {
       
       updateUser(updatedData);
 
-      // Store in localStorage for persistence
+      // Store in localStorage for persistence with both frontend and backend field names
       const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
-      const updatedUser = { ...currentUser, ...updatedData };
+      const updatedUser = { 
+        ...currentUser, 
+        ...updatedData,
+        // Also store backend field names for consistency
+        ...(type === 'profile' ? { avatar_url: response.data.avatar } : { cover_photo: response.data.coverPhoto })
+      };
       localStorage.setItem('user', JSON.stringify(updatedUser));
 
       toast.success(`${type.charAt(0).toUpperCase() + type.slice(1)} photo updated!`, { id: toastId });
@@ -120,17 +128,65 @@ const Profile: React.FC = () => {
   const handleSave = async () => {
     const toastId = toast.loading('Updating profile...');
     try {
-      console.log('Saving profile with data:', formData);
-      const response = await api.put('/users/profile', formData);
-      console.log('Profile update response:', response.data);
-      updateUser(response.data);
-      setShowChangeButtons(false);
-      toast.success('Profile updated successfully!', { id: toastId });
+      console.log('Saving profile with data:', {
+        name: formData.name,
+        username: formData.username,
+        email: formData.email
+      });
+      const response = await api.put('/api/users/profile', formData);
+      console.log('Profile update response:', {
+        username: response.data.username,
+        full_name: response.data.full_name,
+        name: response.data.name
+      });
       
-      // Show change buttons again after 3 seconds
-      setTimeout(() => {
-        setShowChangeButtons(true);
-      }, 3000);
+      // Map backend response to frontend User format
+      const updatedUserData = {
+        name: response.data.full_name || response.data.name || formData.name,
+        username: response.data.username || formData.username,
+        email: response.data.email || formData.email,
+        bio: response.data.bio,
+        location: response.data.location,
+        website: response.data.website,
+        occupation: response.data.occupation,
+        education: response.data.education,
+        relationship: response.data.relationship,
+        isPrivate: response.data.is_private,
+        hideFromSuggestions: response.data.hide_from_suggestions,
+        messageRequests: response.data.message_requests,
+        showReadReceipts: response.data.show_read_receipts,
+        showOnlineStatus: response.data.show_online_status,
+        commentPrivacy: response.data.comment_privacy,
+        storyPrivacy: response.data.story_privacy,
+      };
+      
+      console.log('Updating user context with:', {
+        username: updatedUserData.username,
+        name: updatedUserData.name
+      });
+      
+      // Update user context
+      updateUser(updatedUserData);
+      
+      // Update localStorage with complete data
+      const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+      const updatedStoredUser = {
+        ...currentUser,
+        ...response.data,
+        // Ensure both formats are stored
+        full_name: response.data.full_name || formData.name,
+        name: response.data.full_name || formData.name,
+        username: response.data.username || formData.username,
+        email: response.data.email || formData.email,
+      };
+      localStorage.setItem('user', JSON.stringify(updatedStoredUser));
+      
+      console.log('Profile save complete. Username should now be:', updatedUserData.username);
+      
+      // Exit edit mode after successful save
+      setIsEditMode(false);
+      
+      toast.success('Profile updated successfully!', { id: toastId });
     } catch (error) {
       console.error('Failed to update profile:', error);
       toast.error('Failed to update profile.', { id: toastId });
@@ -154,24 +210,17 @@ const Profile: React.FC = () => {
     );
   }
 
-  const ACHIEVEMENTS = [
-    { icon: <Trophy className="text-yellow-500" size={20} />, name: 'Mzansi Pioneer', description: 'Early adopter in South Africa' },
-    { icon: <Flame className="text-orange-500" size={20} />, name: 'Local Legend', description: 'Top trending in SA' },
-    { icon: <Users className="text-orange-500" size={20} />, name: 'Ubuntu Builder', description: 'Created thriving local groups' },
-    { icon: <Zap className="text-purple-500" size={20} />, name: 'African Innovator', description: 'Leading tech contributor' }
-  ];
-
   return (
-    <div className="bg-black text-white w-full overflow-x-hidden">
+    <div className="bg-black text-white min-h-screen">
       {/* Cover Image - Full width at top */}
       <div 
-        className="w-full h-32 md:h-48 bg-cover bg-center relative overflow-hidden"
+        className="w-full h-32 md:h-48 bg-cover bg-center relative"
         style={{
           backgroundImage: profileData.coverPhoto ? `url(${profileData.coverPhoto})` : undefined,
           backgroundColor: '#2d2d2d'
         }}
       >
-        {showChangeButtons && (
+        {isEditMode && (
           <button
             onClick={() => coverPhotoRef.current?.click()}
             className="absolute bottom-4 right-4 bg-white/10 backdrop-blur-sm text-white px-4 py-2 rounded-lg hover:bg-white/20 transition-colors flex items-center gap-2 z-10"
@@ -190,32 +239,30 @@ const Profile: React.FC = () => {
       </div>
 
       {/* Profile Header */}
-      <div className="w-full p-4 sm:p-6 border-b border-gray-800 overflow-hidden">
-        <div className="relative">
-          {/* Profile Picture */}
-          <div className="absolute -top-12 left-4 z-20">
-            <div className="relative">
-              <img 
-                src={profileData.avatar || '/default-avatar.png'}
-                alt={profileData.name}
-                className="w-24 h-24 rounded-full border-4 border-black object-cover bg-[#2d2d2d] relative z-20"
-              />
-              {showChangeButtons && (
-                <button
-                  onClick={() => profilePictureRef.current?.click()}
-                  className="absolute bottom-2 right-2 bg-white/10 backdrop-blur-sm p-2 rounded-full hover:bg-white/20 transition-colors z-30"
-                >
-                  <Camera size={20} className="text-white" />
-                </button>
-              )}
-              <input
-                type="file"
-                ref={profilePictureRef}
-                onChange={(e) => handleImageUpload(e, 'profile')}
-                accept="image/*"
-                className="hidden"
-              />
-            </div>
+      <div className="w-full p-4 sm:p-6 bg-black relative">
+        {/* Profile Picture - Positioned to overlap cover */}
+        <div className="absolute -top-12 left-4 z-30">
+          <div className="relative">
+            <img 
+              src={profileData.avatar || '/default-avatar.png'}
+              alt={profileData.name}
+              className="w-24 h-24 rounded-full border-4 border-black object-cover bg-[#2d2d2d]"
+            />
+            {isEditMode && (
+              <button
+                onClick={() => profilePictureRef.current?.click()}
+                className="absolute bottom-2 right-2 bg-white/10 backdrop-blur-sm p-2 rounded-full hover:bg-white/20 transition-colors z-40"
+              >
+                <Camera size={20} className="text-white" />
+              </button>
+            )}
+            <input
+              type="file"
+              ref={profilePictureRef}
+              onChange={(e) => handleImageUpload(e, 'profile')}
+              accept="image/*"
+              className="hidden"
+            />
           </div>
         </div>
 
@@ -302,12 +349,6 @@ const Profile: React.FC = () => {
             onClick={() => setActiveTab('puurgas')} 
           />
           <TabButton 
-            label="Achievements" 
-            icon={<Shield size={18} />} 
-            isActive={activeTab === 'achievements'} 
-            onClick={() => setActiveTab('achievements')} 
-          />
-          <TabButton 
             label="Gaming" 
             icon={<Gamepad2 size={18} />} 
             isActive={activeTab === 'gaming'} 
@@ -322,20 +363,7 @@ const Profile: React.FC = () => {
         </div>
         <div className="p-2 sm:p-4 min-h-[300px] w-full overflow-hidden">
           {activeTab === 'posts' && <div className="text-center text-gray-500 py-8">No posts yet.</div>}
-          {activeTab === 'puurgas' && <div className="text-center text-gray-500 py-8">No Puurgas yet.</div>}
-          {activeTab === 'achievements' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {ACHIEVEMENTS.map((achievement, index) => (
-                <div key={index} className="bg-black p-4 border border-gray-800 flex items-center gap-3">
-                  {achievement.icon}
-                  <div>
-                    <h4 className="font-medium text-white">{achievement.name}</h4>
-                    <p className="text-sm text-gray-400">{achievement.description}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+          {activeTab === 'puurgas' && <PurgasTab />}
           {activeTab === 'gaming' && (
             <div className="space-y-4">
               <div className="text-center text-gray-500 py-4">
@@ -344,13 +372,24 @@ const Profile: React.FC = () => {
                 <p className="text-gray-400">Your gaming achievements and progress will appear here.</p>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="bg-black p-4 rounded-lg border border-gray-800">
-                  <h4 className="font-medium text-white mb-2">Sword of Judgment</h4>
-                  <p className="text-sm text-gray-400 mb-2">High Score: 0</p>
+                <button 
+                  onClick={() => window.location.href = '/puurga-games/sword-of-judgment'}
+                  className="bg-black p-4 rounded-lg border border-gray-800 hover:border-orange-500 transition-colors cursor-pointer text-left group"
+                >
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-red-600 rounded-lg flex items-center justify-center">
+                      <span className="text-white font-bold text-lg">⚔️</span>
+                    </div>
+                    <div>
+                      <h4 className="font-medium text-white group-hover:text-orange-500 transition-colors">Sword of Judgment</h4>
+                      <p className="text-sm text-gray-400">Click to play</p>
+                    </div>
+                  </div>
+                  <p className="text-sm text-gray-400 mb-1">High Score: 0</p>
                   <p className="text-sm text-gray-400">Games Played: 0</p>
-                </div>
+                </button>
                 <div className="bg-black p-4 rounded-lg border border-gray-800">
-                  <h4 className="font-medium text-white mb-2">Total Points</h4>
+                  <h4 className="font-medium text-white mb-2">Total Credits</h4>
                   <p className="text-sm text-gray-400 mb-2">Earned: 0</p>
                   <p className="text-sm text-gray-400">Rank: Novice</p>
                 </div>
@@ -359,7 +398,34 @@ const Profile: React.FC = () => {
           )}
           {activeTab === 'settings' && (
             <div className="space-y-6">
-              <h3 className="text-xl font-bold text-white mb-4">Edit Profile Information</h3>
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-xl font-bold text-white">Profile Settings</h3>
+                <div className="flex gap-2">
+                  {isEditMode ? (
+                    <>
+                      <button
+                        onClick={handleSave}
+                        className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition-colors font-semibold"
+                      >
+                        Save Profile
+                      </button>
+                      <button
+                        onClick={() => setIsEditMode(false)}
+                        className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors font-semibold"
+                      >
+                        Cancel
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      onClick={() => setIsEditMode(true)}
+                      className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition-colors font-semibold"
+                    >
+                      Edit Profile
+                    </button>
+                  )}
+                </div>
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label htmlFor="name" className="block text-sm font-medium text-gray-400">Full Name</label>
@@ -369,7 +435,8 @@ const Profile: React.FC = () => {
                     name="name"
                     value={formData.name}
                     onChange={handleInputChange}
-                    className="mt-1 block w-full bg-[#2d2d2d] border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-orange-500 focus:border-orange-500"
+                    disabled={!isEditMode}
+                    className={`mt-1 block w-full bg-[#2d2d2d] border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-orange-500 focus:border-orange-500 ${!isEditMode ? 'opacity-60 cursor-not-allowed' : ''}`}
                   />
                 </div>
                 <div>
@@ -378,9 +445,10 @@ const Profile: React.FC = () => {
                     type="text"
                     id="username"
                     name="username"
-                    value={profileData.username}
-                    disabled
-                    className="mt-1 block w-full bg-[#2d2d2d] border border-gray-600 rounded-md shadow-sm py-2 px-3 text-gray-500 cursor-not-allowed"
+                    value={formData.username}
+                    onChange={handleInputChange}
+                    disabled={!isEditMode}
+                    className={`mt-1 block w-full bg-[#2d2d2d] border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-orange-500 focus:border-orange-500 ${!isEditMode ? 'opacity-60 cursor-not-allowed' : ''}`}
                   />
                 </div>
                 <div>
@@ -391,7 +459,8 @@ const Profile: React.FC = () => {
                     name="email"
                     value={formData.email}
                     onChange={handleInputChange}
-                    className="mt-1 block w-full bg-[#2d2d2d] border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-orange-500 focus:border-orange-500"
+                    disabled={!isEditMode}
+                    className={`mt-1 block w-full bg-[#2d2d2d] border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-orange-500 focus:border-orange-500 ${!isEditMode ? 'opacity-60 cursor-not-allowed' : ''}`}
                   />
                 </div>
                 <div>
@@ -402,7 +471,8 @@ const Profile: React.FC = () => {
                     name="location"
                     value={formData.location}
                     onChange={handleInputChange}
-                    className="mt-1 block w-full bg-[#2d2d2d] border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-orange-500 focus:border-orange-500"
+                    disabled={!isEditMode}
+                    className={`mt-1 block w-full bg-[#2d2d2d] border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-orange-500 focus:border-orange-500 ${!isEditMode ? 'opacity-60 cursor-not-allowed' : ''}`}
                   />
                 </div>
                 <div>
@@ -413,7 +483,8 @@ const Profile: React.FC = () => {
                     name="website"
                     value={formData.website}
                     onChange={handleInputChange}
-                    className="mt-1 block w-full bg-[#2d2d2d] border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-orange-500 focus:border-orange-500"
+                    disabled={!isEditMode}
+                    className={`mt-1 block w-full bg-[#2d2d2d] border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-orange-500 focus:border-orange-500 ${!isEditMode ? 'opacity-60 cursor-not-allowed' : ''}`}
                   />
                 </div>
                 <div>
@@ -424,7 +495,8 @@ const Profile: React.FC = () => {
                     name="occupation"
                     value={formData.occupation}
                     onChange={handleInputChange}
-                    className="mt-1 block w-full bg-[#2d2d2d] border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-orange-500 focus:border-orange-500"
+                    disabled={!isEditMode}
+                    className={`mt-1 block w-full bg-[#2d2d2d] border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-orange-500 focus:border-orange-500 ${!isEditMode ? 'opacity-60 cursor-not-allowed' : ''}`}
                   />
                 </div>
                 <div>
@@ -435,7 +507,8 @@ const Profile: React.FC = () => {
                     name="education"
                     value={formData.education}
                     onChange={handleInputChange}
-                    className="mt-1 block w-full bg-[#2d2d2d] border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-orange-500 focus:border-orange-500"
+                    disabled={!isEditMode}
+                    className={`mt-1 block w-full bg-[#2d2d2d] border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-orange-500 focus:border-orange-500 ${!isEditMode ? 'opacity-60 cursor-not-allowed' : ''}`}
                   />
                 </div>
                 <div>
@@ -445,7 +518,8 @@ const Profile: React.FC = () => {
                     name="relationship"
                     value={formData.relationship}
                     onChange={handleSelectChange}
-                    className="mt-1 block w-full bg-[#2d2d2d] border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-orange-500 focus:border-orange-500"
+                    disabled={!isEditMode}
+                    className={`mt-1 block w-full bg-[#2d2d2d] border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-orange-500 focus:border-orange-500 ${!isEditMode ? 'opacity-60 cursor-not-allowed' : ''}`}
                   >
                     <option value="">Select...</option>
                     <option value="single">Single</option>
@@ -463,7 +537,8 @@ const Profile: React.FC = () => {
                   rows={3}
                   value={formData.bio}
                   onChange={handleInputChange}
-                  className="mt-1 block w-full bg-[#2d2d2d] border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-orange-500 focus:border-orange-500"
+                  disabled={!isEditMode}
+                  className={`mt-1 block w-full bg-[#2d2d2d] border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-orange-500 focus:border-orange-500 ${!isEditMode ? 'opacity-60 cursor-not-allowed' : ''}`}
                 ></textarea>
               </div>
               
@@ -477,7 +552,8 @@ const Profile: React.FC = () => {
                     name="isPrivate"
                     checked={formData.isPrivate}
                     onChange={handleInputChange}
-                    className="h-4 w-4 text-orange-600 border-gray-300 rounded focus:ring-orange-500"
+                    disabled={!isEditMode}
+                    className={`h-4 w-4 text-orange-600 border-gray-300 rounded focus:ring-orange-500 ${!isEditMode ? 'opacity-60 cursor-not-allowed' : ''}`}
                   />
                 </div>
                 <div className="flex items-center justify-between">
@@ -488,7 +564,8 @@ const Profile: React.FC = () => {
                     name="hideFromSuggestions"
                     checked={formData.hideFromSuggestions}
                     onChange={handleInputChange}
-                    className="h-4 w-4 text-orange-600 border-gray-300 rounded focus:ring-orange-500"
+                    disabled={!isEditMode}
+                    className={`h-4 w-4 text-orange-600 border-gray-300 rounded focus:ring-orange-500 ${!isEditMode ? 'opacity-60 cursor-not-allowed' : ''}`}
                   />
                 </div>
                 <div className="flex items-center justify-between">
@@ -499,7 +576,8 @@ const Profile: React.FC = () => {
                     name="showReadReceipts"
                     checked={formData.showReadReceipts}
                     onChange={handleInputChange}
-                    className="h-4 w-4 text-orange-600 border-gray-300 rounded focus:ring-orange-500"
+                    disabled={!isEditMode}
+                    className={`h-4 w-4 text-orange-600 border-gray-300 rounded focus:ring-orange-500 ${!isEditMode ? 'opacity-60 cursor-not-allowed' : ''}`}
                   />
                 </div>
                 <div className="flex items-center justify-between">
@@ -510,7 +588,8 @@ const Profile: React.FC = () => {
                     name="showOnlineStatus"
                     checked={formData.showOnlineStatus}
                     onChange={handleInputChange}
-                    className="h-4 w-4 text-orange-600 border-gray-300 rounded focus:ring-orange-500"
+                    disabled={!isEditMode}
+                    className={`h-4 w-4 text-orange-600 border-gray-300 rounded focus:ring-orange-500 ${!isEditMode ? 'opacity-60 cursor-not-allowed' : ''}`}
                   />
                 </div>
                 <div className="flex items-center justify-between">
@@ -520,7 +599,8 @@ const Profile: React.FC = () => {
                     name="messageRequests"
                     value={formData.messageRequests}
                     onChange={handleSelectChange}
-                    className="mt-1 block w-1/2 bg-[#2d2d2d] border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-orange-500 focus:border-orange-500"
+                    disabled={!isEditMode}
+                    className={`mt-1 block w-1/2 bg-[#2d2d2d] border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-orange-500 focus:border-orange-500 ${!isEditMode ? 'opacity-60 cursor-not-allowed' : ''}`}
                   >
                     <option value="everyone">Everyone</option>
                     <option value="followers">Followers</option>
@@ -534,7 +614,8 @@ const Profile: React.FC = () => {
                     name="commentPrivacy"
                     value={formData.commentPrivacy}
                     onChange={handleSelectChange}
-                    className="mt-1 block w-1/2 bg-[#2d2d2d] border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-orange-500 focus:border-orange-500"
+                    disabled={!isEditMode}
+                    className={`mt-1 block w-1/2 bg-[#2d2d2d] border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-orange-500 focus:border-orange-500 ${!isEditMode ? 'opacity-60 cursor-not-allowed' : ''}`}
                   >
                     <option value="everyone">Everyone</option>
                     <option value="followers">Followers</option>
@@ -548,7 +629,8 @@ const Profile: React.FC = () => {
                     name="storyPrivacy"
                     value={formData.storyPrivacy}
                     onChange={handleSelectChange}
-                    className="mt-1 block w-1/2 bg-[#2d2d2d] border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-orange-500 focus:border-orange-500"
+                    disabled={!isEditMode}
+                    className={`mt-1 block w-1/2 bg-[#2d2d2d] border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-orange-500 focus:border-orange-500 ${!isEditMode ? 'opacity-60 cursor-not-allowed' : ''}`}
                   >
                     <option value="everyone">Everyone</option>
                     <option value="followers">Followers</option>
@@ -557,12 +639,6 @@ const Profile: React.FC = () => {
                 </div>
               </div>
               
-              <button
-                onClick={handleSave}
-                className="mt-6 w-full bg-orange-600 text-white py-2 rounded-lg hover:bg-orange-700 transition-colors font-semibold"
-              >
-                Save Profile
-              </button>
             </div>
           )}
         </div>

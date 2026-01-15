@@ -113,6 +113,14 @@ export const useAuth = () => {
           metadata: authData.user.user_metadata
         });
 
+        // Store access token if available
+        if (authData.session?.access_token) {
+          localStorage.setItem('token', authData.session.access_token);
+          console.log('Token stored after registration:', authData.session.access_token.substring(0, 20) + '...');
+        } else {
+          console.warn('No session token available after registration');
+        }
+
         // Create user profile in 'profiles' table
         const profileData = {
           id: authData.user.id,
@@ -205,10 +213,14 @@ export const useAuth = () => {
       // Store access token so backend API receives Authorization header
       try {
         const token = authData.session.access_token;
-        if (token) localStorage.setItem('token', token);
+        if (token) {
+          localStorage.setItem('token', token);
+          console.log('Token stored successfully:', token.substring(0, 20) + '...');
+        } else {
+          console.error('No access token in session');
+        }
       } catch (e) {
-        // ignore storage errors (private mode or quota)
-        console.debug('Token storage failed (non-fatal).');
+        console.error('Token storage failed:', e);
       }
 
       console.log('Auth successful, fetching user profile...');
@@ -229,10 +241,12 @@ export const useAuth = () => {
       // If profile doesn't exist, create a fallback profile
       if (!profile) {
         console.warn('Profile not found for authenticated user, creating fallback...');
+        console.log('User metadata:', authData.user.user_metadata);
         const newProfileData = {
           id: authData.user.id,
           full_name: authData.user.user_metadata.full_name || 'New User',
-          username: authData.user.user_metadata.username || `user_${authData.user.id.substring(0, 8)}`,
+          username: authData.user.user_metadata.username || authData.user.email?.split('@')[0] || `user_${authData.user.id.substring(0, 8)}`,
+          email: authData.user.email,
           avatar_url: null,
           created_at: new Date().toISOString()
         };

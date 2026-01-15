@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'react-hot-toast';
 import { motion } from 'framer-motion';
@@ -28,22 +27,27 @@ const Comment: React.FC<CommentProps> = ({ comment, onUpdate, onDelete }) => {
   const { user } = useUser();
   const [isEditing, setIsEditing] = useState(false);
   const [editedContent, setEditedContent] = useState(comment.content);
-  const [showOptions, setShowOptions] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showActions, setShowActions] = useState(false);
 
   const isCommentOwner = user?.id === comment.user.id;
 
   const handleEdit = async () => {
     try {
-      await api.put(`/api/comments/${comment.id}`, {
+      console.log('Updating comment:', comment.id, 'with content:', editedContent);
+      const response = await api.put(`/api/comments/${comment.id}`, {
         content: editedContent
       });
+      console.log('Update response:', response);
       setIsEditing(false);
       onUpdate();
       toast.success('Comment updated successfully');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error updating comment:', error);
-      toast.error('Failed to update comment');
+      console.error('Error response:', error.response?.data);
+      console.error('Error status:', error.response?.status);
+      const errorMsg = error.response?.data?.error || 'Failed to update comment';
+      toast.error(errorMsg);
     }
   };
 
@@ -65,10 +69,12 @@ const Comment: React.FC<CommentProps> = ({ comment, onUpdate, onDelete }) => {
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -20 }}
-      className="flex gap-3 p-4 bg-[#1a1a1a] rounded-lg"
+      exit={{ opacity: 0, y: -10 }}
+      className="flex gap-2 py-1"
+      onMouseEnter={() => setShowActions(true)}
+      onMouseLeave={() => setShowActions(false)}
     >
       <Avatar
         src={comment.user.avatar}
@@ -76,86 +82,71 @@ const Comment: React.FC<CommentProps> = ({ comment, onUpdate, onDelete }) => {
         size="sm"
       />
       
-      <div className="flex-1">
-        <div className="flex justify-between items-start">
-          <div>
-            <span className="font-semibold text-white">{comment.user.name}</span>
-            <span className="text-sm text-gray-400 ml-2">
-              {formatDistanceToNow(new Date(comment.createdAt), { addSuffix: true })}
-              {comment.updatedAt !== comment.createdAt && ' (edited)'}
-            </span>
-          </div>
-
-          {isCommentOwner && (
-            <div className="relative">
-              <button
-                onClick={() => setShowOptions(!showOptions)}
-                className="p-1 text-gray-400 hover:text-white rounded-full hover:bg-[#2d2d2d] transition-colors"
-              >
-                <MoreHorizontal size={16} />
-              </button>
-
-              {showOptions && (
-                <div className="absolute right-0 mt-1 w-32 bg-[#2d2d2d] rounded-lg shadow-lg overflow-hidden z-10">
-                  <button
-                    onClick={() => {
-                      setShowOptions(false);
-                      setIsEditing(true);
-                    }}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-white hover:bg-[#3d3d3d] transition-colors"
-                  >
-                    <Pencil size={14} />
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => {
-                      setShowOptions(false);
-                      handleDelete();
-                    }}
-                    disabled={isDeleting}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-red-500 hover:bg-[#3d3d3d] transition-colors"
-                  >
-                    <Trash2 size={14} />
-                    {isDeleting ? 'Deleting...' : 'Delete'}
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
+      <div className="flex-1 min-w-0">
         {isEditing ? (
-          <div className="mt-2">
+          <div className="space-y-2">
             <textarea
               value={editedContent}
               onChange={(e) => setEditedContent(e.target.value)}
-              className="w-full bg-[#2d2d2d] text-white rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-orange-500"
+              className="w-full bg-gray-800/50 text-white rounded-2xl px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-gray-600 resize-none"
               rows={2}
+              autoFocus
             />
-            <div className="flex justify-end gap-2 mt-2">
+            <div className="flex justify-end gap-2">
               <button
                 onClick={() => {
                   setIsEditing(false);
                   setEditedContent(comment.content);
                 }}
-                className="px-3 py-1 text-sm text-gray-400 hover:text-white"
+                className="px-3 py-1 text-xs text-gray-400 hover:text-white transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={handleEdit}
-                className="px-3 py-1 text-sm bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
+                className="px-3 py-1 text-xs bg-orange-500 text-white rounded-md hover:bg-orange-600 transition-colors"
               >
                 Save
               </button>
             </div>
           </div>
         ) : (
-          <p className="text-gray-200 mt-1">{comment.content}</p>
+          <div>
+            <div className="inline-block bg-gray-800/50 rounded-2xl px-3 py-2">
+              <div className="font-semibold text-white text-sm">{comment.user.name}</div>
+              <p className="text-gray-200 text-sm mt-0.5">{comment.content}</p>
+            </div>
+            
+            {/* Comment Actions */}
+            <div className="flex items-center gap-3 mt-1 ml-3">
+              <span className="text-xs text-gray-500">
+                {formatDistanceToNow(new Date(comment.createdAt), { addSuffix: true })}
+                {comment.updatedAt !== comment.createdAt && ' (edited)'}
+              </span>
+              
+              {(showActions || isCommentOwner) && isCommentOwner && (
+                <>
+                  <button
+                    onClick={() => setIsEditing(true)}
+                    className="text-xs text-gray-400 hover:text-white font-medium transition-colors"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={handleDelete}
+                    disabled={isDeleting}
+                    className="text-xs text-gray-400 hover:text-red-400 font-medium transition-colors"
+                  >
+                    {isDeleting ? 'Deleting...' : 'Delete'}
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
         )}
       </div>
     </motion.div>
   );
 };
 
-export default Comment; 
+export default Comment;

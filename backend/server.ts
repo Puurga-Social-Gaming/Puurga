@@ -14,6 +14,11 @@ import statusesRoutes from './routes/statuses';
 import postsRoutes from './routes/posts';
 import onlineStatusRoutes from './routes/onlineStatus';
 import testNotificationRoutes from './routes/testNotifications';
+import messagesRoutes from './routes/messages';
+import groupsRoutes from './routes/groups';
+import commentsRoutes from './routes/comments';
+import redemptionRoutes from './routes/redemption';
+import testGhostModeRoutes from './routes/testGhostMode';
 
 dotenv.config();
 
@@ -104,6 +109,21 @@ app.use('/api/status', onlineStatusRoutes);
 
 // Use test notification routes (for development/testing)
 app.use('/api/test', testNotificationRoutes);
+
+// Use messages routes
+app.use('/api/messages', messagesRoutes);
+
+// Use groups routes
+app.use('/api/groups', groupsRoutes);
+
+// Use comments routes
+app.use('/api', commentsRoutes);
+
+// Use redemption routes
+app.use('/api/redeem', redemptionRoutes);
+
+// Use test ghost mode routes (for development/testing)
+app.use('/api/test/ghost-mode', testGhostModeRoutes);
 
 // Create HTTP server and initialize WebSocket manager
 const server = createServer(app);

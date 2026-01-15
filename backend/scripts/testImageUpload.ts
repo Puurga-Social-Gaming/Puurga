@@ -45,7 +45,7 @@ async function testImageUpload() {
       const response = await fetch('http://localhost:3005/api/users/profile/avatar', {
         method: 'PUT',
         headers: {
-          'Authorization': `Bearer ${tokenData.properties?.access_token || 'test-token'}`,
+          'Authorization': `Bearer ${(tokenData as any).properties?.access_token || 'test-token'}`,
           ...formData.getHeaders()
         },
         body: formData
@@ -76,7 +76,7 @@ async function testImageUpload() {
       const response = await fetch('http://localhost:3005/api/users/profile/cover-photo', {
         method: 'PUT',
         headers: {
-          'Authorization': `Bearer ${tokenData.properties?.access_token || 'test-token'}`,
+          'Authorization': `Bearer ${(tokenData as any).properties?.access_token || 'test-token'}`,
           ...formData.getHeaders()
         },
         body: formData

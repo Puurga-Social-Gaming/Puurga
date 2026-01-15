@@ -1,19 +1,18 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-// import { supabase } from '../../frontend/src/lib/supabaseClient';
 import { useUser } from '../context/UserContext';
+import api from '../lib/axios';
 
 export interface Message {
   id: string;
   content: string;
   from_user_id: string;
-  to_user_id: string;
   created_at: string;
-  conversation_id: string;
+  conversation_id?: string;
   from_user: {
     id: string;
     full_name: string;
     username: string;
-    avatar_url: string;
+    avatar_url: string | null;
   };
 }
 
@@ -23,20 +22,37 @@ export interface Conversation {
     id: string;
     full_name: string;
     username: string;
-    avatar_url: string;
+    avatar_url: string | null;
   }[];
-  last_message?: Message;
+  latest_message?: {
+    content: string;
+    created_at: string;
+    from_user: any;
+  } | null;
   unread_count: number;
+  updated_at?: string;
+}
+
+export interface OnlineUser {
+  id: string;
+  full_name: string;
+  username: string;
+  avatar_url: string | null;
+  isOnline: boolean;
 }
 
 interface MessagesContextType {
   conversations: Conversation[];
   currentConversation: Conversation | null;
   messages: Message[];
+  onlineUsers: OnlineUser[];
+  loading: boolean;
   loadConversations: () => Promise<void>;
   loadMessages: (conversationId: string) => Promise<void>;
   sendMessage: (conversationId: string, content: string) => Promise<void>;
   setCurrentConversation: (conversation: Conversation | null) => void;
+  createConversation: (otherUserId: string) => Promise<Conversation | null>;
+  loadOnlineUsers: () => Promise<void>;
 }
 
 const MessagesContext = createContext<MessagesContextType | undefined>(undefined);
@@ -46,117 +62,102 @@ export const MessagesProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [currentConversation, setCurrentConversation] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [onlineUsers, setOnlineUsers] = useState<OnlineUser[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  const loadConversations = async () => {
+  const loadConversations = async (retryCount = 0) => {
+    if (!user) return;
+    
     try {
-      // For now, create conversations with all authenticated users
-      // This will be replaced with actual API call to get user's conversations
-      console.log('Loading conversations for user:', user?.id);
+      setLoading(true);
+      const response = await api.get('/api/messages/conversations');
+      console.log('Loaded conversations:', response.data);
+      setConversations(response.data || []);
+    } catch (error: any) {
+      // Retry once if it's a network error (server might be starting up)
+      if (retryCount === 0 && error?.message?.includes('Network error')) {
+        console.log('Retrying conversations load...');
+        setTimeout(() => loadConversations(1), 1000);
+        return;
+      }
       
-      // Mock conversations with real user structure - replace with actual API call
-      const mockConversations: Conversation[] = [
-        {
-          id: '1',
-          participants: [{
-            id: '1',
-            full_name: 'Vista Social',
-            username: 'vistasocial',
-            avatar_url: user?.avatar || '/api/placeholder/40/40'
-          }],
-          last_message: {
-            id: '1',
-            content: 'Our customer success team is on 🔥 as always!',
-            created_at: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-            from_user_id: '1',
-            to_user_id: user?.id || '',
-            conversation_id: '1',
-            from_user: {
-              id: '1',
-              full_name: 'Vista Social',
-              username: 'vistasocial',
-              avatar_url: user?.avatar || '/api/placeholder/40/40'
-            }
-          },
-          unread_count: 1
-        }
-      ];
-      
-      setConversations(mockConversations);
-    } catch (error) {
-      console.error('Error loading conversations:', error);
+      // Only log error if it's not a transient network issue
+      if (retryCount > 0 || !error?.message?.includes('Network error')) {
+        console.error('Error loading conversations:', error);
+      }
+      setConversations([]);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const loadMessages = async (conversationId: string) => {
+  const loadMessages = async (conversationId: string, retryCount = 0) => {
+    if (!user) return;
+    
     try {
-      console.log('Loading messages for conversation:', conversationId);
-      
-      // Mock messages - replace with actual API call
-      const mockMessages: Message[] = [
-        {
-          id: '1',
-          content: 'Our customer success team is on 🔥 as always!',
-          from_user_id: '1',
-          to_user_id: user?.id || '',
-          created_at: new Date(Date.now() - 9 * 24 * 60 * 60 * 1000).toISOString(),
-          conversation_id: conversationId,
-          from_user: {
-            id: '1',
-            full_name: 'Vista Social',
-            username: 'vistasocial',
-            avatar_url: user?.avatar || '/api/placeholder/40/40'
-          }
-        },
-        {
-          id: '2',
-          content: 'Like this comment they took a',
-          from_user_id: '1',
-          to_user_id: user?.id || '',
-          created_at: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString(),
-          conversation_id: conversationId,
-          from_user: {
-            id: '1',
-            full_name: 'Vista Social',
-            username: 'vistasocial',
-            avatar_url: user?.avatar || '/api/placeholder/40/40'
-          }
-        }
-      ];
-      
-      setMessages(mockMessages);
+      setLoading(true);
+      const response = await api.get(`/api/messages/conversations/${conversationId}/messages`);
+      console.log('Loaded messages:', response.data);
+      setMessages(response.data || []);
     } catch (error) {
       console.error('Error loading messages:', error);
+      setMessages([]);
+    } finally {
+      setLoading(false);
     }
   };
 
   const sendMessage = async (conversationId: string, content: string) => {
+    if (!user || !content.trim()) return;
+    
     try {
-      console.log('Sending message:', content, 'to conversation:', conversationId);
+      const response = await api.post(`/api/messages/conversations/${conversationId}/messages`, {
+        content: content.trim()
+      });
       
-      // Create new message object
-      const newMessage: Message = {
-        id: Date.now().toString(),
-        content,
-        from_user_id: user?.id || '',
-        to_user_id: currentConversation?.participants[0]?.id || '',
-        created_at: new Date().toISOString(),
-        conversation_id: conversationId,
-        from_user: {
-          id: user?.id || '',
-          full_name: user?.name || 'You',
-          username: user?.username || 'you',
-          avatar_url: user?.avatar || '/api/placeholder/40/40'
-        }
-      };
+      console.log('Message sent:', response.data);
       
-      // Add to messages array
-      setMessages(prev => [...prev, newMessage]);
+      // Add the new message to the messages array
+      setMessages(prev => [...prev, response.data]);
       
-      // TODO: Replace with actual API call
-      // await api.post('/messages', { conversationId, content });
-      
+      // Reload conversations to update the latest message
+      await loadConversations();
     } catch (error) {
       console.error('Error sending message:', error);
+      throw error;
+    }
+  };
+
+  const createConversation = async (otherUserId: string): Promise<Conversation | null> => {
+    if (!user) return null;
+    
+    try {
+      const response = await api.post('/api/messages/conversations', {
+        otherUserId
+      });
+      
+      console.log('Conversation created:', response.data);
+      
+      // Reload conversations to include the new one
+      await loadConversations();
+      
+      return response.data;
+    } catch (error) {
+      console.error('Error creating conversation:', error);
+      return null;
+    }
+  };
+
+  const loadOnlineUsers = async () => {
+    if (!user) return;
+    
+    try {
+      const response = await api.get('/api/messages/users/online');
+      console.log('Loaded online users:', response.data);
+      setOnlineUsers(response.data || []);
+    } catch (error) {
+      console.error('Error loading online users:', error);
+      setOnlineUsers([]);
     }
   };
 
@@ -180,10 +181,14 @@ export const MessagesProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         conversations,
         currentConversation,
         messages,
+        onlineUsers,
+        loading,
         loadConversations,
         loadMessages,
         sendMessage,
-        setCurrentConversation
+        setCurrentConversation,
+        createConversation,
+        loadOnlineUsers
       }}
     >
       {children}

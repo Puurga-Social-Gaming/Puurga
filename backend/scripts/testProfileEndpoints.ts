@@ -1,5 +1,5 @@
 import express from 'express';
-import request from 'supertest';
+// import request from 'supertest'; // Commented out since supertest is not installed
 import { supabase } from '../config/supabase';
 
 // Simple test to verify the actual API endpoints work
@@ -39,7 +39,7 @@ async function testProfileEndpoints() {
       const response = await fetch(`${baseUrl}/api/users/profile`, {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${tokenData.properties?.access_token}`,
+          'Authorization': `Bearer ${(tokenData as any).properties?.access_token}`,
           'Content-Type': 'application/json'
         }
       });
@@ -48,10 +48,10 @@ async function testProfileEndpoints() {
         const profileData = await response.json();
         console.log('✅ GET /api/users/profile successful');
         console.log('Profile data received:', {
-          id: profileData.id,
-          full_name: profileData.full_name,
-          username: profileData.username,
-          email: profileData.email
+          id: (profileData as any).id,
+          full_name: (profileData as any).full_name,
+          username: (profileData as any).username,
+          email: (profileData as any).email
         });
       } else {
         console.log('❌ GET /api/users/profile failed:', response.status, response.statusText);
@@ -77,7 +77,7 @@ async function testProfileEndpoints() {
       const updateResponse = await fetch(`${baseUrl}/api/users/profile`, {
         method: 'PUT',
         headers: {
-          'Authorization': `Bearer ${tokenData.properties?.access_token}`,
+          'Authorization': `Bearer ${(tokenData as any).properties?.access_token}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify(updateData)
@@ -87,10 +87,10 @@ async function testProfileEndpoints() {
         const updatedData = await updateResponse.json();
         console.log('✅ PUT /api/users/profile successful');
         console.log('Updated data:', {
-          full_name: updatedData.full_name,
-          bio: updatedData.bio,
-          location: updatedData.location,
-          website: updatedData.website
+          full_name: (updatedData as any).full_name,
+          bio: (updatedData as any).bio,
+          location: (updatedData as any).location,
+          website: (updatedData as any).website
         });
       } else {
         console.log('❌ PUT /api/users/profile failed:', updateResponse.status, updateResponse.statusText);

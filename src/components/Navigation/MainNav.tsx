@@ -39,10 +39,22 @@ const MainNav: React.FC = () => {
 
   const handleLogout = async () => {
     try {
+      // Sign out from Supabase
       const { error } = await supabase.auth.signOut();
       if (error) {
         throw error;
       }
+      
+      // Clear all authentication data from localStorage
+      try {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        localStorage.removeItem('supabase.auth.token');
+        console.log('Cleared authentication data from localStorage');
+      } catch (storageError) {
+        console.warn('Failed to clear localStorage (non-fatal):', storageError);
+      }
+      
       toast.success('Logged out successfully!');
       navigate('/login');
     } catch (error: unknown) {

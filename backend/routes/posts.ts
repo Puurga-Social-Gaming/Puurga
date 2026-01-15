@@ -1,6 +1,7 @@
 import express from 'express';
 import { supabase } from '../config/supabase';
-import { auth } from '../middleware/auth';
+import { supabaseAuth as auth, AuthRequest } from '../middleware/supabaseAuth';
+import { checkGhostMode } from '../middleware/ghostMode';
 
 const router = express.Router();
 
@@ -117,6 +118,111 @@ router.get('/feed', async (req, res) => {
   }
 });
 
+// --- GET /api/posts/purges/my-activity ---
+// Get purges the user has given and received
+router.get('/purges/my-activity', auth, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user.id;
+
+    // Fetch purges given by the user (purges they made on other people's posts)
+    const { data: purgesGiven, error: givenError } = await supabase
+      .from('purges')
+      .select(`
+        id,
+        target_id,
+        target_user_id,
+        created_at,
+        posts:target_id (
+          id,
+          content,
+          created_at
+        )
+      `)
+      .eq('actor_id', userId)
+      .eq('target_type', 'post')
+      .order('created_at', { ascending: false });
+
+    if (givenError) throw givenError;
+
+    // Fetch purges received by the user (purges on their posts)
+    const { data: purgesReceived, error: receivedError } = await supabase
+      .from('purges')
+      .select(`
+        id,
+        actor_id,
+        target_id,
+        created_at,
+        posts:target_id (
+          id,
+          content,
+          created_at
+        )
+      `)
+      .eq('target_user_id', userId)
+      .eq('target_type', 'post')
+      .order('created_at', { ascending: false });
+
+    if (receivedError) throw receivedError;
+
+    // Get unique user IDs from both lists
+    const givenUserIds = Array.from(new Set((purgesGiven || []).map(p => p.target_user_id).filter(Boolean)));
+    const receivedUserIds = Array.from(new Set((purgesReceived || []).map(p => p.actor_id).filter(Boolean)));
+    const allUserIds = Array.from(new Set([...givenUserIds, ...receivedUserIds]));
+
+    // Fetch profile information for all users
+    const { data: profiles, error: profilesError } = await supabase
+      .from('profiles')
+      .select('id, full_name, username, avatar_url')
+      .in('id', allUserIds);
+
+    if (profilesError) throw profilesError;
+
+    // Create a map of profiles
+    const profileMap = new Map();
+    (profiles || []).forEach(profile => {
+      profileMap.set(profile.id, {
+        id: profile.id,
+        name: profile.full_name,
+        username: profile.username,
+        avatar: profile.avatar_url
+      });
+    });
+
+    // Format purges given with profile info
+    const formattedPurgesGiven = (purgesGiven || []).map(purge => ({
+      id: purge.id,
+      postId: purge.target_id,
+      post: purge.posts,
+      targetUser: profileMap.get(purge.target_user_id) || null,
+      createdAt: purge.created_at,
+      type: 'given'
+    }));
+
+    // Format purges received with profile info
+    const formattedPurgesReceived = (purgesReceived || []).map(purge => ({
+      id: purge.id,
+      postId: purge.target_id,
+      post: purge.posts,
+      actor: profileMap.get(purge.actor_id) || null,
+      createdAt: purge.created_at,
+      type: 'received'
+    }));
+
+    res.json({
+      given: formattedPurgesGiven,
+      received: formattedPurgesReceived,
+      stats: {
+        totalGiven: formattedPurgesGiven.length,
+        totalReceived: formattedPurgesReceived.length
+      }
+    });
+
+  } catch (error) {
+    console.error('Error fetching purge activity:', error);
+    res.status(500).json({ error: 'Failed to fetch purge activity' });
+  }
+});
+
 // --- POST /api/posts/:id/purge ---
 router.post('/:id/purge', auth, async (req, res) => {
   try {
@@ -136,6 +242,15 @@ router.post('/:id/purge', auth, async (req, res) => {
 
     const targetUserId = post.user_id;
 
+    // Prevent users from purging their own posts
+    if (userId === targetUserId) {
+      return res.status(403).json({ 
+        error: 'Cannot purge your own post',
+        message: 'You cannot purge your own posts. Purges are meant for content from other users.',
+        code: 'OWN_POST'
+      });
+    }
+
     // Check if user has already purged this post
     const { data: existingPurge, error: checkError } = await supabase
       .from('purges')
@@ -153,7 +268,7 @@ router.post('/:id/purge', auth, async (req, res) => {
     let totalPurges = 0;
 
     if (existingPurge) {
-      // Remove purge
+      // Remove purge (unpurge)
       const { error: deleteError } = await supabase
         .from('purges')
         .delete()
@@ -303,6 +418,201 @@ router.post('/:id/puurga', auth, async (req, res) => {
   } catch (error) {
     console.error('Error handling puurga:', error);
     res.status(500).json({ error: 'Failed to puurga post' });
+  }
+});
+
+// --- PUT /api/posts/:id ---
+router.put('/:id', auth, async (req: AuthRequest, res) => {
+  try {
+    const postId = req.params.id;
+    const userId = req.user.id;
+    const { content } = req.body;
+
+    if (!content || typeof content !== 'string') {
+      return res.status(400).json({ error: 'Content is required' });
+    }
+
+    // Check if the post exists and belongs to the user
+    const { data: existingPost, error: fetchError } = await supabase
+      .from('posts')
+      .select('user_id')
+      .eq('id', postId)
+      .single();
+
+    if (fetchError || !existingPost) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+
+    if (existingPost.user_id !== userId) {
+      return res.status(403).json({ error: 'Not authorized to edit this post' });
+    }
+
+    // Update the post
+    const { data: updatedPost, error: updateError } = await supabase
+      .from('posts')
+      .update({ 
+        content,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', postId)
+      .select()
+      .single();
+
+    if (updateError) {
+      throw updateError;
+    }
+
+    res.json(updatedPost);
+  } catch (error) {
+    console.error('Error updating post:', error);
+    res.status(500).json({ error: 'Failed to update post' });
+  }
+});
+
+// --- DELETE /api/posts/:id ---
+router.delete('/:id', auth, async (req: AuthRequest, res) => {
+  try {
+    const postId = req.params.id;
+    const userId = req.user.id;
+
+    // Check if the post exists and belongs to the user
+    const { data: existingPost, error: fetchError } = await supabase
+      .from('posts')
+      .select('user_id')
+      .eq('id', postId)
+      .single();
+
+    if (fetchError || !existingPost) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+
+    if (existingPost.user_id !== userId) {
+      return res.status(403).json({ error: 'Not authorized to delete this post' });
+    }
+
+    // Delete related reactions first
+    await supabase
+      .from('reactions')
+      .delete()
+      .eq('post_id', postId);
+
+    // Delete related purges
+    await supabase
+      .from('purges')
+      .delete()
+      .eq('target_id', postId)
+      .eq('target_type', 'post');
+
+    // Delete the post
+    const { error: deleteError } = await supabase
+      .from('posts')
+      .delete()
+      .eq('id', postId);
+
+    if (deleteError) {
+      throw deleteError;
+    }
+
+    res.json({ message: 'Post deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting post:', error);
+    res.status(500).json({ error: 'Failed to delete post' });
+  }
+});
+
+// POST /api/posts/:postId/react - Add or toggle a reaction
+router.post('/:postId/react', auth, async (req: AuthRequest, res) => {
+  try {
+    const { postId } = req.params;
+    const { type } = req.body;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+
+    if (!type) {
+      return res.status(400).json({ error: 'Reaction type is required' });
+    }
+
+    // Check if user already has a reaction on this post
+    const { data: existingReaction, error: checkError } = await supabase
+      .from('reactions')
+      .select('*')
+      .eq('post_id', postId)
+      .eq('user_id', userId)
+      .single();
+
+    if (checkError && checkError.code !== 'PGRST116') {
+      throw checkError;
+    }
+
+    if (existingReaction) {
+      // If same type, remove it (toggle off)
+      if (existingReaction.type === type) {
+        await supabase
+          .from('reactions')
+          .delete()
+          .eq('id', existingReaction.id);
+      } else {
+        // Different type, update it
+        await supabase
+          .from('reactions')
+          .update({ type })
+          .eq('id', existingReaction.id);
+      }
+    } else {
+      // No existing reaction, create new one
+      await supabase
+        .from('reactions')
+        .insert({
+          post_id: postId,
+          user_id: userId,
+          type,
+        });
+    }
+
+    // Fetch all reactions for this post grouped by type
+    const { data: allReactions, error: fetchError } = await supabase
+      .from('reactions')
+      .select('type, user_id')
+      .eq('post_id', postId);
+
+    if (fetchError) throw fetchError;
+
+    // Get user profiles for all reactors
+    const userIds = Array.from(new Set((allReactions || []).map(r => r.user_id)));
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('id, full_name, username, avatar_url')
+      .in('id', userIds);
+
+    const profileMap = new Map(profiles?.map(p => [p.id, p]) || []);
+
+    // Group reactions by type
+    const reactionsByType: { [key: string]: { count: number; users: any[] } } = {};
+    
+    (allReactions || []).forEach(reaction => {
+      if (!reactionsByType[reaction.type]) {
+        reactionsByType[reaction.type] = { count: 0, users: [] };
+      }
+      reactionsByType[reaction.type].count++;
+      
+      const profile = profileMap.get(reaction.user_id);
+      if (profile) {
+        reactionsByType[reaction.type].users.push({
+          id: profile.id,
+          name: profile.full_name || 'Unknown User',
+          username: profile.username || 'unknown',
+          avatar: profile.avatar_url || ''
+        });
+      }
+    });
+
+    res.json(reactionsByType);
+  } catch (error) {
+    console.error('Error handling reaction:', error);
+    res.status(500).json({ error: 'Failed to process reaction' });
   }
 });
 
