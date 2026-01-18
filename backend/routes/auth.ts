@@ -151,6 +151,40 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ message: 'User profile not found' });
     }
 
+    // Notify friends that user has logged in
+    try {
+      // Get all accepted friendships where this user is involved
+      const { data: friendships } = await supabase
+        .from('friendships')
+        .select('user_id, friend_id')
+        .or(`user_id.eq.${authData.user.id},friend_id.eq.${authData.user.id}`)
+        .eq('status', 'accepted');
+
+      if (friendships && friendships.length > 0) {
+        // Extract friend IDs (the other person in each friendship)
+        const friendIds = friendships.map(f => 
+          f.user_id === authData.user.id ? f.friend_id : f.user_id
+        );
+
+        // Create login notifications for all friends
+        const notifications = friendIds.map(friendId => ({
+          type: 'user_login',
+          sender_id: authData.user.id,
+          receiver_id: friendId,
+          title: 'Friend Online',
+          message: `${profile.full_name} just logged in`,
+          is_read: false,
+          created_at: new Date().toISOString(),
+        }));
+
+        await supabase.from('notifications').insert(notifications);
+        console.log(`Created ${notifications.length} login notifications for user ${profile.full_name}`);
+      }
+    } catch (notifError) {
+      // Don't fail login if notification creation fails
+      console.error('Error creating login notifications:', notifError);
+    }
+
     res.json({
       token: authData.session.access_token,
       user: {

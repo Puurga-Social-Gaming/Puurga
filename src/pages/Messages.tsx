@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useMessages } from '../context/MessagesContext';
 import { formatDistanceToNow } from 'date-fns';
 import { Send, Search, Smile, MoreVertical, Phone, Video, MessageSquare, X, Plus, Loader2 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { useUser } from '../context/UserContext';
 import toast from 'react-hot-toast';
 
@@ -14,8 +14,10 @@ const Messages: React.FC = () => {
     messages,
     onlineUsers,
     loading,
+    typingUsers,
     loadMessages,
     sendMessage,
+    sendTypingStatus,
     setCurrentConversation,
     createConversation,
     loadOnlineUsers
@@ -26,6 +28,7 @@ const Messages: React.FC = () => {
   const [showUserList, setShowUserList] = useState(false);
   const [showMobileSidebar, setShowMobileSidebar] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     if (user) {
@@ -73,11 +76,41 @@ const Messages: React.FC = () => {
     if (!currentConversation || !newMessage.trim()) return;
 
     try {
+      // Stop typing indicator
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+      await sendTypingStatus(currentConversation.id, false);
+      
       await sendMessage(currentConversation.id, newMessage);
       setNewMessage('');
     } catch (error) {
       console.error('Failed to send message:', error);
       toast.error('Failed to send message');
+    }
+  };
+
+  const handleTyping = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setNewMessage(value);
+
+    if (!currentConversation) return;
+
+    // Clear existing timeout
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+
+    // Send typing indicator
+    if (value.trim()) {
+      sendTypingStatus(currentConversation.id, true);
+      
+      // Stop typing after 2 seconds of inactivity
+      typingTimeoutRef.current = setTimeout(() => {
+        sendTypingStatus(currentConversation.id, false);
+      }, 2000);
+    } else {
+      sendTypingStatus(currentConversation.id, false);
     }
   };
 
@@ -104,6 +137,10 @@ const Messages: React.FC = () => {
             </span>
           )}
         </div>
+        {/* Online status indicator */}
+        {onlineUsers.some(u => u.id === conversation.participants[0]?.id) && (
+          <div className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-green-500 rounded-full border-2 border-black"></div>
+        )}
         {conversation.unread_count > 0 && (
           <div className="absolute -top-1 -right-1 w-5 h-5 bg-orange-500 rounded-full flex items-center justify-center">
             <span className="text-xs font-bold text-white">{conversation.unread_count}</span>
@@ -389,6 +426,22 @@ const Messages: React.FC = () => {
               <div ref={messagesEndRef} />
             </div>
 
+            {/* Typing Indicator */}
+            {currentConversation && typingUsers[currentConversation.id]?.length > 0 && (
+              <div className="px-6 py-2">
+                <div className="flex items-center gap-2 text-sm text-gray-400">
+                  <div className="flex gap-1">
+                    <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
+                    <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
+                    <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
+                  </div>
+                  <span>
+                    {currentConversation.participants[0]?.full_name} is typing...
+                  </span>
+                </div>
+              </div>
+            )}
+
             {/* Message Input - Sticky */}
             <div className="sticky bottom-0 z-10 p-4 border-t border-gray-800 bg-black">
               <form onSubmit={handleSendMessage} className="flex items-center gap-2">
@@ -401,7 +454,7 @@ const Messages: React.FC = () => {
                 <input
                   type="text"
                   value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
+                  onChange={handleTyping}
                   placeholder={`Message ${currentConversation.participants[0]?.full_name || 'user'}...`}
                   className="flex-1 bg-gray-800 text-white rounded-full px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
                 />

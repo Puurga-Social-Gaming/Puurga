@@ -1,18 +1,31 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { MapPin, Link2, Calendar, Trophy, Flame, Loader2, AlertCircle, Camera, Briefcase, GraduationCap, Heart, Settings, Gamepad2 } from 'lucide-react';
+import { MapPin, Link2, Calendar, Flame, Loader2, AlertCircle, Camera, Briefcase, GraduationCap, Heart, Settings, Gamepad2 } from 'lucide-react';
 import { useUser } from '../context/UserContext';
 import api from '../lib/axios';
 import toast from 'react-hot-toast';
 import PurgasTab from '../components/Profile/PurgasTab';
 
-type ProfileTab = 'posts' | 'puurgas' | 'achievements' | 'gaming' | 'settings';
+type ProfileTab = 'pictures' | 'puurgas' | 'achievements' | 'gaming' | 'settings';
+
+type ProfileStats = {
+  posts: number;
+  followers: number;
+  following: number;
+};
 
 const Profile: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<ProfileTab>('posts');
+  const [activeTab, setActiveTab] = useState<ProfileTab>('pictures');
   const { user: profileData, updateUser, loading } = useUser();
   const profilePictureRef = useRef<HTMLInputElement>(null);
   const coverPhotoRef = useRef<HTMLInputElement>(null);
   const [isEditMode, setIsEditMode] = useState(false);
+  const [picturesLoading, setPicturesLoading] = useState(false);
+  const [pictureUrls, setPictureUrls] = useState<string[]>([]);
+  const [profileStats, setProfileStats] = useState<ProfileStats>({
+    posts: 0,
+    followers: 0,
+    following: 0,
+  });
   const [formData, setFormData] = useState({
     name: '',
     username: '',
@@ -54,6 +67,93 @@ const Profile: React.FC = () => {
       });
     }
   }, [profileData]);
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      if (!profileData?.id) return;
+      try {
+        const response = await api.get(`/api/users/${profileData.id}/stats`);
+        const data = response.data as Partial<ProfileStats>;
+        setProfileStats({
+          posts: typeof data.posts === 'number' ? data.posts : 0,
+          followers: typeof data.followers === 'number' ? data.followers : 0,
+          following: typeof data.following === 'number' ? data.following : 0,
+        });
+      } catch (error) {
+        console.error('Failed to load profile stats:', error);
+        setProfileStats({
+          posts: profileData.stats?.posts || 0,
+          followers: profileData.stats?.followers || 0,
+          following: profileData.stats?.following || 0,
+        });
+      }
+    };
+
+    fetchStats();
+  }, [profileData?.id, profileData?.stats?.followers, profileData?.stats?.following, profileData?.stats?.posts]);
+
+  useEffect(() => {
+    const fetchAllUserPictures = async () => {
+      if (!profileData?.id) return;
+
+      setPicturesLoading(true);
+      try {
+        const tryEndpoints = ['/api/posts/feed', '/api/users/posts/feed'];
+        let postsData: unknown = [] as unknown[];
+
+        for (const ep of tryEndpoints) {
+          try {
+            const response = await api.get(ep);
+            const data = response.data as unknown;
+            if (Array.isArray(data)) {
+              postsData = data;
+              break;
+            }
+            if (typeof data === 'object' && data !== null && Array.isArray((data as any).data)) {
+              postsData = (data as any).data;
+              break;
+            }
+          } catch (e) {
+            console.warn(`Pictures fetch failed at ${ep}`, e);
+          }
+        }
+
+        const safePosts = Array.isArray(postsData) ? postsData : [];
+        const userPosts = safePosts.filter((p) => {
+          if (typeof p !== 'object' || p === null) return false;
+          const po = p as any;
+          const uid = (po.user_id as string) || (po.userId as string);
+          return uid === profileData.id;
+        });
+
+        const urls: string[] = [];
+        for (const post of userPosts) {
+          const po = post as any;
+          const imgs: unknown = po.images;
+          if (Array.isArray(imgs)) {
+            for (const url of imgs) {
+              if (typeof url === 'string' && url.trim().length > 0) {
+                urls.push(url);
+              }
+            }
+          }
+        }
+
+        setPictureUrls(urls);
+        setProfileStats((prev) => ({ ...prev, posts: userPosts.length }));
+      } catch (error) {
+        console.error('Failed to load pictures:', error);
+        setPictureUrls([]);
+        toast.error('Failed to load pictures');
+      } finally {
+        setPicturesLoading(false);
+      }
+    };
+
+    if (activeTab === 'pictures') {
+      fetchAllUserPictures();
+    }
+  }, [activeTab, profileData?.id]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
@@ -270,9 +370,7 @@ const Profile: React.FC = () => {
           <div>
             <h1 className="text-3xl font-bold text-white">{profileData.name}</h1>
             <p className="text-gray-400 text-lg">@{profileData.username}</p>
-            {profileData.bio && (
-              <p className="text-gray-300 mt-2 max-w-xl">{profileData.bio}</p>
-            )}
+            <p className="text-gray-300 mt-2 max-w-xl">{profileData.bio || 'No bio yet.'}</p>
             <div className="flex items-center gap-2 sm:gap-4 mt-3 text-xs sm:text-sm text-gray-400 flex-wrap">
               {profileData.location && (
                 <span className="flex items-center gap-1">
@@ -318,15 +416,15 @@ const Profile: React.FC = () => {
           </div>
           <div className="flex gap-4 mt-4 md:mt-0 flex-shrink-0">
             <div className="text-center">
-              <span className="block text-xl font-bold text-white">{profileData.stats?.posts || 0}</span>
+              <span className="block text-xl font-bold text-white">{profileStats.posts}</span>
               <span className="text-gray-400">Posts</span>
             </div>
             <div className="text-center">
-              <span className="block text-xl font-bold text-white">{profileData.stats?.followers || 0}</span>
+              <span className="block text-xl font-bold text-white">{profileStats.followers}</span>
               <span className="text-gray-400">Followers</span>
             </div>
             <div className="text-center">
-              <span className="block text-xl font-bold text-white">{profileData.stats?.following || 0}</span>
+              <span className="block text-xl font-bold text-white">{profileStats.following}</span>
               <span className="text-gray-400">Following</span>
             </div>
           </div>
@@ -337,10 +435,10 @@ const Profile: React.FC = () => {
       <div className="bg-black w-full">
         <div className="flex justify-around border-b border-gray-800 px-2 sm:px-4 overflow-x-auto">
           <TabButton 
-            label="Posts" 
-            icon={<Trophy size={18} />} 
-            isActive={activeTab === 'posts'} 
-            onClick={() => setActiveTab('posts')} 
+            label="Pictures" 
+            icon={<Camera size={18} />} 
+            isActive={activeTab === 'pictures'} 
+            onClick={() => setActiveTab('pictures')} 
           />
           <TabButton 
             label="Puurgas" 
@@ -362,7 +460,23 @@ const Profile: React.FC = () => {
           />
         </div>
         <div className="p-2 sm:p-4 min-h-[300px] w-full overflow-hidden">
-          {activeTab === 'posts' && <div className="text-center text-gray-500 py-8">No posts yet.</div>}
+          {activeTab === 'pictures' && (
+            picturesLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
+              </div>
+            ) : pictureUrls.length > 0 ? (
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">
+                {pictureUrls.map((url, idx) => (
+                  <div key={`${url}-${idx}`} className="relative w-full aspect-square overflow-hidden rounded-lg bg-[#2d2d2d] border border-gray-800">
+                    <img src={url} alt="" className="w-full h-full object-cover" loading="lazy" />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center text-gray-500 py-8">No pictures yet.</div>
+            )
+          )}
           {activeTab === 'puurgas' && <PurgasTab />}
           {activeTab === 'gaming' && (
             <div className="space-y-4">

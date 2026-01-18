@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Flame, User, Calendar, Loader2, AlertCircle } from 'lucide-react';
+import { Flame, User, Calendar, Loader2, AlertCircle, Coins, Zap } from 'lucide-react';
 import api from '../../lib/axios';
 import toast from 'react-hot-toast';
 
@@ -36,15 +36,22 @@ interface PurgeData {
   };
 }
 
+interface CreditData {
+  credits: number;
+  purgeStreak: number;
+}
+
 type TabType = 'given' | 'received';
 
 const PurgasTab: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>('given');
   const [purgeData, setPurgeData] = useState<PurgeData | null>(null);
+  const [creditData, setCreditData] = useState<CreditData>({ credits: 0, purgeStreak: 0 });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetchPurgeActivity();
+    fetchCredits();
   }, []);
 
   const fetchPurgeActivity = async () => {
@@ -57,6 +64,15 @@ const PurgasTab: React.FC = () => {
       toast.error('Failed to load purge activity');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchCredits = async () => {
+    try {
+      const response = await api.get('/api/credits');
+      setCreditData(response.data);
+    } catch (error) {
+      console.error('Failed to fetch credits:', error);
     }
   };
 
@@ -97,7 +113,7 @@ const PurgasTab: React.FC = () => {
   return (
     <div className="space-y-4">
       {/* Stats Header */}
-      <div className="grid grid-cols-2 gap-4 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <div className="bg-[#1a1a1a] p-4 rounded-lg border border-gray-800">
           <div className="flex items-center gap-2 mb-2">
             <Flame className="w-5 h-5 text-orange-500" />
@@ -111,6 +127,22 @@ const PurgasTab: React.FC = () => {
             <h3 className="text-sm font-medium text-gray-400">Purges Received</h3>
           </div>
           <p className="text-2xl font-bold text-white">{purgeData.stats.totalReceived}</p>
+        </div>
+        <div className="bg-gradient-to-br from-orange-900/20 to-yellow-900/20 p-4 rounded-lg border border-orange-500/50">
+          <div className="flex items-center gap-2 mb-2">
+            <Coins className="w-5 h-5 text-orange-400" />
+            <h3 className="text-sm font-medium text-orange-300">Credits</h3>
+          </div>
+          <p className="text-2xl font-bold text-orange-400">{creditData.credits}</p>
+          <p className="text-xs text-orange-300/70 mt-1">Redeem ghosted users</p>
+        </div>
+        <div className="bg-[#1a1a1a] p-4 rounded-lg border border-gray-800">
+          <div className="flex items-center gap-2 mb-2">
+            <Zap className="w-5 h-5 text-yellow-500" />
+            <h3 className="text-sm font-medium text-gray-400">Purge Streak</h3>
+          </div>
+          <p className="text-2xl font-bold text-white">{creditData.purgeStreak}/5</p>
+          <p className="text-xs text-gray-500 mt-1">Next bonus: {5 - creditData.purgeStreak} purges</p>
         </div>
       </div>
 

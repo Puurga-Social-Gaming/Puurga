@@ -5,6 +5,7 @@ import PostList from '../components/Post/PostList';
 import StatusBar from '../components/StatusBar/StatusBar';
 import api from '../api/api';
 import { toast } from 'react-hot-toast';
+import { getCachedPosts, clearPostsCache } from '../utils/preloadPosts';
 import '../styles/neo-home.css';
 
 // Safe helpers to coerce unknown values without using 'any'
@@ -124,7 +125,7 @@ function mapBackendPost(post: unknown): Post {
 
 export default function Home() {
   const [posts, setPosts] = useState<Post[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -135,6 +136,17 @@ export default function Home() {
 
   const fetchPosts = async () => {
     try {
+      // Check for preloaded posts first
+      const cachedData = getCachedPosts();
+      if (cachedData) {
+        const mappedPosts = cachedData.map(mapBackendPost);
+        setPosts(mappedPosts);
+        setError(null);
+        clearPostsCache(); // Clear cache after use
+        console.log('⚡ Posts loaded instantly from cache!');
+        return;
+      }
+
       setLoading(true);
       // api has baseURL '/api', try root posts feed first, then fallback to users namespace
       const tryEndpoints = ['/posts/feed', '/users/posts/feed'];

@@ -1,6 +1,7 @@
 import express from 'express';
 import { supabase } from '../config/supabase';
 import { supabaseAuth as auth, AuthRequest } from '../middleware/supabaseAuth';
+import { wsManager } from '../websocketManager';
 
 const router = express.Router();
 
@@ -29,50 +30,77 @@ router.get('/conversations', auth, async (req: AuthRequest, res) => {
       return res.json([]);
     }
 
-    const conversationIds = userConversations.map(c => c.conversation_id);
+    const allConversationIds = userConversations.map(c => c.conversation_id);
 
-    // Get conversation details
+    // Get top 50 most recent conversations
     const { data: conversations, error } = await supabase
       .from('conversations')
       .select('id, created_at, updated_at')
-      .in('id', conversationIds)
-      .order('updated_at', { ascending: false });
+      .in('id', allConversationIds)
+      .order('updated_at', { ascending: false })
+      .limit(50);
 
     if (error) throw error;
 
-    // Format conversations with participant info and latest message
-    const formattedConversations = await Promise.all(
-      (conversations || []).map(async (conv: any) => {
-        // Get other participants (not current user)
-        const { data: participantIds } = await supabase
-          .from('conversation_participants')
-          .select('user_id')
-          .eq('conversation_id', conv.id)
-          .neq('user_id', user.id);
+    const targetConversations = conversations || [];
+    const targetIds = targetConversations.map(c => c.id);
 
-        // Get participant profiles
-        const participants = [];
-        if (participantIds && participantIds.length > 0) {
-          const userIds = participantIds.map(p => p.user_id);
-          const { data: profiles } = await supabase
-            .from('profiles')
-            .select('id, full_name, username, avatar_url')
-            .in('id', userIds);
+    if (targetIds.length === 0) {
+      return res.json([]);
+    }
 
-          if (profiles) {
-            participants.push(...profiles.map(p => ({
-              id: p.id,
-              full_name: p.full_name || 'Unknown User',
-              username: p.username || 'unknown',
-              avatar_url: p.avatar_url || null
-            })));
-          }
+    // Bulk fetch all participants for these conversations
+    const { data: allParticipants } = await supabase
+      .from('conversation_participants')
+      .select('conversation_id, user_id')
+      .in('conversation_id', targetIds)
+      .neq('user_id', user.id); // Exclude current user
+
+    // Bulk fetch profiles for these participants
+    const participantUserIds = [...new Set((allParticipants || []).map(p => p.user_id))];
+    
+    let profilesMap = new Map();
+    if (participantUserIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, full_name, username, avatar_url')
+        .in('id', participantUserIds);
+      
+      if (profiles) {
+        profiles.forEach(p => profilesMap.set(p.id, p));
+      }
+    }
+
+    // Group participants by conversation ID
+    const conversationParticipants = new Map();
+    (allParticipants || []).forEach(p => {
+      const profile = profilesMap.get(p.user_id);
+      if (profile) {
+        if (!conversationParticipants.has(p.conversation_id)) {
+          conversationParticipants.set(p.conversation_id, []);
         }
+        conversationParticipants.get(p.conversation_id).push({
+          id: profile.id,
+          full_name: profile.full_name || 'Unknown User',
+          username: profile.username || 'unknown',
+          avatar_url: profile.avatar_url || null
+        });
+      }
+    });
 
-        // Get latest message
+    // Fetch latest messages (still per convo but optimized fetch)
+    const formattedConversations = await Promise.all(
+      targetConversations.map(async (conv: any) => {
+        const participants = conversationParticipants.get(conv.id) || [];
+        
+        // Get latest message with sender profile
+        // Using explicit foreign key relationship if possible, or simplified fetch
         const { data: latestMessages } = await supabase
           .from('messages')
-          .select('id, content, created_at, from_user_id')
+          .select(`
+            id, content, created_at, from_user_id,
+            profiles!messages_from_user_id_fkey(id, full_name, username, avatar_url)
+          `)
           .eq('conversation_id', conv.id)
           .order('created_at', { ascending: false })
           .limit(1);
@@ -80,16 +108,18 @@ router.get('/conversations', auth, async (req: AuthRequest, res) => {
         let latest_message = null;
         if (latestMessages && latestMessages.length > 0) {
           const msg = latestMessages[0];
-          const { data: fromUser } = await supabase
-            .from('profiles')
-            .select('id, full_name, username, avatar_url')
-            .eq('id', msg.from_user_id)
-            .single();
-
+          // Handle nested profile data from the join
+          const senderProfile = (msg as any).profiles;
+          
           latest_message = {
             content: msg.content,
             created_at: msg.created_at,
-            from_user: fromUser || { id: msg.from_user_id, full_name: 'Unknown', username: 'unknown', avatar_url: null }
+            from_user: senderProfile ? {
+              id: senderProfile.id,
+              full_name: senderProfile.full_name || 'Unknown User',
+              username: senderProfile.username || 'unknown',
+              avatar_url: senderProfile.avatar_url || null
+            } : { id: msg.from_user_id, full_name: 'Unknown', username: 'unknown', avatar_url: null }
           };
         }
         
@@ -227,6 +257,31 @@ router.post('/conversations/:conversationId/messages', auth, async (req: AuthReq
       .update({ updated_at: new Date().toISOString() })
       .eq('id', conversationId);
 
+    // Get other participants to send notifications
+    const { data: otherParticipants } = await supabase
+      .from('conversation_participants')
+      .select('user_id')
+      .eq('conversation_id', conversationId)
+      .neq('user_id', user.id);
+
+    // Create notifications for all other participants
+    if (otherParticipants && otherParticipants.length > 0) {
+      const senderProfile = (message as any).profiles;
+      const notifications = otherParticipants.map(participant => ({
+        type: 'message',
+        sender_id: user.id,
+        receiver_id: participant.user_id,
+        conversation_id: conversationId,
+        message_id: message.id,
+        title: 'New Message',
+        message: `${senderProfile?.full_name || 'Someone'} sent you a message`,
+        is_read: false,
+        created_at: new Date().toISOString(),
+      }));
+
+      await supabase.from('notifications').insert(notifications);
+    }
+
     const formattedMessage = {
       id: message.id,
       content: message.content,
@@ -239,6 +294,32 @@ router.post('/conversations/:conversationId/messages', auth, async (req: AuthReq
         avatar_url: (message as any).profiles?.avatar_url || null
       }
     };
+
+    // Broadcast message to all participants via WebSocket for real-time delivery
+    if (otherParticipants && otherParticipants.length > 0) {
+      const recipientIds = otherParticipants.map(p => p.user_id);
+      const wsMessage = {
+        type: 'new_message' as const,
+        payload: {
+          conversationId,
+          message: {
+            id: formattedMessage.id,
+            content: formattedMessage.content,
+            fromUserId: formattedMessage.from_user_id,
+            createdAt: new Date(formattedMessage.created_at),
+            fromUser: {
+              id: formattedMessage.from_user.id,
+              name: formattedMessage.from_user.full_name,
+              username: formattedMessage.from_user.username,
+              avatar: formattedMessage.from_user.avatar_url || undefined
+            }
+          }
+        }
+      };
+      
+      wsManager.broadcastToUsers(recipientIds, wsMessage);
+      console.log(`Broadcasted message to ${recipientIds.length} recipient(s)`);
+    }
 
     res.json(formattedMessage);
   } catch (error) {
@@ -351,12 +432,19 @@ router.get('/users/online', auth, async (req: AuthRequest, res) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    // Get all users except current user
+    // Get online user IDs from WebSocket manager
+    const onlineUserIds = wsManager.getOnlineUsers().filter(id => id !== user.id);
+
+    if (onlineUserIds.length === 0) {
+      return res.json([]);
+    }
+
+    // Fetch profiles for online users
     const { data: users, error } = await supabase
       .from('profiles')
       .select('id, full_name, username, avatar_url')
-      .neq('id', user.id)
-      .limit(50);
+      .in('id', onlineUserIds)
+      .limit(50); // Optional limit if too many online
 
     if (error) {
       if (error.code === '42P01') {
@@ -370,7 +458,7 @@ router.get('/users/online', auth, async (req: AuthRequest, res) => {
       full_name: u.full_name || 'Unknown User',
       username: u.username || 'unknown',
       avatar_url: u.avatar_url,
-      isOnline: true // TODO: Implement real online status
+      isOnline: true
     }));
 
     res.json(formattedUsers);

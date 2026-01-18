@@ -8,7 +8,6 @@ import {
   UserCircle,
   HelpCircle,
   LogOut,
-  Wifi,
   Gamepad2,
   BarChart3,
   Settings
@@ -97,14 +96,6 @@ const MainNav: React.FC = () => {
         <div className="p-6 pb-8 flex items-center justify-center gap-3">
           <PuurgaLogo size={40} className="text-orange-500" />
           <span className="text-xl font-bold tracking-wide text-[var(--accent)]">PUURGA</span>
-        </div>
-
-        {/* Secondary Action Button */}
-        <div className="px-4 mb-8">
-          <button className="w-full flex items-center justify-center gap-2 px-4 py-3 text-white bg-[var(--surface)] hover:bg-opacity-80 rounded-lg transition-colors">
-            <Wifi className="w-5 h-5" />
-            <span className="font-semibold">Go Live</span>
-          </button>
         </div>
 
         {/* Navigation items with extra top spacing */}

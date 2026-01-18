@@ -4,6 +4,7 @@ import { websocketService } from '../services/websocketService';
 interface UseWebSocketOptions {
   onNotification?: (notification: any) => void;
   onMessage?: (message: any) => void;
+  onTyping?: (payload: { conversationId: string; userId: string; isTyping: boolean }) => void;
   onUserStatusChange?: (status: { userId: string; isOnline: boolean }) => void;
   onConnectionChange?: (connected: boolean) => void;
 }
@@ -30,6 +31,11 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
       unsubscribers.push(unsubscribe);
     }
 
+    if (options.onTyping) {
+      const unsubscribe = websocketService.on('typing', options.onTyping);
+      unsubscribers.push(unsubscribe);
+    }
+
     if (options.onUserStatusChange) {
       const unsubscribe = websocketService.on('user_status_change', options.onUserStatusChange);
       unsubscribers.push(unsubscribe);
@@ -45,7 +51,7 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
     unsubscribersRef.current = unsubscribers;
 
     return cleanup;
-  }, [options.onNotification, options.onMessage, options.onUserStatusChange, options.onConnectionChange, cleanup]);
+  }, [options.onNotification, options.onMessage, options.onTyping, options.onUserStatusChange, options.onConnectionChange, cleanup]);
 
   return {
     isConnected: websocketService.isConnected(),

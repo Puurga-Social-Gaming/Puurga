@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { UserPlus, X, Clock, UserCheck, Mail } from 'lucide-react';
-import Avatar from '../Avatar';
+import { UserPlus, Clock, UserCheck } from 'lucide-react';
 import api from '../../api/api';
 import { toast } from 'react-hot-toast';
 import type { AxiosError } from 'axios';
+import { useMessages } from '../../context/MessagesContext';
 
 interface ApiError {
   message: string;
@@ -25,6 +25,7 @@ const SuggestedFriends: React.FC = () => {
   const [error, setError] = useState('');
   const navigate = useNavigate();
   const location = useLocation();
+  const { onlineUsers } = useMessages();
 
   useEffect(() => {
     loadSuggestions();
@@ -67,10 +68,6 @@ const SuggestedFriends: React.FC = () => {
     }
   };
 
-  const handleDismiss = (userId: string) => {
-    setSuggestions(prev => prev.filter(user => user.id !== userId));
-  };
-
   const handleSendRequest = async (userId: string) => {
     try {
       await api.post('/friend-requests/send', {
@@ -107,31 +104,16 @@ const SuggestedFriends: React.FC = () => {
     }
   };
 
-  const handleMessage = async (userId: string) => {
-    try {
-      // Create or get existing conversation
-      const response = await api.post('/conversations', {
-        otherUserId: userId
-      });
-      
-      // Navigate to the conversation
-      navigate(`/messages/${response.data.id}`);
-    } catch (error) {
-      console.error('Error creating conversation:', error);
-      toast.error('Failed to start conversation');
-    }
-  };
-
   if (loading) {
     return (
-      <div className="bg-[#1a1a1a] rounded-xl p-4 animate-pulse">
-        <div className="h-4 w-1/3 bg-[#2d2d2d] rounded mb-4"></div>
+      <div className="bg-[var(--card)]/90 rounded-xl p-6 border border-[var(--border)] animate-pulse">
+        <div className="h-5 w-1/3 bg-[var(--surface)] rounded mb-4"></div>
         {[1, 2, 3].map((i) => (
-          <div key={i} className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-full bg-[#2d2d2d]"></div>
+          <div key={i} className="flex items-center gap-3 mb-3">
+            <div className="w-10 h-10 rounded-full bg-[var(--surface)]"></div>
             <div className="flex-1">
-              <div className="h-3 w-24 bg-[#2d2d2d] rounded mb-2"></div>
-              <div className="h-2 w-16 bg-[#2d2d2d] rounded"></div>
+              <div className="h-3 w-24 bg-[var(--surface)] rounded mb-2"></div>
+              <div className="h-2 w-16 bg-[var(--surface)] rounded"></div>
             </div>
           </div>
         ))}
@@ -144,60 +126,50 @@ const SuggestedFriends: React.FC = () => {
   }
 
   return (
-    <div className="bg-[#1a1a1a] rounded-xl p-4">
-      <h3 className="text-lg font-semibold text-white mb-4">Suggested Friends</h3>
-      <div className="space-y-4">
+    <div className="bg-[var(--card)]/90 rounded-xl p-6 border border-[var(--border)]">
+      <h2 className="text-xl font-bold text-[var(--fg)] mb-4">Suggested Friends</h2>
+      <div className="space-y-3">
         {suggestions.map((user) => (
-          <div key={user.id} className="flex items-center gap-3 group">
-            <div className="relative">
-              <Avatar
-                src={user.avatar}
-                alt={`${user.name}'s profile picture`}
-                size="md"
-                className="w-10 h-10"
-                onClick={() => navigate(`/profile/${user.username}`)}
-                showBorder={false}
-              />
-              {user.requestStatus === 'pending' ? (
-                <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-yellow-500 rounded-full flex items-center justify-center">
-                  <Clock size={12} className="text-white" />
-                </div>
-              ) : user.requestStatus === 'accepted' ? (
-                <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-green-500 rounded-full flex items-center justify-center">
-                  <UserCheck size={12} className="text-white" />
-                </div>
-              ) : (
-                <div 
-                  className="absolute -bottom-1 -right-1 w-5 h-5 bg-orange-500 rounded-full flex items-center justify-center cursor-pointer hover:bg-orange-600 transition-colors"
-                  onClick={() => handleSendRequest(user.id)}
+          <div key={user.id} className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="relative">
+                <img
+                  src={user.avatar || '/default-avatar.png'}
+                  alt={user.name}
+                  className="w-10 h-10 rounded-full object-cover cursor-pointer"
+                  onClick={() => navigate(`/profile/${user.username}`)}
+                />
+                {onlineUsers.some(u => u.id === user.id) && (
+                  <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-[var(--card)]" title="Online" />
+                )}
+              </div>
+              <div className="min-w-0">
+                <span 
+                  className="text-[var(--fg)] font-medium cursor-pointer hover:underline block truncate"
+                  onClick={() => navigate(`/profile/${user.username}`)}
                 >
-                  <UserPlus size={12} className="text-white" />
-                </div>
-              )}
+                  {user.name}
+                </span>
+                <p className="text-[var(--muted)] text-xs truncate">@{user.username}</p>
+              </div>
             </div>
-            <div className="flex-1 min-w-0">
-              <h4 className="font-medium text-white truncate cursor-pointer hover:underline"
-                  onClick={() => navigate(`/profile/${user.username}`)}>
-                {user.name}
-              </h4>
-              <p className="text-sm text-gray-400 truncate">{user.bio || `@${user.username}`}</p>
-            </div>
-            <div className="flex gap-2">
+            {user.requestStatus === 'pending' ? (
+              <div className="bg-yellow-500/10 text-yellow-500 rounded-full p-2" title="Request Pending">
+                <Clock size={18} />
+              </div>
+            ) : user.requestStatus === 'accepted' ? (
+              <div className="bg-green-500/10 text-green-500 rounded-full p-2" title="Friends">
+                <UserCheck size={18} />
+              </div>
+            ) : (
               <button
-                onClick={() => handleMessage(user.id)}
-                className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-[#2d2d2d] rounded"
-                title="Send message"
+                onClick={() => handleSendRequest(user.id)}
+                className="bg-[var(--accent)] text-white rounded-full p-2 hover:opacity-90 transition-colors"
+                title="Send Friend Request"
               >
-                <Mail size={16} className="text-gray-400" />
+                <UserPlus size={18} />
               </button>
-              <button
-                onClick={() => handleDismiss(user.id)}
-                className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-[#2d2d2d] rounded"
-                title="Remove suggestion"
-              >
-                <X size={16} className="text-gray-400" />
-              </button>
-            </div>
+            )}
           </div>
         ))}
       </div>

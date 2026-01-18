@@ -8,6 +8,7 @@ import { toast } from 'react-hot-toast';
 import { Eye, EyeOff } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { z } from 'zod';
+import { preloadPosts } from '../utils/preloadPosts';
 
 const loginSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -100,10 +101,13 @@ const Login: React.FC = () => {
       setWelcomeUsername(displayName);
       setShowWelcome(true);
       
-      // Navigate after showing welcome screen
+      // Start preloading posts immediately while welcome screen is showing
+      preloadPosts();
+      
+      // Navigate after showing welcome screen (3.5 seconds to allow posts to preload)
       setTimeout(() => {
         navigate('/home');
-      }, 1500);
+      }, 3500);
     } catch (err: any) {
       console.error('Detailed login error in component:', err);
       

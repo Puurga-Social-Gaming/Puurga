@@ -2,7 +2,6 @@ import React from 'react';
 import { Outlet } from 'react-router-dom';
 import MainNav from './Navigation/MainNav';
 import RightSidebar from './Sidebar/RightSidebar';
-import SuggestedFriends from '../components/SuggestedFriends/SuggestedFriends';
 import GhostModeOverlay from './GhostMode/GhostModeOverlay';
 import { useGhostMode } from '../hooks/useGhostMode';
 
@@ -20,7 +19,7 @@ const Layout: React.FC = () => {
       )}
       {/* Left Sidebar - Hidden on mobile, visible on large screens */}
       <div className="hidden lg:flex lg:flex-shrink-0 lg:w-[220px] xl:w-[240px]">
-        <div className="fixed left-0 top-0 bottom-0 w-[220px] xl:w-[240px] bg-black border-r border-gray-800 overflow-y-auto z-40">
+        <div className="fixed left-0 top-0 bottom-0 w-[220px] xl:w-[240px] bg-black border-r border-gray-800 overflow-y-auto z-[10000]">
           <MainNav />
         </div>
       </div>
@@ -38,16 +37,13 @@ const Layout: React.FC = () => {
         <div className="fixed right-0 top-0 bottom-0 w-[260px] xl:w-[300px] bg-black border-l border-gray-800 overflow-y-auto z-40">
           <div className="p-4 space-y-6">
             <RightSidebar />
-            <div className="mt-6 pt-6 border-t border-gray-800">
-              <SuggestedFriends />
-            </div>
           </div>
         </div>
       </div>
 
       {/* Mobile Bottom Navigation - Fixed to viewport, outside main flex container */}
       <div 
-        className="lg:hidden fixed bottom-0 left-0 right-0 bg-black border-t border-gray-800 z-[9999]"
+        className="lg:hidden fixed bottom-0 left-0 right-0 bg-black border-t border-gray-800 z-[10000]"
         style={{ 
           position: 'fixed',
           transform: 'none',

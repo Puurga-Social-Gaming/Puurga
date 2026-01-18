@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useUser } from '../../context/UserContext';
 import { Link } from 'react-router-dom';
 import api from '../../api/api';
-import { getFriendRequests, getFriendSuggestions, getAcceptedFriends } from '../../services/friendService';
-import { User, Users, UserPlus, MessageSquare } from 'lucide-react';
+import { getFriendRequests, getAcceptedFriends, acceptFriendRequest, rejectFriendRequest } from '../../services/friendService';
+import { User, Users, UserPlus, UserX, MessageSquare } from 'lucide-react';
+import { toast } from 'react-hot-toast';
 import { motion } from 'framer-motion';
 import { DEFAULT_IMAGES } from '../../constants/defaultImages';
 import { supabase } from '../../lib/supabaseClient';
@@ -49,8 +50,6 @@ const RightSidebar: React.FC = () => {
   const [friendRequestsLoading, setFriendRequestsLoading] = useState(true);
   const [onlineFriends, setOnlineFriends] = useState<OnlineUser[]>([]);
   const [onlineFriendsLoading, setOnlineFriendsLoading] = useState(true);
-  const [friendSuggestions, setFriendSuggestions] = useState<Array<{ id: string; name?: string; username?: string; avatar?: string }>>([]);
-  const [friendSuggestionsLoading, setFriendSuggestionsLoading] = useState(true);
   const [supabaseUsers, setSupabaseUsers] = useState<SupabaseProfile[]>([]);
   const [supabaseUsersLoading, setSupabaseUsersLoading] = useState(true);
 
@@ -123,21 +122,6 @@ const RightSidebar: React.FC = () => {
     fetchOnlineFriends();
   }, [user]);
 
-  useEffect(() => {
-    const fetchSuggestions = async () => {
-      setFriendSuggestionsLoading(true);
-      try {
-        const data = await getFriendSuggestions();
-        setFriendSuggestions(data);
-      } catch (error) {
-        setFriendSuggestions([]);
-        console.error('Error fetching friend suggestions:', error);
-      } finally {
-        setFriendSuggestionsLoading(false);
-      }
-    };
-    fetchSuggestions();
-  }, [user]);
 
   // People You May Know from Supabase profiles (non-destructive, additive)
   useEffect(() => {
@@ -175,7 +159,7 @@ const RightSidebar: React.FC = () => {
       initial={{ opacity: 0, x: 10 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ duration: 0.5 }}
-      className="sticky top-6 space-y-6"
+      className="space-y-6"
     >
       {/* Quick Actions */}
       <div className="bg-[var(--card)]/90 rounded-xl p-6 border border-[var(--border)]">
@@ -264,10 +248,38 @@ const RightSidebar: React.FC = () => {
                   </Link>
                 </div>
                 <div className="flex gap-2">
-                  <button className="bg-[var(--accent)] text-white rounded-full p-2 hover:opacity-90 transition-colors">
+                  <button 
+                    onClick={async () => {
+                      try {
+                        await acceptFriendRequest(request.id);
+                        toast.success('Friend request accepted!');
+                        setFriendRequests(prev => prev.filter(r => r.id !== request.id));
+                      } catch (error) {
+                        console.error('Error accepting friend request:', error);
+                        toast.error('Failed to accept friend request');
+                      }
+                    }}
+                    className="bg-green-500 text-white rounded-full p-2 hover:bg-green-600 transition-colors"
+                    title="Accept"
+                  >
                     <UserPlus size={18} />
                   </button>
-                  {/* Add reject button if needed */}
+                  <button 
+                    onClick={async () => {
+                      try {
+                        await rejectFriendRequest(request.id);
+                        toast.success('Friend request rejected');
+                        setFriendRequests(prev => prev.filter(r => r.id !== request.id));
+                      } catch (error) {
+                        console.error('Error rejecting friend request:', error);
+                        toast.error('Failed to reject friend request');
+                      }
+                    }}
+                    className="bg-red-500 text-white rounded-full p-2 hover:bg-red-600 transition-colors"
+                    title="Reject"
+                  >
+                    <UserX size={18} />
+                  </button>
                 </div>
               </div>
             ))}
@@ -302,50 +314,46 @@ const RightSidebar: React.FC = () => {
         </div>
       </div>
 
-      {/* People You May Know (Supabase profiles) */}
+      {/* People You May Know */}
       <div className="bg-[var(--card)]/90 rounded-xl p-6 border border-[var(--border)]">
         <h2 className="text-xl font-bold text-[var(--fg)] mb-4">People You May Know</h2>
-        {supabaseUsersLoading ? (
-          <div className="text-[var(--muted)]">Loading...</div>
-        ) : supabaseUsers.length > 0 ? (
-          <div className="space-y-3">
-            {supabaseUsers.map((p) => (
-              <div key={p.id} className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <img src={p.avatar || DEFAULT_IMAGES.avatar} alt={p.username || 'user'} className="w-10 h-10 rounded-full object-cover" />
-                  <div>
-                    <span className="text-[var(--fg)] font-medium">{p.name || p.username || 'User'}</span>
-                    {p.username && <p className="text-[var(--muted)] text-xs">@{p.username}</p>}
-                  </div>
-                </div>
-                <Link to={`/profile/${p.id}`} className="px-3 py-1.5 rounded-full text-sm bg-[var(--accent)] text-white hover:opacity-90 transition-opacity">View</Link>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="text-[var(--muted)] text-sm">No profiles to show.</p>
-        )}
-      </div>
-
-      {/* Trending / Friend Suggestions */}
-      <div className="bg-[var(--card)]/90 rounded-xl p-6 border border-[var(--border)]">
-        <h2 className="text-xl font-bold text-[var(--fg)] mb-4">Friend Suggestions</h2>
-        <div className="space-y-3 text-[var(--muted)] text-sm">
-          {friendSuggestionsLoading ? (
+        <div className="space-y-3">
+          {supabaseUsersLoading ? (
             <div className="text-[var(--muted)]">Loading...</div>
-          ) : friendSuggestions.length > 0 ? (
-            friendSuggestions.map(suggestion => (
-              <div key={suggestion.id} className="flex items-center gap-3">
-                <img src={suggestion.avatar || DEFAULT_IMAGES.avatar} alt={suggestion.name} className="w-10 h-10 rounded-full object-cover" />
-                <div>
-                  <span className="text-[var(--fg)] font-medium">{suggestion.name}</span>
-                  <p className="text-[var(--muted)] text-xs">@{suggestion.username}</p>
+          ) : supabaseUsers.length > 0 ? (
+            supabaseUsers.map((p) => (
+              <div key={p.id} className="flex items-center gap-3">
+                <div className="relative">
+                  <Link to={`/profile/${p.id}`}>
+                    <img src={p.avatar || DEFAULT_IMAGES.avatar} alt={p.username || 'user'} className="w-10 h-10 rounded-full object-cover" />
+                  </Link>
+                  <button
+                    onClick={async () => {
+                      try {
+                        await api.post('/friend-requests/send', { receiverId: p.id });
+                        toast.success('Friend request sent!');
+                        setSupabaseUsers(prev => prev.filter(u => u.id !== p.id));
+                      } catch (error: any) {
+                        const message = error?.response?.data?.message || 'Failed to send friend request';
+                        toast.error(message);
+                      }
+                    }}
+                    className="absolute -bottom-1 -right-1 w-5 h-5 bg-[var(--accent)] rounded-full flex items-center justify-center cursor-pointer hover:opacity-90 transition-colors"
+                    title="Send Friend Request"
+                  >
+                    <UserPlus size={12} className="text-white" />
+                  </button>
                 </div>
-                {/* Add friend request button here if needed */}
+                <div className="flex-1 min-w-0">
+                  <Link to={`/profile/${p.id}`} className="text-[var(--fg)] font-medium hover:underline block truncate">
+                    {p.name || p.username || 'User'}
+                  </Link>
+                  {p.username && <p className="text-[var(--muted)] text-xs truncate">@{p.username}</p>}
+                </div>
               </div>
             ))
           ) : (
-            <p className="text-[var(--muted)]">No suggestions at the moment.</p>
+            <p className="text-[var(--muted)] text-sm">No suggestions at the moment.</p>
           )}
         </div>
       </div>

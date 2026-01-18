@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { toast } from 'react-hot-toast';
-import { Bell, Shield, Eye, Moon, Volume2, Globe } from 'lucide-react';
+import { Bell, Shield, Eye, Globe } from 'lucide-react';
 
 const Settings: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);

@@ -275,7 +275,7 @@ export const useAuth = () => {
           const backendProfile = await res.json();
           setUser(backendProfile);
           toast.success('Logged in successfully!');
-          navigate('/home');
+          // Don't navigate here - let Login component handle it after welcome screen
           return backendProfile;
         }
       } catch {
@@ -284,7 +284,7 @@ export const useAuth = () => {
 
       setUser(finalProfile);
       toast.success('Logged in successfully!');
-      navigate('/home');
+      // Don't navigate here - let Login component handle it after welcome screen
       return finalProfile;
     } catch (error) {
       console.error('Detailed login error:', error);

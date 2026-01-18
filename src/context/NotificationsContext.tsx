@@ -28,6 +28,7 @@ interface NotificationsContextType {
   loading: boolean;
   loadNotifications: () => Promise<void>;
   markAsRead: (notificationIds: string[]) => Promise<void>;
+  dismissNotifications: (notificationIds: string[]) => Promise<void>;
   markAllAsRead: () => Promise<void>;
 }
 
@@ -75,19 +76,30 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
     try {
       await api.put('/api/notifications/read', { notificationIds });
       
-      // Update local state
+      // Update local state (keep items, but mark read)
       setNotifications(prev =>
-        prev.map(n =>
-          notificationIds.includes(n.id) ? { ...n, read: true } : n
-        )
+        prev.map(n => (notificationIds.includes(n.id) ? { ...n, read: true } : n))
       );
-      
-      // Recalculate unread count
-      setUnreadCount(prev => Math.max(0, prev - notificationIds.length));
+
+      // Decrement unreadCount by number of actually-unread items being marked
+      setUnreadCount(prevUnread => {
+        const currentlyUnread = notifications.filter(n => !n.read && notificationIds.includes(n.id)).length;
+        return Math.max(0, prevUnread - currentlyUnread);
+      });
     } catch (error) {
       console.error('Error marking notifications as read:', error);
     }
-  }, [user]);
+  }, [user, notifications]);
+
+  const dismissNotifications = useCallback(async (notificationIds: string[]) => {
+    if (!user || notificationIds.length === 0) return;
+
+    // Mark as read server-side first
+    await markAsRead(notificationIds);
+
+    // Then remove from UI entirely
+    setNotifications(prev => prev.filter(n => !notificationIds.includes(n.id)));
+  }, [user, markAsRead]);
 
   const markAllAsRead = useCallback(async () => {
     const unreadIds = notifications.filter(n => !n.read).map(n => n.id);
@@ -124,6 +136,7 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
         loading,
         loadNotifications,
         markAsRead,
+        dismissNotifications,
         markAllAsRead
       }}
     >

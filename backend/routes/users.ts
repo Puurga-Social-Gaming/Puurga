@@ -534,16 +534,14 @@ router.get('/posts/feed', async (req, res) => {
       // If it's already a localhost URL, keep it
       if (url.startsWith('http://localhost:3005/')) return url;
       
-      // If it's a Supabase URL, extract filename and use local server
+      // If it's a Supabase URL, use it directly (it's already a public URL)
       if (url.includes('supabase.co/storage')) {
-        const filename = url.split('/').pop();
-        return filename ? `http://localhost:3005/uploads/${filename}` : '';
+        return url;
       }
       
-      // If it's an external URL, try to extract filename and use local server
-      if (url.includes('http')) {
-        const filename = url.split('/').pop();
-        return filename ? `http://localhost:3005/uploads/${filename}` : '';
+      // If it's any other http/https URL, use it directly
+      if (url.startsWith('http://') || url.startsWith('https://')) {
+        return url;
       }
       
       // If it's just a filename, add the localhost prefix

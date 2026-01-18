@@ -1,10 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../lib/axios';
 import { toast } from 'react-hot-toast';
 import { UserCheck, UserX, Heart, MessageCircle } from 'lucide-react';
 import Avatar from '../../components/Avatar';
 import { DEFAULT_IMAGES } from '../../constants/defaultImages';
+import { useNotifications } from '../../context/NotificationsContext';
+import type { Notification as AppNotification } from '../../context/NotificationsContext';
 
 interface NotificationUser {
   id: string;
@@ -13,21 +15,8 @@ interface NotificationUser {
   avatar: string;
 }
 
-interface Notification {
-  id: string;
-  type: 'friend_request' | 'friend_request_accepted' | 'like' | 'comment';
-  read: boolean;
-  createdAt: string;
-  fromUser?: NotificationUser;
-  data: {
-    friendRequestId?: string;
-    postId?: string;
-    commentId?: string;
-  };
-}
-
 // Safe accessor for fromUser with defaults
-const getFromUser = (notification: Notification): NotificationUser => {
+const getFromUser = (notification: AppNotification): NotificationUser => {
   return notification.fromUser || {
     id: '',
     name: 'Unknown User',
@@ -38,31 +27,17 @@ const getFromUser = (notification: Notification): NotificationUser => {
 
 const Notifications: React.FC = () => {
   const navigate = useNavigate();
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { notifications, loading, loadNotifications, dismissNotifications } = useNotifications();
 
   useEffect(() => {
-    fetchNotifications();
-  }, []);
-
-  const fetchNotifications = async () => {
-    try {
-      const response = await api.get('/api/notifications');
-      setNotifications(response.data);
-    } catch (error) {
-      console.error('Error fetching notifications:', error);
-      toast.error('Failed to fetch notifications');
-    } finally {
-      setLoading(false);
-    }
-  };
+    loadNotifications();
+  }, [loadNotifications]);
 
   const handleAcceptFriendRequest = async (friendRequestId: string, notificationId: string) => {
     try {
       await api.post(`/api/friend-requests/${friendRequestId}/accept`);
-      await api.put(`/api/notifications/read`, { notificationIds: [notificationId] });
+      await dismissNotifications([notificationId]);
       toast.success('Friend request accepted');
-      fetchNotifications();
     } catch (error) {
       console.error('Error accepting friend request:', error);
       toast.error('Failed to accept friend request');
@@ -72,24 +47,38 @@ const Notifications: React.FC = () => {
   const handleRejectFriendRequest = async (friendRequestId: string, notificationId: string) => {
     try {
       await api.post(`/api/friend-requests/${friendRequestId}/reject`);
-      await api.put(`/api/notifications/read`, { notificationIds: [notificationId] });
+      await dismissNotifications([notificationId]);
       toast.success('Friend request rejected');
-      fetchNotifications();
     } catch (error) {
       console.error('Error rejecting friend request:', error);
       toast.error('Failed to reject friend request');
     }
   };
 
-  const handleViewProfile = (username: string) => {
-    navigate(`/profile/${username}`);
+  const getCta = (notification: AppNotification): { label: string; href: string } => {
+    const fromUser = getFromUser(notification);
+    const data = notification.data || {};
+
+    if (notification.type === 'message' || data.messageId) {
+      return { label: 'View Message', href: '/messages' };
+    }
+    if (data.postId) {
+      return { label: notification.type === 'comment' ? 'View Comment' : 'View Post', href: `/home#post-${data.postId}` };
+    }
+    return { label: 'View Profile', href: `/profile/${fromUser.username}` };
+  };
+
+  const handleNotificationNavigate = async (notification: AppNotification) => {
+    const { href } = getCta(notification);
+    await dismissNotifications([notification.id]);
+    navigate(href);
   };
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     const now = new Date();
     const diff = now.getTime() - date.getTime();
-    
+
     const seconds = Math.floor(diff / 1000);
     const minutes = Math.floor(seconds / 60);
     const hours = Math.floor(minutes / 60);
@@ -101,15 +90,18 @@ const Notifications: React.FC = () => {
     return 'Just now';
   };
 
-  const renderNotification = (notification: Notification) => {
+  const renderNotification = (notification: AppNotification) => {
     const fromUser = getFromUser(notification);
     const data = notification.data || {};
-    
+
+    const cta = getCta(notification);
+
     switch (notification.type) {
       case 'friend_request':
         return (
           <div key={notification.id} className={`p-4 rounded-lg ${notification.read ? 'bg-[#1a1a1a]' : 'bg-[#1a1a1a] border-l-4 border-blue-500'}`}>
             <div className="flex items-center justify-between">
+
               <div className="flex items-center gap-3">
                 <Avatar src={fromUser.avatar || DEFAULT_IMAGES.avatar} alt={fromUser.name} size="md" />
                 <div>
@@ -137,14 +129,12 @@ const Notifications: React.FC = () => {
                     </button>
                   </>
                 )}
-                {fromUser.username && (
-                  <button
-                    onClick={() => handleViewProfile(fromUser.username)}
-                    className="px-3 py-1 bg-[#333] hover:bg-[#444] text-white rounded-lg text-sm"
-                  >
-                    View Profile
-                  </button>
-                )}
+                <button
+                  onClick={() => handleNotificationNavigate(notification)}
+                  className="px-3 py-1 bg-[#333] hover:bg-[#444] text-white rounded-lg text-sm"
+                >
+                  {cta.label}
+                </button>
               </div>
             </div>
           </div>
@@ -154,6 +144,7 @@ const Notifications: React.FC = () => {
         return (
           <div key={notification.id} className={`p-4 rounded-lg ${notification.read ? 'bg-[#1a1a1a]' : 'bg-[#1a1a1a] border-l-4 border-green-500'}`}>
             <div className="flex items-center justify-between">
+
               <div className="flex items-center gap-3">
                 <Avatar src={fromUser.avatar || DEFAULT_IMAGES.avatar} alt={fromUser.name} size="md" />
                 <div>
@@ -164,14 +155,12 @@ const Notifications: React.FC = () => {
                   <p className="text-sm text-gray-500">{formatDate(notification.createdAt)}</p>
                 </div>
               </div>
-              {fromUser.username && (
-                <button
-                  onClick={() => handleViewProfile(fromUser.username)}
-                  className="px-3 py-1 bg-[#333] hover:bg-[#444] text-white rounded-lg text-sm"
-                >
-                  View Profile
-                </button>
-              )}
+              <button
+                onClick={() => handleNotificationNavigate(notification)}
+                className="px-3 py-1 bg-[#333] hover:bg-[#444] text-white rounded-lg text-sm"
+              >
+                {cta.label}
+              </button>
             </div>
           </div>
         );
@@ -180,6 +169,7 @@ const Notifications: React.FC = () => {
         return (
           <div key={notification.id} className={`p-4 rounded-lg ${notification.read ? 'bg-[#1a1a1a]' : 'bg-[#1a1a1a] border-l-4 border-pink-500'}`}>
             <div className="flex items-center justify-between">
+
               <div className="flex items-center gap-3">
                 <div className="relative">
                   <Avatar src={fromUser.avatar || DEFAULT_IMAGES.avatar} alt={fromUser.name} size="md" />
@@ -195,14 +185,12 @@ const Notifications: React.FC = () => {
                   <p className="text-sm text-gray-500">{formatDate(notification.createdAt)}</p>
                 </div>
               </div>
-              {fromUser.username && (
-                <button
-                  onClick={() => handleViewProfile(fromUser.username)}
-                  className="px-3 py-1 bg-[#333] hover:bg-[#444] text-white rounded-lg text-sm"
-                >
-                  View Profile
-                </button>
-              )}
+              <button
+                onClick={() => handleNotificationNavigate(notification)}
+                className="px-3 py-1 bg-[#333] hover:bg-[#444] text-white rounded-lg text-sm"
+              >
+                {cta.label}
+              </button>
             </div>
           </div>
         );
@@ -211,6 +199,7 @@ const Notifications: React.FC = () => {
         return (
           <div key={notification.id} className={`p-4 rounded-lg ${notification.read ? 'bg-[#1a1a1a]' : 'bg-[#1a1a1a] border-l-4 border-orange-500'}`}>
             <div className="flex items-center justify-between">
+
               <div className="flex items-center gap-3">
                 <div className="relative">
                   <Avatar src={fromUser.avatar || DEFAULT_IMAGES.avatar} alt={fromUser.name} size="md" />
@@ -226,14 +215,12 @@ const Notifications: React.FC = () => {
                   <p className="text-sm text-gray-500">{formatDate(notification.createdAt)}</p>
                 </div>
               </div>
-              {fromUser.username && (
-                <button
-                  onClick={() => handleViewProfile(fromUser.username)}
-                  className="px-3 py-1 bg-[#333] hover:bg-[#444] text-white rounded-lg text-sm"
-                >
-                  View Profile
-                </button>
-              )}
+              <button
+                onClick={() => handleNotificationNavigate(notification)}
+                className="px-3 py-1 bg-[#333] hover:bg-[#444] text-white rounded-lg text-sm"
+              >
+                {cta.label}
+              </button>
             </div>
           </div>
         );

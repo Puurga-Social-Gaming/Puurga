@@ -1,24 +1,29 @@
-import React, { useState } from 'react';
-import { Shield, Award, Trophy, RefreshCw, Gift, CheckCircle, XCircle, User as UserIcon } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Shield, Award, Trophy, RefreshCw, Gift, CheckCircle, XCircle, User as UserIcon, Coins } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import api from '../lib/axios';
+import toast from 'react-hot-toast';
 
 interface UserStats {
-  shieldPoints: number;
+  credits: number;
+  purgeStreak: number;
+  totalPurgesGiven: number;
+  totalPurgesReceived: number;
   riskLevel: number;
-  groupId: string | null;
-  dailyTasksCompleted: number;
-  totalPoints: number;
   rank: string;
 }
 
-const MOCK_USER_STATS: UserStats = {
-  shieldPoints: 450,
-  riskLevel: 25,
-  groupId: '1',
-  dailyTasksCompleted: 3,
-  totalPoints: 1500,
-  rank: 'Survivor Elite'
-};
+interface CreditData {
+  credits: number;
+  purgeStreak: number;
+}
+
+interface PurgeStats {
+  stats: {
+    totalGiven: number;
+    totalReceived: number;
+  };
+}
 
 const MOCK_CHALLENGES = [
   { id: 1, text: 'Complete 3 Group Tasks', points: 50 },
@@ -26,21 +31,6 @@ const MOCK_CHALLENGES = [
   { id: 3, text: 'Survive a Purge Event', points: 200 },
   { id: 4, text: 'Invite a Friend', points: 30 },
   { id: 5, text: 'React to 5 Posts', points: 20 },
-];
-
-const MOCK_FEED = [
-  { id: 1, user: 'Rita', action: 'completed a challenge', detail: 'Win a Puurga Battle', time: '2m ago' },
-  { id: 2, user: 'Chris', action: 'joined a group', detail: 'Night Owls', time: '10m ago' },
-  { id: 3, user: 'Alex', action: 'earned bonus points', detail: '+100', time: '20m ago' },
-  { id: 4, user: 'Sam', action: 'leveled up', detail: 'Elite Survivor', time: '1h ago' },
-];
-
-const MOCK_LEADERBOARD = [
-  { id: 1, name: 'Rita', points: 2200 },
-  { id: 2, name: 'Chris', points: 2100 },
-  { id: 3, name: 'Alex', points: 2000 },
-  { id: 4, name: 'Sam', points: 1800 },
-  { id: 5, name: 'Taylor', points: 1700 },
 ];
 
 const BONUS_REWARDS = [
@@ -52,24 +42,70 @@ const BONUS_REWARDS = [
 ];
 
 const PuurgaDashboard: React.FC = () => {
-  const [userStats, setUserStats] = useState<UserStats>(MOCK_USER_STATS);
+  const [userStats, setUserStats] = useState<UserStats>({
+    credits: 0,
+    purgeStreak: 0,
+    totalPurgesGiven: 0,
+    totalPurgesReceived: 0,
+    riskLevel: 0,
+    rank: 'Novice'
+  });
   const [challenges, setChallenges] = useState(
     MOCK_CHALLENGES.map(c => ({ ...c, completed: false }))
   );
   const [bonus, setBonus] = useState<{ label: string; icon: React.ReactNode } | null>(null);
   const [spinning, setSpinning] = useState(false);
-  const [feed, setFeed] = useState(MOCK_FEED);
+  const [feed, setFeed] = useState<Array<{ id: number; user: string; action: string; detail: string; time: string }>>([]);
+  const [loading, setLoading] = useState(true);
 
-  // Animated points counter
-  const [displayPoints, setDisplayPoints] = useState(userStats.totalPoints);
+  useEffect(() => {
+    fetchUserStats();
+  }, []);
+
+  const fetchUserStats = async () => {
+    try {
+      setLoading(true);
+      const [creditsRes, purgesRes] = await Promise.all([
+        api.get('/api/credits'),
+        api.get('/api/posts/purges/my-activity')
+      ]);
+
+      const creditData: CreditData = creditsRes.data;
+      const purgeData: PurgeStats = purgesRes.data;
+
+      const riskLevel = Math.min((purgeData.stats.totalReceived / 5) * 100, 100);
+
+      let rank = 'Novice';
+      if (creditData.credits >= 500) rank = 'Elite Survivor';
+      else if (creditData.credits >= 200) rank = 'Veteran';
+      else if (creditData.credits >= 50) rank = 'Survivor';
+
+      setUserStats({
+        credits: creditData.credits,
+        purgeStreak: creditData.purgeStreak,
+        totalPurgesGiven: purgeData.stats.totalGiven,
+        totalPurgesReceived: purgeData.stats.totalReceived,
+        riskLevel: Math.round(riskLevel),
+        rank
+      });
+    } catch (error) {
+      console.error('Failed to fetch user stats:', error);
+      toast.error('Failed to load dashboard data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Animated credits counter
+  const [displayCredits, setDisplayCredits] = useState(userStats.credits);
   React.useEffect(() => {
-    if (displayPoints === userStats.totalPoints) return;
-    const diff = userStats.totalPoints - displayPoints;
+    if (displayCredits === userStats.credits) return;
+    const diff = userStats.credits - displayCredits;
     if (diff === 0) return;
     const step = Math.sign(diff) * Math.max(1, Math.abs(diff) / 20);
-    const timer = setTimeout(() => setDisplayPoints(p => p + step), 20);
+    const timer = setTimeout(() => setDisplayCredits(p => p + step), 20);
     return () => clearTimeout(timer);
-  }, [userStats.totalPoints, displayPoints]);
+  }, [userStats.credits, displayCredits]);
 
   // Challenge completion toggle
   const handleToggleChallenge = (id: number) => {
@@ -78,7 +114,7 @@ const PuurgaDashboard: React.FC = () => {
     ));
     const challenge = challenges.find(c => c.id === id);
     if (challenge && !challenge.completed) {
-      setUserStats(s => ({ ...s, totalPoints: s.totalPoints + challenge.points }));
+      setUserStats(s => ({ ...s, credits: s.credits + challenge.points }));
       setFeed(f => [
         { id: Date.now(), user: 'You', action: 'completed a challenge', detail: challenge.text, time: 'now' },
         ...f
@@ -95,7 +131,7 @@ const PuurgaDashboard: React.FC = () => {
       setBonus(reward);
       setSpinning(false);
       if (reward.value > 0) {
-        setUserStats(s => ({ ...s, totalPoints: s.totalPoints + reward.value }));
+        setUserStats(s => ({ ...s, credits: s.credits + reward.value }));
         setFeed(f => [
           { id: Date.now(), user: 'You', action: 'earned bonus', detail: reward.label, time: 'now' },
           ...f
@@ -104,22 +140,93 @@ const PuurgaDashboard: React.FC = () => {
     }, 1200);
   };
 
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
+        <div className="text-orange-500">Loading dashboard...</div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-[#0a0a0a] p-6">
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5 }}
+      className="min-h-screen bg-[#0a0a0a] p-6"
+    >
       <div className="max-w-7xl mx-auto space-y-8">
-        {/* Animated Points & Rank */}
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6 bg-[#1a1a1a] rounded-xl p-6">
-          <div>
-            <h1 className="text-3xl font-bold text-orange-500 mb-1">Puurga Dashboard</h1>
-            <p className="text-gray-400 text-lg">Current Rank: <span className="text-white font-semibold">{userStats.rank}</span></p>
-            <div className="flex items-center gap-3 mt-2">
-              <Shield className="text-orange-500" size={20} />
-              <span className="text-white">{userStats.shieldPoints} Shield Points</span>
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <Shield className="w-10 h-10 text-orange-500" />
+            <div>
+              <h1 className="text-2xl font-bold text-white">Puurga Dashboard</h1>
+              <p className="text-gray-400 text-sm">Track your progress, complete challenges, earn rewards</p>
             </div>
           </div>
-          <motion.div animate={{ scale: [1, 1.1, 1] }} transition={{ repeat: Infinity, duration: 2 }} className="flex flex-col items-center">
-            <span className="text-gray-400">Total Points</span>
-            <span className="text-4xl font-bold text-orange-400">{Math.round(displayPoints)}</span>
+        </div>
+
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <motion.div 
+            whileHover={{ scale: 1.02 }}
+            className="bg-[#1a1a1a] rounded-xl p-5 hover:ring-2 hover:ring-orange-500/30 transition-all"
+          >
+            <div className="flex items-center gap-3">
+              <div className="p-3 bg-orange-500/10 rounded-xl">
+                <Coins className="w-6 h-6 text-orange-500" />
+              </div>
+              <div>
+                <p className="text-gray-400 text-sm">Total Credits</p>
+                <p className="text-2xl font-bold text-white">{Math.round(displayCredits)}</p>
+              </div>
+            </div>
+          </motion.div>
+
+          <motion.div 
+            whileHover={{ scale: 1.02 }}
+            className="bg-[#1a1a1a] rounded-xl p-5 hover:ring-2 hover:ring-yellow-500/30 transition-all"
+          >
+            <div className="flex items-center gap-3">
+              <div className="p-3 bg-yellow-500/10 rounded-xl">
+                <Trophy className="w-6 h-6 text-yellow-500" />
+              </div>
+              <div>
+                <p className="text-gray-400 text-sm">Current Rank</p>
+                <p className="text-2xl font-bold text-white">{userStats.rank}</p>
+              </div>
+            </div>
+          </motion.div>
+
+          <motion.div 
+            whileHover={{ scale: 1.02 }}
+            className="bg-[#1a1a1a] rounded-xl p-5 hover:ring-2 hover:ring-blue-500/30 transition-all"
+          >
+            <div className="flex items-center gap-3">
+              <div className="p-3 bg-blue-500/10 rounded-xl">
+                <Award className="w-6 h-6 text-blue-500" />
+              </div>
+              <div>
+                <p className="text-gray-400 text-sm">Purge Streak</p>
+                <p className="text-2xl font-bold text-white">{userStats.purgeStreak}/5</p>
+              </div>
+            </div>
+          </motion.div>
+
+          <motion.div 
+            whileHover={{ scale: 1.02 }}
+            className={`bg-[#1a1a1a] rounded-xl p-5 hover:ring-2 transition-all ${userStats.riskLevel > 20 ? 'hover:ring-red-500/30' : 'hover:ring-green-500/30'}`}
+          >
+            <div className="flex items-center gap-3">
+              <div className={`p-3 rounded-xl ${userStats.riskLevel > 20 ? 'bg-red-500/10' : 'bg-green-500/10'}`}>
+                <Shield className={`w-6 h-6 ${userStats.riskLevel > 20 ? 'text-red-500' : 'text-green-500'}`} />
+              </div>
+              <div>
+                <p className="text-gray-400 text-sm">Risk Level</p>
+                <p className={`text-2xl font-bold ${userStats.riskLevel > 20 ? 'text-red-400' : 'text-green-400'}`}>{userStats.riskLevel}%</p>
+              </div>
+            </div>
           </motion.div>
         </div>
 
@@ -139,12 +246,17 @@ const PuurgaDashboard: React.FC = () => {
               />
             </div>
             <div className="flex items-center gap-4">
-              <span className="text-gray-400">Daily Tasks</span>
-              <span className="text-white font-bold">{userStats.dailyTasksCompleted}/5</span>
+              <span className="text-gray-400">Purges Given</span>
+              <span className="text-white font-bold">{userStats.totalPurgesGiven}</span>
+            </div>
+            <div className="flex items-center gap-4 mt-2">
+              <span className="text-gray-400">Purges Received</span>
+              <span className="text-white font-bold">{userStats.totalPurgesReceived}</span>
             </div>
           </div>
-          {/* Spin the Wheel */}
-          <div className="bg-[#1a1a1a] rounded-xl p-6 flex flex-col items-center justify-center">
+          {/* Spin the Wheel - Coming Soon */}
+          <div className="bg-[#1a1a1a] rounded-xl p-6 flex flex-col items-center justify-center relative">
+            <div className="absolute top-2 right-2 bg-orange-500/20 px-2 py-1 rounded text-xs text-orange-400 font-semibold">Coming Soon</div>
             <h2 className="text-lg font-bold text-white mb-2">Spin the Wheel!</h2>
             <button
               className={`rounded-full bg-orange-500 hover:bg-orange-600 text-white p-6 shadow-lg transition-all duration-300 ${spinning ? 'animate-spin' : ''}`}
@@ -169,8 +281,9 @@ const PuurgaDashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* Challenges */}
-        <div className="bg-[#1a1a1a] rounded-xl p-6">
+        {/* Challenges - Coming Soon */}
+        <div className="bg-[#1a1a1a] rounded-xl p-6 relative">
+          <div className="absolute top-4 right-4 bg-orange-500/20 px-3 py-1 rounded text-sm text-orange-400 font-semibold">Coming Soon</div>
           <h2 className="text-xl font-bold text-white mb-4">Daily & Weekly Challenges</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {challenges.map(challenge => (
@@ -192,8 +305,9 @@ const PuurgaDashboard: React.FC = () => {
 
         {/* Activity Feed & Leaderboard */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Activity Feed */}
-          <div className="bg-[#1a1a1a] rounded-xl p-6">
+          {/* Activity Feed - Coming Soon */}
+          <div className="bg-[#1a1a1a] rounded-xl p-6 relative">
+            <div className="absolute top-4 right-4 bg-orange-500/20 px-3 py-1 rounded text-sm text-orange-400 font-semibold">Coming Soon</div>
             <h2 className="text-xl font-bold text-white mb-4">Activity Feed</h2>
             <div className="space-y-3 max-h-64 overflow-y-auto pr-2">
               {feed.map(event => (
@@ -207,24 +321,18 @@ const PuurgaDashboard: React.FC = () => {
               ))}
             </div>
           </div>
-          {/* Leaderboard */}
-          <div className="bg-[#1a1a1a] rounded-xl p-6">
+          {/* Leaderboard - Coming Soon */}
+          <div className="bg-[#1a1a1a] rounded-xl p-6 relative">
+            <div className="absolute top-4 right-4 bg-orange-500/20 px-3 py-1 rounded text-sm text-orange-400 font-semibold">Coming Soon</div>
             <h2 className="text-xl font-bold text-white mb-4">Leaderboard</h2>
             <div className="space-y-2">
-              {MOCK_LEADERBOARD.map((user, idx) => (
-                <div key={user.id} className={`flex items-center gap-3 p-3 rounded-lg ${idx === 0 ? 'bg-orange-500/20' : 'bg-[#222]'}`}>
-                  <Trophy className={`text-orange-500 ${idx === 0 ? 'animate-bounce' : ''}`} size={20} />
-                  <span className="text-white font-semibold">{user.name}</span>
-                  <span className="ml-auto text-orange-400 font-bold">{user.points} pts</span>
-                  {idx === 0 && <span className="ml-2 text-xs text-orange-400 font-bold">#1</span>}
-                </div>
-              ))}
+              <p className="text-gray-500 text-center py-8">Leaderboard feature coming soon!</p>
             </div>
           </div>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 };
 
-export default PuurgaDashboard; 
+export default PuurgaDashboard;

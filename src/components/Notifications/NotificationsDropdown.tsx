@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
-import { Bell, Check, CheckCheck, Loader2, UserPlus, Heart, MessageCircle, UserCheck } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Bell, CheckCheck, Loader2, UserPlus, Heart, MessageCircle, UserCheck } from 'lucide-react';
 import { useNotifications } from '../../context/NotificationsContext';
 import { formatDistanceToNow } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const NotificationsDropdown: React.FC = () => {
-  const { notifications, unreadCount, loading, markAsRead, markAllAsRead } = useNotifications();
+  const { notifications, unreadCount, loading, dismissNotifications, markAllAsRead } = useNotifications();
   const [isOpen, setIsOpen] = useState(false);
+  const navigate = useNavigate();
 
   const getNotificationIcon = (type: string) => {
     switch (type) {
@@ -42,17 +44,29 @@ const NotificationsDropdown: React.FC = () => {
     }
   };
 
+  const getNotificationTarget = (notification: typeof notifications[0]) => {
+    const data = notification.data || {};
+
+    if (notification.type === 'message' || data.messageId) {
+      return '/messages';
+    }
+
+    if (data.postId) {
+      return `/home#post-${data.postId}`;
+    }
+
+    if (notification.fromUser?.username) {
+      return `/profile/${notification.fromUser.username}`;
+    }
+
+    return '/notifications';
+  };
+
   const handleNotificationClick = async (notification: typeof notifications[0]) => {
-    if (!notification.read) {
-      await markAsRead([notification.id]);
-    }
-    
-    // Navigate based on notification type
-    if (notification.data?.postId) {
-      window.location.href = `/posts/${notification.data.postId}`;
-    } else if (notification.data?.friendRequestId) {
-      window.location.href = '/friends';
-    }
+    const target = getNotificationTarget(notification);
+    await dismissNotifications([notification.id]);
+    setIsOpen(false);
+    navigate(target);
   };
 
   return (

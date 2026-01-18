@@ -10,33 +10,45 @@ import authRoutes from './routes/auth';
 import notificationRoutes from './routes/notifications';
 import userRoutes from './routes/users';
 import friendsRoutes from './routes/friends';
+import friendRequestsRoutes from './routes/friendRequests';
 import statusesRoutes from './routes/statuses';
 import postsRoutes from './routes/posts';
 import onlineStatusRoutes from './routes/onlineStatus';
 import testNotificationRoutes from './routes/testNotifications';
 import messagesRoutes from './routes/messages';
+import typingRoutes from './routes/typing';
 import groupsRoutes from './routes/groups';
 import commentsRoutes from './routes/comments';
 import redemptionRoutes from './routes/redemption';
 import testGhostModeRoutes from './routes/testGhostMode';
+import creditsRoutes from './routes/credits';
 
 dotenv.config();
 
 const app = express();
-const PORT = 3005;
+const PORT = process.env.PORT ? Number(process.env.PORT) : 3005;
+
+const defaultCorsOrigins = [
+  'http://localhost:5173',
+  'http://localhost:5174',
+  'http://localhost:5175',
+  'http://localhost:5176',
+  'http://localhost:5177'
+];
+
+const envCorsOrigins = (process.env.ALLOWED_ORIGINS || '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+
+const corsOrigins = Array.from(new Set([...defaultCorsOrigins, ...envCorsOrigins]));
 
 // Initialize storage before setting up multer
 initializeStorage();
 
 // CORS configuration
 app.use(cors({
-  origin: [
-    'http://localhost:5173',
-    'http://localhost:5174', 
-    'http://localhost:5175', 
-    'http://localhost:5176',
-    'http://localhost:5177'
-  ],
+  origin: corsOrigins,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
@@ -98,6 +110,9 @@ app.use('/api/users', userRoutes);
 // Use friends routes
 app.use('/api/friends', friendsRoutes);
 
+// Use friend requests routes
+app.use('/api/friend-requests', friendRequestsRoutes);
+
 // Use statuses routes
 app.use('/api/statuses', statusesRoutes);
 
@@ -113,6 +128,9 @@ app.use('/api/test', testNotificationRoutes);
 // Use messages routes
 app.use('/api/messages', messagesRoutes);
 
+// Use typing routes
+app.use('/api/typing', typingRoutes);
+
 // Use groups routes
 app.use('/api/groups', groupsRoutes);
 
@@ -124,6 +142,9 @@ app.use('/api/redeem', redemptionRoutes);
 
 // Use test ghost mode routes (for development/testing)
 app.use('/api/test/ghost-mode', testGhostModeRoutes);
+
+// Use credits routes
+app.use('/api/credits', creditsRoutes);
 
 // Create HTTP server and initialize WebSocket manager
 const server = createServer(app);

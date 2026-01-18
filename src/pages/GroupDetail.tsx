@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Users, Send, ArrowLeft, Settings, UserPlus, LogOut, Crown, Image, MoreVertical } from 'lucide-react';
+import { Users, Send, ArrowLeft, Settings, UserPlus, LogOut, Crown, X, Shield } from 'lucide-react';
+import { AnimatePresence } from 'framer-motion';
 import { motion } from 'framer-motion';
 import api from '../api/api';
 import toast from 'react-hot-toast';
@@ -63,6 +64,7 @@ const GroupDetail: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [sendingMessage, setSendingMessage] = useState(false);
   const [showMembers, setShowMembers] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -152,6 +154,47 @@ const GroupDetail: React.FC = () => {
     }
   };
 
+  const handleDeleteGroup = async () => {
+    try {
+      await api.delete(`/groups/${id}`);
+      toast.success('Group deleted successfully');
+      navigate('/groups');
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || 'Failed to delete group');
+    }
+  };
+
+  const handleRemoveMember = async (memberId: string) => {
+    if (!confirm('Are you sure you want to remove this member?')) return;
+    try {
+      await api.delete(`/groups/${id}/members/${memberId}`);
+      toast.success('Member removed successfully');
+      fetchGroupDetails();
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || 'Failed to remove member');
+    }
+  };
+
+  const handleMuteMember = async (memberId: string) => {
+    try {
+      await api.post(`/groups/${id}/members/${memberId}/mute`, { duration: 60 });
+      toast.success('Member muted for 1 hour');
+      fetchGroupDetails();
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || 'Failed to mute member');
+    }
+  };
+
+  const handleChangeRole = async (memberId: string, newRole: string) => {
+    try {
+      await api.put(`/groups/${id}/members/${memberId}/role`, { role: newRole });
+      toast.success(`Role updated to ${newRole}`);
+      fetchGroupDetails();
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || 'Failed to update role');
+    }
+  };
+
   const formatTime = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -219,8 +262,11 @@ const GroupDetail: React.FC = () => {
             >
               <Users size={20} />
             </button>
-            {group.user_role === 'admin' && (
-              <button className="p-2 bg-black/50 rounded-full text-white hover:bg-black/70 transition-colors">
+            {(group.user_role === 'admin' || group.user_role === 'moderator') && (
+              <button 
+                onClick={() => setShowSettings(!showSettings)}
+                className={`p-2 rounded-full text-white transition-colors ${showSettings ? 'bg-orange-500' : 'bg-black/50 hover:bg-black/70'}`}
+              >
                 <Settings size={20} />
               </button>
             )}
@@ -350,58 +396,189 @@ const GroupDetail: React.FC = () => {
         </div>
 
         {/* Members Sidebar */}
-        {showMembers && (
-          <motion.div
-            initial={{ width: 0, opacity: 0 }}
-            animate={{ width: 280, opacity: 1 }}
-            exit={{ width: 0, opacity: 0 }}
-            className="border-l border-gray-800 bg-[#0a0a0a] overflow-hidden"
-          >
-            <div className="p-4">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-bold text-white">Members</h3>
-                <span className="text-sm text-gray-400">{group.member_count}</span>
-              </div>
-              
-              <div className="space-y-3">
-                {group.members.map((member) => (
-                  <div key={member.id} className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-[#2d2d2d] overflow-hidden flex-shrink-0">
-                      {member.profile?.avatar_url ? (
-                        <img src={member.profile.avatar_url} alt="" className="w-full h-full object-cover" />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-orange-500 font-bold">
-                          {member.profile?.username?.[0]?.toUpperCase() || '?'}
-                        </div>
+        <AnimatePresence>
+          {showMembers && (
+            <motion.div
+              initial={{ width: 0, opacity: 0 }}
+              animate={{ width: 280, opacity: 1 }}
+              exit={{ width: 0, opacity: 0 }}
+              className="border-l border-gray-800 bg-[#0a0a0a] overflow-hidden"
+            >
+              <div className="p-4">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-bold text-white">Members</h3>
+                  <span className="text-sm text-gray-400">{group.member_count}</span>
+                </div>
+                
+                <div className="space-y-3">
+                  {group.members.map((member) => (
+                    <div key={member.id} className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-[#2d2d2d] overflow-hidden flex-shrink-0">
+                        {member.profile?.avatar_url ? (
+                          <img src={member.profile.avatar_url} alt="" className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-orange-500 font-bold">
+                            {member.profile?.username?.[0]?.toUpperCase() || '?'}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-white text-sm font-medium truncate">
+                          {member.profile?.full_name || member.profile?.username || 'Unknown'}
+                        </p>
+                        <p className="text-xs text-gray-400 truncate">
+                          @{member.profile?.username || 'unknown'}
+                        </p>
+                      </div>
+                      {member.role === 'admin' && (
+                        <Crown size={16} className="text-orange-500 flex-shrink-0" />
+                      )}
+                      {member.role === 'moderator' && (
+                        <Shield size={16} className="text-blue-400 flex-shrink-0" />
                       )}
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-white text-sm font-medium truncate">
-                        {member.profile?.full_name || member.profile?.username || 'Unknown'}
-                      </p>
-                      <p className="text-xs text-gray-400 truncate">
-                        @{member.profile?.username || 'unknown'}
-                      </p>
-                    </div>
-                    {member.role === 'admin' && (
-                      <Crown size={16} className="text-orange-500 flex-shrink-0" />
-                    )}
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
 
-              {group.is_member && (
-                <button
-                  onClick={handleLeaveGroup}
-                  className="w-full mt-6 py-2 text-red-500 hover:bg-red-500/10 rounded-lg transition-colors flex items-center justify-center gap-2"
-                >
-                  <LogOut size={18} />
-                  Leave Group
-                </button>
-              )}
-            </div>
-          </motion.div>
-        )}
+                {group.is_member && (
+                  <button
+                    onClick={handleLeaveGroup}
+                    className="w-full mt-6 py-2 text-red-500 hover:bg-red-500/10 rounded-lg transition-colors flex items-center justify-center gap-2"
+                  >
+                    <LogOut size={18} />
+                    Leave Group
+                  </button>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Admin Settings Panel */}
+        <AnimatePresence>
+          {showSettings && (group.user_role === 'admin' || group.user_role === 'moderator') && (
+            <motion.div
+              initial={{ width: 0, opacity: 0 }}
+              animate={{ width: 380, opacity: 1 }}
+              exit={{ width: 0, opacity: 0 }}
+              className="border-l border-gray-800 bg-[#0a0a0a] overflow-y-auto"
+            >
+              <div className="p-4">
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-2">
+                    <Settings size={20} className="text-orange-500" />
+                    <h3 className="text-lg font-bold text-white">Group Settings</h3>
+                  </div>
+                  <button
+                    onClick={() => setShowSettings(false)}
+                    className="p-2 text-gray-400 hover:text-white hover:bg-white/5 rounded-full transition-colors"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+
+                {/* Group Info */}
+                <div className="mb-6 p-4 bg-[#1a1a1a] rounded-xl">
+                  <h4 className="text-sm font-semibold text-gray-400 mb-3">GROUP INFO</h4>
+                  <p className="text-white font-medium">{group.name}</p>
+                  <p className="text-sm text-gray-400 mt-1">{group.description || 'No description'}</p>
+                  <div className="flex items-center gap-4 mt-3 text-sm">
+                    <span className="text-gray-400">{group.member_count} members</span>
+                    <span className="text-gray-400">{group.is_private ? '🔒 Private' : '🌐 Public'}</span>
+                  </div>
+                </div>
+
+                {/* Members Management */}
+                <div className="mb-6">
+                  <h4 className="text-sm font-semibold text-gray-400 mb-3">MEMBERS ({group.members.length})</h4>
+                  <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                    {group.members.map((member) => (
+                      <div key={member.id} className="flex items-center justify-between p-3 bg-[#1a1a1a] rounded-lg">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full bg-[#2d2d2d] overflow-hidden flex-shrink-0">
+                            {member.profile?.avatar_url ? (
+                              <img src={member.profile.avatar_url} alt="" className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center text-orange-500 font-bold">
+                                {member.profile?.username?.[0]?.toUpperCase() || '?'}
+                              </div>
+                            )}
+                          </div>
+                          <div>
+                            <p className="text-white text-sm font-medium">
+                              {member.profile?.full_name || member.profile?.username || 'Unknown'}
+                            </p>
+                            <div className="flex items-center gap-2">
+                              <span className={`text-xs px-2 py-0.5 rounded ${
+                                member.role === 'admin' ? 'bg-orange-500/20 text-orange-400' :
+                                member.role === 'moderator' ? 'bg-blue-500/20 text-blue-400' :
+                                'bg-gray-500/20 text-gray-400'
+                              }`}>
+                                {member.role}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        {/* Admin controls for non-admin members */}
+                        {group.user_role === 'admin' && member.role !== 'admin' && member.user_id !== user?.id && (
+                          <div className="flex items-center gap-1">
+                            <select
+                              value={member.role}
+                              onChange={(e) => handleChangeRole(member.user_id, e.target.value)}
+                              className="text-xs bg-[#2d2d2d] text-white rounded px-2 py-1 border border-gray-700 focus:outline-none focus:border-orange-500"
+                            >
+                              <option value="member">Member</option>
+                              <option value="moderator">Moderator</option>
+                              <option value="admin">Admin</option>
+                            </select>
+                            <button
+                              onClick={() => handleRemoveMember(member.user_id)}
+                              className="p-1.5 text-red-400 hover:bg-red-500/10 rounded transition-colors"
+                              title="Remove member"
+                            >
+                              <X size={14} />
+                            </button>
+                          </div>
+                        )}
+                        
+                        {/* Moderator controls for regular members */}
+                        {group.user_role === 'moderator' && member.role === 'member' && member.user_id !== user?.id && (
+                          <button
+                            onClick={() => handleMuteMember(member.user_id)}
+                            className="text-xs px-2 py-1 bg-yellow-500/20 text-yellow-400 rounded hover:bg-yellow-500/30 transition-colors"
+                          >
+                            Mute
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Danger Zone - Admin Only */}
+                {group.user_role === 'admin' && (
+                  <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-xl">
+                    <h4 className="text-sm font-semibold text-red-400 mb-3">DANGER ZONE</h4>
+                    <p className="text-xs text-gray-400 mb-4">
+                      Deleting this group will permanently remove all messages and members. This action cannot be undone.
+                    </p>
+                    <button
+                      onClick={() => {
+                        if (confirm('Are you sure you want to delete this group? This action cannot be undone.')) {
+                          handleDeleteGroup();
+                        }
+                      }}
+                      className="w-full py-2.5 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors font-medium"
+                    >
+                      Delete Group
+                    </button>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </motion.div>
   );

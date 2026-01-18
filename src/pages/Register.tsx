@@ -7,6 +7,7 @@ import WelcomeScreen from '../components/Loading/WelcomeScreen';
 import LoadingScreen from '../components/Loading/LoadingScreen';
 import { toast } from 'react-hot-toast';
 import { motion } from 'framer-motion';
+import { preloadPosts } from '../utils/preloadPosts';
 
 const Register: React.FC = () => {
   const [name, setName] = useState('');
@@ -175,8 +176,7 @@ const Register: React.FC = () => {
       verifyPassword: verifyPasswordValidation
     });
 
-    if (!nameValidation.valid || !emailValidation.valid || 
-        !usernameValidation.valid || !passwordValidation.valid || !verifyPasswordValidation.valid) {
+    if (!nameValidation.valid || !emailValidation.valid || !usernameValidation.valid || !passwordValidation.valid || !verifyPasswordValidation.valid) {
       return;
     }
 
@@ -184,9 +184,13 @@ const Register: React.FC = () => {
       const user = await register(name.trim(), email.trim(), password, username.trim());
       if (user) {
         setShowWelcome(true);
+        
+        // Start preloading posts immediately while welcome screen is showing
+        preloadPosts();
+        
         setTimeout(() => {
           navigate('/home');
-        }, 1500);
+        }, 3500);
       }
     } catch (err: unknown) {
       let errorMessage = 'Registration failed.';

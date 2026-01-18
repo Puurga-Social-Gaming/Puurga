@@ -44,16 +44,14 @@ router.get('/feed', async (req, res) => {
       // If it's already a localhost URL, keep it
       if (url.startsWith('http://localhost:3005/')) return url;
       
-      // If it's a Supabase URL, extract filename and use local server
+      // If it's a Supabase URL, use it directly (it's already a public URL)
       if (url.includes('supabase.co/storage')) {
-        const filename = url.split('/').pop();
-        return filename ? `http://localhost:3005/uploads/${filename}` : '';
+        return url;
       }
       
-      // If it's an external URL, try to extract filename and use local server
-      if (url.includes('http')) {
-        const filename = url.split('/').pop();
-        return filename ? `http://localhost:3005/uploads/${filename}` : '';
+      // If it's any other http/https URL, use it directly
+      if (url.startsWith('http://') || url.startsWith('https://')) {
+        return url;
       }
       
       // If it's just a filename, add the localhost prefix
@@ -290,6 +288,51 @@ router.post('/:id/purge', auth, async (req, res) => {
 
       if (insertError) throw insertError;
       purged = true;
+
+      // Award credits to the user who performed the purge
+      const { data: actorProfile, error: actorError } = await supabase
+        .from('profiles')
+        .select('credits, purge_streak')
+        .eq('id', userId)
+        .single();
+
+      if (!actorError && actorProfile) {
+        const currentStreak = (actorProfile.purge_streak || 0) + 1;
+        let creditsToAdd = 1; // Base credit for purging
+        let bonusAwarded = false;
+
+        // Check if this is the 5th purge in streak - award bonus 6 credits
+        if (currentStreak === 5) {
+          creditsToAdd = 7; // 1 base + 6 bonus = 7 total
+          bonusAwarded = true;
+          
+          // Reset streak after bonus
+          await supabase
+            .from('profiles')
+            .update({
+              credits: (actorProfile.credits || 0) + creditsToAdd,
+              purge_streak: 0,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', userId);
+        } else {
+          // Normal purge - increment streak
+          await supabase
+            .from('profiles')
+            .update({
+              credits: (actorProfile.credits || 0) + creditsToAdd,
+              purge_streak: currentStreak,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', userId);
+        }
+
+        // Store bonus info for response
+        if (bonusAwarded) {
+          res.locals.bonusAwarded = true;
+          res.locals.bonusCredits = 6;
+        }
+      }
     }
 
     // Get total purge count for this post
@@ -345,7 +388,9 @@ router.post('/:id/purge', auth, async (req, res) => {
     res.json({
       purged,
       purges: totalPurges,
-      ghostModeTriggered: totalPurges >= 5
+      ghostModeTriggered: totalPurges >= 5,
+      bonusAwarded: res.locals.bonusAwarded || false,
+      bonusCredits: res.locals.bonusCredits || 0
     });
 
   } catch (error) {
