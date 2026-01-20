@@ -1,51 +1,35 @@
 #!/bin/bash
 
-# Puurga Deployment Script for Digital Ocean
-# This script deploys the latest version of the app
+# Puurga Deployment Script
+# This script is triggered by GitHub Actions or run manually
 
-set -e
+echo "🚀 Starting Deployment..."
+# export PATH=$PATH:/root/.nvm/versions/node/v20.10.0/bin
 
-echo "🚀 Starting Puurga deployment..."
+# 1. Navigate to project directory
+cd /var/www/Puurga || exit
 
-# Configuration
-APP_DIR="/var/www/puurga"
-BRANCH="main"
+# 2. Pull latest changes
+echo "📥 Pulling latest code..."
+git fetch origin main
+git reset --hard origin/main
 
-# Navigate to app directory
-cd $APP_DIR
+# 3. Install Dependencies
+echo "📦 Installing Frontend Dependencies..."
+npm install --quiet
 
-# Pull latest changes
-echo "📥 Pulling latest code from GitHub..."
-git fetch origin
-git reset --hard origin/$BRANCH
+echo "📦 Installing Backend Dependencies..."
+cd backend || exit
+npm install --quiet
+cd ..
 
-# Backend deployment
-echo "🔧 Building backend..."
-cd backend
-npm ci --production=false
+# 4. Build Project
+echo "🏗️ Building Project..."
 npm run build
 
-# Frontend deployment
-echo "🎨 Building frontend..."
-cd ../
-npm ci --production=false
-npm run build
+# 5. Restart Services
+echo "🔄 Restarting Backend..."
+pm2 restart backend
+pm2 restart puurga-backend 2>/dev/null || true
 
-# Deploy frontend to nginx directory
-echo "📦 Deploying frontend..."
-sudo rm -rf /var/www/puurga/frontend/dist
-sudo mkdir -p /var/www/puurga/frontend
-sudo cp -r dist /var/www/puurga/frontend/
-
-# Restart backend with PM2
-echo "♻️ Restarting backend..."
-pm2 restart puurga-backend || pm2 start backend/dist/server.js --name puurga-backend --instances 2 --exec-mode cluster
-pm2 save
-
-# Reload nginx
-echo "🔄 Reloading nginx..."
-sudo nginx -t && sudo systemctl reload nginx
-
-echo "✅ Deployment completed successfully!"
-echo "📊 Backend status:"
-pm2 status puurga-backend
+echo "✅ Deployment Complete!"
