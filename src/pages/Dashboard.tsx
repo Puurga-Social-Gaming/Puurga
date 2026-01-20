@@ -13,6 +13,7 @@ const Dashboard: React.FC = () => {
 
   const quickActions = [
     { icon: <User className="w-5 h-5" />, label: 'Edit Profile', path: '/profile' },
+
     { icon: <Settings className="w-5 h-5" />, label: 'App Settings', path: '/settings' }
   ];
 
