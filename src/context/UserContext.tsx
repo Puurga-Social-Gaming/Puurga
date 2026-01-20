@@ -37,6 +37,7 @@ export interface User {
     posts: number;
     puurgas: number;
   };
+  credits: number;
 }
 
 interface UserContextType {
@@ -48,8 +49,8 @@ interface UserContextType {
 
 const UserContext = createContext<UserContextType>({
   user: null,
-  setUser: () => {},
-  updateUser: () => {},
+  setUser: () => { },
+  updateUser: () => { },
   loading: true,
 });
 
@@ -103,13 +104,14 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
             postCount: userData.postCount ?? 0,
             totalLikes: userData.totalLikes ?? 0,
             stats: userData.stats ?? { posts: 0, followers: 0, following: 0, puurgas: 0 },
+            credits: userData.credits ?? 0,
           } as User;
           setUser(normalized);
         } catch (error) {
           console.error('Error parsing stored user data:', error);
         }
       }
-      
+
       // Always fetch fresh data from API
       fetch('/api/users/profile', {
         headers: { Authorization: `Bearer ${token}` }
@@ -123,7 +125,7 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
               cover_photo: data.cover_photo,
               coverPhoto: data.coverPhoto
             });
-            
+
             // Merge with stored data to preserve images if API doesn't return them
             const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
             const mergedData = {
@@ -132,10 +134,10 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
               avatar_url: data.avatar_url || storedUser.avatar_url || storedUser.avatar,
               cover_photo: data.cover_photo || storedUser.cover_photo || storedUser.coverPhoto
             };
-            
+
             // Store merged data in localStorage for persistence
             localStorage.setItem('user', JSON.stringify(mergedData));
-            
+
             // Normalize backend profile payload (snake_case) to frontend User shape (camelCase)
             const normalized = {
               id: mergedData.id,
@@ -167,8 +169,9 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
               postCount: mergedData.postCount ?? 0,
               totalLikes: mergedData.totalLikes ?? 0,
               stats: mergedData.stats ?? { posts: 0, followers: 0, following: 0, puurgas: 0 },
+              credits: mergedData.credits ?? 0,
             } as User;
-            
+
             console.log('Profile data loaded:', {
               id: normalized.id,
               name: normalized.name,
@@ -189,12 +192,12 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
     setUser(prevUser => {
       if (prevUser) {
         const updatedUser = { ...prevUser, ...data };
-        
+
         // Update localStorage with the new user data
         try {
           const currentStoredUser = JSON.parse(localStorage.getItem('user') || '{}');
-          const updatedStoredUser = { 
-            ...currentStoredUser, 
+          const updatedStoredUser = {
+            ...currentStoredUser,
             // Map frontend fields to backend fields for storage
             avatar_url: data.avatar || currentStoredUser.avatar_url,
             cover_photo: data.coverPhoto || currentStoredUser.cover_photo,
@@ -213,7 +216,7 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
         } catch (error) {
           console.error('Error updating localStorage:', error);
         }
-        
+
         return updatedUser;
       }
       return null;

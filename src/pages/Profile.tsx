@@ -1,20 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { MapPin, Link2, Calendar, Flame, Loader2, AlertCircle, Camera, Briefcase, GraduationCap, Heart, Settings, Gamepad2 } from 'lucide-react';
+import { MapPin, Link2, Calendar, Trophy, Flame, Loader2, AlertCircle, Camera, Briefcase, GraduationCap, Heart, Settings, Gamepad2 } from 'lucide-react';
 import { useUser } from '../context/UserContext';
 import api from '../lib/axios';
 import toast from 'react-hot-toast';
 import PurgasTab from '../components/Profile/PurgasTab';
 
-type ProfileTab = 'pictures' | 'puurgas' | 'achievements' | 'gaming' | 'settings';
-
-type ProfileStats = {
-  posts: number;
-  followers: number;
-  following: number;
-};
+type ProfileTab = 'posts' | 'puurgas' | 'achievements' | 'gaming' | 'settings';
 
 const Profile: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<ProfileTab>('pictures');
+  const [activeTab, setActiveTab] = useState<ProfileTab>('posts');
   const { user: profileData, updateUser, loading } = useUser();
   const profilePictureRef = useRef<HTMLInputElement>(null);
   const coverPhotoRef = useRef<HTMLInputElement>(null);
@@ -68,93 +62,6 @@ const Profile: React.FC = () => {
     }
   }, [profileData]);
 
-  useEffect(() => {
-    const fetchStats = async () => {
-      if (!profileData?.id) return;
-      try {
-        const response = await api.get(`/api/users/${profileData.id}/stats`);
-        const data = response.data as Partial<ProfileStats>;
-        setProfileStats({
-          posts: typeof data.posts === 'number' ? data.posts : 0,
-          followers: typeof data.followers === 'number' ? data.followers : 0,
-          following: typeof data.following === 'number' ? data.following : 0,
-        });
-      } catch (error) {
-        console.error('Failed to load profile stats:', error);
-        setProfileStats({
-          posts: profileData.stats?.posts || 0,
-          followers: profileData.stats?.followers || 0,
-          following: profileData.stats?.following || 0,
-        });
-      }
-    };
-
-    fetchStats();
-  }, [profileData?.id, profileData?.stats?.followers, profileData?.stats?.following, profileData?.stats?.posts]);
-
-  useEffect(() => {
-    const fetchAllUserPictures = async () => {
-      if (!profileData?.id) return;
-
-      setPicturesLoading(true);
-      try {
-        const tryEndpoints = ['/api/posts/feed', '/api/users/posts/feed'];
-        let postsData: unknown = [] as unknown[];
-
-        for (const ep of tryEndpoints) {
-          try {
-            const response = await api.get(ep);
-            const data = response.data as unknown;
-            if (Array.isArray(data)) {
-              postsData = data;
-              break;
-            }
-            if (typeof data === 'object' && data !== null && Array.isArray((data as any).data)) {
-              postsData = (data as any).data;
-              break;
-            }
-          } catch (e) {
-            console.warn(`Pictures fetch failed at ${ep}`, e);
-          }
-        }
-
-        const safePosts = Array.isArray(postsData) ? postsData : [];
-        const userPosts = safePosts.filter((p) => {
-          if (typeof p !== 'object' || p === null) return false;
-          const po = p as any;
-          const uid = (po.user_id as string) || (po.userId as string);
-          return uid === profileData.id;
-        });
-
-        const urls: string[] = [];
-        for (const post of userPosts) {
-          const po = post as any;
-          const imgs: unknown = po.images;
-          if (Array.isArray(imgs)) {
-            for (const url of imgs) {
-              if (typeof url === 'string' && url.trim().length > 0) {
-                urls.push(url);
-              }
-            }
-          }
-        }
-
-        setPictureUrls(urls);
-        setProfileStats((prev) => ({ ...prev, posts: userPosts.length }));
-      } catch (error) {
-        console.error('Failed to load pictures:', error);
-        setPictureUrls([]);
-        toast.error('Failed to load pictures');
-      } finally {
-        setPicturesLoading(false);
-      }
-    };
-
-    if (activeTab === 'pictures') {
-      fetchAllUserPictures();
-    }
-  }, [activeTab, profileData?.id]);
-
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
     setFormData(prev => ({
@@ -202,16 +109,16 @@ const Profile: React.FC = () => {
       });
 
       // Update user context with new image URL
-      const updatedData = type === 'profile' 
+      const updatedData = type === 'profile'
         ? { avatar: response.data.avatar }
         : { coverPhoto: response.data.coverPhoto };
-      
+
       updateUser(updatedData);
 
       // Store in localStorage for persistence with both frontend and backend field names
-      const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
-      const updatedUser = { 
-        ...currentUser, 
+      const currentUser = JSON.parse(localStorage.getItem('user') || '{ }');
+      const updatedUser = {
+        ...currentUser,
         ...updatedData,
         // Also store backend field names for consistency
         ...(type === 'profile' ? { avatar_url: response.data.avatar } : { cover_photo: response.data.coverPhoto })
@@ -239,7 +146,7 @@ const Profile: React.FC = () => {
         full_name: response.data.full_name,
         name: response.data.name
       });
-      
+
       // Map backend response to frontend User format
       const updatedUserData = {
         name: response.data.full_name || response.data.name || formData.name,
@@ -259,17 +166,17 @@ const Profile: React.FC = () => {
         commentPrivacy: response.data.comment_privacy,
         storyPrivacy: response.data.story_privacy,
       };
-      
+
       console.log('Updating user context with:', {
         username: updatedUserData.username,
         name: updatedUserData.name
       });
-      
+
       // Update user context
       updateUser(updatedUserData);
-      
+
       // Update localStorage with complete data
-      const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+      const currentUser = JSON.parse(localStorage.getItem('user') || '{ }');
       const updatedStoredUser = {
         ...currentUser,
         ...response.data,
@@ -280,12 +187,12 @@ const Profile: React.FC = () => {
         email: response.data.email || formData.email,
       };
       localStorage.setItem('user', JSON.stringify(updatedStoredUser));
-      
+
       console.log('Profile save complete. Username should now be:', updatedUserData.username);
-      
+
       // Exit edit mode after successful save
       setIsEditMode(false);
-      
+
       toast.success('Profile updated successfully!', { id: toastId });
     } catch (error) {
       console.error('Failed to update profile:', error);
@@ -296,28 +203,33 @@ const Profile: React.FC = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
+        <Loader2 className="w-8 h-8 animate-spin text-accent" />
       </div>
     );
   }
 
   if (!profileData) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen gap-4">
+      <div className="flex flex-col items-center justify-center min-h-screen gap-4 bg-background">
         <AlertCircle className="w-12 h-12 text-red-500" />
-        <p className="text-gray-400">Profile data not available.</p>
+        <p className="text-muted">Profile data not available.</p>
       </div>
     );
   }
 
   return (
-    <div className="bg-black text-white min-h-screen">
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4 }}
+      className="bg-background text-foreground min-h-screen"
+    >
       {/* Cover Image - Full width at top */}
-      <div 
+      <div
         className="w-full h-32 md:h-48 bg-cover bg-center relative"
         style={{
           backgroundImage: profileData.coverPhoto ? `url(${profileData.coverPhoto})` : undefined,
-          backgroundColor: '#2d2d2d'
+          backgroundColor: 'rgb(var(--bg-secondary))'
         }}
       >
         {isEditMode && (
@@ -339,14 +251,14 @@ const Profile: React.FC = () => {
       </div>
 
       {/* Profile Header */}
-      <div className="w-full p-4 sm:p-6 bg-black relative">
+      <div className="w-full p-4 sm:p-6 bg-background relative">
         {/* Profile Picture - Positioned to overlap cover */}
         <div className="absolute -top-12 left-4 z-30">
           <div className="relative">
-            <img 
+            <img
               src={profileData.avatar || '/default-avatar.png'}
               alt={profileData.name}
-              className="w-24 h-24 rounded-full border-4 border-black object-cover bg-[#2d2d2d]"
+              className="w-24 h-24 rounded-full border-4 border-background object-cover bg-background-secondary"
             />
             {isEditMode && (
               <button
@@ -370,21 +282,23 @@ const Profile: React.FC = () => {
           <div>
             <h1 className="text-3xl font-bold text-white">{profileData.name}</h1>
             <p className="text-gray-400 text-lg">@{profileData.username}</p>
-            <p className="text-gray-300 mt-2 max-w-xl">{profileData.bio || 'No bio yet.'}</p>
+            {profileData.bio && (
+              <p className="text-gray-300 mt-2 max-w-xl">{profileData.bio}</p>
+            )}
             <div className="flex items-center gap-2 sm:gap-4 mt-3 text-xs sm:text-sm text-gray-400 flex-wrap">
               {profileData.location && (
                 <span className="flex items-center gap-1">
-                  <MapPin size={16} className="text-orange-400" /> {profileData.location}
+                  <MapPin size={16} className="text-accent" /> {profileData.location}
                 </span>
               )}
               {profileData.website && (
                 <span className="flex items-center gap-1">
-                  <Link2 size={16} className="text-orange-400" /> 
+                  <Link2 size={16} className="text-accent" />
                   {(() => {
                     try {
                       const url = new URL(profileData.website.startsWith('http') ? profileData.website : `https://${profileData.website}`);
                       return (
-                        <a href={url.href} target="_blank" rel="noopener noreferrer" className="hover:text-orange-500 transition-colors">
+                        <a href={url.href} target="_blank" rel="noopener noreferrer" className="hover:text-accent-hover transition-colors">
                           {url.hostname}
                         </a>
                       );
@@ -395,36 +309,36 @@ const Profile: React.FC = () => {
                 </span>
               )}
               <span className="flex items-center gap-1">
-                <Calendar size={16} className="text-orange-400" /> Joined {new Date(profileData.joinDate || Date.now()).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric'})}
+                <Calendar size={16} className="text-accent" /> Joined {new Date(profileData.joinDate || Date.now()).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
               </span>
               {profileData.occupation && (
                 <span className="flex items-center gap-1">
-                  <Briefcase size={16} className="text-orange-400" /> {profileData.occupation}
+                  <Briefcase size={16} className="text-accent" /> {profileData.occupation}
                 </span>
               )}
               {profileData.education && (
                 <span className="flex items-center gap-1">
-                  <GraduationCap size={16} className="text-orange-400" /> {profileData.education}
+                  <GraduationCap size={16} className="text-accent" /> {profileData.education}
                 </span>
               )}
               {profileData.relationship && (
                 <span className="flex items-center gap-1">
-                  <Heart size={16} className="text-orange-400" /> {profileData.relationship}
+                  <Heart size={16} className="text-accent" /> {profileData.relationship}
                 </span>
               )}
             </div>
           </div>
           <div className="flex gap-4 mt-4 md:mt-0 flex-shrink-0">
             <div className="text-center">
-              <span className="block text-xl font-bold text-white">{profileStats.posts}</span>
+              <span className="block text-xl font-bold text-white">{profileData.stats?.posts || 0}</span>
               <span className="text-gray-400">Posts</span>
             </div>
             <div className="text-center">
-              <span className="block text-xl font-bold text-white">{profileStats.followers}</span>
+              <span className="block text-xl font-bold text-white">{profileData.stats?.followers || 0}</span>
               <span className="text-gray-400">Followers</span>
             </div>
             <div className="text-center">
-              <span className="block text-xl font-bold text-white">{profileStats.following}</span>
+              <span className="block text-xl font-bold text-white">{profileData.stats?.following || 0}</span>
               <span className="text-gray-400">Following</span>
             </div>
           </div>
@@ -435,97 +349,97 @@ const Profile: React.FC = () => {
       <div className="bg-black w-full">
         <div className="flex justify-around border-b border-gray-800 px-2 sm:px-4 overflow-x-auto">
           <TabButton 
-            label="Pictures" 
-            icon={<Camera size={18} />} 
-            isActive={activeTab === 'pictures'} 
-            onClick={() => setActiveTab('pictures')} 
+            label="Posts" 
+            icon={<Trophy size={18} />} 
+            isActive={activeTab === 'posts'} 
+            onClick={() => setActiveTab('posts')} 
           />
-          <TabButton 
-            label="Puurgas" 
-            icon={<Flame size={18} />} 
-            isActive={activeTab === 'puurgas'} 
-            onClick={() => setActiveTab('puurgas')} 
+          <TabButton
+            label="Puurgas"
+            icon={<Flame size={18} />}
+            isActive={activeTab === 'puurgas'}
+            onClick={() => setActiveTab('puurgas')}
           />
-          <TabButton 
-            label="Gaming" 
-            icon={<Gamepad2 size={18} />} 
-            isActive={activeTab === 'gaming'} 
-            onClick={() => setActiveTab('gaming')} 
+          <TabButton
+            label="Gaming"
+            icon={<Gamepad2 size={18} />}
+            isActive={activeTab === 'gaming'}
+            onClick={() => setActiveTab('gaming')}
           />
-          <TabButton 
-            label="Settings" 
-            icon={<Settings size={18} />} 
-            isActive={activeTab === 'settings'} 
-            onClick={() => setActiveTab('settings')} 
+          <TabButton
+            label="Settings"
+            icon={<Settings size={18} />}
+            isActive={activeTab === 'settings'}
+            onClick={() => setActiveTab('settings')}
           />
         </div>
         <div className="p-2 sm:p-4 min-h-[300px] w-full overflow-hidden">
-          {activeTab === 'pictures' && (
-            picturesLoading ? (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
-              </div>
-            ) : pictureUrls.length > 0 ? (
-              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">
-                {pictureUrls.map((url, idx) => (
-                  <div key={`${url}-${idx}`} className="relative w-full aspect-square overflow-hidden rounded-lg bg-[#2d2d2d] border border-gray-800">
-                    <img src={url} alt="" className="w-full h-full object-cover" loading="lazy" />
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center text-gray-500 py-8">No pictures yet.</div>
-            )
-          )}
+          {activeTab === 'posts' && <div className="text-center text-gray-500 py-8">No posts yet.</div>}
           {activeTab === 'puurgas' && <PurgasTab />}
           {activeTab === 'gaming' && (
             <div className="space-y-4">
-              <div className="text-center text-gray-500 py-4">
-                <Gamepad2 className="w-12 h-12 mx-auto mb-4 text-orange-500" />
-                <h3 className="text-lg font-semibold text-white mb-2">Gaming Stats</h3>
-                <p className="text-gray-400">Your gaming achievements and progress will appear here.</p>
+              <div className="text-center text-muted py-4">
+                <Gamepad2 className="w-12 h-12 mx-auto mb-4 text-accent" />
+                <h3 className="text-lg font-semibold text-foreground mb-2">Gaming Stats</h3>
+                <p className="text-muted">Your gaming achievements and progress will appear here.</p>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <button 
+                <button
                   onClick={() => window.location.href = '/puurga-games/sword-of-judgment'}
-                  className="bg-black p-4 rounded-lg border border-gray-800 hover:border-orange-500 transition-colors cursor-pointer text-left group"
+                  className="bg-card p-4 rounded-lg border border-border hover:border-accent transition-colors cursor-pointer text-left group shadow-theme-sm"
                 >
                   <div className="flex items-center gap-3 mb-2">
                     <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-red-600 rounded-lg flex items-center justify-center">
                       <span className="text-white font-bold text-lg">⚔️</span>
                     </div>
                     <div>
-                      <h4 className="font-medium text-white group-hover:text-orange-500 transition-colors">Sword of Judgment</h4>
-                      <p className="text-sm text-gray-400">Click to play</p>
+                      <h4 className="font-medium text-foreground group-hover:text-accent transition-colors">Sword of Judgment</h4>
+                      <p className="text-sm text-muted">Click to play</p>
                     </div>
                   </div>
-                  <p className="text-sm text-gray-400 mb-1">High Score: 0</p>
-                  <p className="text-sm text-gray-400">Games Played: 0</p>
+                  <p className="text-sm text-muted mb-1">High Score: 0</p>
+                  <p className="text-sm text-muted">Games Played: 0</p>
                 </button>
-                <div className="bg-black p-4 rounded-lg border border-gray-800">
-                  <h4 className="font-medium text-white mb-2">Total Credits</h4>
-                  <p className="text-sm text-gray-400 mb-2">Earned: 0</p>
-                  <p className="text-sm text-gray-400">Rank: Novice</p>
+                <div className="bg-card p-4 rounded-lg border border-border shadow-theme-sm">
+                  <h4 className="font-medium text-foreground mb-2">Total Credits</h4>
+                  <p className="text-sm text-muted mb-2">Earned: 0</p>
+                  <p className="text-sm text-muted">Rank: Novice</p>
                 </div>
+                <button
+                  onClick={() => window.location.href = '/new-game'}
+                  className="bg-card p-4 rounded-lg border border-border hover:border-accent transition-colors cursor-pointer text-left group shadow-theme-sm"
+                >
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center">
+                      <Shield className="w-6 h-6 text-white" />
+                    </div>
+                    <div>
+                      <h4 className="font-medium text-foreground group-hover:text-accent transition-colors">Redemption</h4>
+                      <p className="text-sm text-muted">Restore your status</p>
+                    </div>
+                  </div>
+                  <p className="text-sm text-muted mb-1">Status: Active</p>
+                  <p className="text-sm text-muted">Play to earn mercy</p>
+                </button>
               </div>
             </div>
           )}
           {activeTab === 'settings' && (
             <div className="space-y-6">
               <div className="flex justify-between items-center mb-4">
-                <h3 className="text-xl font-bold text-white">Profile Settings</h3>
+                <h3 className="text-xl font-bold text-foreground">Profile Settings</h3>
                 <div className="flex gap-2">
                   {isEditMode ? (
                     <>
                       <button
                         onClick={handleSave}
-                        className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition-colors font-semibold"
+                        className="bg-accent text-white px-4 py-2 rounded-lg hover:bg-accent-hover transition-colors font-semibold"
                       >
                         Save Profile
                       </button>
                       <button
                         onClick={() => setIsEditMode(false)}
-                        className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors font-semibold"
+                        className="bg-muted text-white px-4 py-2 rounded-lg hover:bg-muted-light transition-colors font-semibold"
                       >
                         Cancel
                       </button>
@@ -533,7 +447,7 @@ const Profile: React.FC = () => {
                   ) : (
                     <button
                       onClick={() => setIsEditMode(true)}
-                      className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition-colors font-semibold"
+                      className="bg-accent text-white px-4 py-2 rounded-lg hover:bg-accent-hover transition-colors font-semibold"
                     >
                       Edit Profile
                     </button>
@@ -541,99 +455,31 @@ const Profile: React.FC = () => {
                 </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Inputs */}
+                {['name', 'username', 'email', 'location', 'website', 'occupation', 'education'].map((field) => (
+                  <div key={field}>
+                    <label htmlFor={field} className="block text-sm font-medium text-muted">{field.charAt(0).toUpperCase() + field.slice(1)}</label>
+                    <input
+                      type={field === 'email' ? 'email' : 'text'}
+                      id={field}
+                      name={field}
+                      value={(formData as any)[field]}
+                      onChange={handleInputChange}
+                      disabled={!isEditMode}
+                      className={`mt-1 block w-full bg-input border border-input-border rounded-md shadow-theme-sm py-2 px-3 text-foreground focus:outline-none focus:ring-accent focus:border-accent ${!isEditMode ? 'opacity-60 cursor-not-allowed' : ''}`}
+                    />
+                  </div>
+                ))}
+
                 <div>
-                  <label htmlFor="name" className="block text-sm font-medium text-gray-400">Full Name</label>
-                  <input
-                    type="text"
-                    id="name"
-                    name="name"
-                    value={formData.name}
-                    onChange={handleInputChange}
-                    disabled={!isEditMode}
-                    className={`mt-1 block w-full bg-[#2d2d2d] border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-orange-500 focus:border-orange-500 ${!isEditMode ? 'opacity-60 cursor-not-allowed' : ''}`}
-                  />
-                </div>
-                <div>
-                  <label htmlFor="username" className="block text-sm font-medium text-gray-400">Username</label>
-                  <input
-                    type="text"
-                    id="username"
-                    name="username"
-                    value={formData.username}
-                    onChange={handleInputChange}
-                    disabled={!isEditMode}
-                    className={`mt-1 block w-full bg-[#2d2d2d] border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-orange-500 focus:border-orange-500 ${!isEditMode ? 'opacity-60 cursor-not-allowed' : ''}`}
-                  />
-                </div>
-                <div>
-                  <label htmlFor="email" className="block text-sm font-medium text-gray-400">Email</label>
-                  <input
-                    type="email"
-                    id="email"
-                    name="email"
-                    value={formData.email}
-                    onChange={handleInputChange}
-                    disabled={!isEditMode}
-                    className={`mt-1 block w-full bg-[#2d2d2d] border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-orange-500 focus:border-orange-500 ${!isEditMode ? 'opacity-60 cursor-not-allowed' : ''}`}
-                  />
-                </div>
-                <div>
-                  <label htmlFor="location" className="block text-sm font-medium text-gray-400">Location</label>
-                  <input
-                    type="text"
-                    id="location"
-                    name="location"
-                    value={formData.location}
-                    onChange={handleInputChange}
-                    disabled={!isEditMode}
-                    className={`mt-1 block w-full bg-[#2d2d2d] border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-orange-500 focus:border-orange-500 ${!isEditMode ? 'opacity-60 cursor-not-allowed' : ''}`}
-                  />
-                </div>
-                <div>
-                  <label htmlFor="website" className="block text-sm font-medium text-gray-400">Website</label>
-                  <input
-                    type="text"
-                    id="website"
-                    name="website"
-                    value={formData.website}
-                    onChange={handleInputChange}
-                    disabled={!isEditMode}
-                    className={`mt-1 block w-full bg-[#2d2d2d] border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-orange-500 focus:border-orange-500 ${!isEditMode ? 'opacity-60 cursor-not-allowed' : ''}`}
-                  />
-                </div>
-                <div>
-                  <label htmlFor="occupation" className="block text-sm font-medium text-gray-400">Occupation</label>
-                  <input
-                    type="text"
-                    id="occupation"
-                    name="occupation"
-                    value={formData.occupation}
-                    onChange={handleInputChange}
-                    disabled={!isEditMode}
-                    className={`mt-1 block w-full bg-[#2d2d2d] border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-orange-500 focus:border-orange-500 ${!isEditMode ? 'opacity-60 cursor-not-allowed' : ''}`}
-                  />
-                </div>
-                <div>
-                  <label htmlFor="education" className="block text-sm font-medium text-gray-400">Education</label>
-                  <input
-                    type="text"
-                    id="education"
-                    name="education"
-                    value={formData.education}
-                    onChange={handleInputChange}
-                    disabled={!isEditMode}
-                    className={`mt-1 block w-full bg-[#2d2d2d] border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-orange-500 focus:border-orange-500 ${!isEditMode ? 'opacity-60 cursor-not-allowed' : ''}`}
-                  />
-                </div>
-                <div>
-                  <label htmlFor="relationship" className="block text-sm font-medium text-gray-400">Relationship Status</label>
+                  <label htmlFor="relationship" className="block text-sm font-medium text-muted">Relationship Status</label>
                   <select
                     id="relationship"
                     name="relationship"
                     value={formData.relationship}
                     onChange={handleSelectChange}
                     disabled={!isEditMode}
-                    className={`mt-1 block w-full bg-[#2d2d2d] border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-orange-500 focus:border-orange-500 ${!isEditMode ? 'opacity-60 cursor-not-allowed' : ''}`}
+                    className={`mt-1 block w-full bg-input border border-input-border rounded-md shadow-theme-sm py-2 px-3 text-foreground focus:outline-none focus:ring-accent focus:border-accent ${!isEditMode ? 'opacity-60 cursor-not-allowed' : ''}`}
                   >
                     <option value="">Select...</option>
                     <option value="single">Single</option>
@@ -644,7 +490,7 @@ const Profile: React.FC = () => {
                 </div>
               </div>
               <div className="mt-4">
-                <label htmlFor="bio" className="block text-sm font-medium text-gray-400">Bio</label>
+                <label htmlFor="bio" className="block text-sm font-medium text-muted">Bio</label>
                 <textarea
                   id="bio"
                   name="bio"
@@ -652,112 +498,60 @@ const Profile: React.FC = () => {
                   value={formData.bio}
                   onChange={handleInputChange}
                   disabled={!isEditMode}
-                  className={`mt-1 block w-full bg-[#2d2d2d] border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-orange-500 focus:border-orange-500 ${!isEditMode ? 'opacity-60 cursor-not-allowed' : ''}`}
+                  className={`mt-1 block w-full bg-input border border-input-border rounded-md shadow-theme-sm py-2 px-3 text-foreground focus:outline-none focus:ring-accent focus:border-accent ${!isEditMode ? 'opacity-60 cursor-not-allowed' : ''}`}
                 ></textarea>
               </div>
-              
-              <h3 className="text-xl font-bold text-white mt-6 mb-4">Privacy Settings</h3>
+
+              <h3 className="text-xl font-bold text-foreground mt-6 mb-4">Privacy Settings</h3>
               <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <label htmlFor="isPrivate" className="text-gray-300">Make profile private</label>
-                  <input
-                    type="checkbox"
-                    id="isPrivate"
-                    name="isPrivate"
-                    checked={formData.isPrivate}
-                    onChange={handleInputChange}
-                    disabled={!isEditMode}
-                    className={`h-4 w-4 text-orange-600 border-gray-300 rounded focus:ring-orange-500 ${!isEditMode ? 'opacity-60 cursor-not-allowed' : ''}`}
-                  />
-                </div>
-                <div className="flex items-center justify-between">
-                  <label htmlFor="hideFromSuggestions" className="text-gray-300">Hide from suggestions</label>
-                  <input
-                    type="checkbox"
-                    id="hideFromSuggestions"
-                    name="hideFromSuggestions"
-                    checked={formData.hideFromSuggestions}
-                    onChange={handleInputChange}
-                    disabled={!isEditMode}
-                    className={`h-4 w-4 text-orange-600 border-gray-300 rounded focus:ring-orange-500 ${!isEditMode ? 'opacity-60 cursor-not-allowed' : ''}`}
-                  />
-                </div>
-                <div className="flex items-center justify-between">
-                  <label htmlFor="showReadReceipts" className="text-gray-300">Show read receipts</label>
-                  <input
-                    type="checkbox"
-                    id="showReadReceipts"
-                    name="showReadReceipts"
-                    checked={formData.showReadReceipts}
-                    onChange={handleInputChange}
-                    disabled={!isEditMode}
-                    className={`h-4 w-4 text-orange-600 border-gray-300 rounded focus:ring-orange-500 ${!isEditMode ? 'opacity-60 cursor-not-allowed' : ''}`}
-                  />
-                </div>
-                <div className="flex items-center justify-between">
-                  <label htmlFor="showOnlineStatus" className="text-gray-300">Show online status</label>
-                  <input
-                    type="checkbox"
-                    id="showOnlineStatus"
-                    name="showOnlineStatus"
-                    checked={formData.showOnlineStatus}
-                    onChange={handleInputChange}
-                    disabled={!isEditMode}
-                    className={`h-4 w-4 text-orange-600 border-gray-300 rounded focus:ring-orange-500 ${!isEditMode ? 'opacity-60 cursor-not-allowed' : ''}`}
-                  />
-                </div>
-                <div className="flex items-center justify-between">
-                  <label htmlFor="messageRequests" className="text-gray-300">Message requests from</label>
-                  <select
-                    id="messageRequests"
-                    name="messageRequests"
-                    value={formData.messageRequests}
-                    onChange={handleSelectChange}
-                    disabled={!isEditMode}
-                    className={`mt-1 block w-1/2 bg-[#2d2d2d] border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-orange-500 focus:border-orange-500 ${!isEditMode ? 'opacity-60 cursor-not-allowed' : ''}`}
-                  >
-                    <option value="everyone">Everyone</option>
-                    <option value="followers">Followers</option>
-                    <option value="none">No one</option>
-                  </select>
-                </div>
-                <div className="flex items-center justify-between">
-                  <label htmlFor="commentPrivacy" className="text-gray-300">Comment privacy</label>
-                  <select
-                    id="commentPrivacy"
-                    name="commentPrivacy"
-                    value={formData.commentPrivacy}
-                    onChange={handleSelectChange}
-                    disabled={!isEditMode}
-                    className={`mt-1 block w-1/2 bg-[#2d2d2d] border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-orange-500 focus:border-orange-500 ${!isEditMode ? 'opacity-60 cursor-not-allowed' : ''}`}
-                  >
-                    <option value="everyone">Everyone</option>
-                    <option value="followers">Followers</option>
-                    <option value="none">No one</option>
-                  </select>
-                </div>
-                <div className="flex items-center justify-between">
-                  <label htmlFor="storyPrivacy" className="text-gray-300">Story privacy</label>
-                  <select
-                    id="storyPrivacy"
-                    name="storyPrivacy"
-                    value={formData.storyPrivacy}
-                    onChange={handleSelectChange}
-                    disabled={!isEditMode}
-                    className={`mt-1 block w-1/2 bg-[#2d2d2d] border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-orange-500 focus:border-orange-500 ${!isEditMode ? 'opacity-60 cursor-not-allowed' : ''}`}
-                  >
-                    <option value="everyone">Everyone</option>
-                    <option value="followers">Followers</option>
-                    <option value="close_friends">Close Friends</option>
-                  </select>
-                </div>
+                {[
+                  { id: 'isPrivate', label: 'Make profile private' },
+                  { id: 'hideFromSuggestions', label: 'Hide from suggestions' },
+                  { id: 'showReadReceipts', label: 'Show read receipts' },
+                  { id: 'showOnlineStatus', label: 'Show online status' }
+                ].map((item) => (
+                  <div key={item.id} className="flex items-center justify-between">
+                    <label htmlFor={item.id} className="text-muted">{item.label}</label>
+                    <input
+                      type="checkbox"
+                      id={item.id}
+                      name={item.id}
+                      checked={(formData as any)[item.id]}
+                      onChange={handleInputChange}
+                      disabled={!isEditMode}
+                      className={`h-4 w-4 text-accent border-input-border rounded focus:ring-accent ${!isEditMode ? 'opacity-60 cursor-not-allowed' : ''}`}
+                    />
+                  </div>
+                ))}
+
+                {[
+                  { id: 'messageRequests', label: 'Message requests from', options: ['everyone', 'followers', 'none'] },
+                  { id: 'commentPrivacy', label: 'Comment privacy', options: ['everyone', 'followers', 'none'] },
+                  { id: 'storyPrivacy', label: 'Story privacy', options: ['everyone', 'followers', 'close_friends'] }
+                ].map((item) => (
+                  <div key={item.id} className="flex items-center justify-between">
+                    <label htmlFor={item.id} className="text-muted">{item.label}</label>
+                    <select
+                      id={item.id}
+                      name={item.id}
+                      value={(formData as any)[item.id]}
+                      onChange={handleSelectChange}
+                      disabled={!isEditMode}
+                      className={`mt-1 block w-1/2 bg-input border border-input-border rounded-md shadow-sm py-2 px-3 text-foreground focus:outline-none focus:ring-accent focus:border-accent ${!isEditMode ? 'opacity-60 cursor-not-allowed' : ''}`}
+                    >
+                      {item.options.map(opt => (
+                        <option key={opt} value={opt}>{opt.charAt(0).toUpperCase() + opt.slice(1).replace('_', ' ')}</option>
+                      ))}
+                    </select>
+                  </div>
+                ))}
               </div>
-              
+
             </div>
           )}
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 };
 
@@ -772,8 +566,8 @@ const TabButton: React.FC<TabButtonProps> = ({ label, icon, isActive, onClick })
   <button
     className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-4 md:px-6 py-3 text-xs sm:text-sm font-medium focus:outline-none transition-colors duration-200 whitespace-nowrap flex-shrink-0
       ${isActive
-        ? 'text-orange-500 border-b-2 border-orange-500'
-        : 'text-gray-400 hover:text-gray-200 hover:border-gray-500 border-b-2 border-transparent'
+        ? 'text-accent border-b-2 border-accent'
+        : 'text-muted hover:text-foreground hover:border-muted border-b-2 border-transparent'
       }`}
     onClick={onClick}
   >

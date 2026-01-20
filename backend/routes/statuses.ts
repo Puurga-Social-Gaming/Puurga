@@ -54,18 +54,30 @@ router.get('/', auth, async (req: AuthRequest, res) => {
     const usersMap = new Map<string, { id: string; avatar_url?: string | null }>();
     for (const u of usersTbl) usersMap.set(u.id, u);
 
+    const normalizeImageUrl = (url: string | null | undefined): string => {
+      if (!url) return '';
+      if (url.startsWith('http://localhost:3005/')) {
+        return url.replace('http://localhost:3005', '');
+      }
+      if (url.includes('supabase.co/storage')) return url;
+      if (url.startsWith('/uploads/')) return url;
+      if (url.startsWith('http://') || url.startsWith('https://')) return url;
+      return `/uploads/${url}`;
+    };
+
     const mapped = list.map(s => {
       const prof = profileMap.get(s.user_id as string);
       const urow = usersMap.get(s.user_id as string);
-      const avatar = (urow?.avatar_url) ?? (prof?.avatar_url) ?? '';
-      
+      const rawAvatar = (urow?.avatar_url) ?? (prof?.avatar_url) ?? '';
+      const avatar = normalizeImageUrl(rawAvatar);
+
       // Calculate expiry time (24 hours from creation)
       const expiresAt = new Date(s.created_at);
       expiresAt.setHours(expiresAt.getHours() + 24);
-      
+
       return {
         id: s.id,
-        mediaUrl: s.media_url ?? undefined,
+        mediaUrl: s.media_url ? normalizeImageUrl(s.media_url) : undefined,
         type: s.media_url ? 'media' as const : 'text' as const,
         createdAt: s.created_at,
         expiresAt: expiresAt.toISOString(),
@@ -99,7 +111,7 @@ router.post('/', auth, upload.single('media'), async (req: AuthRequest, res) => 
 
     let mediaUrl: string | null = null;
     if (req.file) {
-      mediaUrl = `http://localhost:3005/uploads/${req.file.filename}`;
+      mediaUrl = `/uploads/${req.file.filename}`;
     }
 
     // Insert only fields that exist in the current statuses table schema

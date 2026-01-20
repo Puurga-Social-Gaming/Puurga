@@ -1,6 +1,6 @@
 import React from 'react';
-import { 
-  Route, 
+import {
+  Route,
   Navigate,
   createRoutesFromElements,
   createBrowserRouter,
@@ -20,6 +20,8 @@ import Settings from './pages/Settings/Settings';
 import Groups from './pages/Groups';
 import GroupDetail from './pages/GroupDetail';
 import Help from './pages/Help';
+import NewGameCode from './pages/NewGameCode';
+import TheNextGame from './pages/TheNextGame';
 import { UserProvider } from './context/UserContext';
 import UserProfile from './pages/UserProfile';
 import UserList from './pages/Admin/UserList';
@@ -38,10 +40,10 @@ const router = createBrowserRouter(
       {/* Public Routes */}
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
-      
+
       {/* Redirect root to login */}
       <Route path="/" element={<Navigate to="/login" replace />} />
-      
+
       {/* Protected Routes - Wrapped with Layout */}
       <Route element={
         <ProtectedRoute>
@@ -61,6 +63,9 @@ const router = createBrowserRouter(
         <Route path="/profile/:username" element={<UserProfile />} />
         <Route path="/admin/users" element={<UserList />} />
         <Route path="/super-admin" element={<SuperAdmin />} />
+        {/* Temporary route for new game code integration */}
+        <Route path="/new-game" element={<NewGameCode />} />
+        <Route path="/next-game" element={<TheNextGame />} />
       </Route>
 
       {/* Catch all other routes and redirect to login */}

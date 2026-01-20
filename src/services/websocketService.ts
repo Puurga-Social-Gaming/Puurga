@@ -45,7 +45,8 @@ class WebSocketService {
     }
 
     try {
-      const wsUrl = `ws://localhost:3005?token=${encodeURIComponent(token)}`;
+      const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = `${wsProtocol}//${window.location.host}/ws?token=${encodeURIComponent(token)}`;
       this.ws = new WebSocket(wsUrl);
 
       this.ws.onopen = () => {

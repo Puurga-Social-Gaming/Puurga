@@ -30,6 +30,34 @@ const upload = multer({
   },
 });
 
+// Helper function to normalize image URLs
+const normalizeImageUrl = (url: string | null | undefined): string => {
+  if (!url) return '';
+
+  // Convert localhost URLs to relative paths
+  if (url.startsWith('http://localhost:3005/')) {
+    return url.replace('http://localhost:3005', '');
+  }
+
+  // If it's a Supabase URL, keep it as is (external storage)
+  if (url.includes('supabase.co/storage')) {
+    return url;
+  }
+
+  // If it's already a relative URL, keep it
+  if (url.startsWith('/uploads/')) {
+    return url;
+  }
+
+  // If it's an external URL, keep it as-is
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    return url;
+  }
+
+  // If it's just a filename, add the uploads prefix
+  return `/uploads/${url}`;
+};
+
 // Get user profile
 router.get('/profile', auth, async (req: AuthRequest, res) => {
   try {
@@ -37,14 +65,14 @@ router.get('/profile', auth, async (req: AuthRequest, res) => {
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
-    
+
     // Fetch profile from profiles table
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('*')
       .eq('id', user.id)
       .single();
-      
+
     if (profileError || !profile) {
       return res.status(404).json({ error: 'Profile not found' });
     }
@@ -53,8 +81,10 @@ router.get('/profile', auth, async (req: AuthRequest, res) => {
     const responseData = {
       ...profile,
       name: profile.full_name,
-      avatar: profile.avatar_url,
-      coverPhoto: profile.cover_photo,
+      avatar: normalizeImageUrl(profile.avatar_url),
+      avatar_url: normalizeImageUrl(profile.avatar_url),
+      coverPhoto: normalizeImageUrl(profile.cover_photo),
+      cover_photo: normalizeImageUrl(profile.cover_photo),
       email: user.email
     };
 
@@ -287,7 +317,7 @@ router.put('/profile/avatar', auth, upload.single('avatar'), async (req: AuthReq
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
-    const publicUrl = `http://localhost:3005/uploads/${req.file.filename}`;
+    const publicUrl = `/uploads/${req.file.filename}`;
     console.log('Generated public URL:', publicUrl);
 
     // First check if profile exists
@@ -372,7 +402,7 @@ router.put('/profile/cover-photo', auth, upload.single('coverPhoto'), async (req
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
-    const publicUrl = `http://localhost:3005/uploads/${req.file.filename}`;
+    const publicUrl = `/uploads/${req.file.filename}`;
     console.log('Generated public URL:', publicUrl);
 
     // First check if profile exists
@@ -534,29 +564,32 @@ router.get('/posts/feed', async (req, res) => {
       // If it's already a localhost URL, keep it
       if (url.startsWith('http://localhost:3005/')) return url;
       
-      // If it's a Supabase URL, use it directly (it's already a public URL)
+      // If it's a Supabase URL, extract filename and use local server
       if (url.includes('supabase.co/storage')) {
-        return url;
+        const filename = url.split('/').pop();
+        return filename ? `http://localhost:3005/uploads/${filename}` : '';
       }
       
-      // If it's any other http/https URL, use it directly
-      if (url.startsWith('http://') || url.startsWith('https://')) {
-        return url;
+      // If it's an external URL, try to extract filename and use local server
+      if (url.includes('http')) {
+        const filename = url.split('/').pop();
+        return filename ? `http://localhost:3005/uploads/${filename}` : '';
       }
-      
-      // If it's just a filename, add the localhost prefix
-      return `http://localhost:3005/uploads/${url}`;
+
+      // If it's just a filename, add the uploads prefix
+      return `/uploads/${url}`;
     };
 
     // 4) Map posts with images and merged user object
     const mapped = safePosts.map(post => {
       const prof = profileMap.get(post.user_id as string);
       const urow = usersMap.get(post.user_id as string);
-      const avatar = (urow?.avatar_url) ?? (prof?.avatar_url) ?? '';
+      const rawAvatar = (urow?.avatar_url) ?? (prof?.avatar_url) ?? '';
+      const avatar = normalizeImageUrl(rawAvatar);
 
       const name = prof?.full_name ?? '';
       const username = prof?.username ?? '';
-      
+
       // Process images with URL normalization
       let images: string[] = [];
       if (typeof post.media_url === 'string' && post.media_url.length > 0) {
@@ -586,7 +619,7 @@ router.get('/posts/feed', async (req, res) => {
             .filter(Boolean);
         }
       }
-      
+
       return {
         ...post,
         images,
@@ -683,6 +716,185 @@ router.get('/:id/stats', auth, async (req: AuthRequest, res) => {
   }
 });
 
+// GET /api/users/profile/:username - Get public profile by username
+router.get('/profile/:username', auth, async (req: AuthRequest, res) => {
+  try {
+    const { username } = req.params;
+    const currentUserId = req.user?.id;
+
+    if (!username) {
+      return res.status(400).json({ error: 'Username is required' });
+    }
+
+    // Find user by username
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('username', username.toLowerCase())
+      .single();
+
+    if (profileError || !profile) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Get friends count
+    const { count: friendsCount } = await supabase
+      .from('friends')
+      .select('*', { count: 'exact', head: true })
+      .or(`user_id.eq.${profile.id},friend_id.eq.${profile.id}`);
+
+    // Get posts count
+    const { count: postsCount } = await supabase
+      .from('posts')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', profile.id);
+
+    // Check if current user is friends with this user
+    let isFriend = false;
+    let hasPendingRequest = false;
+
+    if (currentUserId && currentUserId !== profile.id) {
+      // Check friendship
+      const { data: friendship } = await supabase
+        .from('friends')
+        .select('id')
+        .or(`and(user_id.eq.${currentUserId},friend_id.eq.${profile.id}),and(user_id.eq.${profile.id},friend_id.eq.${currentUserId})`)
+        .maybeSingle();
+
+      isFriend = !!friendship;
+
+      // Check pending friend request
+      if (!isFriend) {
+        const { data: pendingRequest } = await supabase
+          .from('friend_requests')
+          .select('id')
+          .eq('from_user_id', currentUserId)
+          .eq('to_user_id', profile.id)
+          .eq('status', 'pending')
+          .maybeSingle();
+
+        hasPendingRequest = !!pendingRequest;
+      }
+    }
+
+    // Return public profile data
+    res.json({
+      id: profile.id,
+      username: profile.username,
+      full_name: profile.full_name,
+      name: profile.full_name,
+      avatar_url: normalizeImageUrl(profile.avatar_url),
+      avatar: normalizeImageUrl(profile.avatar_url),
+      cover_photo: normalizeImageUrl(profile.cover_photo),
+      coverPhoto: normalizeImageUrl(profile.cover_photo),
+      bio: profile.bio,
+      location: profile.location,
+      website: profile.website,
+      created_at: profile.created_at,
+      createdAt: profile.created_at,
+      friends_count: friendsCount || 0,
+      friendsCount: friendsCount || 0,
+      posts_count: postsCount || 0,
+      postsCount: postsCount || 0,
+      is_friend: isFriend,
+      isFriend: isFriend,
+      has_pending_request: hasPendingRequest,
+      hasPendingRequest: hasPendingRequest,
+    });
+  } catch (error) {
+    console.error('Error fetching user profile:', error);
+    res.status(500).json({ error: 'Failed to fetch user profile' });
+  }
+});
+
+// GET /api/users/:username/posts - Get user's posts by username
+router.get('/:username/posts', auth, async (req: AuthRequest, res) => {
+  try {
+    const { username } = req.params;
+
+    if (!username) {
+      return res.status(400).json({ error: 'Username is required' });
+    }
+
+    // Find user by username
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('id, username, full_name, avatar_url')
+      .eq('username', username.toLowerCase())
+      .single();
+
+    if (profileError || !profile) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Get user's posts
+    const { data: posts, error: postsError } = await supabase
+      .from('posts')
+      .select('*')
+      .eq('user_id', profile.id)
+      .order('created_at', { ascending: false });
+
+    if (postsError) {
+      throw postsError;
+    }
+
+    // Get like counts and check if current user liked each post
+    const currentUserId = req.user?.id;
+    const postsWithData = await Promise.all(
+      (posts || []).map(async (post) => {
+        // Get like count
+        const { count: likeCount } = await supabase
+          .from('likes')
+          .select('*', { count: 'exact', head: true })
+          .eq('post_id', post.id);
+
+        // Get comment count
+        const { count: commentCount } = await supabase
+          .from('comments')
+          .select('*', { count: 'exact', head: true })
+          .eq('post_id', post.id);
+
+        // Check if current user liked the post
+        let liked = false;
+        if (currentUserId) {
+          const { data: userLike } = await supabase
+            .from('likes')
+            .select('id')
+            .eq('post_id', post.id)
+            .eq('user_id', currentUserId)
+            .maybeSingle();
+          liked = !!userLike;
+        }
+
+        // Process media URL
+        let mediaUrl = null;
+        if (post.media_url) {
+          mediaUrl = normalizeImageUrl(post.media_url);
+        }
+
+        return {
+          id: post.id,
+          content: post.content,
+          media_url: mediaUrl,
+          mediaUrl: mediaUrl,
+          created_at: post.created_at,
+          createdAt: post.created_at,
+          likes: likeCount || 0,
+          like_count: likeCount || 0,
+          comments: commentCount || 0,
+          comment_count: commentCount || 0,
+          liked: liked,
+        };
+      })
+    );
+
+    res.json(postsWithData);
+  } catch (error) {
+    console.error('Error fetching user posts:', error);
+    res.status(500).json({ error: 'Failed to fetch user posts' });
+  }
+});
+
 // GET /api/users/groups - Get all groups (temporary endpoint)
 router.get('/groups', auth, async (req: AuthRequest, res) => {
   try {
@@ -704,10 +916,18 @@ router.get('/groups', auth, async (req: AuthRequest, res) => {
           .select('*', { count: 'exact', head: true })
           .eq('group_id', group.id);
 
+        const creator = group.profiles || {};
+        const creatorWithNormalizedAvatar = {
+          ...creator,
+          avatar_url: normalizeImageUrl(creator.avatar_url)
+        };
+
         return {
           ...group,
+          profile_image_url: normalizeImageUrl(group.profile_image_url),
+          cover_image_url: normalizeImageUrl(group.cover_image_url),
           member_count: count || 0,
-          creator: group.profiles
+          creator: creatorWithNormalizedAvatar
         };
       })
     );
@@ -724,7 +944,7 @@ router.post('/groups/create', auth, async (req: AuthRequest, res) => {
   try {
     console.log('Creating group with body:', req.body);
     console.log('User ID:', req.user?.id);
-    
+
     const { name, description, is_private = false } = req.body;
     const userId = req.user?.id;
 
@@ -745,7 +965,7 @@ router.post('/groups/create', auth, async (req: AuthRequest, res) => {
       created_by: userId
     };
     console.log('Insert data:', insertData);
-    
+
     const { data: group, error } = await supabase
       .from('groups')
       .insert(insertData)
@@ -864,11 +1084,11 @@ router.put('/groups/:id/profile-image', auth, upload.single('profileImage'), asy
       return res.status(403).json({ error: 'Only group admins can update images' });
     }
 
-    const publicUrl = `http://localhost:3005/uploads/${req.file.filename}`;
+    const publicUrl = `/uploads/${req.file.filename}`;
 
     const { data: group, error } = await supabase
       .from('groups')
-      .update({ 
+      .update({
         profile_image_url: publicUrl,
         updated_at: new Date().toISOString()
       })
@@ -907,11 +1127,11 @@ router.put('/groups/:id/cover-image', auth, upload.single('coverImage'), async (
       return res.status(403).json({ error: 'Only group admins can update images' });
     }
 
-    const publicUrl = `http://localhost:3005/uploads/${req.file.filename}`;
+    const publicUrl = `/uploads/${req.file.filename}`;
 
     const { data: group, error } = await supabase
       .from('groups')
-      .update({ 
+      .update({
         cover_image_url: publicUrl,
         updated_at: new Date().toISOString()
       })

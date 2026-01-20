@@ -75,12 +75,12 @@ const CreatePost: React.FC<CreatePostProps> = ({ onPostCreated }) => {
 
     try {
       const compressedFile = await imageCompression(file, options);
-      
+
       if (compressedFile.size > file.size) {
         console.log('Compressed file is larger than original, using original');
         return file;
       }
-      
+
       return compressedFile;
     } catch (error) {
       console.error('Error compressing image:', error);
@@ -96,22 +96,22 @@ const CreatePost: React.FC<CreatePostProps> = ({ onPostCreated }) => {
     }
 
     const newImages = files.filter(file => file.type.startsWith('image/'));
-    
+
     // Show loading toast
     const loadingToast = toast.loading('Compressing images...');
-    
+
     try {
       // Compress images
       const compressedImages = await Promise.all(
         newImages.map(file => compressImage(file))
       );
-      
+
       setSelectedImages(prev => [...prev, ...compressedImages]);
 
       // Create preview URLs
       const newPreviewUrls = compressedImages.map(file => URL.createObjectURL(file));
       setImagePreviewUrls(prev => [...prev, ...newPreviewUrls]);
-      
+
       toast.success('Images compressed successfully', { id: loadingToast });
     } catch (error) {
       console.error('Error processing images:', error);
@@ -140,7 +140,7 @@ const CreatePost: React.FC<CreatePostProps> = ({ onPostCreated }) => {
     setIsLoading(true);
     try {
       let imageUrls: string[] = [];
-      
+
       if (selectedImages.length > 0) {
         const formData = new FormData();
         selectedImages.forEach((file, index) => {
@@ -181,7 +181,7 @@ const CreatePost: React.FC<CreatePostProps> = ({ onPostCreated }) => {
   return (
     <div className="relative" ref={containerRef}>
       {isLoading && (
-        <div className="absolute inset-0 bg-black/50 flex items-center justify-center rounded-lg">
+        <div className="absolute inset-0 bg-background/50 flex items-center justify-center rounded-lg">
           <Spinner size="md" />
         </div>
       )}
@@ -191,7 +191,7 @@ const CreatePost: React.FC<CreatePostProps> = ({ onPostCreated }) => {
             <img
               src={user.avatar || DEFAULT_IMAGES.avatar}
               alt={user.name}
-              className="w-12 h-12 rounded-full object-cover border-2 border-orange-500/20 hover:border-orange-500/40 transition-colors"
+              className="w-12 h-12 rounded-full object-cover border-2 border-accent/20 hover:border-accent/40 transition-colors"
               title={`Posting as ${user.name} (@${user.username || 'user'})`}
             />
           </div>
@@ -201,7 +201,7 @@ const CreatePost: React.FC<CreatePostProps> = ({ onPostCreated }) => {
               onChange={(e) => setContent(e.target.value)}
               onFocus={() => setIsExpanded(true)}
               placeholder={`What's on your mind, ${user.name?.split(' ')[0] || 'there'}?`}
-              className={`w-full ${isExpanded ? 'rounded-2xl py-3' : 'rounded-2xl py-2'} neo-input px-4 text-white placeholder-gray-400 resize-none focus:outline-none focus:ring-2 focus:ring-orange-500/80 focus:border-orange-500/40`}
+              className={`w-full ${isExpanded ? 'rounded-2xl py-3' : 'rounded-2xl py-2'} neo-input px-4 text-foreground placeholder-muted resize-none focus:outline-none focus:ring-2 focus:ring-accent/80 focus:border-accent/40`}
               rows={isExpanded ? 3 : 1}
             />
 
@@ -218,7 +218,7 @@ const CreatePost: React.FC<CreatePostProps> = ({ onPostCreated }) => {
                     <button
                       type="button"
                       onClick={() => removeImage(index)}
-                      className="absolute top-1 right-1 p-1 bg-black/50 rounded-full text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="absolute top-1 right-1 p-1 bg-background/50 rounded-full text-foreground opacity-0 group-hover:opacity-100 transition-opacity"
                     >
                       <X size={16} />
                     </button>
@@ -233,7 +233,7 @@ const CreatePost: React.FC<CreatePostProps> = ({ onPostCreated }) => {
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    className="p-2 text-gray-400 hover:text-orange-500 rounded-full hover:bg-orange-500/10"
+                    className="p-2 text-muted hover:text-accent rounded-full hover:bg-accent/10"
                   >
                     <Image size={20} />
                   </button>
@@ -249,19 +249,19 @@ const CreatePost: React.FC<CreatePostProps> = ({ onPostCreated }) => {
                     <button
                       type="button"
                       onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                      className="p-2 text-gray-400 hover:text-orange-500 rounded-full hover:bg-orange-500/10"
+                      className="p-2 text-muted hover:text-accent rounded-full hover:bg-accent/10"
                     >
                       <Smile size={20} />
                     </button>
                     {showEmojiPicker && (
-                      <div 
+                      <div
                         className="absolute bottom-12 -left-2 z-50"
                         style={{
                           filter: 'drop-shadow(0 4px 6px rgba(0, 0, 0, 0.3))',
                         }}
                       >
-                        <div className="bg-black/50 backdrop-blur-sm rounded-lg p-1">
-                          <EmojiPicker 
+                        <div className="bg-background/50 backdrop-blur-sm rounded-lg p-1">
+                          <EmojiPicker
                             onEmojiClick={onEmojiClick}
                             autoFocusSearch={false}
                             theme={'dark' as Theme}
@@ -282,12 +282,12 @@ const CreatePost: React.FC<CreatePostProps> = ({ onPostCreated }) => {
                     )}
                   </div>
                 </div>
-                
+
                 <div className="flex items-center gap-2">
                   {isExpanded && !content && selectedImages.length === 0 && (
                     <button
                       type="button"
-                      className="px-3 py-2 text-gray-400 hover:text-white"
+                      className="px-3 py-2 text-muted hover:text-foreground"
                       onClick={() => setIsExpanded(false)}
                     >
                       Cancel
@@ -296,11 +296,10 @@ const CreatePost: React.FC<CreatePostProps> = ({ onPostCreated }) => {
                   <button
                     type="submit"
                     disabled={loading || (!content.trim() && selectedImages.length === 0)}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg ${
-                      loading || (!content.trim() && selectedImages.length === 0)
-                        ? 'bg-orange-500/50 cursor-not-allowed'
-                        : 'bg-orange-500 hover:bg-orange-600'
-                    }`}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg ${loading || (!content.trim() && selectedImages.length === 0)
+                        ? 'bg-accent/50 cursor-not-allowed'
+                        : 'bg-accent hover:bg-accent-hover'
+                      }`}
                   >
                     <Send size={18} />
                     {loading ? 'Posting...' : 'Post'}

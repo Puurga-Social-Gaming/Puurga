@@ -99,7 +99,7 @@ export const MessagesProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
   };
 
-  const loadMessages = async (conversationId: string) => {
+  const loadMessages = async (conversationId: string, retryCount = 0) => {
     if (!user) return;
     
     try {

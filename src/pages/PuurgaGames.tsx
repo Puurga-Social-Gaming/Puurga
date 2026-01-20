@@ -1,7 +1,8 @@
-import React, { useState, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useState } from 'react';
+import { motion } from 'framer-motion';
 import { 
   Gamepad2, 
+  Trophy, 
   Coins, 
   Star, 
   Play, 
@@ -11,12 +12,9 @@ import {
   Target,
   Puzzle,
   Sword,
-  Brain,
-  Search,
-  Grid3X3,
-  List,
-  TrendingUp
+  Brain
 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 interface Game {
   id: string;
@@ -29,6 +27,7 @@ interface Game {
   playTime: string;
   players: number;
   featured: boolean;
+  link?: string;
 }
 
 type ViewType = 'grid' | 'list';
@@ -110,6 +109,19 @@ const PuurgaGames: React.FC = () => {
       playTime: '5-8 min',
       players: 1089,
       featured: true
+    },
+    {
+      id: 'redemption',
+      title: 'Redemption',
+      description: 'A moral scenario game. Make the right choices to restore your status.',
+      icon: <Shield className="w-8 h-8" />,
+      category: 'strategy',
+      difficulty: 'Medium',
+      rewardCoins: 150,
+      playTime: '2 min',
+      players: 342,
+      featured: true,
+      link: '/new-game'
     }
   ];
 
@@ -121,242 +133,227 @@ const PuurgaGames: React.FC = () => {
     { id: 'trivia', label: 'Trivia', icon: <Brain className="w-4 h-4" /> }
   ];
 
-  const filteredGames = useMemo(() => {
-    let result = games;
-    
-    // Filter by category
-    if (selectedCategory !== 'all') {
-      result = result.filter(game => game.category === selectedCategory);
-    }
-    
-    // Filter by search
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      result = result.filter(game => 
-        game.title.toLowerCase().includes(query) ||
-        game.description.toLowerCase().includes(query)
-      );
-    }
-    
-    return result;
-  }, [games, selectedCategory, searchQuery]);
+  const filteredGames = selectedCategory === 'all' 
+    ? games 
+    : games.filter(game => game.category === selectedCategory);
+
+  const featuredGames = games.filter(game => game.featured);
 
   const getDifficultyColor = (difficulty: string) => {
     switch (difficulty) {
       case 'Easy': return 'text-green-400 bg-green-400/10';
       case 'Medium': return 'text-yellow-400 bg-yellow-400/10';
       case 'Hard': return 'text-red-400 bg-red-400/10';
-      default: return 'text-gray-400 bg-gray-400/10';
+      default: return 'text-muted bg-muted/10';
     }
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5 }}
-      className="min-h-screen bg-[#0a0a0a] p-6"
-    >
+    <div className="min-h-screen bg-[#0a0a0a] p-6">
       <div className="max-w-7xl mx-auto space-y-8">
-        {/* Header */}
-        <div className="flex items-center gap-3">
-          <Gamepad2 className="w-10 h-10 text-orange-500" />
-          <div>
-            <h1 className="text-2xl font-bold text-white">Puurga Games</h1>
-            <p className="text-gray-400 text-sm">Play games, earn coins, climb the leaderboard</p>
-          </div>
-        </div>
+      {/* Header */}
+      <div className="text-center space-y-4">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex items-center justify-center gap-3"
+        >
+          <Gamepad2 className="w-12 h-12 text-orange-500" />
+          <h1 className="text-4xl font-bold text-white">Puurga Games</h1>
+        </motion.div>
+        <p className="text-gray-400 text-lg max-w-2xl mx-auto">
+          Play games, earn coins, and climb the leaderboard. Complete challenges and unlock rewards!
+        </p>
+      </div>
 
-        {/* Category Filter and Search */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          {/* Category Tabs */}
-          <div className="flex bg-[#1a1a1a] rounded-xl p-1 flex-wrap">
-            {categories.map((category) => (
-              <button
-                key={category.id}
-                onClick={() => setSelectedCategory(category.id)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                  selectedCategory === category.id
-                    ? 'bg-orange-500 text-white'
-                    : 'text-gray-400 hover:text-white'
-                }`}
-              >
-                {category.icon}
-                {category.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Search and View Toggle */}
-          <div className="flex items-center gap-3 w-full sm:w-auto">
-            <div className="relative flex-1 sm:w-64">
-              <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search games..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-[#1a1a1a] border border-gray-700 rounded-lg pl-10 pr-4 py-2 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm"
-              />
+      {/* Stats Cards */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1 }}
+        className="grid grid-cols-1 md:grid-cols-3 gap-6"
+      >
+        <div className="bg-[#1a1a1a] rounded-xl p-6 border border-[var(--border)]">
+          <div className="flex items-center gap-3">
+            <div className="p-3 bg-orange-500/10 rounded-lg">
+              <Coins className="w-6 h-6 text-orange-500" />
             </div>
-            <div className="flex bg-[#1a1a1a] rounded-lg p-1">
-              <button
-                onClick={() => setViewType('grid')}
-                className={`p-2 rounded transition-colors ${viewType === 'grid' ? 'bg-orange-500 text-white' : 'text-gray-400 hover:text-white'}`}
-                title="Grid view"
-              >
-                <Grid3X3 size={18} />
-              </button>
-              <button
-                onClick={() => setViewType('list')}
-                className={`p-2 rounded transition-colors ${viewType === 'list' ? 'bg-orange-500 text-white' : 'text-gray-400 hover:text-white'}`}
-                title="List view"
-              >
-                <List size={18} />
-              </button>
+            <div>
+              <p className="text-gray-400 text-sm">Total Coins Earned</p>
+              <p className="text-2xl font-bold text-white">2,450</p>
             </div>
           </div>
         </div>
 
-        {/* Games Grid */}
-        <AnimatePresence mode="wait">
-          {viewType === 'grid' ? (
-            <motion.div
-              key="grid"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
-            >
-              {filteredGames.map((game, index) => (
-                <motion.div
-                  key={game.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.1 * index }}
-                  whileHover={{ scale: 1.02 }}
-                  className="bg-[#1a1a1a] rounded-xl overflow-hidden cursor-pointer hover:ring-2 hover:ring-orange-500 transition-all"
-                >
-                  <div 
-                    className="h-28 bg-cover bg-center relative"
-                    style={{ backgroundColor: '#2d2d2d' }}
-                  >
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-                    <div className="absolute top-2 right-2 flex items-center gap-1">
-                      {game.featured && (
-                        <span className="flex items-center gap-1 text-xs bg-orange-500/80 text-white px-2 py-1 rounded-full">
-                          <Star size={10} /> Featured
-                        </span>
-                      )}
-                      <span className={`text-xs px-2 py-1 rounded-full ${getDifficultyColor(game.difficulty)}`}>
-                        {game.difficulty}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="p-4">
-                    <div className="flex items-center gap-3 -mt-10 mb-3 relative">
-                      <div className="w-14 h-14 rounded-xl bg-[#1a1a1a] flex items-center justify-center overflow-hidden border-2 border-[#1a1a1a] text-orange-500">
-                        {game.icon}
-                      </div>
-                      <div className="flex-1 min-w-0 pt-6">
-                        <h3 className="text-white font-semibold truncate">{game.title}</h3>
-                        <div className="flex items-center gap-2 text-xs text-gray-400">
-                          <span className="flex items-center gap-1"><Users size={10} /> {game.players.toLocaleString()}</span>
-                          <span>•</span>
-                          <span className="flex items-center gap-1"><Clock size={10} /> {game.playTime}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <p className="text-gray-400 text-sm mb-3 line-clamp-2">{game.description}</p>
-                    
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center gap-1 text-orange-500 font-semibold text-sm">
-                        <Coins className="w-4 h-4" />
-                        {game.rewardCoins} coins
-                      </div>
-                    </div>
-
-                    <button className="w-full py-2 bg-[#2d2d2d] text-white text-sm rounded-lg hover:bg-orange-500 transition-colors font-medium flex items-center justify-center gap-2">
-                      <Play className="w-4 h-4" />
-                      Play Now
-                    </button>
-                  </div>
-                </motion.div>
-              ))}
-            </motion.div>
-          ) : (
-            <motion.div
-              key="list"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="space-y-2"
-            >
-              {filteredGames.map((game, index) => (
-                <motion.div
-                  key={game.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.1 * index }}
-                  whileHover={{ scale: 1.01 }}
-                  className="bg-[#1a1a1a] rounded-xl p-4 cursor-pointer hover:ring-2 hover:ring-orange-500 transition-all flex items-center gap-4"
-                >
-                  <div className="w-14 h-14 rounded-xl bg-[#2d2d2d] text-orange-500 flex items-center justify-center overflow-hidden flex-shrink-0">
-                    {game.icon}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-white font-semibold truncate">{game.title}</h3>
-                      {game.featured && <Star size={12} className="text-orange-500" />}
-                      <span className={`text-xs px-2 py-0.5 rounded-full ${getDifficultyColor(game.difficulty)}`}>
-                        {game.difficulty}
-                      </span>
-                    </div>
-                    <p className="text-sm text-gray-400 truncate">{game.description}</p>
-                    <div className="flex items-center gap-3 text-xs text-gray-500 mt-1">
-                      <span className="flex items-center gap-1"><Users size={10} /> {game.players.toLocaleString()}</span>
-                      <span className="flex items-center gap-1"><Clock size={10} /> {game.playTime}</span>
-                      <span className="flex items-center gap-1 text-orange-500"><Coins size={10} /> {game.rewardCoins}</span>
-                    </div>
-                  </div>
-                  <button className="px-4 py-2 bg-[#2d2d2d] text-white text-sm rounded-lg hover:bg-orange-500 transition-colors font-medium flex items-center gap-2">
-                    <Play size={14} />
-                    Play
-                  </button>
-                </motion.div>
-              ))}
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Trending Games */}
-        {games.length > 0 && (
-          <div className="bg-[#1a1a1a] rounded-xl p-4">
-            <div className="flex items-center space-x-2 mb-4">
-              <TrendingUp className="text-orange-500" size={20} />
-              <h2 className="text-lg font-bold text-white">Trending Games</h2>
+        <div className="bg-[#1a1a1a] rounded-xl p-6 border border-[var(--border)]">
+          <div className="flex items-center gap-3">
+            <div className="p-3 bg-blue-500/10 rounded-lg">
+              <Trophy className="w-6 h-6 text-blue-500" />
             </div>
-            <div className="space-y-4">
-              {games.filter(g => g.featured).slice(0, 3).map((game) => (
-                <div key={game.id} className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 rounded-lg bg-[#2d2d2d] flex items-center justify-center overflow-hidden text-orange-500">
-                      {game.icon}
-                    </div>
-                    <div>
-                      <p className="text-white font-medium">{game.title}</p>
-                      <p className="text-sm text-gray-400">{game.players.toLocaleString()} players</p>
-                    </div>
-                  </div>
-                  <button className="px-4 py-1 bg-[#2d2d2d] text-white rounded-full hover:bg-orange-500 transition-colors text-sm">
-                    Play
-                  </button>
+            <div>
+              <p className="text-gray-400 text-sm">Leaderboard Rank</p>
+              <p className="text-2xl font-bold text-white">#127</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-[#1a1a1a] rounded-xl p-6 border border-[var(--border)]">
+          <div className="flex items-center gap-3">
+            <div className="p-3 bg-green-500/10 rounded-lg">
+              <Play className="w-6 h-6 text-green-500" />
+            </div>
+            <div>
+              <p className="text-gray-400 text-sm">Games Played</p>
+              <p className="text-2xl font-bold text-white">47</p>
+            </div>
+          </div>
+        </div>
+      </motion.div>
+
+      {/* Featured Games */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2 }}
+        className="space-y-4"
+      >
+        <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+          <Star className="w-6 h-6 text-orange-500" />
+          Featured Games
+        </h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {featuredGames.map((game) => (
+            <motion.div
+              key={game.id}
+              whileHover={{ scale: 1.02 }}
+              className="bg-gradient-to-br from-orange-500/10 to-red-500/10 rounded-xl p-6 border border-orange-500/20 relative overflow-hidden"
+            >
+              <div className="absolute top-2 right-2">
+                <span className="bg-orange-500 text-white text-xs px-2 py-1 rounded-full font-semibold">
+                  FEATURED
+                </span>
+              </div>
+              
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-3 bg-orange-500/20 rounded-lg text-orange-500">
+                  {game.icon}
                 </div>
-              ))}
+                <div>
+                  <h3 className="font-bold text-white">{game.title}</h3>
+                  <span className={`text-xs px-2 py-1 rounded-full ${getDifficultyColor(game.difficulty)}`}>
+                    {game.difficulty}
+                  </span>
+                </div>
+              </div>
+
+              <p className="text-gray-300 text-sm mb-4">{game.description}</p>
+
+              <div className="flex items-center justify-between text-sm text-gray-400 mb-4">
+                <div className="flex items-center gap-1">
+                  <Clock className="w-4 h-4" />
+                  {game.playTime}
+                </div>
+                <div className="flex items-center gap-1">
+                  <Users className="w-4 h-4" />
+                  {game.players.toLocaleString()}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1 text-orange-500 font-semibold">
+                  <Coins className="w-4 h-4" />
+                  {game.rewardCoins} coins
+                </div>
+                <button className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg font-semibold transition-colors flex items-center gap-2">
+                  <Play className="w-4 h-4" />
+                  Play Now
+                </button>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+      </motion.div>
+
+      {/* Category Filter */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.3 }}
+        className="space-y-4"
+      >
+        <h2 className="text-2xl font-bold text-white">All Games</h2>
+        <div className="flex flex-wrap gap-2">
+          {categories.map((category) => (
+            <button
+              key={category.id}
+              onClick={() => setSelectedCategory(category.id)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
+                selectedCategory === category.id
+                  ? 'bg-orange-500 text-white'
+                  : 'bg-[#1a1a1a] text-gray-300 hover:bg-[#2a2a2a] border border-[var(--border)]'
+              }`}
+            >
+              {category.icon}
+              {category.label}
+            </button>
+          ))}
+        </div>
+      </motion.div>
+
+      {/* Games Grid */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.4 }}
+        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+      >
+        {filteredGames.map((game, index) => (
+          <motion.div
+            key={game.id}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 * index }}
+            whileHover={{ scale: 1.02 }}
+            className="bg-[#1a1a1a] rounded-xl p-6 border border-[var(--border)] hover:border-orange-500/30 transition-colors"
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-3 bg-gray-500/20 rounded-lg text-gray-300">
+                {game.icon}
+              </div>
+              <div>
+                <h3 className="font-bold text-white">{game.title}</h3>
+                <span className={`text-xs px-2 py-1 rounded-full ${getDifficultyColor(game.difficulty)}`}>
+                  {game.difficulty}
+                </span>
+              </div>
             </div>
-          </div>
-        )}
+
+            <p className="text-gray-300 text-sm mb-4">{game.description}</p>
+
+            <div className="flex items-center justify-between text-sm text-gray-400 mb-4">
+              <div className="flex items-center gap-1">
+                <Clock className="w-4 h-4" />
+                {game.playTime}
+              </div>
+              <div className="flex items-center gap-1">
+                <Users className="w-4 h-4" />
+                {game.players.toLocaleString()}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1 text-orange-500 font-semibold">
+                <Coins className="w-4 h-4" />
+                {game.rewardCoins} coins
+              </div>
+              <button className="bg-gray-600 hover:bg-gray-500 text-white px-4 py-2 rounded-lg font-semibold transition-colors flex items-center gap-2">
+                <Play className="w-4 h-4" />
+                Play
+              </button>
+            </div>
+          </motion.div>
+        ))}
+      </motion.div>
       </div>
     </motion.div>
   );

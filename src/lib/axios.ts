@@ -8,7 +8,7 @@ interface EnhancedError extends Error {
 }
 
 const api = axios.create({
-  baseURL: 'http://localhost:3005',
+  baseURL: '',
   headers: {
     'Content-Type': 'application/json',
   },

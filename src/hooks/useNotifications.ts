@@ -20,7 +20,7 @@ export const useNotifications = () => {
       // Use API endpoint instead of direct Supabase call for consistency
       const response = await api.get('/notifications');
       const data = response.data || [];
-      
+
       setNotifications(data);
       setUnreadCount(data.filter((n: any) => !n.read).length);
     } catch (error) {
@@ -47,6 +47,33 @@ export const useNotifications = () => {
     }
   };
 
+  const deleteNotification = async (notificationId: string) => {
+    // Optimistic update: Remove immediately from UI
+    const previousNotifications = notifications;
+    const previousUnreadCount = unreadCount;
+
+    setNotifications(prev => {
+      const notification = prev.find(n => n.id === notificationId);
+      const wasUnread = notification && !notification.read;
+
+      if (wasUnread) {
+        setUnreadCount(count => Math.max(0, count - 1));
+      }
+      return prev.filter(n => n.id !== notificationId);
+    });
+
+    try {
+      // Background API call
+      await api.delete(`/notifications/${notificationId}`);
+    } catch (error) {
+      console.error('Error deleting notification:', error);
+      // Revert on error
+      setNotifications(previousNotifications);
+      setUnreadCount(previousUnreadCount);
+      toast.error('Failed to delete notification');
+    }
+  };
+
   // Fetch notifications when user logs in
   useEffect(() => {
     if (user) {
@@ -58,11 +85,11 @@ export const useNotifications = () => {
   const { isConnected } = useWebSocket({
     onNotification: (notification) => {
       console.log('Received live notification:', notification);
-      
+
       // Add notification to state
       setNotifications(prev => [notification, ...prev]);
       setUnreadCount(prev => prev + 1);
-      
+
       // Show toast notification
       toast.success(`New ${notification.type.replace('_', ' ')}: ${notification.fromUser.name}`, {
         duration: 4000,
@@ -115,6 +142,7 @@ export const useNotifications = () => {
     notifications,
     unreadCount,
     markAsRead,
+    deleteNotification,
     fetchNotifications
   };
 }; 

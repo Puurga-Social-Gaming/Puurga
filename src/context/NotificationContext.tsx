@@ -6,6 +6,7 @@ interface NotificationContextType {
   notifications: Notification[];
   unreadCount: number;
   markAsRead: (notificationIds: string[]) => Promise<void>;
+  deleteNotification: (notificationId: string) => Promise<void>;
   fetchNotifications: () => Promise<void>;
 }
 
@@ -16,6 +17,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     notifications,
     unreadCount,
     markAsRead,
+    deleteNotification,
     fetchNotifications
   } = useSupabaseNotifications();
 
@@ -25,6 +27,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         notifications,
         unreadCount,
         markAsRead,
+        deleteNotification,
         fetchNotifications
       }}
     >

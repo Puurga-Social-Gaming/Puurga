@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Bell, CheckCheck, Loader2, UserPlus, Heart, MessageCircle, UserCheck } from 'lucide-react';
+import { Bell, Check, CheckCheck, Loader2, UserPlus, Heart, MessageCircle, UserCheck } from 'lucide-react';
 import { useNotifications } from '../../context/NotificationsContext';
 import { formatDistanceToNow } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';

@@ -19,7 +19,7 @@ const getToken = () => {
 };
 
 const api = axios.create({
-  baseURL: 'http://localhost:3005/api',
+  baseURL: '/api',
 });
 
 api.interceptors.request.use(

@@ -62,7 +62,7 @@ export const useAuth = () => {
 
       try {
         console.log('Starting registration process...');
-        
+
         // Validate email format more strictly
         const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
         console.log('Email being validated:', trimmedEmail);
@@ -91,7 +91,7 @@ export const useAuth = () => {
             name: authError.name,
             stack: authError.stack
           });
-          
+
           if (authError.message.includes('Database error')) {
             console.error('Database error during registration:', authError);
             throw new Error('Unable to create account. Please try again later.');
@@ -168,7 +168,8 @@ export const useAuth = () => {
             email: authData.user.email || '',
             username: trimmedUsername,
             avatar: null,
-            createdAt: new Date().toISOString()
+            createdAt: new Date().toISOString(),
+            credits: 0
           };
           setUser(fallbackProfile);
           toast.success('Registration successful! Welcome to Puurga!');
@@ -190,7 +191,7 @@ export const useAuth = () => {
   const login = useCallback(async (email: string, password: string) => {
     try {
       setLoading(true);
-      
+
       if (!email?.trim() || !password) {
         throw new Error('Email and password are required');
       }
@@ -259,7 +260,7 @@ export const useAuth = () => {
         if (createError) {
           console.error('Failed to create fallback profile:', createError);
           // Fallback to a minimal local profile if DB creation fails
-          finalProfile = { id: authData.user.id, name: 'User', username: 'user', createdAt: new Date().toISOString(), email: authData.user.email || '' };
+          finalProfile = { id: authData.user.id, name: 'User', username: 'user', createdAt: new Date().toISOString(), email: authData.user.email || '', credits: 0 };
         } else if (createdProfile) {
           finalProfile = createdProfile;
           console.log('Fallback profile created successfully:', finalProfile);
@@ -301,7 +302,7 @@ export const useAuth = () => {
       setLoading(true);
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
-      
+
       setUser(null);
       navigate('/login');
       // Clear persisted token used by backend API
@@ -325,7 +326,7 @@ export const useAuth = () => {
         redirectTo: `${window.location.origin}/reset-password`
       });
       if (error) throw error;
-      
+
       toast.success('Password reset instructions sent to your email');
     } catch (error) {
       console.error('Password reset error:', error);

@@ -48,7 +48,13 @@ initializeStorage();
 
 // CORS configuration
 app.use(cors({
-  origin: corsOrigins,
+  origin: [
+    'http://localhost:5173',
+    'http://localhost:5174', 
+    'http://localhost:5175', 
+    'http://localhost:5176',
+    'http://localhost:5177'
+  ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
