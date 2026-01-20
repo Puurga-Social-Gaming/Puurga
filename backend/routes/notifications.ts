@@ -121,4 +121,24 @@ router.get('/unread/count', auth, async (req, res) => {
   }
 });
 
+// Delete a single notification
+router.delete('/:id', auth, async (req, res) => {
+  try {
+    const notificationId = req.params.id;
+
+    const { error } = await supabase
+      .from('notifications')
+      .delete()
+      .eq('id', notificationId)
+      .eq('receiver_id', req.user.id);
+
+    if (error) throw error;
+
+    res.json({ message: 'Notification deleted' });
+  } catch (error) {
+    console.error('Error deleting notification:', error);
+    res.status(500).json({ error: 'Failed to delete notification' });
+  }
+});
+
 export default router; 

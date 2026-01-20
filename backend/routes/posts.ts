@@ -8,11 +8,20 @@ const router = express.Router();
 // --- GET /api/posts/feed ---
 router.get('/feed', async (req, res) => {
   try {
-    // 1) Fetch posts
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+    const from = (page - 1) * limit;
+    const to = from + limit - 1;
+
+    console.log(`Fetching feed page ${page} (limit ${limit}, range ${from}-${to})`);
+
+    // 1) Fetch posts with pagination
     const { data: posts, error: postsError } = await supabase
       .from('posts')
       .select('*')
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .range(from, to);
+
     if (postsError) throw postsError;
 
     const safePosts = posts || [];
@@ -40,35 +49,41 @@ router.get('/feed', async (req, res) => {
     // Helper function to normalize image URLs
     const normalizeImageUrl = (url: string): string => {
       if (!url) return '';
-      
-      // If it's already a localhost URL, keep it
-      if (url.startsWith('http://localhost:3005/')) return url;
-      
-      // If it's a Supabase URL, extract filename and use local server
+
+      // Convert localhost URLs to relative paths
+      if (url.startsWith('http://localhost:3005/')) {
+        return url.replace('http://localhost:3005', '');
+      }
+
+      // If it's a Supabase URL, keep it as is (external storage)
       if (url.includes('supabase.co/storage')) {
-        const filename = url.split('/').pop();
-        return filename ? `http://localhost:3005/uploads/${filename}` : '';
+        return url;
       }
-      
-      // If it's an external URL, try to extract filename and use local server
-      if (url.includes('http')) {
-        const filename = url.split('/').pop();
-        return filename ? `http://localhost:3005/uploads/${filename}` : '';
+
+      // If it's already a relative URL, keep it
+      if (url.startsWith('/uploads/')) {
+        return url;
       }
-      
-      // If it's just a filename, add the localhost prefix
-      return `http://localhost:3005/uploads/${url}`;
+
+      // If it's an external URL, keep it as-is
+      if (url.startsWith('http://') || url.startsWith('https://')) {
+        return url;
+      }
+
+      // If it's just a filename, add the uploads prefix
+      return `/uploads/${url}`;
     };
 
     // 4) Map posts with images and merged user object
     const mapped = safePosts.map(post => {
       const prof = profileMap.get(post.user_id as string);
       const urow = usersMap.get(post.user_id as string);
-      const avatar = (urow?.avatar_url) ?? (prof?.avatar_url) ?? '';
+      const rawAvatar = (urow?.avatar_url) ?? (prof?.avatar_url) ?? '';
+      const avatar = normalizeImageUrl(rawAvatar);
 
       const name = prof?.full_name ?? '';
       const username = prof?.username ?? '';
-      
+
       // Process images with URL normalization
       let images: string[] = [];
       if (typeof post.media_url === 'string' && post.media_url.length > 0) {
@@ -98,7 +113,7 @@ router.get('/feed', async (req, res) => {
             .filter(Boolean);
         }
       }
-      
+
       return {
         ...post,
         images,
@@ -126,84 +141,102 @@ router.get('/purges/my-activity', auth, async (req: AuthRequest, res) => {
 
     // Fetch purges given by the user (purges they made on other people's posts)
     const { data: purgesGiven, error: givenError } = await supabase
-      .from('purges')
+      .from('post_purges')
       .select(`
         id,
-        target_id,
-        target_user_id,
-        created_at,
-        posts:target_id (
-          id,
-          content,
-          created_at
-        )
+        post_id,
+        user_id,
+        created_at
       `)
-      .eq('actor_id', userId)
-      .eq('target_type', 'post')
+      .eq('user_id', userId)
       .order('created_at', { ascending: false });
 
     if (givenError) throw givenError;
 
-    // Fetch purges received by the user (purges on their posts)
-    const { data: purgesReceived, error: receivedError } = await supabase
-      .from('purges')
-      .select(`
-        id,
-        actor_id,
-        target_id,
-        created_at,
-        posts:target_id (
+    // Fetch posts that the user authored to find purges received
+    const { data: userPosts, error: userPostsError } = await supabase
+      .from('posts')
+      .select('id')
+      .eq('user_id', userId);
+
+    if (userPostsError) throw userPostsError;
+
+    const userPostIds = (userPosts || []).map(p => p.id);
+
+    // Fetch purges on user's posts (purges received)
+    let purgesReceived: any[] = [];
+    if (userPostIds.length > 0) {
+      const { data: received, error: receivedError } = await supabase
+        .from('post_purges')
+        .select(`
           id,
-          content,
+          post_id,
+          user_id,
           created_at
-        )
-      `)
-      .eq('target_user_id', userId)
-      .eq('target_type', 'post')
-      .order('created_at', { ascending: false });
+        `)
+        .in('post_id', userPostIds)
+        .neq('user_id', userId) // Exclude self-purges if any
+        .order('created_at', { ascending: false });
 
-    if (receivedError) throw receivedError;
+      if (receivedError) throw receivedError;
+      purgesReceived = received || [];
+    }
 
-    // Get unique user IDs from both lists
-    const givenUserIds = Array.from(new Set((purgesGiven || []).map(p => p.target_user_id).filter(Boolean)));
-    const receivedUserIds = Array.from(new Set((purgesReceived || []).map(p => p.actor_id).filter(Boolean)));
+    // Get post details for purges given
+    const givenPostIds = Array.from(new Set((purgesGiven || []).map(p => p.post_id).filter(Boolean)));
+    let postsGivenMap = new Map();
+    if (givenPostIds.length > 0) {
+      const { data: postsData } = await supabase
+        .from('posts')
+        .select('id, content, created_at, user_id')
+        .in('id', givenPostIds);
+      (postsData || []).forEach(p => postsGivenMap.set(p.id, p));
+    }
+
+    // Get user IDs for profiles
+    const givenUserIds = Array.from(new Set(
+      (purgesGiven || []).map(p => postsGivenMap.get(p.post_id)?.user_id).filter(Boolean)
+    ));
+    const receivedUserIds = Array.from(new Set((purgesReceived || []).map(p => p.user_id).filter(Boolean)));
     const allUserIds = Array.from(new Set([...givenUserIds, ...receivedUserIds]));
 
     // Fetch profile information for all users
-    const { data: profiles, error: profilesError } = await supabase
-      .from('profiles')
-      .select('id, full_name, username, avatar_url')
-      .in('id', allUserIds);
+    let profileMap = new Map();
+    if (allUserIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, full_name, username, avatar_url')
+        .in('id', allUserIds);
 
-    if (profilesError) throw profilesError;
-
-    // Create a map of profiles
-    const profileMap = new Map();
-    (profiles || []).forEach(profile => {
-      profileMap.set(profile.id, {
-        id: profile.id,
-        name: profile.full_name,
-        username: profile.username,
-        avatar: profile.avatar_url
+      (profiles || []).forEach(profile => {
+        profileMap.set(profile.id, {
+          id: profile.id,
+          name: profile.full_name,
+          username: profile.username,
+          avatar: profile.avatar_url
+        });
       });
-    });
+    }
 
     // Format purges given with profile info
-    const formattedPurgesGiven = (purgesGiven || []).map(purge => ({
-      id: purge.id,
-      postId: purge.target_id,
-      post: purge.posts,
-      targetUser: profileMap.get(purge.target_user_id) || null,
-      createdAt: purge.created_at,
-      type: 'given'
-    }));
+    const formattedPurgesGiven = (purgesGiven || []).map(purge => {
+      const post = postsGivenMap.get(purge.post_id);
+      return {
+        id: purge.id,
+        postId: purge.post_id,
+        post: post ? { id: post.id, content: post.content, created_at: post.created_at } : null,
+        targetUser: post ? profileMap.get(post.user_id) || null : null,
+        createdAt: purge.created_at,
+        type: 'given'
+      };
+    });
 
     // Format purges received with profile info
     const formattedPurgesReceived = (purgesReceived || []).map(purge => ({
       id: purge.id,
-      postId: purge.target_id,
-      post: purge.posts,
-      actor: profileMap.get(purge.actor_id) || null,
+      postId: purge.post_id,
+      post: null, // Can add post details if needed
+      actor: profileMap.get(purge.user_id) || null,
       createdAt: purge.created_at,
       type: 'received'
     }));
@@ -244,7 +277,7 @@ router.post('/:id/purge', auth, async (req, res) => {
 
     // Prevent users from purging their own posts
     if (userId === targetUserId) {
-      return res.status(403).json({ 
+      return res.status(403).json({
         error: 'Cannot purge your own post',
         message: 'You cannot purge your own posts. Purges are meant for content from other users.',
         code: 'OWN_POST'
@@ -253,11 +286,10 @@ router.post('/:id/purge', auth, async (req, res) => {
 
     // Check if user has already purged this post
     const { data: existingPurge, error: checkError } = await supabase
-      .from('purges')
+      .from('post_purges')
       .select('*')
-      .eq('target_type', 'post')
-      .eq('target_id', postId)
-      .eq('actor_id', userId)
+      .eq('post_id', postId)
+      .eq('user_id', userId)
       .single();
 
     if (checkError && checkError.code !== 'PGRST116') {
@@ -270,7 +302,7 @@ router.post('/:id/purge', auth, async (req, res) => {
     if (existingPurge) {
       // Remove purge (unpurge)
       const { error: deleteError } = await supabase
-        .from('purges')
+        .from('post_purges')
         .delete()
         .eq('id', existingPurge.id);
 
@@ -279,12 +311,10 @@ router.post('/:id/purge', auth, async (req, res) => {
     } else {
       // Add purge
       const { error: insertError } = await supabase
-        .from('purges')
+        .from('post_purges')
         .insert({
-          actor_id: userId,
-          target_user_id: targetUserId,
-          target_type: 'post',
-          target_id: postId,
+          post_id: postId,
+          user_id: userId,
           created_at: new Date().toISOString()
         });
 
@@ -294,58 +324,54 @@ router.post('/:id/purge', auth, async (req, res) => {
 
     // Get total purge count for this post
     const { data: purgeCount, error: countError } = await supabase
-      .from('purges')
+      .from('post_purges')
       .select('*', { count: 'exact' })
-      .eq('target_type', 'post')
-      .eq('target_id', postId);
+      .eq('post_id', postId);
 
     if (countError) throw countError;
     totalPurges = purgeCount?.length || 0;
 
-    // Update user's total purge count
-    const { data: userPurgeCount, error: userCountError } = await supabase
-      .from('purges')
-      .select('*', { count: 'exact' })
-      .eq('target_user_id', targetUserId);
+    // Update post's purge_count column
+    await supabase
+      .from('posts')
+      .update({ purge_count: totalPurges })
+      .eq('id', postId);
 
-    if (!userCountError && userPurgeCount) {
-      const userTotalPurges = userPurgeCount.length;
-      
-      // Check if user should go into ghost mode (5+ total purges)
-      if (userTotalPurges >= 5) {
-        const { error: ghostError } = await supabase
-          .from('profiles')
-          .update({ 
-            is_ghost: true,
-            ghosted_at: new Date().toISOString(),
-            purge_count: userTotalPurges,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', targetUserId);
+    // Count total purges received by target user (across all their posts)
+    const { data: targetUserPosts } = await supabase
+      .from('posts')
+      .select('id')
+      .eq('user_id', targetUserId);
 
-        if (ghostError) {
-          console.error('Error setting ghost mode:', ghostError);
-        }
-      } else {
-        // Update purge count
-        const { error: updateError } = await supabase
-          .from('profiles')
-          .update({ 
-            purge_count: userTotalPurges,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', targetUserId);
+    let userTotalPurges = 0;
+    if (targetUserPosts && targetUserPosts.length > 0) {
+      const postIds = targetUserPosts.map(p => p.id);
+      const { data: allPurges } = await supabase
+        .from('post_purges')
+        .select('id')
+        .in('post_id', postIds);
+      userTotalPurges = allPurges?.length || 0;
+    }
 
-        if (updateError) {
-          console.error('Error updating purge count:', updateError);
-        }
+    // Check if user should go into ghost mode (5+ total purges)
+    if (userTotalPurges >= 5) {
+      const { error: ghostError } = await supabase
+        .from('profiles')
+        .update({
+          is_ghost: true,
+          ghosted_at: new Date().toISOString()
+        })
+        .eq('id', targetUserId);
+
+      if (ghostError) {
+        console.error('Error setting ghost mode:', ghostError);
       }
     }
 
     res.json({
       purged,
       purges: totalPurges,
-      ghostModeTriggered: totalPurges >= 5
+      ghostModeTriggered: userTotalPurges >= 5
     });
 
   } catch (error) {
@@ -450,7 +476,7 @@ router.put('/:id', auth, async (req: AuthRequest, res) => {
     // Update the post
     const { data: updatedPost, error: updateError } = await supabase
       .from('posts')
-      .update({ 
+      .update({
         content,
         updated_at: new Date().toISOString()
       })
@@ -498,10 +524,9 @@ router.delete('/:id', auth, async (req: AuthRequest, res) => {
 
     // Delete related purges
     await supabase
-      .from('purges')
+      .from('post_purges')
       .delete()
-      .eq('target_id', postId)
-      .eq('target_type', 'post');
+      .eq('post_id', postId);
 
     // Delete the post
     const { error: deleteError } = await supabase
@@ -591,13 +616,13 @@ router.post('/:postId/react', auth, async (req: AuthRequest, res) => {
 
     // Group reactions by type
     const reactionsByType: { [key: string]: { count: number; users: any[] } } = {};
-    
+
     (allReactions || []).forEach(reaction => {
       if (!reactionsByType[reaction.type]) {
         reactionsByType[reaction.type] = { count: 0, users: [] };
       }
       reactionsByType[reaction.type].count++;
-      
+
       const profile = profileMap.get(reaction.user_id);
       if (profile) {
         reactionsByType[reaction.type].users.push({

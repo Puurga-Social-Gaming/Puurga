@@ -2,11 +2,12 @@
 
 .neo-home {
   position: relative;
-  --neo-bg: #0b0b0b;
-  --neo-card: #121212;
-  --neo-elev: #1a1a1a;
-  --neo-border: rgba(255,255,255,0.06);
-  --neo-accent: var(--accent, #f97316);
+  /* Use global theme variables */
+  --neo-bg: rgb(var(--bg));
+  --neo-card: rgb(var(--card));
+  --neo-elev: rgb(var(--bg-secondary));
+  --neo-border: rgb(var(--border) / 0.5);
+  --neo-accent: rgb(var(--accent));
 }
 
 /* Soft gradient background orbs */
@@ -16,6 +17,7 @@
   opacity: 0.25;
   pointer-events: none;
 }
+
 .neo-home .neo-orb--1 {
   top: -80px;
   right: 10%;
@@ -23,39 +25,40 @@
   height: 280px;
   background: radial-gradient(circle at 30% 30%, var(--neo-accent), transparent 60%);
 }
+
 .neo-home .neo-orb--2 {
   bottom: -120px;
   left: -60px;
   width: 320px;
   height: 320px;
-  background: radial-gradient(circle at 60% 60%, #8b5cf6, transparent 60%);
+  background: radial-gradient(circle at 60% 60%, rgba(139, 92, 246, 0.5), transparent 60%);
 }
 
 /* Neumorphic card */
 .neo-home .neo-card {
-  background: linear-gradient(180deg, var(--neo-card), var(--neo-elev));
+  background: var(--neo-card);
   border: 1px solid var(--neo-border);
   border-radius: 16px;
-  box-shadow:
-    0 1px 0 rgba(255,255,255,0.02) inset,
-    0 12px 24px rgba(0,0,0,0.35);
+  box-shadow: var(--shadow-md);
 }
 
 /* Gradient pill buttons */
 .neo-home .neo-pill {
   background: linear-gradient(90deg, var(--neo-accent), #fb923c);
-  color: #111;
+  color: white;
+  /* Always white text on orange pill */
   border-radius: 9999px;
 }
+
 .neo-home .neo-pill--ghost {
-  background: rgba(249, 115, 22, 0.08);
-  color: #fff;
-  border: 1px solid rgba(249, 115, 22, 0.25);
+  background: rgba(var(--accent) / 0.1);
+  color: rgb(var(--accent));
+  border: 1px solid rgba(var(--accent) / 0.3);
 }
 
 /* Hero block */
 .neo-home .neo-hero {
-  background: linear-gradient(180deg, rgba(249, 115, 22, 0.12), rgba(249,115,22,0.02));
+  background: rgba(var(--accent) / 0.05);
   border: 1px solid var(--neo-border);
   border-radius: 20px;
 }
@@ -68,18 +71,17 @@
 
 /* Feed skeleton blocks */
 .neo-home .neo-skel {
-  background: linear-gradient(180deg, #101010, #151515);
+  background: var(--neo-card);
   border: 1px solid var(--neo-border);
   border-radius: 14px;
 }
 
 /* Reusable input surface to match post tone */
 .neo-home .neo-input {
-  background: linear-gradient(180deg, var(--neo-card), var(--neo-elev));
+  background: var(--neo-elev);
   border: 1px solid var(--neo-border);
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.03),
-    0 6px 16px rgba(0,0,0,0.3);
+  box-shadow: var(--shadow-sm);
+  color: rgb(var(--fg));
 }
 
 /* Top fade below sticky to avoid text showing beneath icons */
@@ -90,32 +92,38 @@
   left: 0;
   right: 0;
   z-index: 50;
-  background: rgba(11, 11, 11, 0.95); /* More opaque to hide content */
+  background: rgb(var(--bg) / 0.95);
+  /* More opaque to hide content */
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
   padding: 1rem 0 1rem;
   padding-top: calc(1rem + env(safe-area-inset-top, 0));
   margin: 0;
   width: 100vw;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 8px 32px -12px rgba(0, 0, 0, 0.6);
-  transform: translateZ(0); /* Force hardware acceleration */
+  border-bottom: 1px solid rgb(var(--border) / 0.5);
+  box-shadow: var(--shadow-sm);
+  transform: translateZ(0);
+  /* Force hardware acceleration */
   will-change: transform;
 }
 
 /* On desktop, position between sidebars */
 @media (min-width: 1024px) {
   .neo-sticky {
-    left: 220px; /* Left sidebar width */
-    right: 260px; /* Right sidebar width */
+    left: 220px;
+    /* Left sidebar width */
+    right: 260px;
+    /* Right sidebar width */
     width: auto;
   }
 }
 
 @media (min-width: 1280px) {
   .neo-sticky {
-    left: 240px; /* Left sidebar width on xl screens */
-    right: 300px; /* Right sidebar width on xl screens */
+    left: 240px;
+    /* Left sidebar width on xl screens */
+    right: 300px;
+    /* Right sidebar width on xl screens */
   }
 }
 
@@ -124,6 +132,7 @@
   .neo-sticky {
     padding: 1rem 0 1rem;
   }
+
   .neo-sticky .max-w-4xl {
     max-width: 56rem;
     margin: 0 auto;
@@ -139,38 +148,42 @@
   right: 0;
   height: calc(80px + env(safe-area-inset-top, 0));
   pointer-events: none;
-  z-index: 49; /* Just below fixed header */
+  z-index: 49;
+  /* Just below fixed header */
   width: 100vw;
-  background: linear-gradient(180deg, 
-    rgba(11, 11, 11, 1) 0%, 
-    rgba(11, 11, 11, 0.95) 30%, 
-    rgba(11, 11, 11, 0.7) 60%,
-    rgba(11, 11, 11, 0) 100%
-  );
+  background: linear-gradient(180deg,
+      rgb(var(--bg)) 0%,
+      rgb(var(--bg) / 0.95) 30%,
+      rgb(var(--bg) / 0.7) 60%,
+      rgb(var(--bg) / 0) 100%);
   transform: translateZ(0);
 }
 
 /* On desktop, position fade between sidebars */
 @media (min-width: 1024px) {
   .neo-home .neo-top-fade {
-    left: 220px; /* Left sidebar width */
-    right: 260px; /* Right sidebar width */
+    left: 220px;
+    /* Left sidebar width */
+    right: 260px;
+    /* Right sidebar width */
     width: auto;
   }
 }
 
 @media (min-width: 1280px) {
   .neo-home .neo-top-fade {
-    left: 240px; /* Left sidebar width on xl screens */
-    right: 300px; /* Right sidebar width on xl screens */
+    left: 240px;
+    /* Left sidebar width on xl screens */
+    right: 300px;
+    /* Right sidebar width on xl screens */
   }
 }
 
 /* Enhanced mask fade at the very top of the feed */
 .neo-home .neo-feed-mask {
   /* Smoothly reveal from transparent to opaque over larger area */
-  -webkit-mask-image: linear-gradient(to bottom, rgba(0,0,0,0) 0, rgba(0,0,0,0.3) 20px, rgba(0,0,0,1) 60px);
-  mask-image: linear-gradient(to bottom, rgba(0,0,0,0) 0, rgba(0,0,0,0.3) 20px, rgba(0,0,0,1) 60px);
+  -webkit-mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0) 0, rgba(0, 0, 0, 0.3) 20px, rgba(0, 0, 0, 1) 60px);
+  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0) 0, rgba(0, 0, 0, 0.3) 20px, rgba(0, 0, 0, 1) 60px);
   -webkit-mask-repeat: no-repeat;
   mask-repeat: no-repeat;
   -webkit-mask-size: 100% 100%;

@@ -1,17 +1,18 @@
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { 
-  Home, 
-  Bell, 
-  MessageSquare, 
-  Users, 
+import {
+  Home,
+  Bell,
+  MessageSquare,
+  Users,
   UserCircle,
   HelpCircle,
   LogOut,
-  Wifi,
   Gamepad2,
   BarChart3,
-  Settings
+  Settings,
+  MoreHorizontal,
+  X
 } from 'lucide-react';
 import { LucideIcon } from 'lucide-react';
 import { useNotifications } from '../../context/NotificationContext';
@@ -30,11 +31,30 @@ interface NavigationItem {
 const MainNav: React.FC = () => {
   const { unreadCount } = useNotifications();
   const navigate = useNavigate();
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
+  const moreMenuRef = useRef<HTMLDivElement>(null);
+
+  // Close more menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (moreMenuRef.current && !moreMenuRef.current.contains(event.target as Node)) {
+        setMoreMenuOpen(false);
+      }
+    };
+
+    if (moreMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [moreMenuOpen]);
 
   const navLinkClasses = (isActive: boolean) => `
-    relative flex items-center gap-3 px-4 py-3 text-gray-300 rounded-lg transition-colors
-    hover:text-white hover:bg-[var(--surface)]
-    ${isActive ? 'text-[var(--accent)] bg-[var(--surface)] border-l-2 border-[var(--accent)] pl-3' : ''}
+    relative flex items-center gap-3 px-4 py-3 text-muted rounded-lg transition-all duration-200
+    hover:text-foreground hover:bg-card-hover hover:shadow-theme-sm
+    ${isActive ? 'text-accent bg-card border-l-2 border-accent pl-3 shadow-theme-sm' : ''}
   `;
 
   const handleLogout = async () => {
@@ -44,7 +64,7 @@ const MainNav: React.FC = () => {
       if (error) {
         throw error;
       }
-      
+
       // Clear all authentication data from localStorage
       try {
         localStorage.removeItem('token');
@@ -54,7 +74,7 @@ const MainNav: React.FC = () => {
       } catch (storageError) {
         console.warn('Failed to clear localStorage (non-fatal):', storageError);
       }
-      
+
       toast.success('Logged out successfully!');
       navigate('/login');
     } catch (error: unknown) {
@@ -95,20 +115,12 @@ const MainNav: React.FC = () => {
       <div className="hidden lg:flex flex-col h-full">
         {/* Logo at the top */}
         <div className="p-6 pb-8 flex items-center justify-center gap-3">
-          <PuurgaLogo size={40} className="text-orange-500" />
-          <span className="text-xl font-bold tracking-wide text-[var(--accent)]">PUURGA</span>
+          <PuurgaLogo size={40} className="text-accent" />
+          <span className="text-xl font-bold tracking-wide text-accent">PUURGA</span>
         </div>
 
-        {/* Secondary Action Button */}
-        <div className="px-4 mb-8">
-          <button className="w-full flex items-center justify-center gap-2 px-4 py-3 text-white bg-[var(--surface)] hover:bg-opacity-80 rounded-lg transition-colors">
-            <Wifi className="w-5 h-5" />
-            <span className="font-semibold">Go Live</span>
-          </button>
-        </div>
-
-        {/* Navigation items with extra top spacing */}
-        <div className="px-4 space-y-1 mt-8">
+        {/* Navigation items */}
+        <div className="px-4 space-y-1">
           {navigationItems.map((item) => (
             item.to ? (
               <NavLink
@@ -142,9 +154,9 @@ const MainNav: React.FC = () => {
 
         {/* Logout button at the bottom */}
         <div className="mt-auto p-4">
-          <button 
+          <button
             onClick={handleLogout}
-            className="w-full flex items-center gap-3 px-4 py-3 text-gray-400 hover:text-white hover:bg-[var(--surface)] rounded-lg transition-colors"
+            className="w-full flex items-center gap-3 px-4 py-3 text-muted hover:text-foreground hover:bg-card-hover rounded-lg transition-colors"
           >
             <LogOut className="w-6 h-6" />
             <span>Logout</span>
@@ -155,29 +167,75 @@ const MainNav: React.FC = () => {
       {/* Mobile Bottom Navigation */}
       <div className="lg:hidden flex justify-around items-center w-full">
         {[
-          { to: '/home', icon: Home },
-          { to: '/messages', icon: MessageSquare },
-          { to: '/profile', icon: UserCircle },
-          { to: '/puurga-games', icon: Gamepad2 },
-          { to: '/notifications', icon: Bell },
-          { to: '/settings', icon: Settings },
+          { to: '/home', icon: Home, label: 'Home' },
+          { to: '/profile', icon: UserCircle, label: 'Profile' },
+          { to: '/puurga-games', icon: Gamepad2, label: 'Gaming' },
+          { to: '/groups', icon: Users, label: 'Groups' },
+          { to: '/puurga-dashboard', icon: BarChart3, label: 'Dashboard' },
         ].map((item) => (
           <NavLink
             key={item.to}
             to={item.to}
             className={({ isActive }) => `
-              flex flex-col items-center gap-1 px-2 py-2 text-gray-400 transition-colors relative
-              ${isActive ? 'text-orange-500' : 'hover:text-white'}
+              flex flex-col items-center gap-1 px-2 py-2 text-muted transition-colors relative
+              ${isActive ? 'text-accent' : 'hover:text-foreground'}
             `}
           >
             <item.icon size={18} />
-            {item.to === '/notifications' && unreadCount > 0 && (
-              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center">
+            <span className="text-[10px]">{item.label}</span>
+          </NavLink>
+        ))}
+
+        {/* More Menu Button */}
+        <div className="relative" ref={moreMenuRef}>
+          <button
+            onClick={() => setMoreMenuOpen(!moreMenuOpen)}
+            className={`flex flex-col items-center gap-1 px-2 py-2 text-muted transition-colors relative ${moreMenuOpen ? 'text-accent' : 'hover:text-foreground'}`}
+          >
+            {moreMenuOpen ? <X size={18} /> : <MoreHorizontal size={18} />}
+            <span className="text-[10px]">More</span>
+            {unreadCount > 0 && !moreMenuOpen && (
+              <span className="absolute top-0 right-0 bg-red-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center">
                 {unreadCount > 9 ? '9+' : unreadCount}
               </span>
             )}
-          </NavLink>
-        ))}
+          </button>
+
+          {/* More Menu Dropdown */}
+          {moreMenuOpen && (
+            <div className="absolute bottom-full right-0 mb-2 bg-card border border-border rounded-lg shadow-theme-lg min-w-[160px] overflow-hidden">
+              <NavLink
+                to="/notifications"
+                onClick={() => setMoreMenuOpen(false)}
+                className={({ isActive }) => `
+                  flex items-center gap-3 px-4 py-3 text-foreground-secondary transition-colors relative
+                  hover:bg-card-hover hover:text-foreground
+                  ${isActive ? 'text-accent bg-card-hover' : ''}
+                `}
+              >
+                <Bell size={18} />
+                <span>Notifications</span>
+                {unreadCount > 0 && (
+                  <span className="ml-auto bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
+              </NavLink>
+              <NavLink
+                to="/settings"
+                onClick={() => setMoreMenuOpen(false)}
+                className={({ isActive }) => `
+                  flex items-center gap-3 px-4 py-3 text-foreground-secondary transition-colors
+                  hover:bg-card-hover hover:text-foreground
+                  ${isActive ? 'text-accent bg-card-hover' : ''}
+                `}
+              >
+                <Settings size={18} />
+                <span>Settings</span>
+              </NavLink>
+            </div>
+          )}
+        </div>
       </div>
     </>
   );

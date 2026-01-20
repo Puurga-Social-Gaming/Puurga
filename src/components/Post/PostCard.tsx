@@ -24,12 +24,12 @@ const PostCard: React.FC<PostCardProps> = ({ post, onPostUpdated }) => {
     try {
       const posts = JSON.parse(localStorage.getItem('posts') || '[]');
       const updatedPosts = posts.map((p: Post) =>
-        p.id === post.id 
-          ? { 
-              ...p, 
-              content: newContent,
-              lastEdited: new Date().toISOString()
-            } 
+        p.id === post.id
+          ? {
+            ...p,
+            content: newContent,
+            lastEdited: new Date().toISOString()
+          }
           : p
       );
       localStorage.setItem('posts', JSON.stringify(updatedPosts));
@@ -81,14 +81,14 @@ const PostCard: React.FC<PostCardProps> = ({ post, onPostUpdated }) => {
       <div className="bg-transparent p-4">
         <div className="flex justify-between">
           <div className="flex gap-3">
-            <Avatar 
-              src={post.user.avatar} 
-              alt={post.user.name} 
-              size="md" 
+            <Avatar
+              src={post.user.avatar}
+              alt={post.user.name}
+              size="md"
             />
             <div>
-              <h3 className="font-semibold text-white">{post.user.name}</h3>
-              <p className="text-sm text-gray-400">
+              <h3 className="font-semibold text-foreground">{post.user.name}</h3>
+              <p className="text-sm text-muted">
                 {formatDate(post.createdAt, post.lastEdited)}
               </p>
             </div>
@@ -98,19 +98,19 @@ const PostCard: React.FC<PostCardProps> = ({ post, onPostUpdated }) => {
             <div className="relative">
               <button
                 onClick={() => setShowOptions(!showOptions)}
-                className="p-2 text-gray-400 hover:text-white rounded-full hover:bg-white/10 transition-colors"
+                className="p-2 text-muted hover:text-foreground rounded-full hover:bg-foreground/10 transition-colors"
               >
                 <MoreVertical size={20} />
               </button>
 
               {showOptions && (
-                <div className="absolute right-0 mt-2 w-48 bg-[#1a1a1a] rounded-lg shadow-lg overflow-hidden z-10 border border-white/10">
+                <div className="absolute right-0 mt-2 w-48 bg-card rounded-lg shadow-lg overflow-hidden z-10 border border-border">
                   <button
                     onClick={() => {
                       setShowOptions(false);
                       setShowEditModal(true);
                     }}
-                    className="w-full flex items-center gap-2 px-4 py-2 text-white hover:bg-white/10 transition-colors"
+                    className="w-full flex items-center gap-2 px-4 py-2 text-foreground hover:bg-foreground/10 transition-colors"
                   >
                     <Pencil size={16} />
                     Edit Post
@@ -121,7 +121,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, onPostUpdated }) => {
                       handleDelete();
                     }}
                     disabled={isDeleting}
-                    className="w-full flex items-center gap-2 px-4 py-2 text-red-500 hover:bg-white/10 transition-colors"
+                    className="w-full flex items-center gap-2 px-4 py-2 text-red-500 hover:bg-foreground/10 transition-colors"
                   >
                     <Trash2 size={16} />
                     {isDeleting ? 'Deleting...' : 'Delete Post'}
@@ -132,7 +132,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, onPostUpdated }) => {
           )}
         </div>
 
-        <p className="mt-3 text-white">{post.content}</p>
+        <p className="mt-3 text-foreground">{post.content}</p>
 
         {/* Images */}
         {post.images && post.images.length > 0 && (
@@ -147,24 +147,23 @@ const PostCard: React.FC<PostCardProps> = ({ post, onPostUpdated }) => {
                 <button
                   onClick={previousImage}
                   disabled={currentImageIndex === 0}
-                  className="absolute left-2 top-1/2 -translate-y-1/2 p-1 bg-black/50 rounded-full hover:bg-black/75 disabled:opacity-50"
+                  className="absolute left-2 top-1/2 -translate-y-1/2 p-1 bg-background/50 rounded-full hover:bg-background/75 disabled:opacity-50"
                 >
-                  <ChevronLeft size={20} className="text-white" />
+                  <ChevronLeft size={20} className="text-foreground" />
                 </button>
                 <button
                   onClick={nextImage}
                   disabled={currentImageIndex === post.images.length - 1}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 bg-black/50 rounded-full hover:bg-black/75 disabled:opacity-50"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 bg-background/50 rounded-full hover:bg-background/75 disabled:opacity-50"
                 >
-                  <ChevronRight size={20} className="text-white" />
+                  <ChevronRight size={20} className="text-foreground" />
                 </button>
                 <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
                   {post.images.map((_, index) => (
                     <div
                       key={index}
-                      className={`w-2 h-2 rounded-full ${
-                        index === currentImageIndex ? 'bg-white' : 'bg-white/50'
-                      }`}
+                      className={`w-2 h-2 rounded-full ${index === currentImageIndex ? 'bg-white' : 'bg-white/50'
+                        }`}
                     />
                   ))}
                 </div>
@@ -175,22 +174,22 @@ const PostCard: React.FC<PostCardProps> = ({ post, onPostUpdated }) => {
 
         {/* Location */}
         {post.location && (
-          <div className="mt-2 flex items-center gap-1 text-sm text-gray-400">
+          <div className="mt-2 flex items-center gap-1 text-sm text-muted">
             <MapPin size={14} />
             <span>{post.location.name}</span>
           </div>
         )}
 
         <div className="flex items-center gap-6 mt-4">
-          <button className="flex items-center gap-2 text-gray-400 hover:text-red-500 transition-colors">
+          <button className="flex items-center gap-2 text-muted hover:text-red-500 transition-colors">
             <Heart size={20} />
             <span className="text-sm">{post.likes}</span>
           </button>
-          <button className="flex items-center gap-2 text-gray-400 hover:text-orange-500 transition-colors">
+          <button className="flex items-center gap-2 text-muted hover:text-accent transition-colors">
             <MessageCircle size={20} />
             <span className="text-sm">{post.comments}</span>
           </button>
-          <button className="flex items-center gap-2 text-gray-400 hover:text-orange-500 transition-colors">
+          <button className="flex items-center gap-2 text-muted hover:text-accent transition-colors">
             <PuurgaLogo size={20} />
             <span className="text-sm">{post.puurgas}</span>
           </button>

@@ -366,7 +366,7 @@ router.put('/:id/profile-image', auth, upload.single('profileImage'), async (req
       return res.status(403).json({ error: 'Only admins can update images' });
     }
 
-    const publicUrl = `http://localhost:3005/uploads/${req.file.filename}`;
+    const publicUrl = `/uploads/${req.file.filename}`;
 
     const { data: group, error } = await supabase
       .from('groups')
@@ -409,7 +409,7 @@ router.put('/:id/cover-image', auth, upload.single('coverImage'), async (req: Au
       return res.status(403).json({ error: 'Only admins can update images' });
     }
 
-    const publicUrl = `http://localhost:3005/uploads/${req.file.filename}`;
+    const publicUrl = `/uploads/${req.file.filename}`;
 
     const { data: group, error } = await supabase
       .from('groups')

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Users, Send, ArrowLeft, Settings, UserPlus, LogOut, Crown, Image, MoreVertical } from 'lucide-react';
+import { Users, Send, ArrowLeft, Settings, UserPlus, LogOut, Crown } from 'lucide-react';
 import { motion } from 'framer-motion';
 import api from '../api/api';
 import toast from 'react-hot-toast';

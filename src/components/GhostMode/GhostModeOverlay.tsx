@@ -1,8 +1,6 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { motion } from 'framer-motion';
 import { Ghost, AlertTriangle, Coins } from 'lucide-react';
-import { toast } from 'react-hot-toast';
-import api from '../../lib/axios';
 
 interface GhostModeOverlayProps {
   purgeCount: number;
@@ -10,32 +8,13 @@ interface GhostModeOverlayProps {
   onRedeemed?: () => void;
 }
 
-const GhostModeOverlay: React.FC<GhostModeOverlayProps> = ({ purgeCount, ghostedAt, onRedeemed }) => {
-  const [redemptionCode, setRedemptionCode] = useState('');
-  const [isRedeeming, setIsRedeeming] = useState(false);
-
-  const handleRedemption = async () => {
-    if (!redemptionCode.trim()) {
-      toast.error('Please enter a redemption code');
-      return;
-    }
-
-    setIsRedeeming(true);
-    try {
-      // This would be called by another user to redeem this account
-      toast.error('Redemption must be initiated by another user with credits');
-    } catch (error) {
-      toast.error('Failed to process redemption');
-    } finally {
-      setIsRedeeming(false);
-    }
-  };
+const GhostModeOverlay: React.FC<GhostModeOverlayProps> = ({ purgeCount, ghostedAt }) => {
 
   return (
     <div className="fixed inset-0 z-[9999] bg-black/95 backdrop-blur-sm">
       {/* Black and white filter overlay */}
       <div className="absolute inset-0 bg-gradient-to-b from-gray-900 via-gray-800 to-black opacity-90" />
-      
+
       <div className="relative h-full w-full flex items-center justify-center p-4">
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
@@ -45,11 +24,11 @@ const GhostModeOverlay: React.FC<GhostModeOverlayProps> = ({ purgeCount, ghosted
           {/* Ghost Icon */}
           <div className="flex justify-center mb-6">
             <motion.div
-              animate={{ 
+              animate={{
                 y: [0, -10, 0],
                 opacity: [0.5, 1, 0.5]
               }}
-              transition={{ 
+              transition={{
                 duration: 3,
                 repeat: Infinity,
                 ease: "easeInOut"
@@ -64,7 +43,7 @@ const GhostModeOverlay: React.FC<GhostModeOverlayProps> = ({ purgeCount, ghosted
           <h1 className="text-3xl font-bold text-center text-gray-300 mb-2">
             Ghost Mode
           </h1>
-          
+
           {/* Warning */}
           <div className="flex items-center justify-center gap-2 mb-6">
             <AlertTriangle size={20} className="text-gray-500" />
@@ -119,13 +98,13 @@ const GhostModeOverlay: React.FC<GhostModeOverlayProps> = ({ purgeCount, ghosted
           <div className="space-y-3">
             <input
               type="text"
-              value={redemptionCode}
-              onChange={(e) => setRedemptionCode(e.target.value)}
+              value=""
+              readOnly
               placeholder="Waiting for redemption..."
               disabled
               className="w-full bg-gray-800/50 border border-gray-700 rounded-lg px-4 py-3 text-gray-500 text-center cursor-not-allowed"
             />
-            
+
             <button
               disabled
               className="w-full bg-gray-800 text-gray-600 py-3 rounded-lg font-semibold cursor-not-allowed"

@@ -1,0 +1,81 @@
+name: Deploy to Digital Ocean
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Deploy to Digital Ocean Droplet via puurgaalive SSH
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: puurgaalive
+          username: ${{ secrets.DO_USERNAME }}
+          key: ${{ secrets.DO_SSH_KEY }}
+          port: ${{ secrets.DO_PORT || 22 }}
+          script: |
+            set -e
+            
+            echo "🚀 Starting deployment..."
+            cd ${{ secrets.DO_APP_PATH }}
+            
+            # Pull latest changes
+            echo "📥 Pulling latest code from GitHub..."
+            git fetch origin
+            git reset --hard origin/main
+            
+            # Backend deployment
+            echo "🔧 Building backend..."
+            cd backend
+            npm ci --production=false
+            npm run build
+            
+            # Frontend deployment
+            echo "🎨 Building frontend..."
+            cd ../
+            npm ci --production=false
+            npm run build
+            
+            # Copy frontend build to nginx directory
+            echo "📦 Deploying frontend..."
+            sudo rm -rf /var/www/puurga/frontend/dist
+            sudo mkdir -p /var/www/puurga/frontend
+            sudo cp -r dist /var/www/puurga/frontend/
+            
+            # Restart backend with PM2
+            echo "♻️ Restarting backend..."
+            pm2 restart puurga-backend || pm2 start backend/dist/server.js --name puurga-backend --instances 2 --exec-mode cluster
+            pm2 save
+            
+            # Reload nginx
+            echo "🔄 Reloading nginx..."
+            sudo nginx -t && sudo systemctl reload nginx
+            
+            echo "✅ Deployment completed successfully!"
+            
+      - name: Notify on Success
+        if: success()
+        run: |
+          echo "✅ Deployment to Digital Ocean completed successfully!"
+          curl -X POST \
+          https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage \
+          -H 'Content-Type: application/json' \
+          -d '{"chat_id":"'${{ secrets.TELEGRAM_CHAT_ID }}'","text":"✅ Deployment to Digital Ocean completed successfully!"}'
+        
+      - name: Notify on Failure
+        if: failure()
+        run: |
+          echo "❌ Deployment failed! Check the logs above for details."
+          curl -X POST \
+          https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage \
+          -H 'Content-Type: application/json' \
+          -d '{"chat_id":"'${{ secrets.TELEGRAM_CHAT_ID }}'","text":"❌ Deployment failed! Check the logs above for details."}'

@@ -91,10 +91,10 @@ export const upload = multer({
   }
 });
 
-// Get public URL for uploaded file
+// Get public URL for uploaded file - use relative path for nginx proxy
 export function getPublicUrl(filename: string | undefined): string | undefined {
   if (!filename) return undefined;
-  return `http://localhost:3005/uploads/${filename}`;
+  return `/uploads/${filename}`;
 }
 
 // Call this when the server starts
