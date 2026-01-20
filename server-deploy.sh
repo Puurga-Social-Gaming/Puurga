@@ -4,7 +4,7 @@
 # This script is triggered by GitHub Actions or run manually
 
 echo "🚀 Starting Deployment..."
-export PATH=$PATH:/root/.nvm/versions/node/v20.10.0/bin
+# export PATH=$PATH:/root/.nvm/versions/node/v20.10.0/bin
 
 # 1. Navigate to project directory
 cd /var/www/Puurga || exit
