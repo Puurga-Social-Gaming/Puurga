@@ -3,7 +3,9 @@ import dotenv from 'dotenv';
 import path from 'path';
 
 // Load .env file from backend directory
+// Load .env file from backend directory (try both source and dist locations)
 dotenv.config({ path: path.join(__dirname, '..', '.env') });
+dotenv.config({ path: path.join(__dirname, '../../.env') });
 
 console.log('Supabase config check:');
 console.log('  SUPABASE_URL:', process.env.SUPABASE_URL ? '***PRESENT***' : '***MISSING***');

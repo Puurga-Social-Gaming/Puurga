@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { toast } from 'react-hot-toast';
 import { Image, Smile, Send, X } from 'lucide-react';
 import EmojiPicker, { Theme, EmojiStyle } from 'emoji-picker-react';
@@ -24,6 +25,7 @@ const CUSTOM_EMOJIS = [
 ];
 
 const CreatePost: React.FC<CreatePostProps> = ({ onPostCreated }) => {
+  const { t } = useTranslation();
   const [content, setContent] = useState('');
   const [loading] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -91,14 +93,14 @@ const CreatePost: React.FC<CreatePostProps> = ({ onPostCreated }) => {
   const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     if (files.length + selectedImages.length > 4) {
-      toast.error('Maximum 4 images allowed');
+      toast.error(t('posts.maxImagesError'));
       return;
     }
 
     const newImages = files.filter(file => file.type.startsWith('image/'));
 
     // Show loading toast
-    const loadingToast = toast.loading('Compressing images...');
+    const loadingToast = toast.loading(t('posts.compressingImages'));
 
     try {
       // Compress images
@@ -112,10 +114,10 @@ const CreatePost: React.FC<CreatePostProps> = ({ onPostCreated }) => {
       const newPreviewUrls = compressedImages.map(file => URL.createObjectURL(file));
       setImagePreviewUrls(prev => [...prev, ...newPreviewUrls]);
 
-      toast.success('Images compressed successfully', { id: loadingToast });
+      toast.success(t('posts.imagesCompressed'), { id: loadingToast });
     } catch (error) {
       console.error('Error processing images:', error);
-      toast.error('Error processing images', { id: loadingToast });
+      toast.error(t('posts.errorProcessing'), { id: loadingToast });
     }
   };
 
@@ -133,7 +135,7 @@ const CreatePost: React.FC<CreatePostProps> = ({ onPostCreated }) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!content.trim() && selectedImages.length === 0) {
-      toast.error('Please add some content or images to your post');
+      toast.error(t('posts.emptyPostError'));
       return;
     }
 
@@ -172,7 +174,7 @@ const CreatePost: React.FC<CreatePostProps> = ({ onPostCreated }) => {
       toast.success('Post created successfully!');
     } catch (error) {
       console.error('Error creating post:', error);
-      toast.error('Failed to create post. Please try again.');
+      toast.error(t('posts.errorCreating'));
     } finally {
       setIsLoading(false);
     }
@@ -200,7 +202,7 @@ const CreatePost: React.FC<CreatePostProps> = ({ onPostCreated }) => {
               value={content}
               onChange={(e) => setContent(e.target.value)}
               onFocus={() => setIsExpanded(true)}
-              placeholder={`What's on your mind, ${user.name?.split(' ')[0] || 'there'}?`}
+              placeholder={`${t('createPost.placeholder')}`}
               className={`w-full ${isExpanded ? 'rounded-2xl py-3' : 'rounded-2xl py-2'} neo-input px-4 text-foreground placeholder-muted resize-none focus:outline-none focus:ring-2 focus:ring-accent/80 focus:border-accent/40`}
               rows={isExpanded ? 3 : 1}
             />
@@ -290,7 +292,7 @@ const CreatePost: React.FC<CreatePostProps> = ({ onPostCreated }) => {
                       className="px-3 py-2 text-muted hover:text-foreground"
                       onClick={() => setIsExpanded(false)}
                     >
-                      Cancel
+                      {t('common.cancel')}
                     </button>
                   )}
                   <button
@@ -302,7 +304,7 @@ const CreatePost: React.FC<CreatePostProps> = ({ onPostCreated }) => {
                       }`}
                   >
                     <Send size={18} />
-                    {loading ? 'Posting...' : 'Post'}
+                    {loading ? t('posts.loading') : t('createPost.post')}
                   </button>
                 </div>
               </div>

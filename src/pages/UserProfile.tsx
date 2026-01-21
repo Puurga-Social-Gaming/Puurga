@@ -1,14 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { 
-  Loader2, 
-  AlertCircle, 
-  MapPin, 
-  Link2, 
-  Calendar, 
-  UserPlus, 
-  UserMinus, 
+import {
+  Loader2,
+  AlertCircle,
+  MapPin,
+  Link2,
+  Calendar,
+  UserMinus,
   MessageCircle,
   Users,
   ArrowLeft,
@@ -19,6 +18,7 @@ import {
 import api from '../lib/axios';
 import { toast } from 'react-hot-toast';
 import Avatar from '../components/Avatar';
+import FriendRequestButton from '../components/FriendRequestButton/FriendRequestButton';
 import { DEFAULT_IMAGES } from '../constants/defaultImages';
 import { useUser } from '../context/UserContext';
 
@@ -73,7 +73,7 @@ const UserProfile: React.FC = () => {
       setError(null);
       const response = await api.get(`/api/users/profile/${username}`);
       const data = response.data;
-      
+
       setProfile({
         id: data.id,
         username: data.username,
@@ -123,21 +123,6 @@ const UserProfile: React.FC = () => {
     }
   };
 
-  const handleSendFriendRequest = async () => {
-    if (!profile) return;
-    try {
-      setSendingRequest(true);
-      await api.post('/api/friend-requests', { toUserId: profile.id });
-      toast.success('Friend request sent!');
-      setProfile(prev => prev ? { ...prev, hasPendingRequest: true } : null);
-    } catch (err: any) {
-      console.error('Failed to send friend request:', err);
-      toast.error(err.response?.data?.error || 'Failed to send friend request');
-    } finally {
-      setSendingRequest(false);
-    }
-  };
-
   const handleRemoveFriend = async () => {
     if (!profile) return;
     try {
@@ -161,9 +146,9 @@ const UserProfile: React.FC = () => {
 
   const formatDate = (dateString?: string) => {
     if (!dateString) return '';
-    return new Date(dateString).toLocaleDateString('en-US', { 
-      month: 'long', 
-      year: 'numeric' 
+    return new Date(dateString).toLocaleDateString('en-US', {
+      month: 'long',
+      year: 'numeric'
     });
   };
 
@@ -172,7 +157,7 @@ const UserProfile: React.FC = () => {
     const now = new Date();
     const diff = now.getTime() - date.getTime();
     const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-    
+
     if (days === 0) return 'Today';
     if (days === 1) return 'Yesterday';
     if (days < 7) return `${days} days ago`;
@@ -192,7 +177,7 @@ const UserProfile: React.FC = () => {
       <div className="flex flex-col items-center justify-center min-h-screen gap-4 bg-[#0a0a0a]">
         <AlertCircle className="w-12 h-12 text-red-500" />
         <p className="text-gray-400">{error || 'Profile not found'}</p>
-        <button 
+        <button
           onClick={() => navigate(-1)}
           className="flex items-center gap-2 px-4 py-2 bg-[#1a1a1a] text-white rounded-lg hover:bg-[#252525] transition-colors"
         >
@@ -213,16 +198,16 @@ const UserProfile: React.FC = () => {
       {/* Cover Photo */}
       <div className="relative h-48 sm:h-64 bg-gradient-to-br from-orange-500/20 via-[#1a1a1a] to-purple-500/20">
         {profile.coverPhoto && (
-          <img 
-            src={profile.coverPhoto} 
-            alt="Cover" 
+          <img
+            src={profile.coverPhoto}
+            alt="Cover"
             className="w-full h-full object-cover"
           />
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0a] via-transparent to-transparent" />
-        
+
         {/* Back Button */}
-        <button 
+        <button
           onClick={() => navigate(-1)}
           className="absolute top-4 left-4 p-2 bg-black/50 backdrop-blur-sm text-white rounded-full hover:bg-black/70 transition-colors"
         >
@@ -235,9 +220,9 @@ const UserProfile: React.FC = () => {
         <div className="flex flex-col sm:flex-row sm:items-end gap-4">
           {/* Avatar */}
           <div className="relative">
-            <Avatar 
-              src={profile.avatar} 
-              alt={profile.name} 
+            <Avatar
+              src={profile.avatar}
+              alt={profile.name}
               size="lg"
               className="w-28 h-28 sm:w-32 sm:h-32 border-4 border-[#0a0a0a] rounded-full"
             />
@@ -276,27 +261,10 @@ const UserProfile: React.FC = () => {
                       Unfriend
                     </button>
                   </>
-                ) : profile.hasPendingRequest ? (
-                  <button
-                    disabled
-                    className="flex items-center gap-2 px-4 py-2 bg-[#1a1a1a] text-gray-400 border border-gray-700 rounded-lg cursor-not-allowed"
-                  >
-                    <UserPlus size={18} />
-                    Request Pending
-                  </button>
                 ) : (
-                  <button
-                    onClick={handleSendFriendRequest}
-                    disabled={sendingRequest}
-                    className="flex items-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition-colors disabled:opacity-50"
-                  >
-                    {sendingRequest ? (
-                      <Loader2 size={18} className="animate-spin" />
-                    ) : (
-                      <UserPlus size={18} />
-                    )}
-                    Add Friend
-                  </button>
+                  <FriendRequestButton 
+                    targetUserId={profile.id}
+                  />
                 )}
               </div>
             )}
@@ -317,7 +285,7 @@ const UserProfile: React.FC = () => {
               </div>
             )}
             {profile.website && (
-              <a 
+              <a
                 href={profile.website.startsWith('http') ? profile.website : `https://${profile.website}`}
                 target="_blank"
                 rel="noopener noreferrer"
@@ -353,7 +321,7 @@ const UserProfile: React.FC = () => {
         {/* User Posts */}
         <div className="mt-6 pb-8">
           <h2 className="text-xl font-bold text-white mb-4">Posts</h2>
-          
+
           {loadingPosts ? (
             <div className="flex items-center justify-center text-gray-400 py-8">
               <Loader2 className="w-6 h-6 animate-spin mr-2" /> Loading posts...
@@ -366,7 +334,7 @@ const UserProfile: React.FC = () => {
           ) : (
             <div className="space-y-4">
               {userPosts.map((post) => (
-                <motion.div 
+                <motion.div
                   key={post.id}
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -379,13 +347,13 @@ const UserProfile: React.FC = () => {
                       <p className="text-gray-500 text-xs">{formatPostDate(post.createdAt)}</p>
                     </div>
                   </div>
-                  
+
                   <p className="text-gray-200 mb-3">{post.content}</p>
-                  
+
                   {post.mediaUrl && (
-                    <img 
-                      src={post.mediaUrl} 
-                      alt="Post media" 
+                    <img
+                      src={post.mediaUrl}
+                      alt="Post media"
                       className="w-full rounded-lg mb-3 max-h-96 object-cover"
                     />
                   )}

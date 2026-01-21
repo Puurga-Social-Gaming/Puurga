@@ -5,7 +5,7 @@ interface WebSocketMessage {
 
 interface NotificationPayload {
   id: string;
-  type: 'friend_request' | 'friend_request_accepted' | 'like' | 'comment';
+  type: 'friend_request' | 'friend_request_accepted' | 'like' | 'comment' | 'message';
   fromUser: {
     id: string;
     name: string;
@@ -16,6 +16,8 @@ interface NotificationPayload {
     friendRequestId?: string;
     postId?: string;
     commentId?: string;
+    conversationId?: string;
+    messageId?: string;
   };
   createdAt: string;
 }

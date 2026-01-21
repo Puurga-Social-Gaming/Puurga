@@ -1,0 +1,105 @@
+{
+    "common": {
+        "loading": "Chargement...",
+        "error": "Une erreur est survenue",
+        "save": "Enregistrer",
+        "cancel": "Annuler",
+        "delete": "Supprimer",
+        "edit": "Modifier",
+        "viewOriginal": "Voir l'original",
+        "viewTranslated": "Voir la traduction",
+        "translationDisclaimer": "Traduit du {{language}}",
+        "siswatiDisclaimer": "La qualité de la traduction peut varier"
+    },
+    "auth": {
+        "login": "Connexion",
+        "signup": "Inscription",
+        "logout": "Déconnexion"
+    },
+    "nav": {
+        "home": "Accueil",
+        "profile": "Profil",
+        "messages": "Messages",
+        "notifications": "Notifications",
+        "settings": "Paramètres"
+    },
+    "settings": {
+        "language": "Langue",
+        "selectLanguage": "Sélectionnez votre langue préférée"
+    },
+    "posts": {
+        "noPostsToDisplay": "Aucun post à afficher",
+        "loadMore": "Charger plus de posts",
+        "loading": "Chargement...",
+        "failedToFetch": "Échec du chargement des posts",
+        "failedToLoadMore": "Échec du chargement de plus de posts",
+        "compressingImages": "Compression des images...",
+        "imagesCompressed": "Images compressées avec succès",
+        "maxImagesError": "4 images maximum autorisées",
+        "errorProcessing": "Erreur lors du traitement des images",
+        "emptyPostError": "Veuillez ajouter du contenu ou des images à votre post",
+        "errorCreating": "Erreur lors de la création du post",
+        "errorDeleting": "Erreur lors de la suppression du post",
+        "postDeletedSuccess": "Post supprimé avec succès"
+    },
+    "createPost": {
+        "placeholder": "Partagez vos pensées ici...",
+        "post": "Poster",
+        "addImages": "Ajouter des images",
+        "addEmoji": "Ajouter un emoji"
+    },
+    "postActions": {
+        "edit": "Modifier",
+        "delete": "Supprimer",
+        "share": "Partager",
+        "purge": "Purger",
+        "unpurge": "Annuler la purge",
+        "comment": "Commenter",
+        "like": "J'aime",
+        "puurga": "Puurga"
+    },
+    "postEdit": {
+        "updatedSuccess": "Post mis à jour avec succès",
+        "updateFailed": "Échec de la mise à jour du post",
+        "editing": "Modification...",
+        "deleteConfirm": "Êtes-vous sûr de vouloir supprimer ce post?",
+        "cancelEdit": "Annuler"
+    },
+    "navigation": {
+        "home": "Accueil",
+        "profile": "Profil",
+        "messages": "Messages",
+        "groups": "Groupes",
+        "games": "Jeux Puurga",
+        "dashboard": "Tableau de bord Puurga",
+        "help": "Aide",
+        "notifications": "Notifications",
+        "settings": "Paramètres",
+        "logout": "Déconnexion",
+        "more": "Plus",
+        "gaming": "Jeux",
+        "puurga": "PUURGA"
+    },
+    "rightSidebar": {
+        "quickActions": "Actions rapides",
+        "createPost": "Créer un post",
+        "exploreGroups": "Explorer les groupes",
+        "notifications": "Notifications",
+        "settings": "Paramètres",
+        "myProfile": "Mon profil",
+        "viewFullProfile": "Voir le profil complet",
+        "myConnections": "Mes connexions",
+        "friendRequests": "Demandes d'amis",
+        "loadingText": "Chargement...",
+        "noFriendRequests": "Aucune demande d'amis.",
+        "onlineFriends": "Amis en ligne",
+        "noFriendsOnline": "Pas d'amis en ligne.",
+        "peopleYouMayKnow": "Personnes que vous pourriez connaître",
+        "noSuggestions": "Aucune suggestion pour le moment.",
+        "stats": {
+            "posts": "Posts",
+            "following": "Abonnements",
+            "followers": "Abonnés"
+        }
+    }
+}

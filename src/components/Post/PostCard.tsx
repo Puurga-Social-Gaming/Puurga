@@ -4,6 +4,7 @@ import { useUser } from '../../context/UserContext';
 import Avatar from '../Avatar';
 import PuurgaLogo from '../Icons/PuurgaLogo';
 import EditPostModal from './EditPostModal';
+import ContentTranslator from '../ContentTranslator';
 import type { Post } from '../../types';
 
 interface PostCardProps {
@@ -132,7 +133,15 @@ const PostCard: React.FC<PostCardProps> = ({ post, onPostUpdated }) => {
           )}
         </div>
 
-        <p className="mt-3 text-foreground">{post.content}</p>
+        <div className="mt-3">
+          <ContentTranslator
+            content={post.content}
+            sourceType="post"
+            sourceId={post.id}
+            originalLanguage={post.language}
+            renderContent={(text) => <p className="text-foreground">{text}</p>}
+          />
+        </div>
 
         {/* Images */}
         {post.images && post.images.length > 0 && (

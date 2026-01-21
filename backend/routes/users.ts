@@ -3,6 +3,7 @@ import { supabase } from '../config/supabase';
 import { supabaseAuth as auth, AuthRequest } from '../middleware/supabaseAuth';
 import multer from 'multer';
 import { getUploadPath, generateUniqueFilename } from '../config/storage';
+import { validate as uuidValidate } from 'uuid';
 
 const router = express.Router();
 
@@ -57,6 +58,34 @@ const normalizeImageUrl = (url: string | null | undefined): string => {
   // If it's just a filename, add the uploads prefix
   return `/uploads/${url}`;
 };
+
+// Update user language
+router.patch('/me/language', auth, async (req: AuthRequest, res) => {
+  try {
+    const { language } = req.body;
+    const { id } = req.user;
+
+    if (!language) {
+      return res.status(400).json({ error: 'Language is required' });
+    }
+
+    // Update profile language
+    const { error } = await supabase
+      .from('profiles')
+      .update({
+        language,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', id);
+
+    if (error) throw error;
+
+    res.json({ message: 'Language updated successfully', language });
+  } catch (error) {
+    console.error('Error updating language:', error);
+    res.status(500).json({ error: 'Failed to update language' });
+  }
+});
 
 // Get user profile
 router.get('/profile', auth, async (req: AuthRequest, res) => {
@@ -716,22 +745,26 @@ router.get('/:id/stats', auth, async (req: AuthRequest, res) => {
   }
 });
 
-// GET /api/users/profile/:username - Get public profile by username
-router.get('/profile/:username', auth, async (req: AuthRequest, res) => {
+// GET /api/users/profile/:username - Get public profile by username or ID
+router.get('/profile/:username_or_id', auth, async (req: AuthRequest, res) => {
   try {
-    const { username } = req.params;
+    const { username_or_id } = req.params;
     const currentUserId = req.user?.id;
 
-    if (!username) {
-      return res.status(400).json({ error: 'Username is required' });
+    if (!username_or_id) {
+      return res.status(400).json({ error: 'Username or ID is required' });
     }
 
-    // Find user by username
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('username', username.toLowerCase())
-      .single();
+    let query = supabase.from('profiles').select('*');
+
+    if (uuidValidate(username_or_id)) {
+      query = query.eq('id', username_or_id);
+    } else {
+      query = query.eq('username', username_or_id.toLowerCase());
+    }
+
+    // Find user
+    const { data: profile, error: profileError } = await query.single();
 
     if (profileError || !profile) {
       return res.status(404).json({ error: 'User not found' });

@@ -38,7 +38,7 @@ interface TypingPayload {
 
 interface NotificationPayload {
   id: string;
-  type: 'friend_request' | 'friend_request_accepted' | 'like' | 'comment';
+  type: 'friend_request' | 'friend_request_accepted' | 'like' | 'comment' | 'message';
   fromUser: {
     id: string;
     name: string;
@@ -49,6 +49,8 @@ interface NotificationPayload {
     friendRequestId?: string;
     postId?: string;
     commentId?: string;
+    conversationId?: string;
+    messageId?: string;
   };
   createdAt: string;
 }
@@ -127,7 +129,19 @@ class WebSocketManager {
 
         console.log(`User ${userId} connected to WebSocket`);
         
-        // Broadcast user online status to all connected users
+        // Send all currently online users to the new client
+        const onlineUserIds = this.getOnlineUsers();
+        for (const onlineUserId of onlineUserIds) {
+          if (onlineUserId !== userId) {
+            const statusMessage: WebSocketMessage = {
+              type: 'user_online',
+              payload: { userId: onlineUserId, isOnline: true } as OnlineStatusPayload
+            };
+            this.sendToUser(userId, statusMessage);
+          }
+        }
+        
+        // Broadcast this user's online status to all connected users
         this.broadcastUserStatus(userId, true);
 
         // Handle client disconnect

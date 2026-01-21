@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Post, ReactionCount } from '../types';
 import CreatePost from '../components/Post/CreatePost';
 import PostList from '../components/Post/PostList';
@@ -124,6 +125,7 @@ function mapBackendPost(post: unknown): Post {
 }
 
 export default function Home() {
+  const { t } = useTranslation();
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -162,9 +164,9 @@ export default function Home() {
     } catch (err) {
       console.error('Error fetching posts:', err);
       if (pageNum === 1) {
-        setError('Failed to fetch posts');
+        setError(t('posts.failedToFetch'));
       } else {
-        toast.error('Failed to load more posts');
+        toast.error(t('posts.failedToLoadMore'));
       }
     } finally {
       setLoading(false);
@@ -239,10 +241,10 @@ export default function Home() {
                   {loadingMore ? (
                     <>
                       <div className="w-4 h-4 border-2 border-white/50 border-t-white rounded-full animate-spin" />
-                      Loading...
+                      {t('posts.loading')}
                     </>
                   ) : (
-                    'Load More Posts'
+                    t('posts.loadMore')
                   )}
                 </button>
               </div>

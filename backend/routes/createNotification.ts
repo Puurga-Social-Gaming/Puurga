@@ -1,5 +1,19 @@
 import { supabase } from '../config/supabase';
-import { wsManager } from '../websocketManager';
+
+// Lazy load wsManager to avoid circular dependency
+let wsManager: any = null;
+
+function getWsManager() {
+  if (!wsManager) {
+    try {
+      wsManager = require('../websocketManager').wsManager;
+    } catch (e) {
+      console.warn('WebSocket manager not available yet');
+      return null;
+    }
+  }
+  return wsManager;
+}
 
 interface CreateNotificationParams {
   type: 'friend_request' | 'friend_request_accepted' | 'like' | 'comment';
@@ -43,27 +57,41 @@ export async function createNotification(params: CreateNotificationParams) {
       .eq('id', senderId)
       .single();
 
-    if (senderProfile && wsManager) {
-      // Send live notification via WebSocket
-      const liveNotification = {
-        id: notification.id,
-        type: notification.type,
-        fromUser: {
-          id: senderProfile.id,
-          name: senderProfile.full_name || '',
-          username: senderProfile.username || '',
-          avatar: senderProfile.avatar_url || ''
-        },
-        data: {
-          friendRequestId,
-          postId,
-          commentId
-        },
-        createdAt: notification.created_at
-      };
+    if (senderProfile) {
+      const wsManager = getWsManager();
+      if (wsManager) {
+        try {
+          // Send live notification via WebSocket
+          // Build notification payload that matches NotificationPayload interface
+          const notificationPayload = {
+            id: notification.id,
+            type: notification.type as 'friend_request' | 'friend_request_accepted' | 'like' | 'comment' | 'message',
+            fromUser: {
+              id: senderProfile.id,
+              name: senderProfile.full_name || 'Unknown User',
+              username: senderProfile.username || 'unknown',
+              avatar: senderProfile.avatar_url || undefined
+            },
+            data: {
+              friendRequestId: friendRequestId || undefined,
+              postId: postId || undefined,
+              commentId: commentId || undefined
+            },
+            createdAt: notification.created_at
+          };
 
-      wsManager.sendNotification(receiverId, liveNotification);
-      console.log(`Live notification sent to user ${receiverId}:`, liveNotification);
+          // Only send if wsManager has the method (might not be initialized yet)
+          if (typeof wsManager.sendNotification === 'function') {
+            wsManager.sendNotification(receiverId, notificationPayload);
+            console.log(`Live notification sent to user ${receiverId} for type: ${type}`);
+          } else {
+            console.warn('WebSocket manager not yet initialized, WebSocket notification skipped');
+          }
+        } catch (wsError) {
+          console.error('Error sending WebSocket notification:', wsError);
+          // Don't fail the entire operation if WebSocket notification fails
+        }
+      }
     }
 
     return notification;

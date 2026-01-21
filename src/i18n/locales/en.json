@@ -1,0 +1,105 @@
+{
+    "common": {
+        "loading": "Loading...",
+        "error": "An error occurred",
+        "save": "Save",
+        "cancel": "Cancel",
+        "delete": "Delete",
+        "edit": "Edit",
+        "viewOriginal": "View original",
+        "viewTranslated": "View translated",
+        "translationDisclaimer": "Translated from {{language}}",
+        "siswatiDisclaimer": "Translation quality may vary"
+    },
+    "auth": {
+        "login": "Login",
+        "signup": "Sign Up",
+        "logout": "Logout"
+    },
+    "nav": {
+        "home": "Home",
+        "profile": "Profile",
+        "messages": "Messages",
+        "notifications": "Notifications",
+        "settings": "Settings"
+    },
+    "settings": {
+        "language": "Language",
+        "selectLanguage": "Select your preferred language"
+    },
+    "posts": {
+        "noPostsToDisplay": "No posts to display",
+        "loadMore": "Load More Posts",
+        "loading": "Loading...",
+        "failedToFetch": "Failed to fetch posts",
+        "failedToLoadMore": "Failed to load more posts",
+        "compressingImages": "Compressing images...",
+        "imagesCompressed": "Images compressed successfully",
+        "maxImagesError": "Maximum 4 images allowed",
+        "errorProcessing": "Error processing images",
+        "emptyPostError": "Please add some content or images to your post",
+        "errorCreating": "Error creating post",
+        "errorDeleting": "Error deleting post",
+        "postDeletedSuccess": "Post deleted successfully"
+    },
+    "createPost": {
+        "placeholder": "Share your thoughts here...",
+        "post": "Post",
+        "addImages": "Add Images",
+        "addEmoji": "Add Emoji"
+    },
+    "postActions": {
+        "edit": "Edit",
+        "delete": "Delete",
+        "share": "Share",
+        "purge": "Purge",
+        "unpurge": "Unpurge",
+        "comment": "Comment",
+        "like": "Like",
+        "puurga": "Puurga"
+    },
+    "postEdit": {
+        "updatedSuccess": "Post updated successfully",
+        "updateFailed": "Failed to update post",
+        "editing": "Editing...",
+        "deleteConfirm": "Are you sure you want to delete this post?",
+        "cancelEdit": "Cancel"
+    },
+    "navigation": {
+        "home": "Home",
+        "profile": "Profile",
+        "messages": "Messages",
+        "groups": "Groups",
+        "games": "Puurga Games",
+        "dashboard": "Puurga Dashboard",
+        "help": "Help",
+        "notifications": "Notifications",
+        "settings": "Settings",
+        "logout": "Logout",
+        "more": "More",
+        "gaming": "Gaming",
+        "puurga": "PUURGA"
+    },
+    "rightSidebar": {
+        "quickActions": "Quick Actions",
+        "createPost": "Create Post",
+        "exploreGroups": "Explore Groups",
+        "notifications": "Notifications",
+        "settings": "Settings",
+        "myProfile": "My Profile",
+        "viewFullProfile": "View Full Profile",
+        "myConnections": "My Connections",
+        "friendRequests": "Friend Requests",
+        "loadingText": "Loading...",
+        "noFriendRequests": "No friend requests.",
+        "onlineFriends": "Online Friends",
+        "noFriendsOnline": "No friends online.",
+        "peopleYouMayKnow": "People You May Know",
+        "noSuggestions": "No suggestions at the moment.",
+        "stats": {
+            "posts": "Posts",
+            "following": "Following",
+            "followers": "Followers"
+        }
+    }
+}

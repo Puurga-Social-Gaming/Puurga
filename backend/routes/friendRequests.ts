@@ -75,7 +75,7 @@ router.post('/send', auth, async (req: AuthRequest, res) => {
           // Accept the existing request
           const { error: updateError } = await supabase
             .from('friend_requests')
-            .update({ status: 'accepted', updated_at: new Date().toISOString() })
+            .update({ status: 'accepted' })
             .eq('id', existingRequest.id);
 
           if (updateError) throw updateError;
@@ -115,8 +115,7 @@ router.post('/send', auth, async (req: AuthRequest, res) => {
           .update({ 
             status: 'pending', 
             sender_id: user.id,
-            receiver_id: receiverId,
-            updated_at: new Date().toISOString() 
+            receiver_id: receiverId
           })
           .eq('id', existingRequest.id)
           .select()
@@ -143,8 +142,7 @@ router.post('/send', auth, async (req: AuthRequest, res) => {
         sender_id: user.id,
         receiver_id: receiverId,
         status: 'pending',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+        created_at: new Date().toISOString()
       })
       .select()
       .single();
@@ -267,7 +265,7 @@ router.post('/:requestId/accept', auth, async (req: AuthRequest, res) => {
     // Update the request status
     const { error: updateError } = await supabase
       .from('friend_requests')
-      .update({ status: 'accepted', updated_at: new Date().toISOString() })
+      .update({ status: 'accepted' })
       .eq('id', requestId);
 
     if (updateError) throw updateError;
@@ -334,7 +332,7 @@ router.post('/:requestId/reject', auth, async (req: AuthRequest, res) => {
     // Update the request status
     const { error: updateError } = await supabase
       .from('friend_requests')
-      .update({ status: 'rejected', updated_at: new Date().toISOString() })
+      .update({ status: 'rejected' })
       .eq('id', requestId);
 
     if (updateError) throw updateError;

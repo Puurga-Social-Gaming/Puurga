@@ -12,6 +12,8 @@ import Profile from './pages/Profile';
 import Notifications from './pages/Notifications/Notifications';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
 import Messages from './pages/Messages';
 import PuurgaDashboard from './pages/PuurgaDashboard';
 import PurgaGames from './pages/PurgaGames/PurgaGames';
@@ -40,6 +42,8 @@ const router = createBrowserRouter(
       {/* Public Routes */}
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
 
       {/* Redirect root to login */}
       <Route path="/" element={<Navigate to="/login" replace />} />

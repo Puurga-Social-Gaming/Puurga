@@ -1,0 +1,105 @@
+{
+    "common": {
+        "loading": "iyalayisha...",
+        "error": "Kuvela iphutha",
+        "save": "Gcina",
+        "cancel": "Khansela",
+        "delete": "Susa",
+        "edit": "Hlela",
+        "viewOriginal": "Buka okwangempela",
+        "viewTranslated": "Buka okuhunyushiwe",
+        "translationDisclaimer": "Kuhunyushwe kusuka ku-{{language}}",
+        "siswatiDisclaimer": "Ikhwalithi yokuhumusha ingahluka"
+    },
+    "auth": {
+        "login": "Ngena",
+        "signup": "Bhalisa",
+        "logout": "Phuma"
+    },
+    "nav": {
+        "home": "Ekhaya",
+        "profile": "Iphrofayili",
+        "messages": "Imiyalezo",
+        "notifications": "Izaziso",
+        "settings": "Amasethingi"
+    },
+    "settings": {
+        "language": "Ulimi",
+        "selectLanguage": "Khetha ulimi lwakho oluthandayo"
+    },
+    "posts": {
+        "noPostsToDisplay": "Azikho izindebele zokubuka",
+        "loadMore": "Layida izindebele eziningi",
+        "loading": "iyalayisha...",
+        "failedToFetch": "Layida izindebele ehlele",
+        "failedToLoadMore": "Layida izindebele eziningi ehlele",
+        "compressingImages": "Inqunqela izithombe...",
+        "imagesCompressed": "Izithombe ziqeqeshiwe kuhle",
+        "maxImagesError": "Izithombe ezingu-4 kuphela ezivumelekile",
+        "errorProcessing": "Iphutha lapho sisetha izithombe",
+        "emptyPostError": "Ngobani ucwaningo noma izithombe kuzindebele zakho",
+        "errorCreating": "Iphutha ekudaleni indebele",
+        "errorDeleting": "Iphutha ekusuleni indebele",
+        "postDeletedSuccess": "Indebele isusuwe kuhle"
+    },
+    "createPost": {
+        "placeholder": "Yabelana ngeengcinga zakho lapha...",
+        "post": "Faka",
+        "addImages": "Engeza izithombe",
+        "addEmoji": "Engeza i-emoji"
+    },
+    "postActions": {
+        "edit": "Hlela",
+        "delete": "Susa",
+        "share": "Yabelana",
+        "purge": "Hlakaza",
+        "unpurge": "Khipha uhlakazi",
+        "comment": "Bhala amagama",
+        "like": "Yazi",
+        "puurga": "Puurga"
+    },
+    "postEdit": {
+        "updatedSuccess": "Indebele ibuyiswe kuhle",
+        "updateFailed": "Ibuyisa indebele ehlele",
+        "editing": "Kuhlela...",
+        "deleteConfirm": "Qiniseka ukuthi ufuna ukususa lindebele?",
+        "cancelEdit": "Khansela"
+    },
+    "navigation": {
+        "home": "Ekhaya",
+        "profile": "Iphrofayili",
+        "messages": "Imiyalezo",
+        "groups": "Amaqembu",
+        "games": "Imidlalo ye-Puurga",
+        "dashboard": "Ibhodi ye-Puurga",
+        "help": "Usizo",
+        "notifications": "Izaziso",
+        "settings": "Amasethingi",
+        "logout": "Phuma",
+        "more": "Okuningi",
+        "gaming": "Imidlalo",
+        "puurga": "PUURGA"
+    },
+    "rightSidebar": {
+        "quickActions": "Izenzo Ezikhawulezayo",
+        "createPost": "Dala indebele",
+        "exploreGroups": "Hlola amaqembu",
+        "notifications": "Izaziso",
+        "settings": "Amasethingi",
+        "myProfile": "Iphrofayili Yami",
+        "viewFullProfile": "Buka iphrofayili ephelele",
+        "myConnections": "Ukoxhumeka Kwami",
+        "friendRequests": "Izicelo Zabantu Usholi",
+        "loadingText": "iyalayisha...",
+        "noFriendRequests": "Azikho izicelo zabantu usholi.",
+        "onlineFriends": "Abangani Abakuxhumanisa",
+        "noFriendsOnline": "Azikho abangani abakuxhumanisa.",
+        "peopleYouMayKnow": "Abantu Abakwamthembile",
+        "noSuggestions": "Azikho imininingwane okwamanje.",
+        "stats": {
+            "posts": "Izindebele",
+            "following": "Ngokulandelana",
+            "followers": "Abathatheleli"
+        }
+    }
+}

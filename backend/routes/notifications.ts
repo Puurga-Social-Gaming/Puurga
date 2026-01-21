@@ -68,6 +68,8 @@ router.get('/', auth, async (req, res) => {
           friendRequestId: n.friend_request_id || undefined,
           postId: n.post_id || undefined,
           commentId: n.comment_id || undefined,
+          conversationId: n.conversation_id || undefined,
+          messageId: n.message_id || undefined,
         },
       };
     });

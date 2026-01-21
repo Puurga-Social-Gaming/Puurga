@@ -13,6 +13,7 @@ export interface Post {
   id: string;
   userId: string;
   content: string;
+  language?: string;
   createdAt: string;
   lastEdited?: string;
   user: {

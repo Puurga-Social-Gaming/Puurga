@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import type { Post as PostType } from '../../types';
 import PostComponent from '../Post/Post';
 
@@ -8,10 +9,12 @@ interface PostListProps {
 }
 
 const PostList: React.FC<PostListProps> = ({ posts, onPostUpdate }) => {
+  const { t } = useTranslation();
+
   if (!posts || posts.length === 0) {
     return (
       <div className="text-center text-gray-400 py-8 bg-transparent">
-        No posts to display
+        {t('posts.noPostsToDisplay')}
       </div>
     );
   }

@@ -442,4 +442,122 @@ router.delete('/delete-account', supabaseAuth, async (req, res) => {
   }
 });
 
+// Request password reset (sends email)
+router.post('/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email?.trim()) {
+      return res.status(400).json({ message: 'Email is required' });
+    }
+
+    const trimmedEmail = email.trim().toLowerCase();
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(trimmedEmail)) {
+      return res.status(400).json({ message: 'Invalid email format' });
+    }
+
+    // Use Supabase's built-in password reset functionality
+    const { error } = await supabase.auth.resetPasswordForEmail(trimmedEmail, {
+      redirectTo: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password`,
+    });
+
+    // For security, don't reveal whether the email exists or not
+    if (error) {
+      console.warn('Password reset request for email:', trimmedEmail, 'Error:', error.message);
+      // Still return success to prevent email enumeration attacks
+      return res.json({ 
+        message: 'If an account with that email exists, a password reset link has been sent' 
+      });
+    }
+
+    res.json({ 
+      message: 'Password reset link has been sent to your email' 
+    });
+  } catch (error) {
+    console.error('Forgot password error:', error);
+    res.status(500).json({ 
+      message: 'Error processing password reset request',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+// Reset password (called from frontend after user clicks email link)
+router.post('/reset-password', async (req, res) => {
+  try {
+    const { password } = req.body;
+    const { user } = req as any; // This comes from session set by email link
+
+    if (!user) {
+      return res.status(401).json({ message: 'Unauthorized - Invalid session' });
+    }
+
+    if (!password?.trim()) {
+      return res.status(400).json({ message: 'Password is required' });
+    }
+
+    // Validate password strength
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+    if (!passwordRegex.test(password)) {
+      return res.status(400).json({ 
+        message: 'Password must contain at least 8 characters, one uppercase, one lowercase, one number and one special character' 
+      });
+    }
+
+    // Update password via Supabase
+    const { error } = await supabase.auth.admin.updateUserById(user.id, {
+      password: password,
+    });
+
+    if (error) {
+      console.error('Password reset error:', error);
+      return res.status(400).json({ message: 'Error resetting password' });
+    }
+
+    res.json({ message: 'Password reset successfully' });
+  } catch (error) {
+    console.error('Reset password error:', error);
+    res.status(500).json({ 
+      message: 'Error resetting password',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+// Verify password reset token (optional - for additional verification)
+router.post('/verify-reset-token', async (req, res) => {
+  try {
+    const { token } = req.body;
+
+    if (!token) {
+      return res.status(400).json({ message: 'Token is required' });
+    }
+
+    // Verify the token by attempting to exchange it
+    const { data, error } = await supabase.auth.verifyOtp({
+      token_hash: token,
+      type: 'recovery',
+    });
+
+    if (error || !data.user) {
+      return res.status(400).json({ message: 'Invalid or expired reset token' });
+    }
+
+    res.json({ 
+      message: 'Token is valid',
+      user_id: data.user.id,
+      email: data.user.email
+    });
+  } catch (error) {
+    console.error('Token verification error:', error);
+    res.status(500).json({ 
+      message: 'Error verifying token',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
 export default router; 

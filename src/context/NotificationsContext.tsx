@@ -18,6 +18,7 @@ export interface Notification {
     friendRequestId?: string;
     postId?: string;
     commentId?: string;
+    conversationId?: string;
     messageId?: string;
   };
 }

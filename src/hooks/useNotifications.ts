@@ -90,11 +90,37 @@ export const useNotifications = () => {
       setNotifications(prev => [notification, ...prev]);
       setUnreadCount(prev => prev + 1);
 
-      // Show toast notification
-      toast.success(`New ${notification.type.replace('_', ' ')}: ${notification.fromUser.name}`, {
-        duration: 4000,
-        position: 'top-right',
-      });
+      // Show different toast notifications based on type
+      if (notification.type === 'friend_request') {
+        toast.success(
+          `👋 ${notification.fromUser.name} sent you a friend request! Check your notifications to accept or decline.`,
+          {
+            duration: 8000,
+            position: 'top-right',
+          }
+        );
+      } else if (notification.type === 'friend_request_accepted') {
+        toast.success(`🎉 ${notification.fromUser.name} accepted your friend request!`, {
+          duration: 5000,
+          position: 'top-right',
+        });
+      } else if (notification.type === 'like') {
+        toast.success(`❤️ ${notification.fromUser.name} liked your post!`, {
+          duration: 4000,
+          position: 'top-right',
+        });
+      } else if (notification.type === 'comment') {
+        toast.success(`💬 ${notification.fromUser.name} commented on your post!`, {
+          duration: 4000,
+          position: 'top-right',
+        });
+      } else {
+        // Default notification for other types
+        toast.success(`${notification.fromUser.name}: ${notification.type.replace('_', ' ')}`, {
+          duration: 4000,
+          position: 'top-right',
+        });
+      }
     },
     onConnectionChange: (connected) => {
       console.log('WebSocket connection status:', connected);

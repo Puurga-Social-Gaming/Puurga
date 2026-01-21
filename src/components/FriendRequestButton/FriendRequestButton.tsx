@@ -45,7 +45,7 @@ const FriendRequestButton: React.FC<FriendRequestButtonProps> = ({
           'Pragma': 'no-cache'
         }
       });
-      
+
       const newStatus = response.data.status || 'none';
       setRequestStatus(newStatus);
       onStatusChange?.(newStatus);
@@ -70,7 +70,7 @@ const FriendRequestButton: React.FC<FriendRequestButtonProps> = ({
       const response = await api.post('/friend-requests/send', {
         receiverId: targetUserId
       });
-      
+
       // Use the status from the response to ensure consistency
       const newStatus = response.data.status || 'pending';
       setRequestStatus(newStatus);
@@ -79,7 +79,7 @@ const FriendRequestButton: React.FC<FriendRequestButtonProps> = ({
     } catch (error) {
       const axiosError = error as AxiosError<ApiError>;
       const errorMessage = axiosError.response?.data?.message;
-      
+
       // Handle specific error cases
       if (errorMessage === 'Friend request already exists') {
         setRequestStatus('pending');
@@ -108,49 +108,54 @@ const FriendRequestButton: React.FC<FriendRequestButtonProps> = ({
     return (
       <button
         disabled
-        className="flex items-center gap-2 px-4 py-2 bg-[#2d2d2d] text-gray-400 rounded-lg"
+        className="flex items-center gap-1 px-2 py-1 text-xs text-gray-400"
       >
-        <Loader2 size={20} className="animate-spin" />
-        Checking...
+        <Loader2 size={14} className="animate-spin" />
       </button>
+    );
+  }
+
+  // Show subtle indicators for pending and accepted states
+  if (requestStatus === 'pending') {
+    return (
+      <div className="flex items-center gap-1 px-2 py-1 rounded text-xs text-yellow-500">
+        <Clock size={14} />
+        <span>Pending</span>
+      </div>
+    );
+  }
+
+  if (requestStatus === 'accepted') {
+    return (
+      <div className="flex items-center gap-1 px-2 py-1 rounded text-xs text-green-500">
+        <UserCheck size={14} />
+        <span>Friends</span>
+      </div>
+    );
+  }
+
+  if (requestStatus === 'rejected') {
+    return (
+      <div className="flex items-center gap-1 px-2 py-1 rounded text-xs text-red-500">
+        <UserX size={14} />
+        <span>Declined</span>
+      </div>
     );
   }
 
   return (
     <button
       onClick={handleSendRequest}
-      disabled={isLoading || requestStatus === 'accepted'}
-      className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-        isLoading 
+      disabled={isLoading}
+      className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${isLoading
           ? 'bg-[#2d2d2d] text-gray-400 cursor-not-allowed'
-          : requestStatus === 'pending'
-          ? 'bg-yellow-500/10 text-yellow-500 hover:bg-yellow-500/20'
-          : requestStatus === 'accepted'
-          ? 'bg-green-500/10 text-green-500 cursor-not-allowed'
-          : requestStatus === 'rejected'
-          ? 'bg-red-500/10 text-red-500 hover:bg-red-500/20'
           : 'bg-orange-500 text-white hover:bg-orange-600'
-      } ${className}`}
+        } ${className}`}
     >
       {isLoading ? (
         <>
           <Loader2 size={20} className="animate-spin" />
           Sending...
-        </>
-      ) : requestStatus === 'pending' ? (
-        <>
-          <Clock size={20} />
-          Request Pending
-        </>
-      ) : requestStatus === 'accepted' ? (
-        <>
-          <UserCheck size={20} />
-          Friends
-        </>
-      ) : requestStatus === 'rejected' ? (
-        <>
-          <UserX size={20} />
-          Request Declined
         </>
       ) : (
         <>
@@ -162,4 +167,4 @@ const FriendRequestButton: React.FC<FriendRequestButtonProps> = ({
   );
 };
 
-export default FriendRequestButton; 
+export default FriendRequestButton;

@@ -30,11 +30,18 @@ const Messages: React.FC = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Load online users on component mount
   useEffect(() => {
     if (user) {
+      console.log('Loading online users on mount');
       loadOnlineUsers();
     }
-  }, [user]);
+  }, [user, loadOnlineUsers]);
+
+  // Helper function to check if a user is online
+  const isUserOnline = (userId: string): boolean => {
+    return onlineUsers.some(u => u.id === userId && u.isOnline);
+  };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -144,6 +151,9 @@ const Messages: React.FC = () => {
           <div className="absolute -top-1 -right-1 w-5 h-5 bg-accent rounded-full flex items-center justify-center">
             <span className="text-xs font-bold text-white">{conversation.unread_count}</span>
           </div>
+        )}
+        {isUserOnline(conversation.participants[0]?.id) && (
+          <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-background"></div>
         )}
       </div>
       <div className="flex-1 min-w-0">
