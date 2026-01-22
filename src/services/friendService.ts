@@ -24,3 +24,8 @@ export const getAcceptedFriends = async () => {
   const response = await api.get('/friends/accepted');
   return response.data;
 };
+
+export const sendFriendRequest = async (receiverId: string) => {
+  const response = await api.post('/friend-requests/send', { receiverId });
+  return response.data;
+};

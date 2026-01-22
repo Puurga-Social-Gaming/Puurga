@@ -1,8 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Ghost, AlertTriangle, Coins } from 'lucide-react';
-import { toast } from 'react-hot-toast';
-import api from '../../lib/axios';
 
 interface GhostModeOverlayProps {
   purgeCount: number;
@@ -10,28 +8,11 @@ interface GhostModeOverlayProps {
   onRedeemed?: () => void;
 }
 
-const GhostModeOverlay: React.FC<GhostModeOverlayProps> = ({ purgeCount, ghostedAt, onRedeemed }) => {
+const GhostModeOverlay: React.FC<GhostModeOverlayProps> = ({ purgeCount, ghostedAt }) => {
   const [redemptionCode, setRedemptionCode] = useState('');
-  const [isRedeeming, setIsRedeeming] = useState(false);
-
-  const handleRedemption = async () => {
-    if (!redemptionCode.trim()) {
-      toast.error('Please enter a redemption code');
-      return;
-    }
-
-    setIsRedeeming(true);
-    try {
-      // This would be called by another user to redeem this account
-      toast.error('Redemption must be initiated by another user with credits');
-    } catch (error) {
-      toast.error('Failed to process redemption');
-    } finally {
-      setIsRedeeming(false);
-    }
-  };
 
   return (
+    <>
     <div className="fixed inset-0 z-[9999] bg-black/95 backdrop-blur-sm">
       {/* Black and white filter overlay */}
       <div className="absolute inset-0 bg-gradient-to-b from-gray-900 via-gray-800 to-black opacity-90" />
@@ -148,6 +129,7 @@ const GhostModeOverlay: React.FC<GhostModeOverlayProps> = ({ purgeCount, ghosted
           background: #0a0a0f !important;
         }
       `}</style>
+      </div>
     </>
   );
 };

@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Flame, User, Calendar, Loader2, AlertCircle } from 'lucide-react';
+import { Flame, User, Calendar, Loader2, AlertCircle, Heart, Shield, AlertTriangle, Zap, Coins, Info } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import api from '../../lib/axios';
+import { useUser } from '../../context/UserContext';
 // import toast from 'react-hot-toast';
 
 interface PurgeActivity {
@@ -146,35 +148,35 @@ const PurgasTab: React.FC = () => {
     <div className="space-y-4">
       {/* Stats Header */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <div className="bg-[#1a1a1a] p-4 rounded-lg border border-gray-800">
+        <div className="bg-card p-4 rounded-lg border border-border">
           <div className="flex items-center gap-2 mb-2">
             <Flame className="w-5 h-5 text-orange-500" />
-            <h3 className="text-sm font-medium text-gray-400">Purges Given</h3>
+            <h3 className="text-sm font-medium text-muted">Purges Given</h3>
           </div>
-          <p className="text-2xl font-bold text-white">{purgeData.stats.totalGiven}</p>
+          <p className="text-2xl font-bold text-foreground">{purgeData.stats.totalGiven}</p>
         </div>
-        <div className="bg-[#1a1a1a] p-4 rounded-lg border border-gray-800">
+        <div className="bg-card p-4 rounded-lg border border-border">
           <div className="flex items-center gap-2 mb-2">
             <Flame className="w-5 h-5 text-red-500" />
-            <h3 className="text-sm font-medium text-gray-400">Purges Received</h3>
+            <h3 className="text-sm font-medium text-muted">Purges Received</h3>
           </div>
-          <p className="text-2xl font-bold text-white">{purgeData.stats.totalReceived}</p>
+          <p className="text-2xl font-bold text-foreground">{purgeData.stats.totalReceived}</p>
         </div>
-        <div className="bg-gradient-to-br from-orange-900/20 to-yellow-900/20 p-4 rounded-lg border border-orange-500/50">
+        <div className="bg-gradient-to-br from-orange-500/10 to-yellow-500/10 p-4 rounded-lg border border-orange-500/30">
           <div className="flex items-center gap-2 mb-2">
-            <Coins className="w-5 h-5 text-orange-400" />
-            <h3 className="text-sm font-medium text-orange-300">Credits</h3>
+            <Coins className="w-5 h-5 text-accent" />
+            <h3 className="text-sm font-medium text-accent">Credits</h3>
           </div>
-          <p className="text-2xl font-bold text-orange-400">{creditData.credits}</p>
-          <p className="text-xs text-orange-300/70 mt-1">Redeem ghosted users</p>
+          <p className="text-2xl font-bold text-accent">{creditData.credits}</p>
+          <p className="text-xs text-accent/70 mt-1">Redeem ghosted users</p>
         </div>
-        <div className="bg-[#1a1a1a] p-4 rounded-lg border border-gray-800">
+        <div className="bg-card p-4 rounded-lg border border-border">
           <div className="flex items-center gap-2 mb-2">
             <Zap className="w-5 h-5 text-yellow-500" />
-            <h3 className="text-sm font-medium text-gray-400">Purge Streak</h3>
+            <h3 className="text-sm font-medium text-muted">Purge Streak</h3>
           </div>
-          <p className="text-2xl font-bold text-white">{creditData.purgeStreak}/5</p>
-          <p className="text-xs text-gray-500 mt-1">Next bonus: {5 - creditData.purgeStreak} purges</p>
+          <p className="text-2xl font-bold text-foreground">{creditData.purgeStreak}/5</p>
+          <p className="text-xs text-muted mt-1">Next bonus: {5 - creditData.purgeStreak} purges</p>
         </div>
       </div>
 
@@ -239,12 +241,12 @@ const PurgasTab: React.FC = () => {
       </div>
 
       {/* Tab Selector */}
-      <div className="flex gap-2 border-b border-gray-800">
+      <div className="flex gap-2 border-b border-border">
         <button
           onClick={() => setActiveTab('given')}
           className={`px-4 py-2 font-medium transition-colors ${activeTab === 'given'
-            ? 'text-orange-500 border-b-2 border-orange-500'
-            : 'text-gray-400 hover:text-gray-200'
+            ? 'text-accent border-b-2 border-accent'
+            : 'text-muted hover:text-foreground'
             }`}
         >
           Purges You Gave ({purgeData.stats.totalGiven})
@@ -253,7 +255,7 @@ const PurgasTab: React.FC = () => {
           onClick={() => setActiveTab('received')}
           className={`px-4 py-2 font-medium transition-colors ${activeTab === 'received'
             ? 'text-red-500 border-b-2 border-red-500'
-            : 'text-gray-400 hover:text-gray-200'
+            : 'text-muted hover:text-foreground'
             }`}
         >
           Purges You Received ({purgeData.stats.totalReceived})
@@ -264,8 +266,8 @@ const PurgasTab: React.FC = () => {
       <div className="space-y-3">
         {currentPurges.length === 0 ? (
           <div className="text-center py-12">
-            <Flame className="w-12 h-12 mx-auto mb-4 text-gray-600" />
-            <p className="text-gray-400">
+            <Flame className="w-12 h-12 mx-auto mb-4 text-muted" />
+            <p className="text-muted">
               {activeTab === 'given'
                 ? "You haven't purged any posts yet"
                 : "You haven't received any purges yet"}
@@ -278,7 +280,7 @@ const PurgasTab: React.FC = () => {
             return (
               <div
                 key={purge.id}
-                className="bg-[#1a1a1a] p-4 rounded-lg border border-gray-800 hover:border-gray-700 transition-colors"
+                className="bg-card p-4 rounded-lg border border-border hover:border-border-hover transition-colors"
               >
                 <div className="flex items-start gap-3">
                   {/* Profile Avatar */}
@@ -290,8 +292,8 @@ const PurgasTab: React.FC = () => {
                         className="w-12 h-12 rounded-full object-cover"
                       />
                     ) : (
-                      <div className="w-12 h-12 rounded-full bg-gray-700 flex items-center justify-center">
-                        <User className="w-6 h-6 text-gray-400" />
+                      <div className="w-12 h-12 rounded-full bg-card-secondary flex items-center justify-center">
+                        <User className="w-6 h-6 text-muted" />
                       </div>
                     )}
                   </div>
@@ -299,21 +301,21 @@ const PurgasTab: React.FC = () => {
                   {/* Content */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <span className="font-semibold text-white">
+                      <span className="font-semibold text-foreground">
                         {profile?.name || 'Unknown User'}
                       </span>
-                      <span className="text-gray-400 text-sm">
+                      <span className="text-muted text-sm">
                         @{profile?.username || 'unknown'}
                       </span>
-                      <span className="text-gray-500 text-xs">•</span>
-                      <div className="flex items-center gap-1 text-gray-500 text-xs">
+                      <span className="text-muted text-xs">•</span>
+                      <div className="flex items-center gap-1 text-muted text-xs">
                         <Calendar className="w-3 h-3" />
                         {formatDate(purge.createdAt)}
                       </div>
                     </div>
 
                     {/* Action Description */}
-                    <p className="text-sm text-gray-400 mb-2">
+                    <p className="text-sm text-muted mb-2">
                       {activeTab === 'given' ? (
                         <>
                           You purged <span className="text-orange-500">@{profile?.username}</span>'s post
@@ -327,8 +329,8 @@ const PurgasTab: React.FC = () => {
 
                     {/* Post Preview */}
                     {purge.post && (
-                      <div className="bg-black/50 p-3 rounded border border-gray-700 mt-2">
-                        <p className="text-sm text-gray-300 line-clamp-2">
+                      <div className="bg-background/50 p-3 rounded border border-border mt-2">
+                        <p className="text-sm text-muted-foreground line-clamp-2">
                           {purge.post.content}
                         </p>
                       </div>

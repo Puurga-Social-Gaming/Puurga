@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { MapPin, Link2, Calendar, Trophy, Flame, Loader2, AlertCircle, Camera, Briefcase, GraduationCap, Heart, Settings, Gamepad2 } from 'lucide-react';
+import { MapPin, Link2, Calendar, Trophy, Flame, Loader2, AlertCircle, Camera, Briefcase, GraduationCap, Heart, Settings, Gamepad2, Shield } from 'lucide-react';
+import { motion } from 'framer-motion';
 import { useUser } from '../context/UserContext';
 import api from '../lib/axios';
 import toast from 'react-hot-toast';
 import PurgasTab from '../components/Profile/PurgasTab';
+import GalleryTab from '../components/Profile/GalleryTab';
 
 type ProfileTab = 'posts' | 'puurgas' | 'achievements' | 'gaming' | 'settings';
 
@@ -13,13 +15,6 @@ const Profile: React.FC = () => {
   const profilePictureRef = useRef<HTMLInputElement>(null);
   const coverPhotoRef = useRef<HTMLInputElement>(null);
   const [isEditMode, setIsEditMode] = useState(false);
-  const [picturesLoading, setPicturesLoading] = useState(false);
-  const [pictureUrls, setPictureUrls] = useState<string[]>([]);
-  const [profileStats, setProfileStats] = useState<ProfileStats>({
-    posts: 0,
-    followers: 0,
-    following: 0,
-  });
   const [formData, setFormData] = useState({
     name: '',
     username: '',
@@ -346,10 +341,10 @@ const Profile: React.FC = () => {
       </div>
 
       {/* Profile Tabs */}
-      <div className="bg-black w-full">
+      <div className="bg-background w-full">
         <div className="flex justify-around border-b border-gray-800 px-2 sm:px-4 overflow-x-auto">
           <TabButton 
-            label="Posts" 
+            label="Gallery" 
             icon={<Trophy size={18} />} 
             isActive={activeTab === 'posts'} 
             onClick={() => setActiveTab('posts')} 
@@ -374,7 +369,7 @@ const Profile: React.FC = () => {
           />
         </div>
         <div className="p-2 sm:p-4 min-h-[300px] w-full overflow-hidden">
-          {activeTab === 'posts' && <div className="text-center text-gray-500 py-8">No posts yet.</div>}
+          {activeTab === 'posts' && <GalleryTab />}
           {activeTab === 'puurgas' && <PurgasTab />}
           {activeTab === 'gaming' && (
             <div className="space-y-4">

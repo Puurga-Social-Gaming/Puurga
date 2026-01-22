@@ -19,7 +19,7 @@ const Layout: React.FC = () => {
       )}
       {/* Left Sidebar - Hidden on mobile, visible on large screens */}
       <div className="hidden lg:flex lg:flex-shrink-0 lg:w-[220px] xl:w-[240px]">
-        <div className="fixed left-0 top-0 bottom-0 w-[220px] xl:w-[240px] bg-black border-r border-gray-800 overflow-y-auto z-40">
+        <div className="fixed left-0 top-0 bottom-0 w-[220px] xl:w-[240px] bg-background overflow-y-auto z-40">
           <MainNav />
         </div>
       </div>
@@ -33,7 +33,9 @@ const Layout: React.FC = () => {
       </div>
 
       {/* Right Sidebar - Hidden on mobile and tablet, visible on large screens */}
-      <div className="hidden lg:flex lg:flex-shrink-0 lg:w-[260px] xl:w-[300px]">
+      <div className="hidden lg:flex lg:flex-shrink-0 lg:w-[260px] xl:w-[300px] relative">
+        {/* Subtle gradient overlay */}
+        <div className="absolute left-0 top-0 bottom-0 w-4 bg-gradient-to-r from-transparent to-black/5 dark:to-white/5 z-50 pointer-events-none"></div>
         <div className="fixed right-0 top-0 bottom-0 w-[260px] xl:w-[300px] sidebar overflow-y-auto z-40 scrollbar-hide">
           <div className="p-4">
             <RightSidebar />

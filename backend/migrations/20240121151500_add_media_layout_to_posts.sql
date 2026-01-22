@@ -1,0 +1,2 @@
+ALTER TABLE posts
+ADD COLUMN media_layout VARCHAR(255) DEFAULT 'grid';

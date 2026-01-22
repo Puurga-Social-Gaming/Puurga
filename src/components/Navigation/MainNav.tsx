@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
   Home,
@@ -12,9 +13,13 @@ import {
   BarChart3,
   Settings,
   MoreHorizontal,
-  X
+  X,
+  Sun,
+  Moon,
+  Globe,
 } from 'lucide-react';
 import { LucideIcon } from 'lucide-react';
+import { useTheme } from '../../context/ThemeContext';
 import { useNotifications } from '../../context/NotificationContext';
 import { supabase } from '../../lib/supabaseClient';
 import { toast } from 'react-hot-toast';
@@ -29,6 +34,8 @@ interface NavigationItem {
 }
 
 const MainNav: React.FC = () => {
+  const { t, i18n } = useTranslation();
+  const { theme, toggleTheme } = useTheme();
   const { unreadCount } = useNotifications();
   const navigate = useNavigate();
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
@@ -52,9 +59,11 @@ const MainNav: React.FC = () => {
   }, [moreMenuOpen]);
 
   const navLinkClasses = (isActive: boolean) => `
-    relative flex items-center gap-3 px-4 py-3 text-muted rounded-lg transition-all duration-200
-    hover:text-foreground hover:bg-card-hover hover:shadow-theme-sm
-    ${isActive ? 'text-accent bg-card border-l-2 border-accent pl-3 shadow-theme-sm' : ''}
+    relative flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200
+    ${isActive
+      ? 'nav-active' // This class is defined in theme.css for both light and dark modes
+      : 'text-muted hover:text-foreground hover:bg-card-hover hover:shadow-theme-sm'
+    }
   `;
 
   const handleLogout = async () => {
@@ -91,15 +100,15 @@ const MainNav: React.FC = () => {
 
   const getNavigationItems = (): NavigationItem[] => {
     const commonItems: NavigationItem[] = [
-      { to: '/home', icon: Home, label: 'Home' },
-      { to: '/profile', icon: UserCircle, label: 'Profile' },
-      { to: '/messages', icon: MessageSquare, label: 'Messages' },
-      { to: '/groups', icon: Users, label: 'Groups' },
-      { to: '/puurga-games', icon: Gamepad2, label: 'Puurga Games' },
-      { to: '/puurga-dashboard', icon: BarChart3, label: 'Puurga Dashboard' },
-      { to: '/help', icon: HelpCircle, label: 'Help' },
-      { to: '/notifications', icon: Bell, label: 'Notifications' },
-      { to: '/settings', icon: Settings, label: 'Settings' },
+      { to: '/home', icon: Home, label: t('navigation.home') },
+      { to: '/profile', icon: UserCircle, label: t('navigation.profile') },
+      { to: '/messages', icon: MessageSquare, label: t('navigation.messages') },
+      { to: '/groups', icon: Users, label: t('navigation.groups') },
+      { to: '/puurga-games', icon: Gamepad2, label: t('navigation.games') },
+      { to: '/puurga-dashboard', icon: BarChart3, label: t('navigation.dashboard') },
+      { to: '/help', icon: HelpCircle, label: t('navigation.help') },
+      { to: '/notifications', icon: Bell, label: t('navigation.notifications') },
+      { to: '/settings', icon: Settings, label: t('navigation.settings') },
     ];
 
     const roleBasedItems: NavigationItem[] = [];
@@ -112,23 +121,17 @@ const MainNav: React.FC = () => {
   return (
     <>
       {/* Desktop Sidebar Layout */}
-      <div className="hidden lg:flex flex-col h-full">
+      <div className="hidden lg:flex flex-col h-full sidebar justify-center">
         {/* Logo at the top */}
         <div className="p-6 pb-8 flex items-center justify-center gap-3">
           <PuurgaLogo size={40} className="text-accent" />
           <span className="text-xl font-bold tracking-wide text-accent">PUURGA</span>
         </div>
 
-        {/* Secondary Action Button */}
-        <div className="px-4 mb-8">
-          <button className="w-full flex items-center justify-center gap-2 px-4 py-3 text-white bg-[var(--surface)] hover:bg-opacity-80 rounded-lg transition-colors">
-            <Wifi className="w-5 h-5" />
-            <span className="font-semibold">Go Live</span>
-          </button>
-        </div>
+
 
         {/* Navigation items with extra top spacing */}
-        <div className="px-4 space-y-1 mt-8">
+        <div className="px-4 space-y-6 mt-8">
           {navigationItems.map((item) => (
             item.to ? (
               <NavLink
@@ -167,7 +170,7 @@ const MainNav: React.FC = () => {
             className="w-full flex items-center gap-3 px-4 py-3 text-muted hover:text-foreground hover:bg-card-hover rounded-lg transition-colors"
           >
             <LogOut className="w-6 h-6" />
-            <span>Logout</span>
+            <span>{t('navigation.logout')}</span>
           </button>
         </div>
       </div>
@@ -175,11 +178,11 @@ const MainNav: React.FC = () => {
       {/* Mobile Bottom Navigation */}
       <div className="lg:hidden flex justify-around items-center w-full">
         {[
-          { to: '/home', icon: Home, label: 'Home' },
-          { to: '/profile', icon: UserCircle, label: 'Profile' },
-          { to: '/puurga-games', icon: Gamepad2, label: 'Gaming' },
-          { to: '/groups', icon: Users, label: 'Groups' },
-          { to: '/puurga-dashboard', icon: BarChart3, label: 'Dashboard' },
+          { to: '/home', icon: Home, label: t('navigation.home') },
+          { to: '/profile', icon: UserCircle, label: t('navigation.profile') },
+          { to: '/puurga-games', icon: Gamepad2, label: t('navigation.gaming') },
+          { to: '/groups', icon: Users, label: t('navigation.groups') },
+          { to: '/puurga-dashboard', icon: BarChart3, label: t('navigation.dashboard') },
         ].map((item) => (
           <NavLink
             key={item.to}
@@ -201,7 +204,7 @@ const MainNav: React.FC = () => {
             className={`flex flex-col items-center gap-1 px-2 py-2 text-muted transition-colors relative ${moreMenuOpen ? 'text-accent' : 'hover:text-foreground'}`}
           >
             {moreMenuOpen ? <X size={18} /> : <MoreHorizontal size={18} />}
-            <span className="text-[10px]">More</span>
+            <span className="text-[10px]">{t('navigation.more')}</span>
             {unreadCount > 0 && !moreMenuOpen && (
               <span className="absolute top-0 right-0 bg-red-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center">
                 {unreadCount > 9 ? '9+' : unreadCount}
@@ -222,7 +225,7 @@ const MainNav: React.FC = () => {
                 `}
               >
                 <Bell size={18} />
-                <span>Notifications</span>
+                <span>{t('navigation.notifications')}</span>
                 {unreadCount > 0 && (
                   <span className="ml-auto bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
                     {unreadCount > 9 ? '9+' : unreadCount}
@@ -239,8 +242,34 @@ const MainNav: React.FC = () => {
                 `}
               >
                 <Settings size={18} />
-                <span>Settings</span>
+                <span>{t('navigation.settings')}</span>
               </NavLink>
+              <div className="border-t border-border my-1" />
+              <button
+                onClick={toggleTheme}
+                className="flex items-center gap-3 px-4 py-3 text-foreground-secondary transition-colors w-full text-left hover:bg-card-hover hover:text-foreground"
+              >
+                {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+                <span>{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>
+              </button>
+              <div className="relative">
+                <button
+                  className="flex items-center gap-3 px-4 py-3 text-foreground-secondary transition-colors w-full text-left hover:bg-card-hover hover:text-foreground"
+                  onClick={() => {
+                    const langMenu = document.getElementById('language-menu');
+                    if (langMenu) langMenu.classList.toggle('hidden');
+                  }}
+                >
+                  <Globe size={18} />
+                  <span>{t('settings.language')}</span>
+                </button>
+                <div id="language-menu" className="hidden absolute bottom-0 right-full mr-2 bg-card border border-border rounded-lg shadow-theme-lg min-w-[120px] overflow-hidden">
+                  <button onClick={() => { i18n.changeLanguage('en'); }} className="block w-full text-left px-4 py-2 text-sm text-foreground hover:bg-card-hover">English</button>
+                  <button onClick={() => { i18n.changeLanguage('fr'); }} className="block w-full text-left px-4 py-2 text-sm text-foreground hover:bg-card-hover">Français</button>
+                  <button onClick={() => { i18n.changeLanguage('zu'); }} className="block w-full text-left px-4 py-2 text-sm text-foreground hover:bg-card-hover">Zulu</button>
+                  <button onClick={() => { i18n.changeLanguage('ss'); }} className="block w-full text-left px-4 py-2 text-sm text-foreground hover:bg-card-hover">Swati</button>
+                </div>
+              </div>
             </div>
           )}
         </div>

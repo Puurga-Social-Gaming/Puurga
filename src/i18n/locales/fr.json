@@ -96,6 +96,10 @@
         "noFriendsOnline": "Pas d'amis en ligne.",
         "peopleYouMayKnow": "Personnes que vous pourriez connaître",
         "noSuggestions": "Aucune suggestion pour le moment.",
+        "toggleTheme": "Changer de thème",
+        "changeLanguage": "Changer de langue",
+        "accept": "Accepter",
+        "reject": "Rejeter",
         "stats": {
             "posts": "Posts",
             "following": "Abonnements",

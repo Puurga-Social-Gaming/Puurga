@@ -2,6 +2,7 @@ import express from 'express';
 import { supabase } from '../config/supabase';
 import { supabaseAuth as auth, AuthRequest } from '../middleware/supabaseAuth';
 import { checkGhostMode } from '../middleware/ghostMode';
+import { normalizeImageUrl } from '../utils/url';
 
 const router = express.Router();
 
@@ -46,28 +47,6 @@ router.get('/feed', async (req, res) => {
     const usersMap = new Map<string, { id: string; avatar_url?: string | null }>();
     for (const u of usersTbl) usersMap.set(u.id, u);
 
-    // Helper function to normalize image URLs
-    const normalizeImageUrl = (url: string): string => {
-      if (!url) return '';
-      
-      // If it's already a localhost URL, keep it
-      if (url.startsWith('http://localhost:3005/')) return url;
-      
-      // If it's a Supabase URL, extract filename and use local server
-      if (url.includes('supabase.co/storage')) {
-        const filename = url.split('/').pop();
-        return filename ? `http://localhost:3005/uploads/${filename}` : '';
-      }
-      
-      // If it's an external URL, try to extract filename and use local server
-      if (url.includes('http')) {
-        const filename = url.split('/').pop();
-        return filename ? `http://localhost:3005/uploads/${filename}` : '';
-      }
-
-      // If it's just a filename, add the uploads prefix
-      return `/uploads/${url}`;
-    };
 
     // 4) Map posts with images and merged user object
     const mapped = safePosts.map(post => {

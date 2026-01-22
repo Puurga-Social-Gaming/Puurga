@@ -3,6 +3,7 @@ import { supabase } from '../config/supabase';
 import { supabaseAuth as auth, AuthRequest } from '../middleware/supabaseAuth';
 import multer from 'multer';
 import { getUploadPath, generateUniqueFilename } from '../config/storage';
+import { normalizeImageUrl } from '../utils/url';
 import { validate as uuidValidate } from 'uuid';
 
 const router = express.Router();
@@ -31,33 +32,6 @@ const upload = multer({
   },
 });
 
-// Helper function to normalize image URLs
-const normalizeImageUrl = (url: string | null | undefined): string => {
-  if (!url) return '';
-
-  // Convert localhost URLs to relative paths
-  if (url.startsWith('http://localhost:3005/')) {
-    return url.replace('http://localhost:3005', '');
-  }
-
-  // If it's a Supabase URL, keep it as is (external storage)
-  if (url.includes('supabase.co/storage')) {
-    return url;
-  }
-
-  // If it's already a relative URL, keep it
-  if (url.startsWith('/uploads/')) {
-    return url;
-  }
-
-  // If it's an external URL, keep it as-is
-  if (url.startsWith('http://') || url.startsWith('https://')) {
-    return url;
-  }
-
-  // If it's just a filename, add the uploads prefix
-  return `/uploads/${url}`;
-};
 
 // Update user language
 router.patch('/me/language', auth, async (req: AuthRequest, res) => {
@@ -536,7 +510,7 @@ router.post('/upload', uploadHandler.array('images', 4), async (req, res) => {
 // --- POST /api/posts ---
 router.post('/posts', async (req, res) => {
   try {
-    const { user_id, content, images } = req.body;
+    const { user_id, content, images, media_layout } = req.body;
     if (!user_id || !content) {
       return res.status(400).json({ error: 'user_id and content are required' });
     }
@@ -544,7 +518,7 @@ router.post('/posts', async (req, res) => {
     const media_url = Array.isArray(images) ? images.join(',') : images || null;
     const { data, error } = await supabase
       .from('posts')
-      .insert([{ user_id, content, media_url }])
+      .insert([{ user_id, content, media_url, media_layout: media_layout }])
       .select();
     if (error) throw error;
     res.json(data[0]);

@@ -43,6 +43,7 @@ export interface Post {
   }>;
   visibility: 'friends' | 'public' | 'private';
   images?: string[];
+  media_layout?: string;
   location?: {
     lat: number;
     lng: number;

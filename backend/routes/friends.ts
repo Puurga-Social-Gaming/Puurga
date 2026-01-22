@@ -12,11 +12,38 @@ router.get('/suggestions', auth, async (req: AuthRequest, res) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    // Fetch from 'profiles' (canonical profile table). If missing, fall back gracefully.
+    // Step 1: Get all active friendships and pending/incoming friend requests for the current user.
+    const { data: friends, error: friendsError } = await supabase
+      .from('friends')
+      .select('user_id, friend_id')
+      .or(`user_id.eq.${user.id},friend_id.eq.${user.id}`);
+
+    const { data: requests, error: requestsError } = await supabase
+      .from('friend_requests')
+      .select('sender_id, receiver_id, status')
+      .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`);
+
+    if (friendsError || requestsError) {
+      console.error('Error fetching relations:', friendsError || requestsError);
+      return res.status(500).json({ error: 'Failed to fetch user relations' });
+    }
+
+    const friendIds = new Set(friends.map(f => (f.user_id === user.id ? f.friend_id : f.user_id)));
+    const requestMap = new Map();
+    requests.forEach(r => {
+      const otherUserId = r.sender_id === user.id ? r.receiver_id : r.sender_id;
+      // Prioritize 'pending' status if multiple requests exist (e.g., one rejected, one pending)
+      if (r.status === 'pending' || !requestMap.has(otherUserId)) {
+        requestMap.set(otherUserId, r.status);
+      }
+    });
+
+    // Step 2: Fetch all profiles, excluding the user and their existing friends.
+    const excludedIds = [user.id, ...Array.from(friendIds)];
     const { data: suggestions, error } = await supabase
       .from('profiles')
       .select('id, full_name, username, avatar_url')
-      .neq('id', user.id)
+      .not('id', 'in', `(${excludedIds.join(',')})`)
       .limit(20);
 
     if (error) {
@@ -27,15 +54,17 @@ router.get('/suggestions', auth, async (req: AuthRequest, res) => {
       throw error;
     }
 
-    res.json((suggestions || []).map((s: any) => ({
+    // Step 3: Map the status to each suggestion.
+    const results = (suggestions || []).map((s: any) => ({
       id: s.id,
       name: s.full_name || 'Unknown',
       username: s.username || 'user',
       avatar: s.avatar_url,
-      bio: undefined,
-      email: undefined,
-      requestStatus: null
-    })));
+      // The status is 'pending' if the user sent the request.
+      status: requestMap.get(s.id) === 'pending' ? 'pending' : 'none',
+    }));
+
+    res.json(results);
   } catch (error) {
     console.error('Error fetching friend suggestions:', error);
     res.status(500).json({ error: 'Failed to fetch friend suggestions' });

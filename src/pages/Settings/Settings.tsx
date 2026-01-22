@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { toast } from 'react-hot-toast';
-import { Bell, Shield, Eye, Moon, Volume2, Globe } from 'lucide-react';
+import { Bell, Shield, Eye, Globe, Moon, Sun } from 'lucide-react';
+
+import { useTheme } from '../../context/ThemeContext';
 
 const Settings: React.FC = () => {
   const { theme, toggleTheme } = useTheme();

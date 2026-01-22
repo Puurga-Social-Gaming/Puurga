@@ -291,13 +291,22 @@ const Post: React.FC<PostProps> = ({ post, onUpdate }) => {
             </AnimatePresence>
 
             {post.images && post.images.length > 0 && (
-              <motion.div 
+              <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 className={`mt-3 grid gap-2 ${
-                  post.images.length === 1 ? 'grid-cols-1' : 
-                  post.images.length === 2 ? 'grid-cols-2' : 
-                  'grid-cols-2'
+                  (() => {
+                    if (post.images.length === 1) return 'grid-cols-1';
+                    switch (post.media_layout) {
+                      case 'rows':
+                        return 'grid-cols-1';
+                      case 'columns':
+                        return 'grid-cols-2';
+                      case 'grid':
+                      default:
+                        return 'grid-cols-2 sm:grid-cols-3';
+                    }
+                  })()
                 }`}
               >
                 {post.images.map((image, index) => (
@@ -307,7 +316,7 @@ const Post: React.FC<PostProps> = ({ post, onUpdate }) => {
                     src={image}
                     alt={`Post image ${index + 1}`}
                     className={`rounded-xl object-cover w-full transition-transform duration-200 hover:shadow-lg ${
-                      post.images!.length === 1 ? 'max-h-96' : 'h-48'
+                      post.images!.length === 1 ? 'max-h-80' : 'h-40'
                     }`}
                   />
                 ))}

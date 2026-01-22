@@ -96,6 +96,10 @@
         "noFriendsOnline": "Azikho abangani abakuxhumanisa.",
         "peopleYouMayKnow": "Abantu Abakwamthembile",
         "noSuggestions": "Azikho imininingwane okwamanje.",
+        "toggleTheme": "Shintja ingcikitsi",
+        "changeLanguage": "Shintja lulwimi",
+        "accept": "Vuma",
+        "reject": "Yala",
         "stats": {
             "posts": "Imilayezo",
             "following": "Ngokulandelana",

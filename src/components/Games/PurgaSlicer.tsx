@@ -37,7 +37,7 @@ const PurgaSlicer: React.FC<PurgaSlicerProps> = ({ className }) => {
   const [score, setScore] = useState(0);
   const [lives, setLives] = useState(3);
   const [combo, setCombo] = useState(0);
-  const [timeLeft, setTimeLeft] = useState(60);
+  const [timeLeft, setTimeLeft] = useState(30);
   const [showSettings, setShowSettings] = useState(false);
   const [playerPoints, setPlayerPoints] = useState(0);
   const [selectedBackground, setSelectedBackground] = useState('obsidian_ember');
@@ -196,11 +196,11 @@ const PurgaSlicer: React.FC<PurgaSlicerProps> = ({ className }) => {
 
       const startX = (Math.random() - 0.5) * (aspect * viewSize * 1.7);
       sprite.position.set(startX, -viewSize - 0.8, 0);
-      const scale = isCorruption ? 1.15 : 1.25;
+      const scale = (isCorruption ? 1.4 : 1.5) + Math.random() * 0.4;
       sprite.scale.set(scale, scale, 1);
 
-      const vx = (Math.random() - 0.5) * 3.2;
-      const vy = 10.5 + Math.random() * 5.5;
+      const vx = (Math.random() - 0.5) * 4;
+      const vy = 12.5 + Math.random() * 6;
 
       const obj: GameObject = {
         sprite,
@@ -465,7 +465,7 @@ const PurgaSlicer: React.FC<PurgaSlicerProps> = ({ className }) => {
     setScore(0);
     setLives(3);
     setCombo(0);
-    setTimeLeft(60);
+    setTimeLeft(30);
     setShowSettings(false);
     // Clear any existing game objects
     if (sceneRef.current) {
@@ -515,15 +515,15 @@ const PurgaSlicer: React.FC<PurgaSlicerProps> = ({ className }) => {
   }, [selectedBlade]);
 
   const backgrounds = [
-    { id: 'obsidian_ember', name: 'Obsidian Ember', cost: 0 },
-    { id: 'ashen_temple', name: 'Ashen Temple', cost: 500 },
-    { id: 'molten_gate', name: 'Molten Gate', cost: 1000 },
+    { id: 'sheol_embers', name: 'Sheol Embers', cost: 0 },
+    { id: 'temple_ruins', name: 'Temple Ruins', cost: 500 },
+    { id: 'gates_of_zion', name: 'Gates of Zion', cost: 1000 },
   ];
 
   const blades = [
-    { id: 'ember', name: 'Ember Blade', cost: 0 },
-    { id: 'obsidian', name: 'Obsidian Edge', cost: 350 },
-    { id: 'seraph', name: 'Seraph Glow', cost: 750 },
+    { id: 'blade_of_valor', name: 'Blade of Valor', cost: 0 },
+    { id: 'goliaths_edge', name: "Goliath's Edge", cost: 350 },
+    { id: 'seraphs_song', name: "Seraph's Song", cost: 750 },
   ];
 
   const buyBackground = (id: string, cost: number) => {
@@ -553,14 +553,8 @@ const PurgaSlicer: React.FC<PurgaSlicerProps> = ({ className }) => {
   };
 
   return (
-    <div className={`relative w-full h-full ${className}`}>
-      <div className="w-full h-full flex items-center justify-center p-2 sm:p-4 lg:p-6 bg-gradient-to-b from-black via-[#0a0a0a] to-black">
-        <div className="relative w-full max-w-5xl">
-          <div className="absolute -inset-1 rounded-xl sm:rounded-2xl bg-gradient-to-r from-orange-600/40 via-orange-500/10 to-orange-600/40 blur" />
-          <div className="relative rounded-xl sm:rounded-2xl border border-orange-500/25 bg-black/70 shadow-2xl overflow-hidden">
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,122,24,0.14),transparent_55%)]" />
-
-            <div className="relative aspect-[16/9] sm:aspect-[16/9]">
+    <div className={`relative w-full h-full bg-black ${className}`}>
+      <div className="absolute inset-0">
               <div ref={mountRef} className="absolute inset-0" />
               <canvas ref={trailCanvasRef} className="absolute inset-0 pointer-events-none" />
 
@@ -602,10 +596,10 @@ const PurgaSlicer: React.FC<PurgaSlicerProps> = ({ className }) => {
               </div>
 
               {showSettings && (
-                <div className="absolute inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center p-2 sm:p-6">
+                <div className="absolute inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center p-2 sm:p-6 z-50">
                   <div className="w-full max-w-2xl bg-[#0b0b0b] border border-orange-500/25 rounded-2xl p-4 sm:p-6 text-white max-h-[90vh] overflow-y-auto">
                     <div className="flex items-center justify-between mb-3 sm:mb-4">
-                      <div className="text-lg sm:text-xl font-bold text-orange-400">Sacred Armory</div>
+                      <div className="text-lg sm:text-xl font-bold text-orange-400">The Tabernacle</div>
                       <button
                         onClick={() => setShowSettings(false)}
                         className="bg-black/60 hover:bg-black/80 border border-orange-500/20 px-2 sm:px-3 py-1 sm:py-2 rounded-lg text-xs sm:text-sm"
@@ -614,12 +608,12 @@ const PurgaSlicer: React.FC<PurgaSlicerProps> = ({ className }) => {
                       </button>
                     </div>
                     <div className="text-xs sm:text-sm text-gray-300 mb-4 sm:mb-6">
-                      Equip sacred relics and divine backdrops. Earn righteousness points through righteous combat.
+                      Equip righteous blades and hallowed grounds. Earn Valor Points through combat.
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
                       <div>
-                        <div className="font-semibold mb-3">Holy Grounds</div>
+                        <div className="font-semibold mb-3">Hallowed Grounds</div>
                         <div className="space-y-2">
                           {backgrounds.map(bg => {
                             const owned = ownedBackgroundsRef.current.has(bg.id);
@@ -641,7 +635,7 @@ const PurgaSlicer: React.FC<PurgaSlicerProps> = ({ className }) => {
                       </div>
 
                       <div>
-                        <div className="font-semibold mb-3">Sacred Blades</div>
+                        <div className="font-semibold mb-3">Righteous Blades</div>
                         <div className="space-y-2">
                           {blades.map(b => {
                             const owned = new Set((localStorage.getItem('perga_owned_blades') || 'ember').split(',').filter(Boolean)).has(b.id);
@@ -684,7 +678,7 @@ const PurgaSlicer: React.FC<PurgaSlicerProps> = ({ className }) => {
                         onClick={() => setShowSettings(true)}
                         className="bg-gray-700 hover:bg-gray-600 px-4 sm:px-6 py-3 sm:py-4 rounded-lg text-base sm:text-lg font-medium transition-colors"
                       >
-                        Sacred Armory
+                        The Tabernacle
                       </button>
                     </div>
                   </div>
@@ -729,9 +723,6 @@ const PurgaSlicer: React.FC<PurgaSlicerProps> = ({ className }) => {
                   </div>
                 </div>
               )}
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   );

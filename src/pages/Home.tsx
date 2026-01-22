@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useUser } from '../context/UserContext';
 import { Post, ReactionCount } from '../types';
 import CreatePost from '../components/Post/CreatePost';
 import PostList from '../components/Post/PostList';
 import StatusBar from '../components/StatusBar/StatusBar';
 import api from '../api/api';
 import { toast } from 'react-hot-toast';
-import { getCachedPosts, clearPostsCache } from '../utils/preloadPosts';
 import '../styles/neo-home.css';
 
 // Safe helpers to coerce unknown values without using 'any'
@@ -126,6 +126,7 @@ function mapBackendPost(post: unknown): Post {
 
 export default function Home() {
   const { t } = useTranslation();
+  const { user, updateUser } = useUser();
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -138,14 +139,9 @@ export default function Home() {
   }, []);
 
   // Removed JS-driven fade; using CSS top mask for per-post fade at boundary.
-
   const fetchPosts = async (pageNum: number) => {
     try {
       setLoading(true);
-      // api has baseURL '/api', try root posts feed first, then fallback to users namespace
-      const tryEndpoints = ['/posts/feed', '/users/posts/feed'];
-      let data: unknown = [] as unknown[];
-
       const limit = 10;
       const response = await api.get(`/posts/feed?page=${pageNum}&limit=${limit}`);
       const data = Array.isArray(response.data) ? response.data : (response.data?.data ?? []);
@@ -170,12 +166,11 @@ export default function Home() {
       }
     } finally {
       setLoading(false);
-      setLoadingMore(false);
     }
   };
 
   const handleLoadMore = () => {
-    if (!loadingMore && hasMore) {
+    if (hasMore) {
       fetchPosts(page + 1);
     }
   };
@@ -183,6 +178,16 @@ export default function Home() {
   const handlePostCreated = async (newPost: unknown) => {
     const mapped = mapBackendPost(newPost);
     setPosts(prevPosts => [mapped, ...prevPosts]);
+
+    // Update the user's post count in the global context
+    if (user && user.stats) {
+      updateUser({
+        stats: {
+          ...user.stats,
+          posts: (user.stats.posts || 0) + 1,
+        },
+      });
+    }
   };
 
   const handlePostUpdate = async (updatedPost: Post) => {
@@ -235,10 +240,10 @@ export default function Home() {
               <div className="py-6 flex justify-center pb-20">
                 <button
                   onClick={handleLoadMore}
-                  disabled={loadingMore}
+                  disabled={loading}
                   className="px-6 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full text-sm font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
-                  {loadingMore ? (
+                  {loading ? (
                     <>
                       <div className="w-4 h-4 border-2 border-white/50 border-t-white rounded-full animate-spin" />
                       {t('posts.loading')}

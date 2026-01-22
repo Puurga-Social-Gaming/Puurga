@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'react-hot-toast';
-import { Image, Smile, Send, X } from 'lucide-react';
+import { Image, Smile, Send, X, LayoutGrid, Rows, Columns } from 'lucide-react';
 import EmojiPicker, { Theme, EmojiStyle } from 'emoji-picker-react';
 import imageCompression from 'browser-image-compression';
 import api from '../../api/api';
@@ -31,6 +31,7 @@ const CreatePost: React.FC<CreatePostProps> = ({ onPostCreated }) => {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [selectedImages, setSelectedImages] = useState<File[]>([]);
   const [imagePreviewUrls, setImagePreviewUrls] = useState<string[]>([]);
+  const [imageLayout, setImageLayout] = useState('grid');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { user } = useUser();
   const [isLoading, setIsLoading] = useState(false);
@@ -92,7 +93,7 @@ const CreatePost: React.FC<CreatePostProps> = ({ onPostCreated }) => {
 
   const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
-    if (files.length + selectedImages.length > 4) {
+    if (files.length + selectedImages.length > 10) {
       toast.error(t('posts.maxImagesError'));
       return;
     }
@@ -142,6 +143,7 @@ const CreatePost: React.FC<CreatePostProps> = ({ onPostCreated }) => {
     setIsLoading(true);
     try {
       let imageUrls: string[] = [];
+      const layout = imageLayout;
 
       if (selectedImages.length > 0) {
         const formData = new FormData();
@@ -165,6 +167,7 @@ const CreatePost: React.FC<CreatePostProps> = ({ onPostCreated }) => {
         user_id: user.id,
         content,
         images: imageUrls,
+        layout,
       });
 
       setContent('');
@@ -207,9 +210,16 @@ const CreatePost: React.FC<CreatePostProps> = ({ onPostCreated }) => {
               rows={isExpanded ? 3 : 1}
             />
 
-            {/* Image Previews */}
+            {/* Image Previews & Layout Controls */}
             {isExpanded && imagePreviewUrls.length > 0 && (
-              <div className="mt-3 grid grid-cols-2 gap-2">
+              <div className="mt-3">
+                <div className="mb-2 flex items-center gap-2">
+                  <span className="text-sm font-medium text-muted">Layout:</span>
+                  <button type="button" onClick={() => setImageLayout('grid')} className={`p-1.5 rounded-md ${imageLayout === 'grid' ? 'bg-accent text-white' : 'bg-card-hover'}`}><LayoutGrid size={16} /></button>
+                  <button type="button" onClick={() => setImageLayout('rows')} className={`p-1.5 rounded-md ${imageLayout === 'rows' ? 'bg-accent text-white' : 'bg-card-hover'}`}><Rows size={16} /></button>
+                  <button type="button" onClick={() => setImageLayout('columns')} className={`p-1.5 rounded-md ${imageLayout === 'columns' ? 'bg-accent text-white' : 'bg-card-hover'}`}><Columns size={16} /></button>
+                </div>
+                <div className={`grid gap-2 ${imageLayout === 'grid' ? 'grid-cols-2' : imageLayout === 'rows' ? 'grid-cols-1' : 'grid-cols-2'}`}>
                 {imagePreviewUrls.map((url, index) => (
                   <div key={index} className="relative group">
                     <img
@@ -226,6 +236,7 @@ const CreatePost: React.FC<CreatePostProps> = ({ onPostCreated }) => {
                     </button>
                   </div>
                 ))}
+                </div>
               </div>
             )}
 

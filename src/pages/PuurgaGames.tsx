@@ -12,9 +12,9 @@ import {
   Target,
   Puzzle,
   Sword,
-  Brain
+  Brain,
+  Shield
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
 
 interface Game {
   id: string;
@@ -30,12 +30,9 @@ interface Game {
   link?: string;
 }
 
-type ViewType = 'grid' | 'list';
 
 const PuurgaGames: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  const [viewType, setViewType] = useState<ViewType>('grid');
-  const [searchQuery, setSearchQuery] = useState('');
 
   const games: Game[] = [
     {
@@ -355,7 +352,7 @@ const PuurgaGames: React.FC = () => {
         ))}
       </motion.div>
       </div>
-    </motion.div>
+    </div>
   );
 };
 

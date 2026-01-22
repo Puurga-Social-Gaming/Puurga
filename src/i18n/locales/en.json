@@ -96,6 +96,10 @@
         "noFriendsOnline": "No friends online.",
         "peopleYouMayKnow": "People You May Know",
         "noSuggestions": "No suggestions at the moment.",
+        "toggleTheme": "Toggle Theme",
+        "changeLanguage": "Change Language",
+        "accept": "Accept",
+        "reject": "Reject",
         "stats": {
             "posts": "Posts",
             "following": "Following",
