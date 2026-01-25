@@ -355,28 +355,63 @@ router.put('/profile/avatar', auth, upload.single('avatar'), async (req: AuthReq
       }
 
       console.log('Profile created with avatar:', newProfile.avatar_url);
+      
+      // Also try to update users table if it exists (non-blocking)
+      supabase
+        .from('users')
+        .update({ avatar_url: publicUrl })
+        .eq('id', id)
+        .then(({ error }) => {
+          if (error) {
+            console.warn('Could not update users table avatar (this is OK if table/column doesn\'t exist):', error);
+          } else {
+            console.log('Avatar also set in users table');
+          }
+        });
+      
       return res.json({ avatar: newProfile.avatar_url });
     }
 
     console.log('Updating existing profile with avatar URL...');
-    const { data, error } = await supabase
-      .from('profiles')
-      .update({ avatar_url: publicUrl, updated_at: new Date().toISOString() })
-      .eq('id', id)
-      .select();
+    
+    // Update both profiles and users tables to keep them in sync
+    // This ensures posts/statuses will get the correct avatar regardless of which table is checked first
+    const [profileUpdate, usersUpdate] = await Promise.all([
+      supabase
+        .from('profiles')
+        .update({ avatar_url: publicUrl, updated_at: new Date().toISOString() })
+        .eq('id', id)
+        .select()
+        .single(),
+      supabase
+        .from('users')
+        .update({ avatar_url: publicUrl })
+        .eq('id', id)
+        .select()
+        .maybeSingle() // Use maybeSingle in case users table doesn't exist or row doesn't exist
+    ]);
 
-    if (error) {
-      console.error('Supabase error updating avatar:', error);
-      throw error;
+    if (profileUpdate.error) {
+      console.error('Supabase error updating profile avatar:', profileUpdate.error);
+      throw profileUpdate.error;
     }
 
-    if (!data || data.length === 0) {
-      console.error('No data returned from avatar update');
+    if (usersUpdate.error) {
+      // Log but don't fail - users table might not exist or might not have avatar_url column
+      console.warn('Could not update users table avatar (this is OK if table/column doesn\'t exist):', usersUpdate.error);
+    }
+
+    if (!profileUpdate.data) {
+      console.error('No data returned from profile avatar update');
       throw new Error('No profile found to update');
     }
 
-    console.log('Avatar updated successfully:', data[0].avatar_url);
-    res.json({ avatar: data[0].avatar_url });
+    console.log('Avatar updated successfully in profiles:', profileUpdate.data.avatar_url);
+    if (usersUpdate.data) {
+      console.log('Avatar also updated in users table:', usersUpdate.data.avatar_url);
+    }
+    
+    res.json({ avatar: profileUpdate.data.avatar_url });
   } catch (error) {
     console.error('Error uploading avatar:', {
       message: error instanceof Error ? error.message : 'Unknown error',
@@ -560,34 +595,16 @@ router.get('/posts/feed', async (req, res) => {
     const usersMap = new Map<string, { id: string; avatar_url?: string | null }>();
     for (const u of usersTbl) usersMap.set(u.id, u);
 
-    // Helper function to normalize image URLs
-    const normalizeImageUrl = (url: string): string => {
-      if (!url) return '';
-      
-      // If it's already a localhost URL, keep it
-      if (url.startsWith('http://localhost:3005/')) return url;
-      
-      // If it's a Supabase URL, extract filename and use local server
-      if (url.includes('supabase.co/storage')) {
-        const filename = url.split('/').pop();
-        return filename ? `http://localhost:3005/uploads/${filename}` : '';
-      }
-      
-      // If it's an external URL, try to extract filename and use local server
-      if (url.includes('http')) {
-        const filename = url.split('/').pop();
-        return filename ? `http://localhost:3005/uploads/${filename}` : '';
-      }
-
-      // If it's just a filename, add the uploads prefix
-      return `/uploads/${url}`;
-    };
+    // Use the shared normalizeImageUrl function
+    // Note: This function returns relative paths for local files and keeps Supabase URLs as absolute
 
     // 4) Map posts with images and merged user object
     const mapped = safePosts.map(post => {
       const prof = profileMap.get(post.user_id as string);
       const urow = usersMap.get(post.user_id as string);
-      const rawAvatar = (urow?.avatar_url) ?? (prof?.avatar_url) ?? '';
+      // Check profiles first since that's where new avatars are saved
+      // Fallback to users table for backwards compatibility
+      const rawAvatar = (prof?.avatar_url) ?? (urow?.avatar_url) ?? '';
       const avatar = normalizeImageUrl(rawAvatar);
 
       const name = prof?.full_name ?? '';

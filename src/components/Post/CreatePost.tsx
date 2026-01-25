@@ -13,6 +13,7 @@ import { DEFAULT_IMAGES } from '../../constants/defaultImages';
 
 interface CreatePostProps {
   onPostCreated: (post: Post) => void;
+  autoExpand?: boolean;
 }
 
 const CUSTOM_EMOJIS = [
@@ -24,7 +25,7 @@ const CUSTOM_EMOJIS = [
   },
 ];
 
-const CreatePost: React.FC<CreatePostProps> = ({ onPostCreated }) => {
+const CreatePost: React.FC<CreatePostProps> = ({ onPostCreated, autoExpand = false }) => {
   const { t } = useTranslation();
   const [content, setContent] = useState('');
   const [loading] = useState(false);
@@ -33,10 +34,21 @@ const CreatePost: React.FC<CreatePostProps> = ({ onPostCreated }) => {
   const [imagePreviewUrls, setImagePreviewUrls] = useState<string[]>([]);
   const [imageLayout, setImageLayout] = useState('grid');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { user } = useUser();
   const [isLoading, setIsLoading] = useState(false);
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(autoExpand);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Auto-expand and focus when autoExpand is true
+  useEffect(() => {
+    if (autoExpand && textareaRef.current) {
+      setIsExpanded(true);
+      setTimeout(() => {
+        textareaRef.current?.focus();
+      }, 100);
+    }
+  }, [autoExpand]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -202,6 +214,7 @@ const CreatePost: React.FC<CreatePostProps> = ({ onPostCreated }) => {
           </div>
           <div className="flex-1">
             <textarea
+              ref={textareaRef}
               value={content}
               onChange={(e) => setContent(e.target.value)}
               onFocus={() => setIsExpanded(true)}

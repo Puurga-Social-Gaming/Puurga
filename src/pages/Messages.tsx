@@ -2,11 +2,13 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useMessages } from '../context/MessagesContext';
 import { formatDistanceToNow } from 'date-fns';
 import { Send, Search, Smile, MoreVertical, Phone, Video, MessageSquare, X, Plus, Loader2 } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 import { useUser } from '../context/UserContext';
 import toast from 'react-hot-toast';
 
 const Messages: React.FC = () => {
+  const { t } = useTranslation();
   const { user } = useUser();
   const {
     conversations,
@@ -70,7 +72,7 @@ const Messages: React.FC = () => {
       }
     } catch (error) {
       console.error('Failed to create conversation:', error);
-      toast.error('Failed to start conversation');
+      toast.error(t('messages.failedToStart'));
     }
   };
 
@@ -93,7 +95,7 @@ const Messages: React.FC = () => {
       setNewMessage('');
     } catch (error) {
       console.error('Failed to send message:', error);
-      toast.error('Failed to send message');
+      toast.error(t('messages.failedToSend'));
     }
   };
 
@@ -159,7 +161,7 @@ const Messages: React.FC = () => {
       <div className="flex-1 min-w-0">
         <div className="flex justify-between items-start mb-1">
           <span className="font-semibold text-foreground text-sm truncate">
-            {conversation.participants[0]?.full_name || 'Unknown User'}
+            {conversation.participants[0]?.full_name || t('messages.unknownUser')}
           </span>
           {conversation.latest_message && (
             <span className="text-xs text-muted ml-2 flex-shrink-0">
@@ -183,39 +185,42 @@ const Messages: React.FC = () => {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.3 }}
-      className="h-screen bg-background text-foreground flex overflow-hidden"
+      className="h-screen bg-background text-foreground flex relative"
     >
       {/* Sidebar - Conversations List */}
       <div className={`${showMobileSidebar ? 'flex' : 'hidden'
-        } lg:flex flex-col w-full lg:w-80 bg-background border-r border-border`}>
-        {/* Sidebar Header */}
-        <div className="p-4 border-b border-border">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-bold text-foreground">Messages</h2>
-            <button
-              onClick={() => setShowUserList(true)}
-              className="p-2 bg-accent hover:bg-accent-hover rounded-full transition-colors"
-              title="New conversation"
-            >
-              <Plus size={20} />
-            </button>
-          </div>
+        } lg:flex flex-col w-full lg:w-80 bg-background border-r border-border z-10 h-full`}>
+        {/* Sticky Sidebar Header */}
+        <div className="sticky top-0 z-20 bg-background border-b border-border flex-shrink-0">
+          <div className="p-4">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-foreground">{t('messages.title')}</h2>
+              <button
+                onClick={() => setShowUserList(true)}
+                className="p-2 sm:p-2.5 bg-accent hover:bg-accent-hover rounded-full transition-colors touch-manipulation"
+                title={t('messages.newConversation')}
+                aria-label={t('messages.newConversation')}
+              >
+                <Plus size={20} className="sm:w-5 sm:h-5" />
+              </button>
+            </div>
 
-          {/* Search */}
-          <div className="relative">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
-            <input
-              type="text"
-              placeholder="Search conversations"
-              className="w-full bg-input text-foreground rounded-lg px-10 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
+            {/* Search */}
+            <div className="relative">
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+              <input
+                type="text"
+                placeholder={t('messages.searchConversations')}
+                className="w-full bg-input text-foreground rounded-lg px-10 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
           </div>
         </div>
 
-        {/* Conversations List */}
-        <div className="flex-1 overflow-y-auto">
+        {/* Scrollable Conversations List */}
+        <div className="flex-1 overflow-y-auto min-h-0">
           {loading && conversations.length === 0 ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="w-6 h-6 animate-spin text-accent" />
@@ -223,12 +228,12 @@ const Messages: React.FC = () => {
           ) : filteredConversations.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
               <MessageSquare className="w-12 h-12 text-muted mb-3" />
-              <p className="text-muted text-sm">No conversations yet</p>
+              <p className="text-muted text-sm">{t('messages.noConversationsYet')}</p>
               <button
                 onClick={() => setShowUserList(true)}
-                className="mt-4 text-accent hover:text-accent-hover text-sm font-medium"
+                className="mt-4 text-accent hover:text-accent-hover text-sm font-medium px-4 py-2 rounded-lg touch-manipulation"
               >
-                Start a conversation
+                {t('messages.startConversation')}
               </button>
             </div>
           ) : (
@@ -245,10 +250,17 @@ const Messages: React.FC = () => {
 
       {/* Main Chat Area */}
       <div className={`${showMobileSidebar ? 'hidden' : 'flex'
-        } lg:flex flex-1 flex-col bg-background`}>
-        {showUserList ? (
-          /* User List View */
-          <div className="flex flex-col h-full">
+        } lg:flex flex-1 flex-col bg-background relative`}>
+        <AnimatePresence>
+          {showUserList && (
+            /* User List View - Full Screen Overlay on Mobile */
+            <motion.div
+              initial={{ opacity: 0, x: '100%' }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className="flex flex-col h-full w-full fixed inset-0 lg:relative lg:inset-auto bg-background z-50 lg:z-auto"
+            >
             {/* User List Header */}
             <div className="h-16 px-4 flex items-center justify-between border-b border-border">
               <div className="flex items-center gap-3">
@@ -257,17 +269,19 @@ const Messages: React.FC = () => {
                     setShowUserList(false);
                     setShowMobileSidebar(true);
                   }}
-                  className="lg:hidden p-2 text-muted hover:text-foreground hover:bg-card-hover rounded-lg transition-colors"
+                  className="lg:hidden p-2.5 text-muted hover:text-foreground hover:bg-card-hover rounded-lg transition-colors touch-manipulation"
+                  aria-label={t('common.close')}
                 >
-                  <X size={20} />
+                  <X size={20} className="sm:w-5 sm:h-5" />
                 </button>
-                <h3 className="text-lg font-semibold text-foreground">Start New Conversation</h3>
+                <h3 className="text-lg font-semibold text-foreground">{t('messages.startNewConversation')}</h3>
               </div>
               <button
                 onClick={() => setShowUserList(false)}
-                className="p-2 text-muted hover:text-foreground hover:bg-card-hover rounded-lg transition-colors"
+                className="p-2.5 text-muted hover:text-foreground hover:bg-card-hover rounded-lg transition-colors touch-manipulation"
+                aria-label={t('common.close')}
               >
-                <X size={20} />
+                <X size={20} className="sm:w-5 sm:h-5" />
               </button>
             </div>
 
@@ -279,7 +293,7 @@ const Messages: React.FC = () => {
                 </div>
               ) : onlineUsers.length === 0 ? (
                 <div className="text-center py-12 text-gray-400">
-                  <p>No users available</p>
+                  <p>{t('messages.noUsersAvailable')}</p>
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -320,18 +334,21 @@ const Messages: React.FC = () => {
                 </div>
               )}
             </div>
-          </div>
-        ) : currentConversation ? (
+            </motion.div>
+          )}
+        </AnimatePresence>
+        {!showUserList && currentConversation ? (
           /* Chat View */
-          <div className="flex flex-col h-full">
-            {/* Chat Header - Sticky */}
-            <div className="sticky top-0 z-10 h-16 px-4 flex items-center justify-between border-b border-border bg-background">
+          <div className="flex flex-col h-full min-h-0">
+            {/* Sticky Chat Header */}
+            <div className="sticky top-0 z-20 h-16 px-4 flex items-center justify-between border-b border-border bg-background flex-shrink-0">
               <div className="flex items-center gap-3">
                 <button
                   onClick={() => setShowMobileSidebar(true)}
-                  className="lg:hidden p-2 text-muted hover:text-foreground hover:bg-card-hover rounded-lg transition-colors"
+                  className="lg:hidden p-2.5 text-muted hover:text-foreground hover:bg-card-hover rounded-lg transition-colors touch-manipulation"
+                  aria-label={t('messages.title')}
                 >
-                  <MessageSquare size={20} />
+                  <MessageSquare size={20} className="sm:w-5 sm:h-5" />
                 </button>
                 <div className="w-10 h-10 rounded-full bg-background-secondary flex items-center justify-center overflow-hidden flex-shrink-0">
                   {currentConversation.participants[0]?.avatar_url ? (
@@ -356,20 +373,29 @@ const Messages: React.FC = () => {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <button className="p-2 text-muted hover:text-foreground hover:bg-card-hover rounded-lg transition-colors">
-                  <Phone size={18} />
+                <button 
+                  className="p-2.5 text-muted hover:text-foreground hover:bg-card-hover rounded-lg transition-colors touch-manipulation"
+                  aria-label="Call"
+                >
+                  <Phone size={18} className="sm:w-5 sm:h-5" />
                 </button>
-                <button className="p-2 text-muted hover:text-foreground hover:bg-card-hover rounded-lg transition-colors">
-                  <Video size={18} />
+                <button 
+                  className="p-2.5 text-muted hover:text-foreground hover:bg-card-hover rounded-lg transition-colors touch-manipulation"
+                  aria-label="Video call"
+                >
+                  <Video size={18} className="sm:w-5 sm:h-5" />
                 </button>
-                <button className="p-2 text-muted hover:text-foreground hover:bg-card-hover rounded-lg transition-colors">
-                  <MoreVertical size={18} />
+                <button 
+                  className="p-2.5 text-muted hover:text-foreground hover:bg-card-hover rounded-lg transition-colors touch-manipulation"
+                  aria-label="More options"
+                >
+                  <MoreVertical size={18} className="sm:w-5 sm:h-5" />
                 </button>
               </div>
             </div>
 
-            {/* Messages List */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            {/* Scrollable Messages List */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-4 min-h-0">
               {loading && messages.length === 0 ? (
                 <div className="flex items-center justify-center py-12">
                   <Loader2 className="w-6 h-6 animate-spin text-accent" />
@@ -377,8 +403,8 @@ const Messages: React.FC = () => {
               ) : messages.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 text-center">
                   <MessageSquare className="w-12 h-12 text-muted mb-3" />
-                  <p className="text-muted text-sm">No messages yet</p>
-                  <p className="text-muted-light text-xs mt-1">Start the conversation!</p>
+                  <p className="text-muted text-sm">{t('messages.noMessages')}</p>
+                  <p className="text-muted-light text-xs mt-1">{t('messages.startConversationPrompt')}</p>
                 </div>
               ) : (
                 messages.map((message, index) => {
@@ -414,7 +440,7 @@ const Messages: React.FC = () => {
                         {showAvatar && (
                           <div className={`flex items-baseline gap-2 mb-1 ${isFromCurrentUser ? 'flex-row-reverse' : ''}`}>
                             <span className="font-medium text-foreground text-sm">
-                              {isFromCurrentUser ? 'You' : message.from_user.full_name}
+                              {isFromCurrentUser ? t('messages.you') : message.from_user.full_name}
                             </span>
                             <span className="text-xs text-muted-light">
                               {new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -447,34 +473,36 @@ const Messages: React.FC = () => {
                     <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
                   </div>
                   <span>
-                    {currentConversation.participants[0]?.full_name} is typing...
+                    {currentConversation.participants[0]?.full_name} {t('messages.isTyping')}
                   </span>
                 </div>
               </div>
             )}
 
-            {/* Message Input - Sticky */}
-            <div className="sticky bottom-0 z-10 p-4 border-t border-border bg-background">
+            {/* Sticky Message Input - Above Footer */}
+            <div className="sticky bottom-20 lg:bottom-0 z-[100] p-3 sm:p-4 border-t border-border bg-background flex-shrink-0">
               <form onSubmit={handleSendMessage} className="flex items-center gap-2">
                 <button
                   type="button"
-                  className="p-2 text-muted hover:text-foreground transition-colors flex-shrink-0"
+                  className="p-2.5 sm:p-2 text-muted hover:text-foreground transition-colors flex-shrink-0 touch-manipulation"
+                  aria-label="Add emoji"
                 >
-                  <Smile size={20} />
+                  <Smile size={20} className="sm:w-5 sm:h-5" />
                 </button>
                 <input
                   type="text"
                   value={newMessage}
                   onChange={handleTyping}
-                  placeholder={`Message ${currentConversation.participants[0]?.full_name || 'user'}...`}
-                  className="flex-1 bg-input text-foreground rounded-full px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+                  placeholder={t('messages.messageUserPlaceholder', { username: currentConversation.participants[0]?.full_name || t('messages.user') })}
+                  className="flex-1 bg-input text-foreground rounded-full px-4 py-2.5 sm:py-2 text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-accent"
                 />
                 {newMessage.trim() && (
                   <button
                     type="submit"
-                    className="bg-accent text-white p-2 rounded-full hover:bg-accent-hover transition-colors flex-shrink-0"
+                    className="bg-accent text-white p-2.5 sm:p-2 rounded-full hover:bg-accent-hover transition-colors flex-shrink-0 touch-manipulation"
+                    aria-label={t('messages.sendMessage')}
                   >
-                    <Send size={18} />
+                    <Send size={18} className="sm:w-5 sm:h-5" />
                   </button>
                 )}
               </form>
@@ -486,15 +514,15 @@ const Messages: React.FC = () => {
             <div className="w-20 h-20 bg-card rounded-full flex items-center justify-center mb-4 shadow-theme-md">
               <MessageSquare size={40} className="text-accent" />
             </div>
-            <h3 className="text-xl font-semibold text-foreground mb-2">Welcome to Messages</h3>
+            <h3 className="text-xl font-semibold text-foreground mb-2">{t('messages.welcomeTitle')}</h3>
             <p className="text-muted max-w-md mb-6">
-              Select a conversation from the sidebar or start a new one to begin messaging.
+              {t('messages.welcomePrompt')}
             </p>
             <button
               onClick={() => setShowUserList(true)}
-              className="bg-accent text-white px-6 py-3 rounded-lg hover:bg-accent-hover transition-colors font-medium"
+              className="bg-accent text-white px-6 py-3 rounded-lg hover:bg-accent-hover transition-colors font-medium touch-manipulation"
             >
-              Start New Conversation
+              {t('messages.startNewConversation')}
             </button>
           </div>
         )}

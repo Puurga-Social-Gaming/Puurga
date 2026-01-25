@@ -3,6 +3,7 @@ import multer from 'multer';
 import { supabaseAuth as auth, AuthRequest } from '../middleware/supabaseAuth';
 import { supabase } from '../config/supabase';
 import { getUploadPath, generateUniqueFilename } from '../config/storage';
+import { normalizeImageUrl } from '../utils/url';
 
 const router = express.Router();
 
@@ -54,21 +55,12 @@ router.get('/', auth, async (req: AuthRequest, res) => {
     const usersMap = new Map<string, { id: string; avatar_url?: string | null }>();
     for (const u of usersTbl) usersMap.set(u.id, u);
 
-    const normalizeImageUrl = (url: string | null | undefined): string => {
-      if (!url) return '';
-      if (url.startsWith('http://localhost:3005/')) {
-        return url.replace('http://localhost:3005', '');
-      }
-      if (url.includes('supabase.co/storage')) return url;
-      if (url.startsWith('/uploads/')) return url;
-      if (url.startsWith('http://') || url.startsWith('https://')) return url;
-      return `/uploads/${url}`;
-    };
-
+    // Use the same pattern as posts: check profiles table first (where new avatars are saved)
+    // Fallback to users table for backwards compatibility
     const mapped = list.map(s => {
       const prof = profileMap.get(s.user_id as string);
       const urow = usersMap.get(s.user_id as string);
-      const rawAvatar = (urow?.avatar_url) ?? (prof?.avatar_url) ?? '';
+      const rawAvatar = (prof?.avatar_url) ?? (urow?.avatar_url) ?? '';
       const avatar = normalizeImageUrl(rawAvatar);
 
       // Calculate expiry time (24 hours from creation)
@@ -135,17 +127,34 @@ router.post('/', auth, upload.single('media'), async (req: AuthRequest, res) => 
 
     console.log('Status created successfully:', data);
 
+    // Fetch user profile info to return complete user data (same pattern as GET endpoint)
+    const [profilesRes, usersRes] = await Promise.all([
+      supabase.from('profiles').select('id, full_name, username, avatar_url').eq('id', userId).single(),
+      supabase.from('users').select('id, avatar_url').eq('id', userId).maybeSingle()
+    ]);
+
+    const prof = profilesRes.data;
+    const urow = usersRes.data;
+    const rawAvatar = (urow?.avatar_url) ?? (prof?.avatar_url) ?? '';
+    const avatar = normalizeImageUrl(rawAvatar);
+
     // Calculate expiry time (24 hours from creation)
     const expiresAt = new Date(data.created_at);
     expiresAt.setHours(expiresAt.getHours() + 24);
 
     res.status(201).json({
       id: data.id,
-      mediaUrl: data.media_url ?? undefined,
+      mediaUrl: data.media_url ? normalizeImageUrl(data.media_url) : undefined,
       type: data.media_url ? 'media' as const : 'text' as const,
       createdAt: data.created_at,
       expiresAt: expiresAt.toISOString(),
-      User: { id: userId }
+      User: {
+        id: userId,
+        name: prof?.full_name ?? '',
+        username: prof?.username ?? '',
+        avatar,
+        isFriend: undefined
+      }
     });
   } catch (error) {
     console.error('Error creating status:', error);

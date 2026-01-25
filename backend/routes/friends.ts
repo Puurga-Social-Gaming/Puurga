@@ -1,6 +1,7 @@
 import express from 'express';
 import { supabase } from '../config/supabase';
 import { supabaseAuth as auth, AuthRequest } from '../middleware/supabaseAuth';
+import { normalizeImageUrl } from '../utils/url';
 
 const router = express.Router();
 
@@ -40,12 +41,17 @@ router.get('/suggestions', auth, async (req: AuthRequest, res) => {
 
     // Step 2: Fetch all profiles, excluding the user and their existing friends.
     const excludedIds = [user.id, ...Array.from(friendIds)];
-    const { data: suggestions, error } = await supabase
+    
+    // Build filter to exclude IDs - Supabase doesn't support .not('id', 'in', ...)
+    // So we fetch all and filter, or use a workaround with multiple .neq() calls
+    // For better performance with many excluded IDs, we'll fetch and filter in memory
+    let query = supabase
       .from('profiles')
       .select('id, full_name, username, avatar_url')
-      .not('id', 'in', `(${excludedIds.join(',')})`)
-      .limit(20);
-
+      .limit(50); // Fetch more to account for filtering
+    
+    const { data: allSuggestions, error } = await query;
+    
     if (error) {
       // If table is missing in Supabase (42P01) or column missing (42703), return empty list gracefully
       if ((error as any).code === '42P01' || (error as any).code === '42703') {
@@ -53,13 +59,16 @@ router.get('/suggestions', auth, async (req: AuthRequest, res) => {
       }
       throw error;
     }
+    
+    // Filter out excluded IDs
+    const suggestions = (allSuggestions || []).filter((s: any) => !excludedIds.includes(s.id)).slice(0, 20);
 
     // Step 3: Map the status to each suggestion.
     const results = (suggestions || []).map((s: any) => ({
       id: s.id,
       name: s.full_name || 'Unknown',
       username: s.username || 'user',
-      avatar: s.avatar_url,
+      avatar: normalizeImageUrl(s.avatar_url),
       // The status is 'pending' if the user sent the request.
       status: requestMap.get(s.id) === 'pending' ? 'pending' : 'none',
     }));
@@ -99,7 +108,7 @@ router.get('/requests', auth, async (req: AuthRequest, res) => {
       sender_id: req.sender_id,
       sender_name: req.profiles?.full_name || '',
       sender_username: req.profiles?.username || '',
-      sender_avatar: req.profiles?.avatar_url || '/default-avatar.png',
+      sender_avatar: normalizeImageUrl(req.profiles?.avatar_url) || '/default-avatar.png',
     }));
 
     res.json(result);
@@ -155,7 +164,7 @@ router.get('/accepted', auth, async (req: AuthRequest, res) => {
       id: u.id,
       name: u.full_name,
       username: u.username,
-      avatar: u.avatar_url,
+      avatar: normalizeImageUrl(u.avatar_url),
       online: undefined
     })));
   } catch (error) {

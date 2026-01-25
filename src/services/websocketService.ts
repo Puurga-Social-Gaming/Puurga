@@ -47,8 +47,21 @@ class WebSocketService {
     }
 
     try {
-      const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = `${wsProtocol}//${window.location.host}/ws?token=${encodeURIComponent(token)}`;
+      // In development, connect directly to backend (Vite proxy doesn't handle WebSocket upgrades well)
+      // In production, use the same host with appropriate protocol (nginx will proxy it)
+      const isDevelopment = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+      
+      let wsUrl: string;
+      if (isDevelopment) {
+        // Connect directly to backend server in development
+        wsUrl = `ws://localhost:3005/ws?token=${encodeURIComponent(token)}`;
+      } else {
+        // Production: use the same host with appropriate protocol
+        const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        wsUrl = `${wsProtocol}//${window.location.host}/ws?token=${encodeURIComponent(token)}`;
+      }
+      
+      console.log('Connecting to WebSocket:', wsUrl.replace(/token=[^&]+/, 'token=***'));
       this.ws = new WebSocket(wsUrl);
 
       this.ws.onopen = () => {

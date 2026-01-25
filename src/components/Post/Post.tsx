@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { MessageCircle, MoreHorizontal, Pencil, X } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'react-hot-toast';
+import { useTranslation } from 'react-i18next';
 import type { Post as PostType, ReactionCount } from '../../types';
 import api from '../../lib/axios';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -17,16 +18,26 @@ interface PostProps {
 }
 
 const Post: React.FC<PostProps> = ({ post, onUpdate }) => {
+  const { t } = useTranslation();
   const [isEditing, setIsEditing] = useState(false);
   const [editedContent, setEditedContent] = useState(post.content);
   const [isPurging, setIsPurging] = useState(false);
   const [localPurges, setLocalPurges] = useState(post.purges || 0);
+  const [showAllImages, setShowAllImages] = useState(false);
   const [isPurged, setIsPurged] = useState(post.purged || false);
   const [showMenu, setShowMenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const [showComments, setShowComments] = useState(false);
   const [commentCount, setCommentCount] = useState(post.comments || 0);
   const commentSectionRef = useRef<HTMLDivElement>(null);
+  const [isExpanded, setIsExpanded] = useState(false);
+  
+  // Text truncation for mobile (typical social media limit is ~150-200 chars)
+  const TEXT_LIMIT = 150;
+  const shouldTruncate = post.content.length > TEXT_LIMIT;
+  const displayText = isExpanded || !shouldTruncate 
+    ? post.content 
+    : post.content.substring(0, TEXT_LIMIT) + '...';
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -61,7 +72,7 @@ const Post: React.FC<PostProps> = ({ post, onUpdate }) => {
       });
       
       if (response.status === 200) {
-        toast.success('Post updated successfully');
+        toast.success(t('post.postUpdated'));
         setIsEditing(false);
         if (onUpdate) onUpdate({
           ...post,
@@ -70,7 +81,7 @@ const Post: React.FC<PostProps> = ({ post, onUpdate }) => {
       }
     } catch (error) {
       console.error('Error updating post:', error);
-      toast.error('Failed to update post');
+      toast.error(t('post.updateFailed'));
     }
   };
 
@@ -96,7 +107,7 @@ const Post: React.FC<PostProps> = ({ post, onUpdate }) => {
   };
 
   const handleDeletePost = async () => {
-    if (!window.confirm('Are you sure you want to delete this post?')) {
+    if (!window.confirm(t('post.deleteConfirm'))) {
       return;
     }
     
@@ -104,13 +115,13 @@ const Post: React.FC<PostProps> = ({ post, onUpdate }) => {
       const response = await api.delete(`/api/posts/${post.id}`);
       
       if (response.status === 200) {
-        toast.success('Post deleted successfully');
+        toast.success(t('post.postDeleted'));
         // Signal parent to remove this post from the list
         if (onUpdate) onUpdate({ ...post, deleted: true } as PostType);
       }
     } catch (error) {
       console.error('Error deleting post:', error);
-      toast.error('Failed to delete post');
+      toast.error(t('post.deleteFailed'));
     }
   };
 
@@ -186,7 +197,7 @@ const Post: React.FC<PostProps> = ({ post, onUpdate }) => {
               transition={{ type: "spring", stiffness: 300 }}
               src={post.user.avatar || '/default-avatar.png'}
               alt={post.user.name}
-              className="w-10 h-10 rounded-full object-cover ring-2 ring-orange-500/20 hover:ring-orange-500 transition-all duration-200"
+              className="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover ring-2 ring-orange-500/20 hover:ring-orange-500 transition-all duration-200"
             />
           </Link>
           <div className="flex-1 min-w-0">
@@ -194,11 +205,11 @@ const Post: React.FC<PostProps> = ({ post, onUpdate }) => {
               <div className="min-w-0">
                 <Link
                   to={`/profile/${post.user.username}`}
-                  className="font-medium text-white hover:underline"
+                  className="font-medium text-white hover:underline text-sm sm:text-base"
                 >
                   {post.user.name}
                 </Link>
-                <p className="text-xs text-gray-500">
+                <p className="text-[10px] sm:text-xs text-gray-500">
                   {formatDistanceToNow(new Date(post.createdAt), { addSuffix: true })}
                 </p>
               </div>
@@ -209,7 +220,7 @@ const Post: React.FC<PostProps> = ({ post, onUpdate }) => {
                   className="p-2 text-gray-400 hover:text-white hover:bg-white/5 rounded-full transition-colors"
                   type="button"
                 >
-                  <MoreHorizontal size={20} />
+                  <MoreHorizontal size={18} className="sm:w-5 sm:h-5" />
                 </button>
 
                 <AnimatePresence>
@@ -227,7 +238,7 @@ const Post: React.FC<PostProps> = ({ post, onUpdate }) => {
                         type="button"
                       >
                         <Pencil size={16} />
-                        Edit Post
+                        {t('post.editPost')}
                       </motion.button>
                       <motion.button
                         whileHover={{ backgroundColor: "rgba(255,255,255,0.1)" }}
@@ -236,7 +247,7 @@ const Post: React.FC<PostProps> = ({ post, onUpdate }) => {
                         type="button"
                       >
                         <X size={16} />
-                        Delete Post
+                        {t('post.deletePost')}
                       </motion.button>
                     </motion.div>
                   )}
@@ -266,7 +277,7 @@ const Post: React.FC<PostProps> = ({ post, onUpdate }) => {
                       className="px-3 py-1 text-sm text-gray-300 hover:text-white transition-colors"
                       type="button"
                     >
-                      Cancel
+                      {t('post.cancel')}
                     </motion.button>
                     <motion.button
                       whileHover={{ scale: 1.05 }}
@@ -275,55 +286,125 @@ const Post: React.FC<PostProps> = ({ post, onUpdate }) => {
                       className="px-3 py-1 text-sm bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition-colors"
                       type="button"
                     >
-                      Save
+                      {t('post.save')}
                     </motion.button>
                   </div>
                 </motion.div>
               ) : (
-                <motion.p
+                <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  className="mt-2 text-white whitespace-pre-wrap break-words"
+                  className="mt-2"
                 >
-                  {post.content}
-                </motion.p>
+                  <p className="text-white whitespace-pre-wrap break-words text-sm sm:text-base">
+                    {displayText}
+                  </p>
+                  {shouldTruncate && (
+                    <button
+                      onClick={() => setIsExpanded(!isExpanded)}
+                      className="mt-1 text-orange-500 hover:text-orange-400 text-xs sm:text-sm font-medium transition-colors"
+                    >
+                      {isExpanded ? t('post.readLess') : t('post.readMore')}
+                    </button>
+                  )}
+                </motion.div>
               )}
             </AnimatePresence>
 
-            {post.images && post.images.length > 0 && (
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className={`mt-3 grid gap-2 ${
-                  (() => {
-                    if (post.images.length === 1) return 'grid-cols-1';
-                    switch (post.media_layout) {
-                      case 'rows':
-                        return 'grid-cols-1';
-                      case 'columns':
-                        return 'grid-cols-2';
-                      case 'grid':
-                      default:
-                        return 'grid-cols-2 sm:grid-cols-3';
-                    }
-                  })()
-                }`}
-              >
-                {post.images.map((image, index) => (
-                  <motion.img
-                    key={index}
-                    whileHover={{ scale: 1.02 }}
-                    src={image}
-                    alt={`Post image ${index + 1}`}
-                    className={`rounded-xl object-cover w-full transition-transform duration-200 hover:shadow-lg ${
-                      post.images!.length === 1 ? 'max-h-80' : 'h-40'
-                    }`}
-                  />
-                ))}
-              </motion.div>
-            )}
+            {post.images && post.images.length > 0 && (() => {
+              const images = post.images; // Type guard - we know images exists and has length > 0
+              const shouldShowExpand = images.length > 2 && !showAllImages;
+              const imagesToShow = shouldShowExpand ? images.slice(0, 2) : images;
+              const remainingCount = images.length - 2;
+              
+              // Determine grid layout based on media_layout
+              const getGridClasses = () => {
+                if (images.length === 1) return 'grid-cols-1';
+                const layout = post.media_layout || 'grid';
+                switch (layout) {
+                  case 'rows':
+                    return 'grid-cols-1';
+                  case 'columns':
+                    return 'grid-cols-2';
+                  case 'grid':
+                  default:
+                    return 'grid-cols-2 sm:grid-cols-3';
+                }
+              };
+
+              const getImageClasses = (isSingle: boolean, layout?: string) => {
+                if (isSingle) {
+                  return 'max-h-[400px] sm:max-h-[500px] w-full object-contain';
+                }
+                const mediaLayout = layout || 'grid';
+                switch (mediaLayout) {
+                  case 'rows':
+                    return 'h-auto max-h-[400px] sm:max-h-[500px] object-contain';
+                  case 'columns':
+                    return 'h-32 sm:h-40 object-cover';
+                  case 'grid':
+                  default:
+                    return 'h-32 sm:h-40 object-cover';
+                }
+              };
+
+              return (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className={`mt-3 grid gap-2 ${getGridClasses()}`}
+                >
+                  {imagesToShow.map((image, index) => (
+                    <motion.div
+                      key={index}
+                      className="relative"
+                    >
+                      <motion.img
+                        whileHover={{ scale: 1.02 }}
+                        src={image}
+                        alt={`Post image ${index + 1}`}
+                        className={`rounded-xl w-full transition-transform duration-200 hover:shadow-lg ${getImageClasses(images.length === 1, post.media_layout)}`}
+                        style={{ maxWidth: '100%' }}
+                      />
+                      {/* View All Overlay - Show on last visible image when there are more */}
+                      {shouldShowExpand && index === 1 && (
+                        <button
+                          onClick={() => setShowAllImages(true)}
+                          className="absolute inset-0 bg-black/60 hover:bg-black/70 rounded-xl flex items-center justify-center transition-colors group"
+                        >
+                          <div className="text-white text-center">
+                            <div className="text-2xl font-bold">+{remainingCount}</div>
+                            <div className="text-sm">View all</div>
+                          </div>
+                        </button>
+                      )}
+                    </motion.div>
+                  ))}
+                  {showAllImages && images.length > 2 && (
+                    <>
+                      {images.slice(2).map((image, index) => (
+                        <motion.div
+                          key={index + 2}
+                          initial={{ opacity: 0, scale: 0.9 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          className="relative"
+                        >
+                          <motion.img
+                            whileHover={{ scale: 1.02 }}
+                            src={image}
+                            alt={`Post image ${index + 3}`}
+                            className={`rounded-xl w-full transition-transform duration-200 hover:shadow-lg ${getImageClasses(false, post.media_layout)}`}
+                            style={{ maxWidth: '100%' }}
+                          />
+                        </motion.div>
+                      ))}
+                    </>
+                  )}
+                </motion.div>
+              );
+            })()}
             
-            <div className="mt-4 flex items-center gap-6">
+            <div className="mt-4 flex items-center gap-4 sm:gap-6">
               <PostReactions
                 postId={post.id}
                 initialReactions={post.reactions || {}}
@@ -337,8 +418,8 @@ const Post: React.FC<PostProps> = ({ post, onUpdate }) => {
                 className="flex items-center gap-1 text-gray-400 hover:text-blue-500 transition-colors"
                 type="button"
               >
-                <MessageCircle size={20} className={showComments ? 'text-blue-500' : ''} />
-                <span className="text-sm">{commentCount}</span>
+                <MessageCircle size={18} className={`sm:w-5 sm:h-5 ${showComments ? 'text-blue-500' : ''}`} />
+                <span className="text-xs sm:text-sm">{commentCount}</span>
               </motion.button>
               
               <ShareButton
@@ -357,8 +438,8 @@ const Post: React.FC<PostProps> = ({ post, onUpdate }) => {
                 } ${isPurging ? 'opacity-50 cursor-not-allowed' : ''}`}
                 title="Purge post"
               >
-                <PuurgaLogo size={20} />
-                <span className="text-sm">{localPurges}</span>
+                <PuurgaLogo size={18} className="sm:w-5 sm:h-5" />
+                <span className="text-xs sm:text-sm">{localPurges}</span>
               </motion.button>
             </div>
 

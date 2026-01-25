@@ -52,7 +52,9 @@ router.get('/feed', async (req, res) => {
     const mapped = safePosts.map(post => {
       const prof = profileMap.get(post.user_id as string);
       const urow = usersMap.get(post.user_id as string);
-      const rawAvatar = (urow?.avatar_url) ?? (prof?.avatar_url) ?? '';
+      // Check profiles first since that's where new avatars are saved
+      // Fallback to users table for backwards compatibility
+      const rawAvatar = (prof?.avatar_url) ?? (urow?.avatar_url) ?? '';
       const avatar = normalizeImageUrl(rawAvatar);
 
       const name = prof?.full_name ?? '';

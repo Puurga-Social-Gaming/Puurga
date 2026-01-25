@@ -89,7 +89,7 @@ const ShareButton: React.FC<ShareButtonProps> = ({ postId, postContent, postAuth
         onClick={() => setShowShareMenu(!showShareMenu)}
         className="flex items-center gap-1 text-gray-400 hover:text-green-500 transition-colors"
       >
-        <Share2 size={20} />
+        <Share2 size={18} className="sm:w-5 sm:h-5" />
       </motion.button>
 
       <AnimatePresence>

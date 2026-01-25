@@ -2,11 +2,11 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useUser } from '../context/UserContext';
 import { Post, ReactionCount } from '../types';
-import CreatePost from '../components/Post/CreatePost';
 import PostList from '../components/Post/PostList';
 import StatusBar from '../components/StatusBar/StatusBar';
 import api from '../api/api';
 import { toast } from 'react-hot-toast';
+import FloatingCreateButton from '../components/Post/FloatingCreateButton';
 import '../styles/neo-home.css';
 
 // Safe helpers to coerce unknown values without using 'any'
@@ -208,9 +208,6 @@ export default function Home() {
       <div className="neo-sticky">
         <div className="max-w-4xl mx-auto w-full px-3 sm:px-0">
           <StatusBar />
-          <div className="mt-2">
-            <CreatePost onPostCreated={handlePostCreated} />
-          </div>
         </div>
       </div>
 
@@ -218,7 +215,7 @@ export default function Home() {
       <div className="neo-top-fade" />
 
       {/* Main feed content with proper top spacing accounting for safe area */}
-      <div className="pt-40 sm:pt-44" style={{ paddingTop: 'calc(10rem + env(safe-area-inset-top, 0))' }}>
+      <div className="pt-24 sm:pt-28" style={{ paddingTop: 'calc(6rem + env(safe-area-inset-top, 0))' }}>
         <div className="max-w-4xl mx-auto w-full px-3 sm:px-0 relative">
           <div className="neo-feed-mask">
             {loading ? (
@@ -257,6 +254,9 @@ export default function Home() {
           </div>
         </div>
       </div>
+
+      {/* Floating Create Post Button */}
+      <FloatingCreateButton onPostCreated={handlePostCreated} />
     </div>
   );
 }

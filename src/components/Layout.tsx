@@ -45,7 +45,7 @@ const Layout: React.FC = () => {
 
       {/* Mobile Bottom Navigation - Fixed to viewport, outside main flex container */}
       <div 
-        className="lg:hidden fixed bottom-0 left-0 right-0 bg-black border-t border-gray-800 z-[9999]"
+        className="lg:hidden fixed bottom-0 left-0 right-0 bg-background border-t border-border z-[9999]"
         style={{ 
           position: 'fixed',
           transform: 'none',
@@ -53,7 +53,7 @@ const Layout: React.FC = () => {
           backfaceVisibility: 'hidden'
         }}
       >
-        <div className="flex justify-around items-center py-2">
+        <div className="py-2.5">
           <MainNav />
         </div>
       </div>

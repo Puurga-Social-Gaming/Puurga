@@ -54,6 +54,36 @@ const Register: React.FC = () => {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
+  // Generate username from full name
+  const generateUsername = (fullName: string): string => {
+    if (!fullName.trim()) return '';
+    
+    // Convert to lowercase, remove extra spaces, and split into words
+    const words = fullName.trim().toLowerCase().split(/\s+/).filter(word => word.length > 0);
+    
+    if (words.length === 0) return '';
+    
+    // Remove special characters from each word, keeping only letters, numbers, and underscores
+    const cleanWords = words.map(word => word.replace(/[^a-z0-9_]/g, '')).filter(word => word.length > 0);
+    
+    if (cleanWords.length === 0) return '';
+    
+    // Join words with underscores or combine if single word
+    let generated = cleanWords.join('_');
+    
+    // If the generated username is too short, pad it
+    if (generated.length < 3) {
+      generated = generated + '_user';
+    }
+    
+    // Ensure it doesn't exceed reasonable length (max 30 characters for username)
+    if (generated.length > 30) {
+      generated = generated.substring(0, 30);
+    }
+    
+    return generated;
+  };
+
   // Password strength calculation
   const calculatePasswordStrength = (pass: string) => {
     let strength = 0;
@@ -141,12 +171,18 @@ const Register: React.FC = () => {
     switch (field) {
       case 'name':
         setName(value);
+        // Auto-generate username from name
+        const generatedUsername = generateUsername(value);
+        setUsername(generatedUsername);
+        // Validate the generated username
+        const usernameValidation = validateField('username', generatedUsername);
+        setValidations(prev => ({
+          ...prev,
+          username: usernameValidation
+        }));
         break;
       case 'email':
         setEmail(value);
-        break;
-      case 'username':
-        setUsername(value);
         break;
       case 'password':
         setPassword(value);
@@ -161,10 +197,16 @@ const Register: React.FC = () => {
     e.preventDefault();
     setError('');
 
+    // Ensure username is generated from name before validation
+    const finalUsername = username || generateUsername(name);
+    if (finalUsername !== username) {
+      setUsername(finalUsername);
+    }
+
     // Validate all fields
     const nameValidation = validateField('name', name);
     const emailValidation = validateField('email', email);
-    const usernameValidation = validateField('username', username);
+    const usernameValidation = validateField('username', finalUsername);
     const passwordValidation = validateField('password', password);
     const verifyPasswordValidation = validateField('verifyPassword', verifyPassword);
 
@@ -181,7 +223,7 @@ const Register: React.FC = () => {
     }
 
     try {
-      const user = await register(name.trim(), email.trim(), password, username.trim());
+      const user = await register(name.trim(), email.trim(), password, finalUsername.trim());
       if (user) {
         setShowWelcome(true);
         
@@ -273,35 +315,10 @@ const Register: React.FC = () => {
               {!validations.name.valid && (
                 <p className="mt-1 text-sm text-red-500">{validations.name.message}</p>
               )}
-            </div>
-
-            <div>
-              <label htmlFor="username" className="block text-sm font-medium text-gray-300">
-                Username
-              </label>
-              <div className="relative">
-                <input
-                  id="username"
-                  type="text"
-                  value={username}
-                  onChange={(e) => handleFieldChange('username', e.target.value)}
-                  className={`mt-1 block w-full rounded-lg bg-[#1a1a1a] border px-4 py-2 text-white focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 ${
-                    validations.username.valid ? 'border-[#2d2d2d]' : 'border-red-500'
-                  }`}
-                  placeholder="Choose a username"
-                />
-                {username && (
-                  <span className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                    {validations.username.valid ? (
-                      <Check className="text-green-500" size={20} />
-                    ) : (
-                      <X className="text-red-500" size={20} />
-                    )}
-                  </span>
-                )}
-              </div>
-              {!validations.username.valid && (
-                <p className="mt-1 text-sm text-red-500">{validations.username.message}</p>
+              {username && (
+                <p className="mt-1 text-xs text-gray-400">
+                  Username: <span className="text-orange-400 font-medium">{username}</span>
+                </p>
               )}
             </div>
             
@@ -348,7 +365,7 @@ const Register: React.FC = () => {
                   className={`mt-1 block w-full rounded-lg bg-[#1a1a1a] border px-4 py-2 text-white focus:ring-2 focus:ring-orange-500 focus:border-transparent pr-10 transition-all duration-200 ${
                     validations.password.valid ? 'border-[#2d2d2d]' : 'border-red-500'
                   }`}
-                  placeholder="Choose a password"
+                  placeholder="Choose a password (min. 8 characters)"
                 />
                 <button
                   type="button"
@@ -358,6 +375,9 @@ const Register: React.FC = () => {
                   {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                 </button>
               </div>
+              <p className="mt-1 text-xs text-gray-500">
+                All special characters are allowed (e.g., #, ;, @, $, !, %, *, ?, &, etc.)
+              </p>
               {password && (
                 <div className="mt-2">
                   <div className="h-1 w-full bg-gray-200 rounded-full overflow-hidden">

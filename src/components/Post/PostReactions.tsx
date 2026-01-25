@@ -102,14 +102,14 @@ const PostReactions: React.FC<PostReactionsProps> = ({
         >
           {userReaction ? (
             <>
-              <span className="text-lg">{getUserReactionEmoji()}</span>
-              <span className="text-sm">{getUserReactionCount()}</span>
+              <span className="text-base sm:text-lg">{getUserReactionEmoji()}</span>
+              <span className="text-xs sm:text-sm">{getUserReactionCount()}</span>
             </>
           ) : (
             <>
-              <SmilePlus size={20} />
+              <SmilePlus size={18} className="sm:w-5 sm:h-5" />
               {getTotalReactions() > 0 && (
-                <span className="text-sm">{getTotalReactions()}</span>
+                <span className="text-xs sm:text-sm">{getTotalReactions()}</span>
               )}
             </>
           )}
@@ -129,7 +129,7 @@ const PostReactions: React.FC<PostReactionsProps> = ({
               initial={{ opacity: 0, scale: 0.95, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              className="absolute bottom-full left-0 mb-2 p-2 bg-[#2d2d2d] rounded-lg shadow-lg z-50 flex gap-1"
+              className="absolute bottom-full left-0 mb-2 p-1.5 sm:p-2 bg-[#2d2d2d] rounded-lg shadow-lg z-50 flex gap-0.5 sm:gap-1"
             >
               {REACTIONS.map((reaction) => {
                 const reactionData = reactions[reaction.name];
@@ -142,14 +142,14 @@ const PostReactions: React.FC<PostReactionsProps> = ({
                     whileHover={{ scale: 1.2 }}
                     whileTap={{ scale: 0.9 }}
                     onClick={() => handleReaction(reaction.name)}
-                    className={`p-2 hover:bg-white/5 rounded-full transition-colors relative group ${
+                    className={`p-1.5 sm:p-2 hover:bg-white/5 rounded-full transition-colors relative group ${
                       isUserReaction ? 'bg-orange-500/20' : ''
                     }`}
                     disabled={isLoading}
                   >
-                    <span className="text-xl">{reaction.emoji}</span>
+                    <span className="text-lg sm:text-xl">{reaction.emoji}</span>
                     {count > 0 && (
-                      <span className="absolute -top-1 -right-1 bg-orange-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">
+                      <span className="absolute -top-1 -right-1 bg-orange-500 text-white text-[10px] sm:text-xs rounded-full w-3.5 h-3.5 sm:w-4 sm:h-4 flex items-center justify-center">
                         {count}
                       </span>
                     )}

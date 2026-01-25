@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
+import { useTranslation } from 'react-i18next';
 import api from '../../lib/axios';
 import { UserCheck, UserX, Heart, MessageCircle } from 'lucide-react';
 import Avatar from '../../components/Avatar';
@@ -26,20 +27,20 @@ interface Notification {
   };
 }
 
-// Safe accessor for fromUser with defaults
-const getFromUser = (notification: Notification): NotificationUser => {
-  return notification.fromUser || {
-    id: '',
-    name: 'Unknown User',
-    username: 'unknown',
-    avatar: DEFAULT_IMAGES.avatar,
-  };
-};
-
-
 const Notifications: React.FC = () => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [notifications, setNotifications] = useState<Notification[]>([]);
+
+  // Safe accessor for fromUser with defaults
+  const getFromUser = (notification: Notification): NotificationUser => {
+    return notification.fromUser || {
+      id: '',
+      name: t('notifications.unknownUser'),
+      username: 'unknown',
+      avatar: DEFAULT_IMAGES.avatar,
+    };
+  };
 
   useEffect(() => {
     fetchNotifications();
@@ -55,7 +56,7 @@ const Notifications: React.FC = () => {
       setNotifications(response.data);
     } catch (error) {
       console.error('Error fetching notifications:', error);
-      toast.error('Failed to fetch notifications');
+      toast.error(t('notifications.fetchFailed'));
     }
   };
 
@@ -65,10 +66,10 @@ const Notifications: React.FC = () => {
       deleteNotification(notificationId);
       await api.post(`/api/friend-requests/${friendRequestId}/accept`);
       await api.put(`/api/notifications/read`, { notificationIds: [notificationId] });
-      toast.success('Friend request accepted');
+      toast.success(t('notifications.acceptSuccess'));
     } catch (error) {
       console.error('Error accepting friend request:', error);
-      toast.error('Failed to accept friend request');
+      toast.error(t('notifications.acceptFailed'));
     }
   };
 
@@ -78,10 +79,10 @@ const Notifications: React.FC = () => {
       deleteNotification(notificationId);
       await api.post(`/api/friend-requests/${friendRequestId}/reject`);
       await api.put(`/api/notifications/read`, { notificationIds: [notificationId] });
-      toast.success('Friend request rejected');
+      toast.success(t('notifications.rejectSuccess'));
     } catch (error) {
       console.error('Error rejecting friend request:', error);
-      toast.error('Failed to reject friend request');
+      toast.error(t('notifications.rejectFailed'));
     }
   };
 
@@ -118,10 +119,10 @@ const Notifications: React.FC = () => {
     const hours = Math.floor(minutes / 60);
     const days = Math.floor(hours / 24);
 
-    if (days > 0) return `${days}d ago`;
-    if (hours > 0) return `${hours}h ago`;
-    if (minutes > 0) return `${minutes}m ago`;
-    return 'Just now';
+    if (days > 0) return `${days}${t('notifications.daysAgo')}`;
+    if (hours > 0) return `${hours}${t('notifications.hoursAgo')}`;
+    if (minutes > 0) return `${minutes}${t('notifications.minutesAgo')}`;
+    return t('notifications.justNow');
   };
 
   const renderNotification = (notification: Notification) => {
@@ -137,8 +138,8 @@ const Notifications: React.FC = () => {
                 <Avatar src={fromUser.avatar || DEFAULT_IMAGES.avatar} alt={fromUser.name} size="md" />
                 <div>
                   <p className="text-white">
-                    <span className="font-semibold">{fromUser.name || 'Someone'}</span>
-                    <span className="text-muted"> sent you a friend request</span>
+                    <span className="font-semibold">{fromUser.name || t('notifications.someone')}</span>
+                    <span className="text-muted"> {t('notifications.sentFriendRequest')}</span>
                   </p>
                   <p className="text-sm text-muted-light">{formatDate(notification.createdAt)}</p>
                 </div>
@@ -151,14 +152,14 @@ const Notifications: React.FC = () => {
                       className="flex items-center gap-1 px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white rounded-lg text-sm transition-colors"
                     >
                       <UserCheck size={14} />
-                      <span className="hidden sm:inline">Accept</span>
+                      <span className="hidden sm:inline">{t('notifications.accept')}</span>
                     </button>
                     <button
                       onClick={() => handleRejectFriendRequest(data.friendRequestId!, notification.id)}
                       className="flex items-center gap-1 px-3 py-1.5 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-lg text-sm transition-colors"
                     >
                       <UserX size={14} />
-                      <span className="hidden sm:inline">Decline</span>
+                      <span className="hidden sm:inline">{t('notifications.decline')}</span>
                     </button>
                   </>
                 )}
@@ -167,7 +168,7 @@ const Notifications: React.FC = () => {
                     onClick={() => handleViewProfile(fromUser.username)}
                     className="px-3 py-1 bg-[#333] hover:bg-[#444] text-white rounded-lg text-sm"
                   >
-                    View Profile
+                    {t('notifications.viewProfile')}
                   </button>
                 )}
               </div>
@@ -183,8 +184,8 @@ const Notifications: React.FC = () => {
                 <Avatar src={fromUser.avatar || DEFAULT_IMAGES.avatar} alt={fromUser.name} size="md" />
                 <div>
                   <p className="text-white">
-                    <span className="font-semibold">{fromUser.name || 'Someone'}</span>
-                    <span className="text-muted"> accepted your friend request</span>
+                    <span className="font-semibold">{fromUser.name || t('notifications.someone')}</span>
+                    <span className="text-muted"> {t('notifications.acceptedFriendRequest')}</span>
                   </p>
                   <p className="text-sm text-muted-light">{formatDate(notification.createdAt)}</p>
                 </div>
@@ -214,8 +215,8 @@ const Notifications: React.FC = () => {
                 </div>
                 <div className="min-w-0">
                   <p className="text-foreground">
-                    <span className="font-semibold">{fromUser.name || 'Someone'}</span>
-                    <span className="text-muted"> liked your post</span>
+                    <span className="font-semibold">{fromUser.name || t('notifications.someone')}</span>
+                    <span className="text-muted"> {t('notifications.likedPost')}</span>
                   </p>
                   <p className="text-sm text-muted-light">{formatDate(notification.createdAt)}</p>
                 </div>
@@ -245,8 +246,8 @@ const Notifications: React.FC = () => {
                 </div>
                 <div className="min-w-0">
                   <p className="text-foreground">
-                    <span className="font-semibold">{fromUser.name || 'Someone'}</span>
-                    <span className="text-muted"> commented on your post</span>
+                    <span className="font-semibold">{fromUser.name || t('notifications.someone')}</span>
+                    <span className="text-muted"> {t('notifications.commentedPost')}</span>
                   </p>
                   <p className="text-sm text-muted-light">{formatDate(notification.createdAt)}</p>
                 </div>
@@ -271,31 +272,36 @@ const Notifications: React.FC = () => {
 
 
   return (
-    <div className="min-h-screen bg-background p-4 sm:p-6">
-
-      <div className="max-w-4xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div>
-              <h1 className="text-xl sm:text-2xl font-bold text-foreground">Notifications</h1>
-              {notifications.filter(n => !n.read).length > 0 && (
-                <p className="text-sm text-muted">{notifications.filter(n => !n.read).length} unread</p>
-              )}
+    <div className="h-screen bg-background flex flex-col">
+      {/* Sticky Header */}
+      <div className="sticky top-0 z-10 bg-background border-b border-border">
+        <div className="max-w-4xl mx-auto p-4 sm:p-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div>
+                <h1 className="text-xl sm:text-2xl font-bold text-foreground">{t('notifications.notifications')}</h1>
+                {notifications.filter(n => !n.read).length > 0 && (
+                  <p className="text-sm text-muted">{notifications.filter(n => !n.read).length} {t('notifications.unread')}</p>
+                )}
+              </div>
             </div>
           </div>
         </div>
+      </div>
 
-        {/* Notifications List */}
-        <div className="space-y-3">
-          {notifications.length === 0 ? (
-            <div className="text-center text-muted py-16 bg-card rounded-xl shadow-theme-sm">
-              <p className="text-lg">No notifications yet</p>
-              <p className="text-sm text-muted-light mt-1">You'll see notifications here when someone interacts with you</p>
-            </div>
-          ) : (
-            notifications.map(notification => renderNotification(notification))
-          )}
+      {/* Scrollable Notifications List */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="max-w-4xl mx-auto p-4 sm:p-6">
+          <div className="space-y-3">
+            {notifications.length === 0 ? (
+              <div className="text-center text-muted py-16 bg-card rounded-xl shadow-theme-sm">
+                <p className="text-lg">{t('notifications.noNotificationsYet')}</p>
+                <p className="text-sm text-muted-light mt-1">{t('notifications.interactionPrompt')}</p>
+              </div>
+            ) : (
+              notifications.map(notification => renderNotification(notification))
+            )}
+          </div>
         </div>
       </div>
     </div>

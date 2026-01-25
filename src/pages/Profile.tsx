@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { MapPin, Link2, Calendar, Trophy, Flame, Loader2, AlertCircle, Camera, Briefcase, GraduationCap, Heart, Settings, Gamepad2, Shield } from 'lucide-react';
+import { MapPin, Link2, Calendar, Trophy, Flame, Loader2, AlertCircle, Camera, Briefcase, GraduationCap, Heart, Settings, Gamepad2, Shield, ChevronDown, ChevronUp } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 import { useUser } from '../context/UserContext';
 import api from '../lib/axios';
 import toast from 'react-hot-toast';
@@ -10,11 +11,13 @@ import GalleryTab from '../components/Profile/GalleryTab';
 type ProfileTab = 'posts' | 'puurgas' | 'achievements' | 'gaming' | 'settings';
 
 const Profile: React.FC = () => {
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<ProfileTab>('posts');
   const { user: profileData, updateUser, loading } = useUser();
   const profilePictureRef = useRef<HTMLInputElement>(null);
   const coverPhotoRef = useRef<HTMLInputElement>(null);
   const [isEditMode, setIsEditMode] = useState(false);
+  const [showMoreDetails, setShowMoreDetails] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     username: '',
@@ -80,12 +83,12 @@ const Profile: React.FC = () => {
     // Validate file type and size
     const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
     if (!validTypes.includes(file.type)) {
-      toast.error('Please select a valid image file (JPEG, PNG, or WebP)');
+      toast.error(t('profile.validImageError'));
       return;
     }
 
     if (file.size > 5 * 1024 * 1024) { // 5MB limit
-      toast.error('Image size must be less than 5MB');
+      toast.error(t('profile.imageSizeError'));
       return;
     }
 
@@ -94,7 +97,7 @@ const Profile: React.FC = () => {
     formData.append(fieldName, file);
 
     const endpoint = type === 'profile' ? '/api/users/profile/avatar' : '/api/users/profile/cover-photo';
-    const toastId = toast.loading(`Uploading ${type} photo...`);
+    const toastId = toast.loading(`${t('profile.uploading')} ${type} ${t('profile.photoUpdated')}`);
 
     try {
       const response = await api.put(endpoint, formData, {
@@ -120,15 +123,15 @@ const Profile: React.FC = () => {
       };
       localStorage.setItem('user', JSON.stringify(updatedUser));
 
-      toast.success(`${type.charAt(0).toUpperCase() + type.slice(1)} photo updated!`, { id: toastId });
+      toast.success(`${type.charAt(0).toUpperCase() + type.slice(1)} ${t('profile.photoUpdated')}`, { id: toastId });
     } catch (error) {
       console.error(`Failed to upload ${type} photo:`, error);
-      toast.error(`Failed to upload ${type} photo.`, { id: toastId });
+      toast.error(`${t('profile.uploadFailed')} ${type} photo.`, { id: toastId });
     }
   };
 
   const handleSave = async () => {
-    const toastId = toast.loading('Updating profile...');
+    const toastId = toast.loading(t('profile.updatingProfile'));
     try {
       console.log('Saving profile with data:', {
         name: formData.name,
@@ -188,10 +191,10 @@ const Profile: React.FC = () => {
       // Exit edit mode after successful save
       setIsEditMode(false);
 
-      toast.success('Profile updated successfully!', { id: toastId });
+      toast.success(t('profile.profileUpdated'), { id: toastId });
     } catch (error) {
       console.error('Failed to update profile:', error);
-      toast.error('Failed to update profile.', { id: toastId });
+      toast.error(t('profile.updateFailed'), { id: toastId });
     }
   };
 
@@ -217,166 +220,204 @@ const Profile: React.FC = () => {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4 }}
-      className="bg-background text-foreground min-h-screen"
+      className="bg-background text-foreground min-h-screen flex flex-col lg:block"
     >
-      {/* Cover Image - Full width at top */}
-      <div
-        className="w-full h-32 md:h-48 bg-cover bg-center relative"
-        style={{
-          backgroundImage: profileData.coverPhoto ? `url(${profileData.coverPhoto})` : undefined,
-          backgroundColor: 'rgb(var(--bg-secondary))'
-        }}
-      >
-        {isEditMode && (
-          <button
-            onClick={() => coverPhotoRef.current?.click()}
-            className="absolute bottom-4 right-4 bg-white/10 backdrop-blur-sm text-white px-4 py-2 rounded-lg hover:bg-white/20 transition-colors flex items-center gap-2 z-10"
-          >
-            <Camera size={20} />
-            Change Cover
-          </button>
-        )}
-        <input
-          type="file"
-          ref={coverPhotoRef}
-          onChange={(e) => handleImageUpload(e, 'cover')}
-          accept="image/*"
-          className="hidden"
-        />
+      {/* Sticky Header Section - Cover, Profile Picture, Info, and Tabs (mobile only) */}
+      <div className="sticky top-0 z-40 lg:static">
+        {/* Cover Image - Smaller on mobile */}
+        <div
+          className="w-full h-20 sm:h-32 md:h-48 bg-cover bg-center relative"
+          style={{
+            backgroundImage: profileData.coverPhoto ? `url(${profileData.coverPhoto})` : undefined,
+            backgroundColor: 'rgb(var(--bg-secondary))'
+          }}
+        >
+          {isEditMode && (
+            <button
+              onClick={() => coverPhotoRef.current?.click()}
+              className="absolute bottom-4 right-4 bg-white/10 backdrop-blur-sm text-white px-4 py-2 rounded-lg hover:bg-white/20 transition-colors flex items-center gap-2 z-10"
+            >
+              <Camera size={20} />
+              {t('profile.changeCover')}
+            </button>
+          )}
+          <input
+            type="file"
+            ref={coverPhotoRef}
+            onChange={(e) => handleImageUpload(e, 'cover')}
+            accept="image/*"
+            className="hidden"
+          />
+        </div>
+
+        {/* Profile Header - More compact on mobile */}
+        <div className="w-full p-2 sm:p-4 md:p-6 bg-background relative">
+          {/* Profile Picture - Smaller on mobile */}
+          <div className="absolute -top-8 sm:-top-12 left-2 sm:left-4 z-30">
+            <div className="relative">
+              <img
+                src={profileData.avatar || '/default-avatar.png'}
+                alt={profileData.name}
+                className="w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 rounded-full border-2 sm:border-4 border-background object-cover bg-background-secondary"
+              />
+              {isEditMode && (
+                <button
+                  onClick={() => profilePictureRef.current?.click()}
+                  className="absolute bottom-2 right-2 bg-white/10 backdrop-blur-sm p-2 rounded-full hover:bg-white/20 transition-colors z-40"
+                >
+                  <Camera size={20} className="text-white" />
+                </button>
+              )}
+              <input
+                type="file"
+                ref={profilePictureRef}
+                onChange={(e) => handleImageUpload(e, 'profile')}
+                accept="image/*"
+                className="hidden"
+              />
+            </div>
+          </div>
+
+          <div className="mt-10 sm:mt-14 flex flex-col md:flex-row md:items-center md:justify-between w-full">
+            <div className="flex-1 min-w-0">
+              <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-white truncate">{profileData.name}</h1>
+              <p className="text-gray-400 text-sm sm:text-base md:text-lg">@{profileData.username}</p>
+              {profileData.bio && (
+                <p className="text-gray-300 mt-1 sm:mt-2 max-w-xl text-xs sm:text-sm md:text-base line-clamp-2">{profileData.bio}</p>
+              )}
+              
+              {/* Basic Info - Always Visible, Compact on mobile */}
+              <div className="flex items-center gap-1.5 sm:gap-2 md:gap-4 mt-2 sm:mt-3 text-[10px] sm:text-xs md:text-sm text-gray-400 flex-wrap">
+                <span className="flex items-center gap-0.5 sm:gap-1">
+                  <Calendar size={12} className="sm:w-4 sm:h-4 text-accent" /> 
+                  <span className="hidden sm:inline">{t('profile.joined')}</span>
+                  <span className="text-[10px] sm:text-xs">{new Date(profileData.joinDate || Date.now()).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</span>
+                </span>
+              </div>
+
+              {/* Additional Details - Hidden by default, shown when "Learn more" is clicked */}
+              {showMoreDetails && (
+                <div className="flex items-center gap-2 sm:gap-4 mt-2 text-xs sm:text-sm text-gray-400 flex-wrap">
+                  {profileData.location && (
+                    <span className="flex items-center gap-1">
+                      <MapPin size={16} className="text-accent" /> {profileData.location}
+                    </span>
+                  )}
+                  {profileData.website && (
+                    <span className="flex items-center gap-1">
+                      <Link2 size={16} className="text-accent" />
+                      {(() => {
+                        try {
+                          const url = new URL(profileData.website.startsWith('http') ? profileData.website : `https://${profileData.website}`);
+                          return (
+                            <a href={url.href} target="_blank" rel="noopener noreferrer" className="hover:text-accent-hover transition-colors">
+                              {url.hostname}
+                            </a>
+                          );
+                        } catch {
+                          return <span>{profileData.website}</span>;
+                        }
+                      })()}
+                    </span>
+                  )}
+                  {profileData.occupation && (
+                    <span className="flex items-center gap-1">
+                      <Briefcase size={16} className="text-accent" /> {profileData.occupation}
+                    </span>
+                  )}
+                  {profileData.education && (
+                    <span className="flex items-center gap-1">
+                      <GraduationCap size={16} className="text-accent" /> {profileData.education}
+                    </span>
+                  )}
+                  {profileData.relationship && (
+                    <span className="flex items-center gap-1">
+                      <Heart size={16} className="text-accent" /> {profileData.relationship}
+                    </span>
+                  )}
+                </div>
+              )}
+
+              {/* Learn More / Show Less Toggle */}
+              {(profileData.location || profileData.website || profileData.occupation || profileData.education || profileData.relationship) && (
+                <button
+                  onClick={() => setShowMoreDetails(!showMoreDetails)}
+                  className="mt-2 flex items-center gap-1 text-orange-500 hover:text-orange-400 text-xs sm:text-sm font-medium transition-colors"
+                >
+                  {showMoreDetails ? (
+                    <>
+                      <ChevronUp size={14} />
+                      {t('profile.showLess')}
+                    </>
+                  ) : (
+                    <>
+                      <ChevronDown size={14} />
+                      {t('profile.learnMore')}
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
+            {/* Stats - More compact on mobile */}
+            <div className="flex gap-3 sm:gap-4 mt-3 sm:mt-4 md:mt-0 flex-shrink-0">
+              <div className="text-center">
+                <span className="block text-base sm:text-lg md:text-xl font-bold text-white">{profileData.stats?.posts || 0}</span>
+                <span className="text-gray-400 text-xs sm:text-sm">{t('profile.posts')}</span>
+              </div>
+              <div className="text-center">
+                <span className="block text-base sm:text-lg md:text-xl font-bold text-white">{profileData.stats?.followers || 0}</span>
+                <span className="text-gray-400 text-xs sm:text-sm">{t('profile.followers')}</span>
+              </div>
+              <div className="text-center">
+                <span className="block text-base sm:text-lg md:text-xl font-bold text-white">{profileData.stats?.following || 0}</span>
+                <span className="text-gray-400 text-xs sm:text-sm">{t('profile.following')}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Profile Tabs - Part of sticky header, more compact on mobile */}
+        <div className="bg-background w-full border-b border-gray-800">
+          <div className="flex justify-around px-1 sm:px-2 md:px-4 overflow-x-auto bg-background">
+            <TabButton 
+              label={t('profile.gallery')} 
+              icon={<Trophy size={18} />} 
+              isActive={activeTab === 'posts'} 
+              onClick={() => setActiveTab('posts')} 
+            />
+            <TabButton
+              label={t('profile.puurgas')}
+              icon={<Flame size={18} />}
+              isActive={activeTab === 'puurgas'}
+              onClick={() => setActiveTab('puurgas')}
+            />
+            <TabButton
+              label={t('profile.gaming')}
+              icon={<Gamepad2 size={18} />}
+              isActive={activeTab === 'gaming'}
+              onClick={() => setActiveTab('gaming')}
+            />
+            <TabButton
+              label={t('profile.settings')}
+              icon={<Settings size={18} />}
+              isActive={activeTab === 'settings'}
+              onClick={() => setActiveTab('settings')}
+            />
+          </div>
+        </div>
       </div>
 
-      {/* Profile Header */}
-      <div className="w-full p-4 sm:p-6 bg-background relative">
-        {/* Profile Picture - Positioned to overlap cover */}
-        <div className="absolute -top-12 left-4 z-30">
-          <div className="relative">
-            <img
-              src={profileData.avatar || '/default-avatar.png'}
-              alt={profileData.name}
-              className="w-24 h-24 rounded-full border-4 border-background object-cover bg-background-secondary"
-            />
-            {isEditMode && (
-              <button
-                onClick={() => profilePictureRef.current?.click()}
-                className="absolute bottom-2 right-2 bg-white/10 backdrop-blur-sm p-2 rounded-full hover:bg-white/20 transition-colors z-40"
-              >
-                <Camera size={20} className="text-white" />
-              </button>
-            )}
-            <input
-              type="file"
-              ref={profilePictureRef}
-              onChange={(e) => handleImageUpload(e, 'profile')}
-              accept="image/*"
-              className="hidden"
-            />
-          </div>
-        </div>
-
-        <div className="mt-14 flex flex-col md:flex-row md:items-center md:justify-between w-full">
-          <div>
-            <h1 className="text-3xl font-bold text-white">{profileData.name}</h1>
-            <p className="text-gray-400 text-lg">@{profileData.username}</p>
-            {profileData.bio && (
-              <p className="text-gray-300 mt-2 max-w-xl">{profileData.bio}</p>
-            )}
-            <div className="flex items-center gap-2 sm:gap-4 mt-3 text-xs sm:text-sm text-gray-400 flex-wrap">
-              {profileData.location && (
-                <span className="flex items-center gap-1">
-                  <MapPin size={16} className="text-accent" /> {profileData.location}
-                </span>
-              )}
-              {profileData.website && (
-                <span className="flex items-center gap-1">
-                  <Link2 size={16} className="text-accent" />
-                  {(() => {
-                    try {
-                      const url = new URL(profileData.website.startsWith('http') ? profileData.website : `https://${profileData.website}`);
-                      return (
-                        <a href={url.href} target="_blank" rel="noopener noreferrer" className="hover:text-accent-hover transition-colors">
-                          {url.hostname}
-                        </a>
-                      );
-                    } catch {
-                      return <span>{profileData.website}</span>;
-                    }
-                  })()}
-                </span>
-              )}
-              <span className="flex items-center gap-1">
-                <Calendar size={16} className="text-accent" /> Joined {new Date(profileData.joinDate || Date.now()).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
-              </span>
-              {profileData.occupation && (
-                <span className="flex items-center gap-1">
-                  <Briefcase size={16} className="text-accent" /> {profileData.occupation}
-                </span>
-              )}
-              {profileData.education && (
-                <span className="flex items-center gap-1">
-                  <GraduationCap size={16} className="text-accent" /> {profileData.education}
-                </span>
-              )}
-              {profileData.relationship && (
-                <span className="flex items-center gap-1">
-                  <Heart size={16} className="text-accent" /> {profileData.relationship}
-                </span>
-              )}
-            </div>
-          </div>
-          <div className="flex gap-4 mt-4 md:mt-0 flex-shrink-0">
-            <div className="text-center">
-              <span className="block text-xl font-bold text-white">{profileData.stats?.posts || 0}</span>
-              <span className="text-gray-400">Posts</span>
-            </div>
-            <div className="text-center">
-              <span className="block text-xl font-bold text-white">{profileData.stats?.followers || 0}</span>
-              <span className="text-gray-400">Followers</span>
-            </div>
-            <div className="text-center">
-              <span className="block text-xl font-bold text-white">{profileData.stats?.following || 0}</span>
-              <span className="text-gray-400">Following</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Profile Tabs */}
-      <div className="bg-background w-full">
-        <div className="flex justify-around border-b border-gray-800 px-2 sm:px-4 overflow-x-auto">
-          <TabButton 
-            label="Gallery" 
-            icon={<Trophy size={18} />} 
-            isActive={activeTab === 'posts'} 
-            onClick={() => setActiveTab('posts')} 
-          />
-          <TabButton
-            label="Puurgas"
-            icon={<Flame size={18} />}
-            isActive={activeTab === 'puurgas'}
-            onClick={() => setActiveTab('puurgas')}
-          />
-          <TabButton
-            label="Gaming"
-            icon={<Gamepad2 size={18} />}
-            isActive={activeTab === 'gaming'}
-            onClick={() => setActiveTab('gaming')}
-          />
-          <TabButton
-            label="Settings"
-            icon={<Settings size={18} />}
-            isActive={activeTab === 'settings'}
-            onClick={() => setActiveTab('settings')}
-          />
-        </div>
-        <div className="p-2 sm:p-4 min-h-[300px] w-full overflow-hidden">
+      {/* Scrollable Content Section - Only tabs content scrolls */}
+      <div className="flex-1 overflow-y-auto pb-20 lg:pb-4">
+        <div className="p-2 sm:p-4 min-h-[300px] w-full">
           {activeTab === 'posts' && <GalleryTab />}
           {activeTab === 'puurgas' && <PurgasTab />}
           {activeTab === 'gaming' && (
             <div className="space-y-4">
               <div className="text-center text-muted py-4">
                 <Gamepad2 className="w-12 h-12 mx-auto mb-4 text-accent" />
-                <h3 className="text-lg font-semibold text-foreground mb-2">Gaming Stats</h3>
-                <p className="text-muted">Your gaming achievements and progress will appear here.</p>
+                <h3 className="text-lg font-semibold text-foreground mb-2">{t('profile.gamingStats')}</h3>
+                <p className="text-muted">{t('profile.gamingAchievements')}</p>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <button
@@ -389,16 +430,16 @@ const Profile: React.FC = () => {
                     </div>
                     <div>
                       <h4 className="font-medium text-foreground group-hover:text-accent transition-colors">Sword of Judgment</h4>
-                      <p className="text-sm text-muted">Click to play</p>
+                      <p className="text-sm text-muted">{t('profile.clickToPlay')}</p>
                     </div>
                   </div>
-                  <p className="text-sm text-muted mb-1">High Score: 0</p>
-                  <p className="text-sm text-muted">Games Played: 0</p>
+                  <p className="text-sm text-muted mb-1">{t('profile.highScore')}: 0</p>
+                  <p className="text-sm text-muted">{t('profile.gamesPlayed')}: 0</p>
                 </button>
                 <div className="bg-card p-4 rounded-lg border border-border shadow-theme-sm">
-                  <h4 className="font-medium text-foreground mb-2">Total Credits</h4>
-                  <p className="text-sm text-muted mb-2">Earned: 0</p>
-                  <p className="text-sm text-muted">Rank: Novice</p>
+                  <h4 className="font-medium text-foreground mb-2">{t('profile.totalCredits')}</h4>
+                  <p className="text-sm text-muted mb-2">{t('profile.earned')}: 0</p>
+                  <p className="text-sm text-muted">{t('profile.rank')}: {t('profile.novice')}</p>
                 </div>
                 <button
                   onClick={() => window.location.href = '/new-game'}
@@ -410,11 +451,11 @@ const Profile: React.FC = () => {
                     </div>
                     <div>
                       <h4 className="font-medium text-foreground group-hover:text-accent transition-colors">Redemption</h4>
-                      <p className="text-sm text-muted">Restore your status</p>
+                      <p className="text-sm text-muted">{t('profile.restoreStatus')}</p>
                     </div>
                   </div>
-                  <p className="text-sm text-muted mb-1">Status: Active</p>
-                  <p className="text-sm text-muted">Play to earn mercy</p>
+                  <p className="text-sm text-muted mb-1">{t('profile.statusActive')}</p>
+                  <p className="text-sm text-muted">{t('profile.playToEarn')}</p>
                 </button>
               </div>
             </div>
@@ -422,7 +463,7 @@ const Profile: React.FC = () => {
           {activeTab === 'settings' && (
             <div className="space-y-6">
               <div className="flex justify-between items-center mb-4">
-                <h3 className="text-xl font-bold text-foreground">Profile Settings</h3>
+                <h3 className="text-xl font-bold text-foreground">{t('profile.profileSettings')}</h3>
                 <div className="flex gap-2">
                   {isEditMode ? (
                     <>
@@ -430,13 +471,13 @@ const Profile: React.FC = () => {
                         onClick={handleSave}
                         className="bg-accent text-white px-4 py-2 rounded-lg hover:bg-accent-hover transition-colors font-semibold"
                       >
-                        Save Profile
+                        {t('profile.saveProfile')}
                       </button>
                       <button
                         onClick={() => setIsEditMode(false)}
                         className="bg-muted text-white px-4 py-2 rounded-lg hover:bg-muted-light transition-colors font-semibold"
                       >
-                        Cancel
+                        {t('profile.cancel')}
                       </button>
                     </>
                   ) : (
@@ -444,7 +485,7 @@ const Profile: React.FC = () => {
                       onClick={() => setIsEditMode(true)}
                       className="bg-accent text-white px-4 py-2 rounded-lg hover:bg-accent-hover transition-colors font-semibold"
                     >
-                      Edit Profile
+                      {t('profile.editProfile')}
                     </button>
                   )}
                 </div>
@@ -467,7 +508,7 @@ const Profile: React.FC = () => {
                 ))}
 
                 <div>
-                  <label htmlFor="relationship" className="block text-sm font-medium text-muted">Relationship Status</label>
+                  <label htmlFor="relationship" className="block text-sm font-medium text-muted">{t('profile.relationshipStatus')}</label>
                   <select
                     id="relationship"
                     name="relationship"
@@ -476,16 +517,16 @@ const Profile: React.FC = () => {
                     disabled={!isEditMode}
                     className={`mt-1 block w-full bg-input border border-input-border rounded-md shadow-theme-sm py-2 px-3 text-foreground focus:outline-none focus:ring-accent focus:border-accent ${!isEditMode ? 'opacity-60 cursor-not-allowed' : ''}`}
                   >
-                    <option value="">Select...</option>
-                    <option value="single">Single</option>
-                    <option value="in a relationship">In a relationship</option>
-                    <option value="married">Married</option>
-                    <option value="complicated">It's complicated</option>
+                    <option value="">{t('profile.select')}</option>
+                    <option value="single">{t('profile.single')}</option>
+                    <option value="in a relationship">{t('profile.inRelationship')}</option>
+                    <option value="married">{t('profile.married')}</option>
+                    <option value="complicated">{t('profile.complicated')}</option>
                   </select>
                 </div>
               </div>
               <div className="mt-4">
-                <label htmlFor="bio" className="block text-sm font-medium text-muted">Bio</label>
+                <label htmlFor="bio" className="block text-sm font-medium text-muted">{t('profile.bio')}</label>
                 <textarea
                   id="bio"
                   name="bio"
@@ -497,13 +538,13 @@ const Profile: React.FC = () => {
                 ></textarea>
               </div>
 
-              <h3 className="text-xl font-bold text-foreground mt-6 mb-4">Privacy Settings</h3>
+              <h3 className="text-xl font-bold text-foreground mt-6 mb-4">{t('profile.privacySettings')}</h3>
               <div className="space-y-3">
                 {[
-                  { id: 'isPrivate', label: 'Make profile private' },
-                  { id: 'hideFromSuggestions', label: 'Hide from suggestions' },
-                  { id: 'showReadReceipts', label: 'Show read receipts' },
-                  { id: 'showOnlineStatus', label: 'Show online status' }
+                  { id: 'isPrivate', label: t('profile.makePrivate') },
+                  { id: 'hideFromSuggestions', label: t('profile.hideFromSuggestions') },
+                  { id: 'showReadReceipts', label: t('profile.showReadReceipts') },
+                  { id: 'showOnlineStatus', label: t('profile.showOnlineStatus') }
                 ].map((item) => (
                   <div key={item.id} className="flex items-center justify-between">
                     <label htmlFor={item.id} className="text-muted">{item.label}</label>
@@ -520,9 +561,9 @@ const Profile: React.FC = () => {
                 ))}
 
                 {[
-                  { id: 'messageRequests', label: 'Message requests from', options: ['everyone', 'followers', 'none'] },
-                  { id: 'commentPrivacy', label: 'Comment privacy', options: ['everyone', 'followers', 'none'] },
-                  { id: 'storyPrivacy', label: 'Story privacy', options: ['everyone', 'followers', 'close_friends'] }
+                  { id: 'messageRequests', label: t('profile.messageRequests'), options: ['everyone', 'followers', 'none'] },
+                  { id: 'commentPrivacy', label: t('profile.commentPrivacy'), options: ['everyone', 'followers', 'none'] },
+                  { id: 'storyPrivacy', label: t('profile.storyPrivacy'), options: ['everyone', 'followers', 'close_friends'] }
                 ].map((item) => (
                   <div key={item.id} className="flex items-center justify-between">
                     <label htmlFor={item.id} className="text-muted">{item.label}</label>
@@ -559,14 +600,15 @@ interface TabButtonProps {
 
 const TabButton: React.FC<TabButtonProps> = ({ label, icon, isActive, onClick }) => (
   <button
-    className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-4 md:px-6 py-3 text-xs sm:text-sm font-medium focus:outline-none transition-colors duration-200 whitespace-nowrap flex-shrink-0
+    className={`flex items-center justify-center gap-1 sm:gap-2 px-2 sm:px-4 md:px-6 py-2 sm:py-3 text-xs sm:text-sm font-medium focus:outline-none transition-colors duration-200 whitespace-nowrap flex-shrink-0
       ${isActive
         ? 'text-accent border-b-2 border-accent'
         : 'text-muted hover:text-foreground hover:border-muted border-b-2 border-transparent'
       }`}
     onClick={onClick}
+    title={label}
   >
-    {icon}
+    <span className="w-4 h-4 sm:w-5 sm:h-5">{icon}</span>
     <span className="hidden sm:inline">{label}</span>
   </button>
 );

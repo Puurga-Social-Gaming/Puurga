@@ -23,6 +23,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useNotifications } from '../../context/NotificationContext';
 import { supabase } from '../../lib/supabaseClient';
 import { toast } from 'react-hot-toast';
+import { updateUserLanguage } from '../../services/languageService';
 import PuurgaLogo from '../Icons/PuurgaLogo';
 
 interface NavigationItem {
@@ -39,24 +40,65 @@ const MainNav: React.FC = () => {
   const { unreadCount } = useNotifications();
   const navigate = useNavigate();
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
+  const [languageMenuOpen, setLanguageMenuOpen] = useState(false);
+  const [isChangingLanguage, setIsChangingLanguage] = useState(false);
   const moreMenuRef = useRef<HTMLDivElement>(null);
+  const languageMenuRef = useRef<HTMLDivElement>(null);
 
-  // Close more menu when clicking outside
+  const languages = [
+    { code: 'en', name: 'English', nativeName: 'English' },
+    { code: 'fr', name: 'French', nativeName: 'Français' },
+    { code: 'zu', name: 'Zulu', nativeName: 'isiZulu' },
+    { code: 'ss', name: 'Siswati', nativeName: 'SiSwati' },
+  ];
+
+  const handleLanguageChange = async (code: string) => {
+    if (isChangingLanguage) return;
+
+    try {
+      setIsChangingLanguage(true);
+      // First change the language in i18n (instant UI update)
+      await i18n.changeLanguage(code);
+      
+      // Then update on backend
+      try {
+        await updateUserLanguage(code);
+        toast.success(`Language changed to ${languages.find(l => l.code === code)?.name}`);
+      } catch (error) {
+        // Language changed in UI but failed on backend - still acceptable
+        console.warn('Language updated locally but failed to save on backend:', error);
+        toast.success(`Language changed to ${languages.find(l => l.code === code)?.name}`);
+      }
+    } catch (error) {
+      console.error('Failed to change language:', error);
+      toast.error('Failed to change language');
+    } finally {
+      setIsChangingLanguage(false);
+      setLanguageMenuOpen(false);
+      setMoreMenuOpen(false);
+    }
+  };
+
+  // Close more menu and language menu when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (moreMenuRef.current && !moreMenuRef.current.contains(event.target as Node)) {
         setMoreMenuOpen(false);
+        setLanguageMenuOpen(false);
+      }
+      if (languageMenuRef.current && !languageMenuRef.current.contains(event.target as Node)) {
+        setLanguageMenuOpen(false);
       }
     };
 
-    if (moreMenuOpen) {
+    if (moreMenuOpen || languageMenuOpen) {
       document.addEventListener('mousedown', handleClickOutside);
     }
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [moreMenuOpen]);
+  }, [moreMenuOpen, languageMenuOpen]);
 
   const navLinkClasses = (isActive: boolean) => `
     relative flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200
@@ -177,98 +219,193 @@ const MainNav: React.FC = () => {
 
       {/* Mobile Bottom Navigation */}
       <div className="lg:hidden flex justify-around items-center w-full">
-        {[
-          { to: '/home', icon: Home, label: t('navigation.home') },
-          { to: '/profile', icon: UserCircle, label: t('navigation.profile') },
-          { to: '/puurga-games', icon: Gamepad2, label: t('navigation.gaming') },
-          { to: '/groups', icon: Users, label: t('navigation.groups') },
-          { to: '/puurga-dashboard', icon: BarChart3, label: t('navigation.dashboard') },
-        ].map((item) => (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            className={({ isActive }) => `
-              flex flex-col items-center gap-1 px-2 py-2 text-muted transition-colors relative
-              ${isActive ? 'text-accent' : 'hover:text-foreground'}
-            `}
-          >
-            <item.icon size={18} />
-            <span className="text-[10px]">{item.label}</span>
-          </NavLink>
-        ))}
+        {/* Home */}
+        <NavLink
+          to="/home"
+          className={({ isActive }) => `
+            flex flex-col items-center gap-0.5 px-2 py-1.5 transition-colors relative
+            ${isActive ? 'text-accent' : 'text-muted hover:text-foreground'}
+          `}
+        >
+          <Home size={20} />
+        </NavLink>
+
+        {/* Profile */}
+        <NavLink
+          to="/profile"
+          className={({ isActive }) => `
+            flex flex-col items-center gap-0.5 px-2 py-1.5 text-muted transition-colors relative
+            ${isActive ? 'text-accent' : 'hover:text-foreground'}
+          `}
+        >
+          <UserCircle size={20} />
+        </NavLink>
+
+        {/* Notifications */}
+        <NavLink
+          to="/notifications"
+          className={({ isActive }) => `
+            flex flex-col items-center gap-0.5 px-2 py-1.5 text-muted transition-colors relative
+            ${isActive ? 'text-accent' : 'hover:text-foreground'}
+          `}
+        >
+          <Bell size={20} />
+          {unreadCount > 0 && (
+            <span className="absolute top-0 right-1 bg-blue-500 text-white text-[10px] rounded-full h-4 w-4 flex items-center justify-center font-medium">
+              {unreadCount > 9 ? '9+' : unreadCount}
+            </span>
+          )}
+        </NavLink>
+
+        {/* Messages */}
+        <NavLink
+          to="/messages"
+          className={({ isActive }) => `
+            flex flex-col items-center gap-0.5 px-2 py-1.5 text-muted transition-colors relative
+            ${isActive ? 'text-accent' : 'hover:text-foreground'}
+          `}
+        >
+          <MessageSquare size={20} />
+        </NavLink>
 
         {/* More Menu Button */}
         <div className="relative" ref={moreMenuRef}>
           <button
-            onClick={() => setMoreMenuOpen(!moreMenuOpen)}
-            className={`flex flex-col items-center gap-1 px-2 py-2 text-muted transition-colors relative ${moreMenuOpen ? 'text-accent' : 'hover:text-foreground'}`}
+            onClick={() => {
+              setMoreMenuOpen(!moreMenuOpen);
+              setLanguageMenuOpen(false);
+            }}
+            className={`flex flex-col items-center gap-0.5 px-2 py-1.5 text-muted transition-colors relative ${moreMenuOpen ? 'text-accent' : 'hover:text-foreground'}`}
           >
-            {moreMenuOpen ? <X size={18} /> : <MoreHorizontal size={18} />}
-            <span className="text-[10px]">{t('navigation.more')}</span>
-            {unreadCount > 0 && !moreMenuOpen && (
-              <span className="absolute top-0 right-0 bg-red-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center">
-                {unreadCount > 9 ? '9+' : unreadCount}
-              </span>
-            )}
+            {moreMenuOpen ? <X size={20} /> : <MoreHorizontal size={20} />}
           </button>
 
-          {/* More Menu Dropdown */}
+          {/* More Menu Dropdown - Compact */}
           {moreMenuOpen && (
-            <div className="absolute bottom-full right-0 mb-2 bg-card border border-border rounded-lg shadow-theme-lg min-w-[160px] overflow-hidden">
+            <div className="absolute bottom-full right-0 mb-2 bg-card border border-border rounded-lg shadow-lg min-w-[160px] overflow-hidden z-50">
+              {/* Groups */}
               <NavLink
-                to="/notifications"
+                to="/groups"
                 onClick={() => setMoreMenuOpen(false)}
                 className={({ isActive }) => `
-                  flex items-center gap-3 px-4 py-3 text-foreground-secondary transition-colors relative
-                  hover:bg-card-hover hover:text-foreground
-                  ${isActive ? 'text-accent bg-card-hover' : ''}
+                  flex items-center gap-2 px-3 py-2 text-xs text-foreground transition-colors w-full text-left hover:bg-card-hover
+                  ${isActive ? 'bg-card-hover' : ''}
                 `}
               >
-                <Bell size={18} />
-                <span>{t('navigation.notifications')}</span>
-                {unreadCount > 0 && (
-                  <span className="ml-auto bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
-                    {unreadCount > 9 ? '9+' : unreadCount}
-                  </span>
-                )}
+                <Users size={16} />
+                <span>{t('navigation.groups')}</span>
               </NavLink>
+
+              {/* Games */}
+              <NavLink
+                to="/puurga-games"
+                onClick={() => setMoreMenuOpen(false)}
+                className={({ isActive }) => `
+                  flex items-center gap-2 px-3 py-2 text-xs text-foreground transition-colors w-full text-left hover:bg-card-hover
+                  ${isActive ? 'bg-card-hover' : ''}
+                `}
+              >
+                <Gamepad2 size={16} />
+                <span>{t('navigation.games')}</span>
+              </NavLink>
+
+              {/* Dashboard */}
+              <NavLink
+                to="/puurga-dashboard"
+                onClick={() => setMoreMenuOpen(false)}
+                className={({ isActive }) => `
+                  flex items-center gap-2 px-3 py-2 text-xs text-foreground transition-colors w-full text-left hover:bg-card-hover
+                  ${isActive ? 'bg-card-hover' : ''}
+                `}
+              >
+                <BarChart3 size={16} />
+                <span>{t('navigation.dashboard')}</span>
+              </NavLink>
+
+              {/* Help */}
+              <NavLink
+                to="/help"
+                onClick={() => setMoreMenuOpen(false)}
+                className={({ isActive }) => `
+                  flex items-center gap-2 px-3 py-2 text-xs text-foreground transition-colors w-full text-left hover:bg-card-hover
+                  ${isActive ? 'bg-card-hover' : ''}
+                `}
+              >
+                <HelpCircle size={16} />
+                <span>{t('navigation.help')}</span>
+              </NavLink>
+
+              {/* Settings */}
               <NavLink
                 to="/settings"
                 onClick={() => setMoreMenuOpen(false)}
                 className={({ isActive }) => `
-                  flex items-center gap-3 px-4 py-3 text-foreground-secondary transition-colors
-                  hover:bg-card-hover hover:text-foreground
-                  ${isActive ? 'text-accent bg-card-hover' : ''}
+                  flex items-center gap-2 px-3 py-2 text-xs text-foreground transition-colors w-full text-left hover:bg-card-hover
+                  ${isActive ? 'bg-card-hover' : ''}
                 `}
               >
-                <Settings size={18} />
+                <Settings size={16} />
                 <span>{t('navigation.settings')}</span>
               </NavLink>
-              <div className="border-t border-border my-1" />
+
+              {/* Divider */}
+              <div className="border-t border-border" />
+
+              {/* Light/Dark Mode Toggle */}
               <button
                 onClick={toggleTheme}
-                className="flex items-center gap-3 px-4 py-3 text-foreground-secondary transition-colors w-full text-left hover:bg-card-hover hover:text-foreground"
+                className="flex items-center gap-2 px-3 py-2 text-xs text-foreground transition-colors w-full text-left hover:bg-card-hover"
               >
-                {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
-                <span>{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>
+                {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+                <span>{theme === 'dark' ? t('settings.lightMode') : t('settings.darkMode')}</span>
               </button>
-              <div className="relative">
+
+              {/* Notifications Link */}
+              <NavLink
+                to="/notifications"
+                onClick={() => setMoreMenuOpen(false)}
+                className={({ isActive }) => `
+                  flex items-center gap-2 px-3 py-2 text-xs text-foreground transition-colors relative
+                  hover:bg-card-hover
+                  ${isActive ? 'bg-card-hover' : ''}
+                `}
+              >
+                <Bell size={16} />
+                <span>{t('navigation.notifications')}</span>
+                {unreadCount > 0 && (
+                  <span className="ml-auto bg-blue-500 text-white text-[10px] rounded-full h-3.5 w-3.5 flex items-center justify-center">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
+              </NavLink>
+
+              {/* Language Selector */}
+              <div className="relative border-t border-border" ref={languageMenuRef}>
                 <button
-                  className="flex items-center gap-3 px-4 py-3 text-foreground-secondary transition-colors w-full text-left hover:bg-card-hover hover:text-foreground"
-                  onClick={() => {
-                    const langMenu = document.getElementById('language-menu');
-                    if (langMenu) langMenu.classList.toggle('hidden');
-                  }}
+                  onClick={() => setLanguageMenuOpen(!languageMenuOpen)}
+                  className="flex items-center gap-2 px-3 py-2 text-xs text-foreground transition-colors w-full text-left hover:bg-card-hover"
                 >
-                  <Globe size={18} />
+                  <Globe size={16} />
                   <span>{t('settings.language')}</span>
                 </button>
-                <div id="language-menu" className="hidden absolute bottom-0 right-full mr-2 bg-card border border-border rounded-lg shadow-theme-lg min-w-[120px] overflow-hidden">
-                  <button onClick={() => { i18n.changeLanguage('en'); }} className="block w-full text-left px-4 py-2 text-sm text-foreground hover:bg-card-hover">English</button>
-                  <button onClick={() => { i18n.changeLanguage('fr'); }} className="block w-full text-left px-4 py-2 text-sm text-foreground hover:bg-card-hover">Français</button>
-                  <button onClick={() => { i18n.changeLanguage('zu'); }} className="block w-full text-left px-4 py-2 text-sm text-foreground hover:bg-card-hover">Zulu</button>
-                  <button onClick={() => { i18n.changeLanguage('ss'); }} className="block w-full text-left px-4 py-2 text-sm text-foreground hover:bg-card-hover">Swati</button>
-                </div>
+                
+                {/* Language Options Dropdown */}
+                {languageMenuOpen && (
+                  <div className="bg-background-secondary border-t border-border">
+                    {languages.map((lang) => (
+                      <button
+                        key={lang.code}
+                        onClick={() => handleLanguageChange(lang.code)}
+                        disabled={isChangingLanguage}
+                        className={`block w-full text-left px-3 py-1.5 text-xs text-foreground hover:bg-card-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                          i18n.language === lang.code ? 'bg-card-hover font-medium' : ''
+                        }`}
+                      >
+                        {lang.nativeName}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           )}

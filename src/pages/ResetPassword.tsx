@@ -9,9 +9,7 @@ import { supabase } from '../lib/supabaseClient';
 
 const passwordSchema = z.object({
   password: z.string()
-    .min(8, 'Password must be at least 8 characters')
-    .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/, 
-      'Password must contain uppercase, lowercase, number and special character'),
+    .min(8, 'Password must be at least 8 characters'),
   confirmPassword: z.string(),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords don't match",
@@ -233,7 +231,7 @@ const ResetPassword: React.FC = () => {
                 </button>
               </div>
               <p className="text-xs text-muted mt-2">
-                Must contain: 8+ characters, uppercase, lowercase, number, and special character (@$!%*?&)
+                Minimum 8 characters. All special characters are allowed (e.g., #, ;, @, $, !, %, *, ?, &, etc.)
               </p>
             </div>
 

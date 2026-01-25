@@ -21,11 +21,10 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ message: 'Invalid email format' });
     }
 
-    // Validate password strength
-    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
-    if (!passwordRegex.test(password)) {
+    // Validate password - only check minimum length, allow all special characters
+    if (password.length < 8) {
       return res.status(400).json({ 
-        message: 'Password must contain at least 8 characters, one uppercase, one lowercase, one number and one special character' 
+        message: 'Password must be at least 8 characters long' 
       });
     }
 
@@ -299,11 +298,10 @@ router.post('/update-password', async (req, res) => {
       return res.status(400).json({ message: 'New password is required' });
     }
 
-    // Validate password strength
-    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
-    if (!passwordRegex.test(password)) {
+    // Validate password - only check minimum length, allow all special characters
+    if (password.length < 8) {
       return res.status(400).json({ 
-        message: 'Password must contain at least 8 characters, one uppercase, one lowercase, one number and one special character' 
+        message: 'Password must be at least 8 characters long' 
       });
     }
 
@@ -499,11 +497,10 @@ router.post('/reset-password', async (req, res) => {
       return res.status(400).json({ message: 'Password is required' });
     }
 
-    // Validate password strength
-    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
-    if (!passwordRegex.test(password)) {
+    // Validate password - only check minimum length, allow all special characters
+    if (password.length < 8) {
       return res.status(400).json({ 
-        message: 'Password must contain at least 8 characters, one uppercase, one lowercase, one number and one special character' 
+        message: 'Password must be at least 8 characters long' 
       });
     }
 
