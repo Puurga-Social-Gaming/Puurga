@@ -10,8 +10,6 @@ import FloatingCreateButton from '../components/Post/FloatingCreateButton';
 import '../styles/neo-home.css';
 import RedeemUserButton from '../components/GhostMode/RedeemUserButton';
 import { 
-  Gamepad2, 
-  Ghost, 
   Zap,
   Shield,
   Eye
