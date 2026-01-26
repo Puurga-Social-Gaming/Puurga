@@ -333,13 +333,14 @@ const Post: React.FC<PostProps> = ({ post, onUpdate }) => {
               };
 
               const getImageClasses = (isSingle: boolean, layout?: string) => {
+                // Uniform size for all images - max height to prevent tall images from taking too much space
                 if (isSingle) {
-                  return 'max-h-[400px] sm:max-h-[500px] w-full object-contain';
+                  return 'max-h-[300px] sm:max-h-[350px] w-full object-contain';
                 }
                 const mediaLayout = layout || 'grid';
                 switch (mediaLayout) {
                   case 'rows':
-                    return 'h-auto max-h-[400px] sm:max-h-[500px] object-contain';
+                    return 'max-h-[300px] sm:max-h-[350px] w-full object-contain';
                   case 'columns':
                     return 'h-32 sm:h-40 object-cover';
                   case 'grid':

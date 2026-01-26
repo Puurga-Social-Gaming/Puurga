@@ -105,6 +105,114 @@ router.get('/profile', auth, async (req: AuthRequest, res) => {
   }
 });
 
+// GET /api/users/gallery - Get all user images (profile, cover, and post images)
+router.get('/gallery', auth, async (req: AuthRequest, res) => {
+  try {
+    const { user } = req;
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const userId = user.id;
+    const galleryImages: Array<{
+      id: string;
+      imageUrl: string;
+      category: 'profile' | 'cover' | 'post';
+      alt: string;
+      createdAt?: string;
+    }> = [];
+
+    // 1. Get profile picture
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('avatar_url, cover_photo, created_at')
+      .eq('id', userId)
+      .single();
+
+    if (!profileError && profile) {
+      if (profile.avatar_url) {
+        galleryImages.push({
+          id: `profile-${userId}`,
+          imageUrl: normalizeImageUrl(profile.avatar_url),
+          category: 'profile',
+          alt: 'Profile picture',
+          createdAt: profile.created_at
+        });
+      }
+
+      if (profile.cover_photo) {
+        galleryImages.push({
+          id: `cover-${userId}`,
+          imageUrl: normalizeImageUrl(profile.cover_photo),
+          category: 'cover',
+          alt: 'Cover photo',
+          createdAt: profile.created_at
+        });
+      }
+    }
+
+    // 2. Get all post images
+    const { data: posts, error: postsError } = await supabase
+      .from('posts')
+      .select('id, media_url, created_at')
+      .eq('user_id', userId)
+      .not('media_url', 'is', null)
+      .order('created_at', { ascending: false });
+
+    if (!postsError && posts) {
+      posts.forEach((post) => {
+        if (post.media_url) {
+          let images: string[] = [];
+          try {
+            // Try to parse as JSON array first
+            const parsed = JSON.parse(post.media_url);
+            if (Array.isArray(parsed)) {
+              images = parsed.filter(Boolean);
+            } else {
+              // Fallback to comma-separated parsing
+              images = post.media_url
+                .split(',')
+                .map((s: string) => s.trim())
+                .filter(Boolean);
+            }
+          } catch {
+            // If JSON parsing fails, try comma-separated parsing
+            images = post.media_url
+              .split(',')
+              .map((s: string) => s.trim())
+              .filter(Boolean);
+          }
+
+          // Add each image from the post
+          images.forEach((imageUrl, index) => {
+            if (imageUrl) {
+              galleryImages.push({
+                id: `post-${post.id}-${index}`,
+                imageUrl: normalizeImageUrl(imageUrl),
+                category: 'post',
+                alt: `Post image ${index + 1}`,
+                createdAt: post.created_at
+              });
+            }
+          });
+        }
+      });
+    }
+
+    // Sort by creation date (newest first)
+    galleryImages.sort((a, b) => {
+      const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return dateB - dateA;
+    });
+
+    res.json(galleryImages);
+  } catch (error) {
+    console.error('Error fetching gallery images:', error);
+    res.status(500).json({ error: 'Failed to fetch gallery images' });
+  }
+});
+
 router.get('/points', auth, async (req: AuthRequest, res) => {
   try {
     const { id } = req.user;

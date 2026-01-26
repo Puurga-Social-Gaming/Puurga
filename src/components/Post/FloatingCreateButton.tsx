@@ -4,7 +4,6 @@ import { X } from 'lucide-react';
 import PuurgaLogo from '../Icons/PuurgaLogo';
 import CreatePost from './CreatePost';
 import type { Post } from '../../types';
-import { useTheme } from '../../context/ThemeContext';
 
 interface FloatingCreateButtonProps {
   onPostCreated: (post: Post) => void;
@@ -12,17 +11,11 @@ interface FloatingCreateButtonProps {
 
 const FloatingCreateButton: React.FC<FloatingCreateButtonProps> = ({ onPostCreated }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const { theme } = useTheme();
 
   const handlePostCreated = (post: Post) => {
     onPostCreated(post);
     setIsOpen(false);
   };
-
-  // Determine shadow based on theme
-  const shadowStyle = theme === 'dark' 
-    ? '0 8px 32px rgba(0, 0, 0, 0.5), 0 4px 16px rgba(0, 0, 0, 0.3)'
-    : '0 8px 32px rgba(0, 0, 0, 0.15), 0 4px 16px rgba(0, 0, 0, 0.1)';
 
   return (
     <>
@@ -33,14 +26,7 @@ const FloatingCreateButton: React.FC<FloatingCreateButtonProps> = ({ onPostCreat
         whileHover={{ scale: 1.1 }}
         whileTap={{ scale: 0.9 }}
         onClick={() => setIsOpen(true)}
-        className={`fixed bottom-24 right-4 lg:bottom-6 lg:right-6 z-50 w-14 h-14 rounded-full flex items-center justify-center transition-colors ${
-          theme === 'dark' 
-            ? 'bg-gray-800 hover:bg-gray-700' 
-            : 'bg-gray-200 hover:bg-gray-300'
-        }`}
-        style={{
-          boxShadow: shadowStyle
-        }}
+        className="fixed bottom-24 right-4 lg:bottom-6 lg:right-6 z-50 w-14 h-14 rounded-full flex items-center justify-center transition-all bg-black dark:bg-black hover:bg-gray-900 dark:hover:bg-gray-900 shadow-[0_12px_48px_rgba(156,163,175,0.4),0_8px_24px_rgba(156,163,175,0.3),0_4px_12px_rgba(156,163,175,0.2),0_2px_6px_rgba(156,163,175,0.15)] dark:shadow-[0_12px_48px_rgba(0,0,0,0.7),0_8px_24px_rgba(0,0,0,0.5),0_4px_12px_rgba(0,0,0,0.4),0_2px_6px_rgba(0,0,0,0.3)]"
         aria-label="Create post"
       >
         <PuurgaLogo size={28} className="text-orange-500" />

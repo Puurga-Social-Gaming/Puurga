@@ -162,7 +162,13 @@ const PurgaGames: React.FC = () => {
 
   if (currentView === 'purgaslicer') {
     return (
-      <div className="min-h-screen bg-background">
+      <motion.div
+        initial={{ opacity: 0, x: '100%' }}
+        animate={{ opacity: 1, x: 0 }}
+        exit={{ opacity: 0, x: '-100%' }}
+        transition={{ duration: 0.3, ease: 'easeInOut' }}
+        className="min-h-screen bg-background"
+      >
         {/* Back Button */}
         <motion.div
           initial={{ opacity: 0, x: -20 }}
@@ -184,12 +190,18 @@ const PurgaGames: React.FC = () => {
         <div className="w-full h-screen">
           <PurgaSlicer className="w-full h-full" />
         </div>
-      </div>
+      </motion.div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background relative overflow-hidden">
+    <motion.div
+      initial={{ opacity: 0, x: '100%' }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: '-100%' }}
+      transition={{ duration: 0.3, ease: 'easeInOut' }}
+      className="min-h-screen bg-background relative overflow-hidden"
+    >
       {/* Animated Background Orbs */}
       <motion.div
         variants={glowVariants}
@@ -465,7 +477,7 @@ const PurgaGames: React.FC = () => {
         {/* Bottom Spacing for Mobile Nav */}
         <div className="h-4 sm:h-8" />
       </motion.div>
-    </div>
+    </motion.div>
   );
 };
 
