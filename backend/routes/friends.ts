@@ -13,7 +13,31 @@ router.get('/suggestions', auth, async (req: AuthRequest, res) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    // Step 1: Get all active friendships and pending/incoming friend requests for the current user.
+    // Step 1: Try to use efficient RPC call first
+    try {
+      const { data: rpcData, error: rpcError } = await supabase
+        .rpc('get_friend_suggestions', { p_user_id: user.id, p_limit: 10 });
+
+      if (!rpcError && rpcData) {
+        // Cache this response for 5 minutes (client and CDN)
+        // This prevents re-fetching on every page navigation
+        res.set('Cache-Control', 'public, max-age=300'); // 5 minutes
+
+        const results = rpcData.map((s: any) => ({
+          id: s.id,
+          name: s.full_name || 'Unknown',
+          username: s.username || 'user',
+          avatar: normalizeImageUrl(s.avatar_url),
+          status: 'none', // RPC filters out pending/friends
+        }));
+        return res.json(results);
+      }
+    } catch (ignore) {
+      // Fallback to legacy method if RPC fails or doesn't exist
+    }
+
+    // --- LEGACY FALLBACK (Inefficient but reliable) ---
+    // Queries existing relations to exclude them
     const { data: friends, error: friendsError } = await supabase
       .from('friends')
       .select('user_id, friend_id')
@@ -25,13 +49,32 @@ router.get('/suggestions', auth, async (req: AuthRequest, res) => {
       .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`);
 
     if (friendsError || requestsError) {
-      console.error('Error fetching relations:', friendsError || requestsError);
-      return res.status(500).json({ error: 'Failed to fetch user relations' });
+      const err = friendsError || requestsError;
+      console.error('Error fetching relations:', err);
+      // Handle missing tables gracefully
+      if (err && ((err as any).code === '42P01' || (err as any).code === '42703')) {
+        // Tables don't exist, so user has no friends/requests. Proceed with empty lists.
+        const friendIds = new Set();
+        const requestMap = new Map();
+
+        // ... continue to suggestions logic ...
+        // Since we can't easily jump, let's just return empty suggestions for now
+        // or actually, if tables are missing, we should just return random profiles
+        // But for safety, let's return empty array if tables are completely missing
+        return res.json([]);
+      }
+      return res.status(500).json({
+        error: 'Failed to fetch user relations',
+        details: err?.message || 'Unknown error'
+      });
     }
 
-    const friendIds = new Set(friends.map(f => (f.user_id === user.id ? f.friend_id : f.user_id)));
+    const safeFriends = friends || [];
+    const safeRequests = requests || [];
+
+    const friendIds = new Set(safeFriends.map(f => (f.user_id === user.id ? f.friend_id : f.user_id)));
     const requestMap = new Map();
-    requests.forEach(r => {
+    safeRequests.forEach(r => {
       const otherUserId = r.sender_id === user.id ? r.receiver_id : r.sender_id;
       // Prioritize 'pending' status if multiple requests exist (e.g., one rejected, one pending)
       if (r.status === 'pending' || !requestMap.has(otherUserId)) {
@@ -41,7 +84,7 @@ router.get('/suggestions', auth, async (req: AuthRequest, res) => {
 
     // Step 2: Fetch all profiles, excluding the user and their existing friends.
     const excludedIds = [user.id, ...Array.from(friendIds)];
-    
+
     // Build filter to exclude IDs - Supabase doesn't support .not('id', 'in', ...)
     // So we fetch all and filter, or use a workaround with multiple .neq() calls
     // For better performance with many excluded IDs, we'll fetch and filter in memory
@@ -49,9 +92,9 @@ router.get('/suggestions', auth, async (req: AuthRequest, res) => {
       .from('profiles')
       .select('id, full_name, username, avatar_url')
       .limit(50); // Fetch more to account for filtering
-    
+
     const { data: allSuggestions, error } = await query;
-    
+
     if (error) {
       // If table is missing in Supabase (42P01) or column missing (42703), return empty list gracefully
       if ((error as any).code === '42P01' || (error as any).code === '42703') {
@@ -59,7 +102,7 @@ router.get('/suggestions', auth, async (req: AuthRequest, res) => {
       }
       throw error;
     }
-    
+
     // Filter out excluded IDs
     const suggestions = (allSuggestions || []).filter((s: any) => !excludedIds.includes(s.id)).slice(0, 20);
 
@@ -76,7 +119,10 @@ router.get('/suggestions', auth, async (req: AuthRequest, res) => {
     res.json(results);
   } catch (error) {
     console.error('Error fetching friend suggestions:', error);
-    res.status(500).json({ error: 'Failed to fetch friend suggestions' });
+    res.status(500).json({
+      error: 'Failed to fetch friend suggestions',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
   }
 });
 

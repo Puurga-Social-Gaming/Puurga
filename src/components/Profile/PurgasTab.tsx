@@ -3,6 +3,7 @@ import { Flame, User, Calendar, Loader2, AlertCircle, Heart, Shield, AlertTriang
 import { Link } from 'react-router-dom';
 import api from '../../lib/axios';
 import { useUser } from '../../context/UserContext';
+import { useCredits } from '../../hooks/useCredits';
 // import toast from 'react-hot-toast';
 
 interface PurgeActivity {
@@ -39,7 +40,6 @@ interface PurgeData {
 }
 
 interface CreditData {
-  credits: number;
   purgeStreak: number;
 }
 
@@ -49,14 +49,16 @@ const GHOST_THRESHOLD = 5; // Number of purges received before ghosting
 const PurgasTab: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>('given');
   const [purgeData, setPurgeData] = useState<PurgeData | null>(null);
-  const [creditData, setCreditData] = useState<CreditData>({ credits: 0, purgeStreak: 0 });
+  const [creditData, setCreditData] = useState<CreditData>({ purgeStreak: 0 });
   const [loading, setLoading] = useState(true);
   const { user } = useUser();
+  const { balance, refreshCredits } = useCredits();
 
   useEffect(() => {
     fetchPurgeActivity();
     fetchCredits();
-  }, []);
+    refreshCredits();
+  }, [refreshCredits]);
 
   const fetchPurgeActivity = async () => {
     try {
@@ -167,7 +169,7 @@ const PurgasTab: React.FC = () => {
             <Coins className="w-5 h-5 text-accent" />
             <h3 className="text-sm font-medium text-accent">Credits</h3>
           </div>
-          <p className="text-2xl font-bold text-accent">{creditData.credits}</p>
+          <p className="text-2xl font-bold text-accent">{balance}</p>
           <p className="text-xs text-accent/70 mt-1">Redeem ghosted users</p>
         </div>
         <div className="bg-card p-4 rounded-lg border border-border">

@@ -44,37 +44,35 @@ export const supabaseAuth = async (req: Request, res: Response, next: NextFuncti
       return res.status(401).json({ message: 'Invalid token' });
     }
 
-    // Try to fetch canonical profile from 'profiles'
-    const [{ data: prof, error: profErr }, { data: usersRow, error: usersErr }] = await Promise.all([
-      supabase.from('profiles').select('id, full_name, username').eq('id', user.id).maybeSingle(),
-      supabase.from('users').select('*').eq('id', user.id).maybeSingle()
-    ]);
+    // Fetch profile data from 'profiles' table only
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', user.id)
+      .maybeSingle();
 
-    if (profErr) {
-      // Non-fatal; continue with users table or auth user metadata
-      console.warn('supabaseAuth: profiles fetch error (non-fatal):', profErr.message);
-    }
-    if (usersErr) {
-      // Non-fatal as well
-      console.warn('supabaseAuth: users fetch error (non-fatal):', usersErr.message);
+    if (profileError) {
+      // Log but don't fail - we can use defaults
+      console.warn('supabaseAuth: profiles fetch error (non-fatal):', profileError.message);
     }
 
-    // Merge data with sensible defaults
-    const full_name = (prof?.full_name as string) || (usersRow?.full_name as string) || (user.user_metadata?.full_name as string) || (user.email ?? '');
-    const username = (prof?.username as string) || (usersRow?.username as string) || (user.user_metadata?.username as string) || (user.email?.split('@')[0] ?? 'user');
-    const email = (usersRow?.email as string) || (user.email ?? '');
+    // Merge data with sensible defaults from profile or auth user
+    const full_name = (profile?.full_name as string) || (user.user_metadata?.full_name as string) || (user.email ?? '');
+    const username = (profile?.username as string) || (user.user_metadata?.username as string) || (user.email?.split('@')[0] ?? 'user');
+    const email = user.email ?? '';
 
-    const role = (usersRow?.role as AuthUser['role']) || 'user';
-    const is_private = Boolean(usersRow?.is_private);
-    const hide_from_suggestions = Boolean(usersRow?.hide_from_suggestions);
-    const message_requests = (usersRow?.message_requests as AuthUser['message_requests']) || 'everyone';
-    const show_read_receipts = Boolean(usersRow?.show_read_receipts);
-    const show_online_status = Boolean(usersRow?.show_online_status);
-    const comment_privacy = (usersRow?.comment_privacy as AuthUser['comment_privacy']) || 'everyone';
-    const story_privacy = (usersRow?.story_privacy as AuthUser['story_privacy']) || 'everyone';
-    const is_blocked = Boolean(usersRow?.is_blocked);
+    // Get settings from profile table with defaults
+    const role = (profile?.role as AuthUser['role']) || 'user';
+    const is_private = Boolean(profile?.is_private ?? false);
+    const hide_from_suggestions = Boolean(profile?.hide_from_suggestions ?? false);
+    const message_requests = (profile?.message_requests as AuthUser['message_requests']) || 'everyone';
+    const show_read_receipts = Boolean(profile?.show_read_receipts ?? true);
+    const show_online_status = Boolean(profile?.show_online_status ?? true);
+    const comment_privacy = (profile?.comment_privacy as AuthUser['comment_privacy']) || 'everyone';
+    const story_privacy = (profile?.story_privacy as AuthUser['story_privacy']) || 'everyone';
+    const is_blocked = Boolean(profile?.is_blocked ?? false);
 
-    // Add user data to request (never 401 just because rows are missing; use defaults)
+    // Add user data to request (never 401 just because profile is missing; use defaults)
     (req as AuthRequest).user = {
       id: user.id,
       full_name,

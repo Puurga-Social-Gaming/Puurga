@@ -9,7 +9,7 @@ import { toast } from 'react-hot-toast';
 import FloatingCreateButton from '../components/Post/FloatingCreateButton';
 import '../styles/neo-home.css';
 import RedeemUserButton from '../components/GhostMode/RedeemUserButton';
-import { 
+import {
   Zap,
   Shield,
   Eye
@@ -181,7 +181,7 @@ export default function Home() {
   // Game tips that rotate every 30 seconds
   const gameTips = [
     "⚡ Quick reflexes win in Judgment",
-    "🛡️ Defense is key in Redemption", 
+    "🛡️ Defense is key in Redemption",
     "👁️ Watch for patterns in Watchmen",
     "🎯 Aim for the weak spots",
     "⚔️ Timing beats strength",
@@ -195,7 +195,7 @@ export default function Home() {
     const fetchUserPoints = async () => {
       if (!user) return;
       try {
-        const response = await api.get('/api/users/points');
+        const response = await api.get('/users/points');
         if (response.data.supported && response.data.points !== null) {
           setUserPoints(response.data.points);
         }
@@ -232,7 +232,7 @@ export default function Home() {
       if (!user) return;
       setGhostedFriendsLoading(true);
       try {
-        const response = await api.get('/api/redeem/ghosted-friends');
+        const response = await api.get('/redeem/ghosted-friends');
         setGhostedFriends(response.data || []);
       } catch (error) {
         console.error('Error fetching ghosted friends:', error);
@@ -255,6 +255,29 @@ export default function Home() {
     try {
       setLoading(true);
       const limit = 10;
+      const CACHE_KEY = 'home_feed_cache';
+
+      // Check cache for page 1
+      if (pageNum === 1) {
+        const cached = sessionStorage.getItem(CACHE_KEY);
+        if (cached) {
+          const { timestamp, data } = JSON.parse(cached);
+          // Cache valid for 2 minutes
+          if (Date.now() - timestamp < 120000 && Array.isArray(data) && data.length > 0) {
+            console.log(' Using cached feed');
+            const mappedPosts = data.map(mapBackendPost);
+            setPosts(mappedPosts);
+            setPage(1);
+            setHasMore(true); // Assume more if we have cached data
+            setLoading(false);
+
+            // Background refresh to keep fresh (optional, but saves bandwidth if we skip it)
+            // For strict bandwidth saving, we skip background refresh if cache is valid.
+            return;
+          }
+        }
+      }
+
       const response = await api.get(`/posts/feed?page=${pageNum}&limit=${limit}`);
       const data = Array.isArray(response.data) ? response.data : (response.data?.data ?? []);
 
@@ -267,6 +290,15 @@ export default function Home() {
       }
 
       setPosts(prev => pageNum === 1 ? mappedPosts : [...prev, ...mappedPosts]);
+
+      // Save page 1 to cache
+      if (pageNum === 1) {
+        sessionStorage.setItem(CACHE_KEY, JSON.stringify({
+          timestamp: Date.now(),
+          data: data // Save raw backend data to map later
+        }));
+      }
+
       setPage(pageNum);
       setError(null);
     } catch (err) {
@@ -290,6 +322,9 @@ export default function Home() {
   const handlePostCreated = async (newPost: unknown) => {
     const mapped = mapBackendPost(newPost);
     setPosts(prevPosts => [mapped, ...prevPosts]);
+
+    // Invalidate cache so next reload fetches fresh data
+    sessionStorage.removeItem('home_feed_cache');
 
     // Update the user's post count in the global context
     if (user && user.stats) {
@@ -392,7 +427,7 @@ export default function Home() {
                         <span className="text-yellow-600 dark:text-yellow-400 text-xs">PTS</span>
                       </div>
                     </div>
-                    
+
                     {games.map((game) => (
                       <div key={game.id} className="space-y-1">
                         <div
@@ -401,7 +436,7 @@ export default function Home() {
                         >
                           {/* Subtle Glow Effect */}
                           <div className="absolute inset-0 bg-gradient-to-r from-gray-500/20 dark:from-orange-500/30 to-purple-500/30 dark:to-purple-500/30 rounded-lg blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                          
+
                           {/* Game Card */}
                           <div className="relative bg-gradient-to-br from-background/80 to-background/60 dark:from-background/80 dark:to-background/60 backdrop-blur-sm border border-gray-200/20 dark:border-transparent rounded-lg p-2 group-hover:border-gray-300/30 dark:group-hover:border-transparent transition-all duration-300">
                             <div className={`p-1.5 rounded ${game.color === 'orange' ? 'bg-gradient-to-br from-orange-400/20 to-orange-500/15 dark:from-orange-500/30 dark:to-orange-600/20' : 'bg-gradient-to-br from-blue-400/20 to-blue-500/15 dark:from-blue-500/30 dark:to-blue-600/20'} mb-1`}>
@@ -416,11 +451,11 @@ export default function Home() {
                             </div>
                           </div>
                         </div>
-                        
+
                         {expandedGame === game.id && (
                           <div className="px-1 pb-2 space-y-2 animate-in slide-in-from-top-2 duration-300">
                             <p className="text-xs text-gray-600 dark:text-muted/80 text-center italic">{game.description}</p>
-                            <button 
+                            <button
                               onClick={() => handleGameSelect(game.id)}
                               className="w-full px-2 py-1 bg-gradient-to-r from-orange-500 to-orange-600 text-white text-xs rounded-full font-medium hover:from-orange-600 hover:to-orange-700 transition-all duration-300 shadow-lg hover:shadow-orange-500/25"
                             >
@@ -459,7 +494,7 @@ export default function Home() {
                         GHOSTED
                       </h3>
                     </div>
-                    
+
                     {ghostedFriendsLoading ? (
                       <div className="text-gray-600 dark:text-muted text-xs text-center py-2 animate-pulse">
                         Loading...
@@ -473,8 +508,8 @@ export default function Home() {
                         {ghostedFriends.map((friend) => (
                           <div key={friend.id} className="flex flex-col items-center p-1 hover:bg-gray-100/50 dark:hover:bg-white/5 rounded-lg transition-colors">
                             <div className="relative">
-                              <img 
-                                src={friend.avatar || '/default-avatar.png'} 
+                              <img
+                                src={friend.avatar || '/default-avatar.png'}
                                 alt={friend.name}
                                 className="w-4 h-4 rounded-full object-cover ring-1 ring-red-500/30"
                               />

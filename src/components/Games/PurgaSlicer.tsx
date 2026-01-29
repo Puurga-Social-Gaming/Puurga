@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useState } from 'react';
 import * as THREE from 'three';
-import api from '../../api/api';
+import { useCredits } from '../../hooks/useCredits';
+import toast from 'react-hot-toast';
 
 interface PurgaSlicerProps {
   className?: string;
@@ -29,17 +30,20 @@ const PurgaSlicer: React.FC<PurgaSlicerProps> = ({ className }) => {
   const ownedBackgroundsRef = useRef<Set<string>>(new Set());
   const livesRef = useRef(3);
   const comboRef = useRef(0);
-  const pointsBackendSupportedRef = useRef<boolean | null>(null);
-  const pointsSyncTimeoutRef = useRef<number | null>(null);
-  const lastSyncedPointsRef = useRef<number | null>(null);
-  
+  const corruptionHitsRef = useRef(0);
+  const missedTargetsRef = useRef(0);
+  const gameEndedRef = useRef(false);
+
+  // Central Credit System
+  const { balance, processFullGameSession, spendCredits } = useCredits();
+
   const [gameState, setGameState] = useState<'menu' | 'playing' | 'paused' | 'gameOver'>('menu');
   const [score, setScore] = useState(0);
   const [lives, setLives] = useState(3);
   const [combo, setCombo] = useState(0);
   const [timeLeft, setTimeLeft] = useState(30);
   const [showSettings, setShowSettings] = useState(false);
-  const [playerPoints, setPlayerPoints] = useState(0);
+  const [creditsEarned, setCreditsEarned] = useState(0);
   const [selectedBackground, setSelectedBackground] = useState('obsidian_ember');
   const [selectedBlade, setSelectedBlade] = useState('ember');
 
@@ -52,43 +56,12 @@ const PurgaSlicer: React.FC<PurgaSlicerProps> = ({ className }) => {
   }, [combo]);
 
   useEffect(() => {
-    const storedPoints = Number(localStorage.getItem('perga_points') || '0');
     const storedBg = localStorage.getItem('perga_bg') || 'obsidian_ember';
     const storedBlade = localStorage.getItem('perga_blade') || 'ember';
     const storedOwned = localStorage.getItem('perga_owned_backgrounds') || 'obsidian_ember';
     ownedBackgroundsRef.current = new Set(storedOwned.split(',').filter(Boolean));
-    const localPoints = Number.isFinite(storedPoints) ? storedPoints : 0;
-    setPlayerPoints(localPoints);
     setSelectedBackground(storedBg);
     setSelectedBlade(storedBlade);
-
-    const loadBackendPoints = async () => {
-      try {
-        const res = await api.get('/users/points');
-        const supported = Boolean(res.data?.supported);
-        pointsBackendSupportedRef.current = supported;
-        if (!supported) return;
-
-        const serverPoints = Number(res.data?.points);
-        if (!Number.isFinite(serverPoints)) return;
-
-        const next = Math.max(0, serverPoints);
-        lastSyncedPointsRef.current = next;
-        setPlayerPoints(next);
-        localStorage.setItem('perga_points', String(next));
-      } catch {
-        pointsBackendSupportedRef.current = false;
-      }
-    };
-
-    loadBackendPoints();
-
-    return () => {
-      if (pointsSyncTimeoutRef.current) {
-        window.clearTimeout(pointsSyncTimeoutRef.current);
-        pointsSyncTimeoutRef.current = null;
-      }
-    };
   }, []);
 
   useEffect(() => {
@@ -309,10 +282,10 @@ const PurgaSlicer: React.FC<PurgaSlicerProps> = ({ className }) => {
       if (hitObj.isCorruption) {
         setLives(prev => prev - 1);
         setCombo(0);
+        corruptionHitsRef.current += 1;
       } else {
         setScore(prev => prev + (15 * (comboRef.current + 1)));
         setCombo(prev => prev + 1);
-        setPlayerPoints(prev => prev + 2);
       }
     };
 
@@ -447,6 +420,11 @@ const PurgaSlicer: React.FC<PurgaSlicerProps> = ({ className }) => {
     setCombo(0);
     setTimeLeft(60);
     setShowSettings(false);
+    setCreditsEarned(0);
+    // Reset tracking refs
+    corruptionHitsRef.current = 0;
+    missedTargetsRef.current = 0;
+    gameEndedRef.current = false;
     // Clear any existing game objects
     if (sceneRef.current) {
       gameObjectsRef.current.forEach(obj => {
@@ -467,6 +445,11 @@ const PurgaSlicer: React.FC<PurgaSlicerProps> = ({ className }) => {
     setCombo(0);
     setTimeLeft(30);
     setShowSettings(false);
+    setCreditsEarned(0);
+    // Reset tracking refs
+    corruptionHitsRef.current = 0;
+    missedTargetsRef.current = 0;
+    gameEndedRef.current = false;
     // Clear any existing game objects
     if (sceneRef.current) {
       gameObjectsRef.current.forEach(obj => {
@@ -476,35 +459,28 @@ const PurgaSlicer: React.FC<PurgaSlicerProps> = ({ className }) => {
     }
   };
 
+  // Process credits when game ends
   useEffect(() => {
-    localStorage.setItem('perga_points', String(playerPoints));
+    if (gameState === 'gameOver' && !gameEndedRef.current) {
+      gameEndedRef.current = true;
 
-    if (pointsBackendSupportedRef.current !== true) return;
-    if (!Number.isFinite(playerPoints)) return;
-    if (lastSyncedPointsRef.current === playerPoints) return;
+      // Calculate credits earned with penalties applied
+      const processCredits = async () => {
+        const result = await processFullGameSession({
+          gameId: 'SWORD_OF_JUDGMENT',
+          score: score,
+          isPerfect: corruptionHitsRef.current === 0 && missedTargetsRef.current === 0,
+          isWin: lives > 0, // Survived with lives remaining
+          corruptionHits: corruptionHitsRef.current,
+          missedTargets: missedTargetsRef.current
+        });
 
-    if (pointsSyncTimeoutRef.current) {
-      window.clearTimeout(pointsSyncTimeoutRef.current);
+        setCreditsEarned(result.net);
+      };
+
+      processCredits();
     }
-
-    pointsSyncTimeoutRef.current = window.setTimeout(async () => {
-      try {
-        const res = await api.put('/users/points', { points: playerPoints });
-        const supported = Boolean(res.data?.supported);
-        pointsBackendSupportedRef.current = supported;
-        if (supported) {
-          const serverPoints = Number(res.data?.points);
-          if (Number.isFinite(serverPoints)) {
-            lastSyncedPointsRef.current = Math.max(0, serverPoints);
-          } else {
-            lastSyncedPointsRef.current = playerPoints;
-          }
-        }
-      } catch {
-        // keep local fallback
-      }
-    }, 650);
-  }, [playerPoints]);
+  }, [gameState, score, lives, processFullGameSession]);
 
   useEffect(() => {
     localStorage.setItem('perga_bg', selectedBackground);
@@ -526,203 +502,213 @@ const PurgaSlicer: React.FC<PurgaSlicerProps> = ({ className }) => {
     { id: 'seraphs_song', name: "Seraph's Song", cost: 750 },
   ];
 
-  const buyBackground = (id: string, cost: number) => {
+  const buyBackground = async (id: string, cost: number) => {
     if (ownedBackgroundsRef.current.has(id)) {
       setSelectedBackground(id);
       return;
     }
-    if (playerPoints < cost) return;
-    setPlayerPoints(p => p - cost);
-    ownedBackgroundsRef.current.add(id);
-    localStorage.setItem('perga_owned_backgrounds', Array.from(ownedBackgroundsRef.current).join(','));
-    setSelectedBackground(id);
+    if (balance < cost) {
+      toast.error('Insufficient credits');
+      return;
+    }
+    const success = await spendCredits(cost, `Purchased background: ${id}`);
+    if (success) {
+      ownedBackgroundsRef.current.add(id);
+      localStorage.setItem('perga_owned_backgrounds', Array.from(ownedBackgroundsRef.current).join(','));
+      setSelectedBackground(id);
+    }
   };
 
-  const buyBlade = (id: string, cost: number) => {
+  const buyBlade = async (id: string, cost: number) => {
     const key = 'perga_owned_blades';
     const owned = new Set((localStorage.getItem(key) || 'ember').split(',').filter(Boolean));
     if (owned.has(id)) {
       setSelectedBlade(id);
       return;
     }
-    if (playerPoints < cost) return;
-    setPlayerPoints(p => p - cost);
-    owned.add(id);
-    localStorage.setItem(key, Array.from(owned).join(','));
-    setSelectedBlade(id);
+    if (balance < cost) {
+      toast.error('Insufficient credits');
+      return;
+    }
+    const success = await spendCredits(cost, `Purchased blade: ${id}`);
+    if (success) {
+      owned.add(id);
+      localStorage.setItem(key, Array.from(owned).join(','));
+      setSelectedBlade(id);
+    }
   };
 
   return (
     <div className={`relative w-full h-full bg-black ${className}`}>
       <div className="absolute inset-0">
-              <div ref={mountRef} className="absolute inset-0" />
-              <canvas ref={trailCanvasRef} className="absolute inset-0 pointer-events-none" />
+        <div ref={mountRef} className="absolute inset-0" />
+        <canvas ref={trailCanvasRef} className="absolute inset-0 pointer-events-none" />
 
-              {/* Game UI Overlay */}
-              <div className="absolute top-0 left-0 right-0 p-2 sm:p-4 flex justify-between items-start text-white">
-                <div className="bg-black/60 rounded-lg p-2 sm:p-3 border border-orange-500/20">
-                  <div className="text-xs sm:text-sm">Score: {score}</div>
-                  <div className="text-xs sm:text-sm">Lives: {lives}</div>
-                  <div className="text-xs sm:text-sm">Combo: x{combo}</div>
-                  <div className="text-xs sm:text-sm">Time: {timeLeft}s</div>
-                  <div className="text-xs sm:text-sm">Points: {playerPoints}</div>
-                </div>
-                <div className="flex gap-1 sm:gap-2">
-                  {gameState === 'playing' && (
-                    <button
-                      onClick={pauseGame}
-                      className="bg-black/60 hover:bg-black/80 border border-orange-500/20 px-2 sm:px-3 py-1 sm:py-2 rounded-lg text-xs sm:text-sm"
-                    >
-                      <span className="hidden sm:inline">Pause</span>
-                      <span className="sm:hidden">⏸️</span>
-                    </button>
-                  )}
-                  <button
-                    onClick={() => setShowSettings(true)}
-                    className="bg-black/60 hover:bg-black/80 border border-orange-500/20 px-2 sm:px-3 py-1 sm:py-2 rounded-lg text-xs sm:text-sm"
-                  >
-                    ⚙️
-                  </button>
-                  {gameState === 'playing' && (
-                    <button
-                      onClick={resetGame}
-                      className="bg-black/60 hover:bg-black/80 border border-orange-500/20 px-2 sm:px-3 py-1 sm:py-2 rounded-lg text-xs sm:text-sm"
-                    >
-                      <span className="hidden sm:inline">Reset</span>
-                      <span className="sm:hidden">🔄</span>
-                    </button>
-                  )}
-                </div>
+        {/* Game UI Overlay */}
+        <div className="absolute top-0 left-0 right-0 p-2 sm:p-4 flex justify-between items-start text-white">
+          <div className="bg-black/60 rounded-lg p-2 sm:p-3 border border-orange-500/20">
+            <div className="text-xs sm:text-sm">Score: {score}</div>
+            <div className="text-xs sm:text-sm">Lives: {lives}</div>
+            <div className="text-xs sm:text-sm">Combo: x{combo}</div>
+            <div className="text-xs sm:text-sm">Time: {timeLeft}s</div>
+            <div className="text-xs sm:text-sm">Credits: {balance}</div>
+          </div>
+          <div className="flex gap-1 sm:gap-2">
+            {gameState === 'playing' && (
+              <button
+                onClick={pauseGame}
+                className="bg-black/60 hover:bg-black/80 border border-orange-500/20 px-2 sm:px-3 py-1 sm:py-2 rounded-lg text-xs sm:text-sm"
+              >
+                <span className="hidden sm:inline">Pause</span>
+                <span className="sm:hidden">⏸️</span>
+              </button>
+            )}
+            <button
+              onClick={() => setShowSettings(true)}
+              className="bg-black/60 hover:bg-black/80 border border-orange-500/20 px-2 sm:px-3 py-1 sm:py-2 rounded-lg text-xs sm:text-sm"
+            >
+              ⚙️
+            </button>
+            {gameState === 'playing' && (
+              <button
+                onClick={resetGame}
+                className="bg-black/60 hover:bg-black/80 border border-orange-500/20 px-2 sm:px-3 py-1 sm:py-2 rounded-lg text-xs sm:text-sm"
+              >
+                <span className="hidden sm:inline">Reset</span>
+                <span className="sm:hidden">🔄</span>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {showSettings && (
+          <div className="absolute inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center p-2 sm:p-6 z-50">
+            <div className="w-full max-w-2xl bg-[#0b0b0b] border border-orange-500/25 rounded-2xl p-4 sm:p-6 text-white max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between mb-3 sm:mb-4">
+                <div className="text-lg sm:text-xl font-bold text-orange-400">The Tabernacle</div>
+                <button
+                  onClick={() => setShowSettings(false)}
+                  className="bg-black/60 hover:bg-black/80 border border-orange-500/20 px-2 sm:px-3 py-1 sm:py-2 rounded-lg text-xs sm:text-sm"
+                >
+                  Close
+                </button>
+              </div>
+              <div className="text-xs sm:text-sm text-gray-300 mb-4 sm:mb-6">
+                Equip righteous blades and hallowed grounds. Earn Valor Points through combat.
               </div>
 
-              {showSettings && (
-                <div className="absolute inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center p-2 sm:p-6 z-50">
-                  <div className="w-full max-w-2xl bg-[#0b0b0b] border border-orange-500/25 rounded-2xl p-4 sm:p-6 text-white max-h-[90vh] overflow-y-auto">
-                    <div className="flex items-center justify-between mb-3 sm:mb-4">
-                      <div className="text-lg sm:text-xl font-bold text-orange-400">The Tabernacle</div>
-                      <button
-                        onClick={() => setShowSettings(false)}
-                        className="bg-black/60 hover:bg-black/80 border border-orange-500/20 px-2 sm:px-3 py-1 sm:py-2 rounded-lg text-xs sm:text-sm"
-                      >
-                        Close
-                      </button>
-                    </div>
-                    <div className="text-xs sm:text-sm text-gray-300 mb-4 sm:mb-6">
-                      Equip righteous blades and hallowed grounds. Earn Valor Points through combat.
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-                      <div>
-                        <div className="font-semibold mb-3">Hallowed Grounds</div>
-                        <div className="space-y-2">
-                          {backgrounds.map(bg => {
-                            const owned = ownedBackgroundsRef.current.has(bg.id);
-                            const active = selectedBackground === bg.id;
-                            return (
-                              <button
-                                key={bg.id}
-                                onClick={() => buyBackground(bg.id, bg.cost)}
-                                className={`w-full text-left px-3 sm:px-4 py-2 sm:py-3 rounded-lg border transition-colors ${active ? 'border-orange-500 bg-orange-500/10' : 'border-[#222] bg-black/40 hover:border-orange-500/40'}`}
-                              >
-                                <div className="flex items-center justify-between">
-                                  <span className="font-medium text-sm sm:text-base">{bg.name}</span>
-                                  <span className="text-xs sm:text-sm text-orange-300">{owned ? 'Owned' : `${bg.cost} pts`}</span>
-                                </div>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-
-                      <div>
-                        <div className="font-semibold mb-3">Righteous Blades</div>
-                        <div className="space-y-2">
-                          {blades.map(b => {
-                            const owned = new Set((localStorage.getItem('perga_owned_blades') || 'ember').split(',').filter(Boolean)).has(b.id);
-                            const active = selectedBlade === b.id;
-                            return (
-                              <button
-                                key={b.id}
-                                onClick={() => buyBlade(b.id, b.cost)}
-                                className={`w-full text-left px-3 sm:px-4 py-2 sm:py-3 rounded-lg border transition-colors ${active ? 'border-orange-500 bg-orange-500/10' : 'border-[#222] bg-black/40 hover:border-orange-500/40'}`}
-                              >
-                                <div className="flex items-center justify-between">
-                                  <span className="font-medium text-sm sm:text-base">{b.name}</span>
-                                  <span className="text-xs sm:text-sm text-orange-300">{owned ? 'Owned' : `${b.cost} pts`}</span>
-                                </div>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+                <div>
+                  <div className="font-semibold mb-3">Hallowed Grounds</div>
+                  <div className="space-y-2">
+                    {backgrounds.map(bg => {
+                      const owned = ownedBackgroundsRef.current.has(bg.id);
+                      const active = selectedBackground === bg.id;
+                      return (
+                        <button
+                          key={bg.id}
+                          onClick={() => buyBackground(bg.id, bg.cost)}
+                          className={`w-full text-left px-3 sm:px-4 py-2 sm:py-3 rounded-lg border transition-colors ${active ? 'border-orange-500 bg-orange-500/10' : 'border-[#222] bg-black/40 hover:border-orange-500/40'}`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-medium text-sm sm:text-base">{bg.name}</span>
+                            <span className="text-xs sm:text-sm text-orange-300">{owned ? 'Owned' : `${bg.cost} pts`}</span>
+                          </div>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
-              )}
 
-              {gameState === 'menu' && (
-                <div className="absolute inset-0 bg-black/70 flex items-center justify-center">
-                  <div className="text-center text-white px-4 sm:px-6">
-                    <div className="text-3xl sm:text-4xl lg:text-5xl mb-2 sm:mb-3">⚔️</div>
-                    <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold mb-2 sm:mb-3 text-orange-500">Sword of Judgment</h1>
-                    <p className="text-sm sm:text-base lg:text-lg mb-3 sm:mb-4 text-gray-300">Slice the signs. Avoid corruption.</p>
-                    <div className="text-xs sm:text-sm text-gray-400 mb-4 sm:mb-6">Hold and drag to slice. Points earn cosmetics.</div>
-                    <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center">
-                      <button
-                        onClick={startGame}
-                        className="bg-orange-600 hover:bg-orange-700 px-6 sm:px-8 py-3 sm:py-4 rounded-lg text-lg sm:text-xl font-bold transition-colors"
-                      >
-                        Start Game
-                      </button>
-                      <button
-                        onClick={() => setShowSettings(true)}
-                        className="bg-gray-700 hover:bg-gray-600 px-4 sm:px-6 py-3 sm:py-4 rounded-lg text-base sm:text-lg font-medium transition-colors"
-                      >
-                        The Tabernacle
-                      </button>
-                    </div>
+                <div>
+                  <div className="font-semibold mb-3">Righteous Blades</div>
+                  <div className="space-y-2">
+                    {blades.map(b => {
+                      const owned = new Set((localStorage.getItem('perga_owned_blades') || 'ember').split(',').filter(Boolean)).has(b.id);
+                      const active = selectedBlade === b.id;
+                      return (
+                        <button
+                          key={b.id}
+                          onClick={() => buyBlade(b.id, b.cost)}
+                          className={`w-full text-left px-3 sm:px-4 py-2 sm:py-3 rounded-lg border transition-colors ${active ? 'border-orange-500 bg-orange-500/10' : 'border-[#222] bg-black/40 hover:border-orange-500/40'}`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-medium text-sm sm:text-base">{b.name}</span>
+                            <span className="text-xs sm:text-sm text-orange-300">{owned ? 'Owned' : `${b.cost} pts`}</span>
+                          </div>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
-              )}
+              </div>
+            </div>
+          </div>
+        )}
 
-              {gameState === 'paused' && (
-                <div className="absolute inset-0 bg-black/75 flex items-center justify-center">
-                  <div className="text-center text-white px-4">
-                    <h2 className="text-2xl sm:text-3xl font-bold mb-3 sm:mb-4">Game Paused</h2>
-                    <button
-                      onClick={pauseGame}
-                      className="bg-orange-600 hover:bg-orange-700 px-4 sm:px-6 py-2 sm:py-3 rounded-lg text-base sm:text-lg font-medium transition-colors"
-                    >
-                      Resume
-                    </button>
-                  </div>
-                </div>
-              )}
+        {gameState === 'menu' && (
+          <div className="absolute inset-0 bg-black/70 flex items-center justify-center">
+            <div className="text-center text-white px-4 sm:px-6">
+              <div className="text-3xl sm:text-4xl lg:text-5xl mb-2 sm:mb-3">⚔️</div>
+              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold mb-2 sm:mb-3 text-orange-500">Sword of Judgment</h1>
+              <p className="text-sm sm:text-base lg:text-lg mb-3 sm:mb-4 text-gray-300">Slice the signs. Avoid corruption.</p>
+              <div className="text-xs sm:text-sm text-gray-400 mb-4 sm:mb-6">Hold and drag to slice. Points earn cosmetics.</div>
+              <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center">
+                <button
+                  onClick={startGame}
+                  className="bg-orange-600 hover:bg-orange-700 px-6 sm:px-8 py-3 sm:py-4 rounded-lg text-lg sm:text-xl font-bold transition-colors"
+                >
+                  Start Game
+                </button>
+                <button
+                  onClick={() => setShowSettings(true)}
+                  className="bg-gray-700 hover:bg-gray-600 px-4 sm:px-6 py-3 sm:py-4 rounded-lg text-base sm:text-lg font-medium transition-colors"
+                >
+                  The Tabernacle
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
-              {gameState === 'gameOver' && (
-                <div className="absolute inset-0 bg-black/80 flex items-center justify-center">
-                  <div className="text-center text-white px-4">
-                    <div className="text-3xl sm:text-4xl mb-2">🕯️</div>
-                    <h2 className="text-2xl sm:text-3xl font-bold mb-3 sm:mb-4 text-orange-500">Judgment Rendered</h2>
-                    <p className="text-lg sm:text-xl mb-2">Final Score: {score}</p>
-                    <p className="text-xs sm:text-sm text-gray-400 mb-4 sm:mb-6">Points Earned: {Math.floor(score / 25)}</p>
-                    <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center">
-                      <button
-                        onClick={startGame}
-                        className="bg-orange-600 hover:bg-orange-700 px-4 sm:px-6 py-2 sm:py-3 rounded-lg text-base sm:text-lg font-medium transition-colors"
-                      >
-                        Play Again
-                      </button>
-                      <button
-                        onClick={resetGame}
-                        className="bg-gray-600 hover:bg-gray-700 px-4 sm:px-6 py-2 sm:py-3 rounded-lg text-base sm:text-lg font-medium transition-colors"
-                      >
-                        Main Menu
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
+        {gameState === 'paused' && (
+          <div className="absolute inset-0 bg-black/75 flex items-center justify-center">
+            <div className="text-center text-white px-4">
+              <h2 className="text-2xl sm:text-3xl font-bold mb-3 sm:mb-4">Game Paused</h2>
+              <button
+                onClick={pauseGame}
+                className="bg-orange-600 hover:bg-orange-700 px-4 sm:px-6 py-2 sm:py-3 rounded-lg text-base sm:text-lg font-medium transition-colors"
+              >
+                Resume
+              </button>
+            </div>
+          </div>
+        )}
+
+        {gameState === 'gameOver' && (
+          <div className="absolute inset-0 bg-black/80 flex items-center justify-center">
+            <div className="text-center text-white px-4">
+              <div className="text-3xl sm:text-4xl mb-2">🕯️</div>
+              <h2 className="text-2xl sm:text-3xl font-bold mb-3 sm:mb-4 text-orange-500">Judgment Rendered</h2>
+              <p className="text-lg sm:text-xl mb-2">Final Score: {score}</p>
+              <p className="text-xs sm:text-sm text-gray-400 mb-4 sm:mb-6">Credits Earned: +{creditsEarned}</p>
+              <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center">
+                <button
+                  onClick={startGame}
+                  className="bg-orange-600 hover:bg-orange-700 px-4 sm:px-6 py-2 sm:py-3 rounded-lg text-base sm:text-lg font-medium transition-colors"
+                >
+                  Play Again
+                </button>
+                <button
+                  onClick={resetGame}
+                  className="bg-gray-600 hover:bg-gray-700 px-4 sm:px-6 py-2 sm:py-3 rounded-lg text-base sm:text-lg font-medium transition-colors"
+                >
+                  Main Menu
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

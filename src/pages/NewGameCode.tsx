@@ -120,7 +120,7 @@ const ActionButton = ({ onClick, disabled, variant = 'primary', children, classN
 // 3. Main Application
 export default function RedemptionGame() {
     // --- HOOKS ---
-    const { balance, spendCredits, processGameResult } = useCredits(); // Using central credit system
+    const { balance, spendCredits, processFullGameSession } = useCredits(); // Using central credit system
     const [view, setView] = useState('dashboard');
 
     const [stats, setStats] = useState({
@@ -241,6 +241,7 @@ export default function RedemptionGame() {
 
     const finishSession = async () => {
         const perfectSession = session.correctCount === session.scenarios.length;
+        const wrongAnswers = session.scenarios.length - session.correctCount;
         let newStreak = stats.integrityStreak;
         let newTokens = stats.intercessionTokens;
 
@@ -255,8 +256,14 @@ export default function RedemptionGame() {
         }
 
         // --- CREDIT INTEGRATION ---
-        // Process credits via centralized system
-        await processGameResult('REDEMPTION', session.score, perfectSession);
+        // Process credits via centralized system with penalties for wrong answers
+        await processFullGameSession({
+            gameId: 'REDEMPTION',
+            score: session.score,
+            isPerfect: perfectSession,
+            isWin: perfectSession,
+            wrongAnswers: wrongAnswers
+        });
 
         setStats(prev => ({
             ...prev,

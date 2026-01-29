@@ -34,12 +34,12 @@ const ForgotPassword: React.FC = () => {
       const trimmedEmail = email.trim().toLowerCase();
 
       // Determine the correct redirect URL
-      // For development on localhost:5174, use that explicitly
+      // For development, use current localhost with port
       // For production, use window.location.origin
       const getRedirectUrl = () => {
         if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-          // Development: always use localhost:5174
-          return 'http://localhost:5174/reset-password';
+          // Development: use current port (e.g., :5174)
+          return `${window.location.origin}/reset-password`;
         }
         // Production: use current domain
         return `${window.location.origin}/reset-password`;

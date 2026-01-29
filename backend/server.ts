@@ -50,8 +50,8 @@ initializeStorage();
 app.use(cors({
   origin: [
     'http://localhost:5173',
-    'http://localhost:5174', 
-    'http://localhost:5175', 
+    'http://localhost:5174',
+    'http://localhost:5175',
     'http://localhost:5176',
     'http://localhost:5177'
   ],
@@ -164,6 +164,7 @@ const startServer = async () => {
   try {
     server.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);
+      console.log('DEBUG: Upload path is:', getUploadPath());
     });
   } catch (error) {
     console.error('Failed to start server:', error);
@@ -180,4 +181,4 @@ export const generateToken = (user: { id: string }): string => {
   );
 };
 
-startServer(); 
+startServer(); // touch

@@ -30,6 +30,38 @@ router.get('/', auth, async (req: AuthRequest, res) => {
   }
 });
 
+// POST /api/credits/update - Update user's credit balance
+router.post('/update', auth, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user.id;
+    const { credits } = req.body;
+
+    if (typeof credits !== 'number' || credits < 0) {
+      return res.status(400).json({ error: 'Invalid credits value' });
+    }
+
+    const { data: updatedProfile, error } = await supabase
+      .from('profiles')
+      .update({ credits: credits })
+      .eq('id', userId)
+      .select('credits')
+      .single();
+
+    if (error) {
+      console.error('Error updating credits:', error);
+      return res.status(500).json({ error: 'Failed to update credits' });
+    }
+
+    res.json({
+      success: true,
+      credits: updatedProfile?.credits || credits
+    });
+  } catch (error) {
+    console.error('Error in credits update route:', error);
+    res.status(500).json({ error: 'Failed to update credits' });
+  }
+});
+
 // POST /api/credits/activity - Track redemption activity
 router.post('/activity', auth, async (req: AuthRequest, res) => {
   try {

@@ -60,7 +60,8 @@ function ensureUploadsDirectory() {
 
 // Get the absolute path to the uploads directory
 export function getUploadPath(): string {
-  return path.join(__dirname, '..', '..', 'uploads');
+  // src is in backend/config, so .. goes to backend root
+  return path.join(__dirname, '..', 'uploads');
 }
 
 // Configure multer storage

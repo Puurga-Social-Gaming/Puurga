@@ -218,7 +218,7 @@ router.get('/points', auth, async (req: AuthRequest, res) => {
     const { id } = req.user;
 
     const { data, error } = await supabase
-      .from('users')
+      .from('profiles')
       .select('perga_points')
       .eq('id', id)
       .maybeSingle();
@@ -259,7 +259,7 @@ router.put('/points', auth, async (req: AuthRequest, res) => {
 
     if (hasDelta) {
       const { data: existing, error: existingErr } = await supabase
-        .from('users')
+        .from('profiles')
         .select('perga_points')
         .eq('id', id)
         .maybeSingle();
@@ -281,7 +281,7 @@ router.put('/points', auth, async (req: AuthRequest, res) => {
     }
 
     const { data: updated, error: updateErr } = await supabase
-      .from('users')
+      .from('profiles')
       .update({ perga_points: nextPoints, updated_at: new Date().toISOString() })
       .eq('id', id)
       .select('perga_points')
@@ -463,7 +463,7 @@ router.put('/profile/avatar', auth, upload.single('avatar'), async (req: AuthReq
       }
 
       console.log('Profile created with avatar:', newProfile.avatar_url);
-      
+
       // Also try to update users table if it exists (non-blocking)
       supabase
         .from('users')
@@ -476,12 +476,12 @@ router.put('/profile/avatar', auth, upload.single('avatar'), async (req: AuthReq
             console.log('Avatar also set in users table');
           }
         });
-      
+
       return res.json({ avatar: newProfile.avatar_url });
     }
 
     console.log('Updating existing profile with avatar URL...');
-    
+
     // Update both profiles and users tables to keep them in sync
     // This ensures posts/statuses will get the correct avatar regardless of which table is checked first
     const [profileUpdate, usersUpdate] = await Promise.all([
@@ -518,7 +518,7 @@ router.put('/profile/avatar', auth, upload.single('avatar'), async (req: AuthReq
     if (usersUpdate.data) {
       console.log('Avatar also updated in users table:', usersUpdate.data.avatar_url);
     }
-    
+
     res.json({ avatar: profileUpdate.data.avatar_url });
   } catch (error) {
     console.error('Error uploading avatar:', {
@@ -633,6 +633,7 @@ router.post('/upload', uploadHandler.array('images', 4), async (req, res) => {
       const filename = `${Date.now()}-${Math.random().toString(36).substring(2, 8)}.${ext}`;
       const uploadResult = await supabase.storage.from(bucket).upload(filename, file.buffer, {
         contentType: file.mimetype,
+        cacheControl: '31536000',
         upsert: false,
       });
       if (uploadResult.error) {

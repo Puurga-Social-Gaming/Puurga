@@ -81,8 +81,8 @@ const CreatePost: React.FC<CreatePostProps> = ({ onPostCreated, autoExpand = fal
 
   const compressImage = async (file: File): Promise<File> => {
     const options = {
-      maxSizeMB: 2,
-      maxWidthOrHeight: 2048,
+      maxSizeMB: 1,
+      maxWidthOrHeight: 1920,
       useWebWorker: true,
       fileType: file.type,
       initialQuality: 0.8,
@@ -233,22 +233,22 @@ const CreatePost: React.FC<CreatePostProps> = ({ onPostCreated, autoExpand = fal
                   <button type="button" onClick={() => setImageLayout('columns')} className={`p-1.5 rounded-md ${imageLayout === 'columns' ? 'bg-accent text-white' : 'bg-card-hover'}`}><Columns size={16} /></button>
                 </div>
                 <div className={`grid gap-2 ${imageLayout === 'grid' ? 'grid-cols-2' : imageLayout === 'rows' ? 'grid-cols-1' : 'grid-cols-2'}`}>
-                {imagePreviewUrls.map((url, index) => (
-                  <div key={index} className="relative group">
-                    <img
-                      src={url}
-                      alt={`Preview ${index + 1}`}
-                      className="w-full h-32 object-cover rounded-lg"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => removeImage(index)}
-                      className="absolute top-1 right-1 p-1 bg-background/50 rounded-full text-foreground opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
-                      <X size={16} />
-                    </button>
-                  </div>
-                ))}
+                  {imagePreviewUrls.map((url, index) => (
+                    <div key={index} className="relative group">
+                      <img
+                        src={url}
+                        alt={`Preview ${index + 1}`}
+                        className="w-full h-32 object-cover rounded-lg"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeImage(index)}
+                        className="absolute top-1 right-1 p-1 bg-background/50 rounded-full text-foreground opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <X size={16} />
+                      </button>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
@@ -323,8 +323,8 @@ const CreatePost: React.FC<CreatePostProps> = ({ onPostCreated, autoExpand = fal
                     type="submit"
                     disabled={loading || (!content.trim() && selectedImages.length === 0)}
                     className={`flex items-center gap-2 px-4 py-2 rounded-lg ${loading || (!content.trim() && selectedImages.length === 0)
-                        ? 'bg-accent/50 cursor-not-allowed'
-                        : 'bg-accent hover:bg-accent-hover'
+                      ? 'bg-accent/50 cursor-not-allowed'
+                      : 'bg-accent hover:bg-accent-hover'
                       }`}
                   >
                     <Send size={18} />
