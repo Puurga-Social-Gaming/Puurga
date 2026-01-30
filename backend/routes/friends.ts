@@ -85,13 +85,16 @@ router.get('/suggestions', auth, async (req: AuthRequest, res) => {
     // Step 2: Fetch all profiles, excluding the user and their existing friends.
     const excludedIds = [user.id, ...Array.from(friendIds)];
 
-    // Build filter to exclude IDs - Supabase doesn't support .not('id', 'in', ...)
-    // So we fetch all and filter, or use a workaround with multiple .neq() calls
-    // For better performance with many excluded IDs, we'll fetch and filter in memory
+    // Build filter to exclude IDs - Supabase doesn't support .not('id', 'in', ...) easily for large lists
+    // So we fetch all and filter client-side.
+    // OPTIMIZATION: Get newest users first (most likely to be relevant/active) and limit 100
     let query = supabase
       .from('profiles')
       .select('id, full_name, username, avatar_url')
-      .limit(50); // Fetch more to account for filtering
+      .neq('id', user.id) // Always exclude self
+      // .not('id', 'in', `(${Array.from(friendIds).slice(0, 50).join(',')})`) // Optional: exclude first 50 friends to help
+      .order('created_at', { ascending: false })
+      .limit(100);
 
     const { data: allSuggestions, error } = await query;
 

@@ -72,20 +72,20 @@ export const MessagesProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const loadConversations = async (retryCount = 0) => {
     if (!user) return;
-    
+
     try {
       // Only set loading on first load or manual refresh, not background retries
       if (retryCount === 0 && conversations.length === 0) {
         setLoading(true);
       }
-      
+
       const response = await api.get('/api/messages/conversations');
       console.log('Loaded conversations:', response.data?.length || 0);
       setConversations(response.data || []);
       setLoading(false);
     } catch (error: any) {
       setLoading(false);
-      
+
       // Retry logic - max 1 retry with exponential backoff
       if (retryCount < 1 && error?.message?.includes('Network error')) {
         const delay = 1000 * (retryCount + 1);
@@ -93,7 +93,7 @@ export const MessagesProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         setTimeout(() => loadConversations(retryCount + 1), delay);
         return;
       }
-      
+
       // Only log error if it's not a transient network issue or if retries failed
       console.error('Error loading conversations:', error.message || error);
     }
@@ -101,7 +101,7 @@ export const MessagesProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const loadMessages = async (conversationId: string) => {
     if (!user) return;
-    
+
     try {
       setLoading(true);
       const response = await api.get(`/api/messages/conversations/${conversationId}/messages`);
@@ -117,17 +117,17 @@ export const MessagesProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const sendMessage = async (conversationId: string, content: string) => {
     if (!user || !content.trim()) return;
-    
+
     try {
       const response = await api.post(`/api/messages/conversations/${conversationId}/messages`, {
         content: content.trim()
       });
-      
+
       console.log('Message sent:', response.data);
-      
+
       // Add the new message to the messages array immediately (optimistic update/server response)
       setMessages(prev => [...prev, response.data]);
-      
+
       // Reload conversations to update the latest message
       await loadConversations();
     } catch (error) {
@@ -147,17 +147,17 @@ export const MessagesProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const createConversation = async (otherUserId: string): Promise<Conversation | null> => {
     if (!user) return null;
-    
+
     try {
       const response = await api.post('/api/messages/conversations', {
         otherUserId
       });
-      
+
       console.log('Conversation created:', response.data);
-      
+
       // Reload conversations to include the new one
       await loadConversations();
-      
+
       return response.data;
     } catch (error) {
       console.error('Error creating conversation:', error);
@@ -167,7 +167,7 @@ export const MessagesProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const loadOnlineUsers = async () => {
     if (!user) return;
-    
+
     try {
       const response = await api.get('/api/messages/users/online');
       console.log('Loaded online users:', response.data);
@@ -183,13 +183,13 @@ export const MessagesProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     if (!user) return;
 
     const { conversationId, message } = payload;
-    
+
     // 1. Update messages if we are in this conversation
     if (currentConversation?.id === conversationId) {
       setMessages(prev => {
         // Prevent duplicate messages
         if (prev.some(m => m.id === message.id)) return prev;
-        
+
         return [...prev, {
           id: message.id,
           content: message.content,
@@ -208,7 +208,7 @@ export const MessagesProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     // 2. Show toast notification if we are NOT in this conversation
     const isChattingInThisConvo = currentConversation?.id === conversationId;
-    
+
     if (!isChattingInThisConvo && message.fromUserId !== user.id) {
       toast.success(
         <div className="flex flex-col">
@@ -233,10 +233,10 @@ export const MessagesProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const handleTyping = useCallback((payload: { conversationId: string; userId: string; isTyping: boolean }) => {
     const { conversationId, userId, isTyping } = payload;
-    
+
     setTypingUsers(prev => {
       const currentTyping = prev[conversationId] || [];
-      
+
       if (isTyping) {
         // Add user to typing list if not already there
         if (!currentTyping.includes(userId)) {
@@ -260,7 +260,7 @@ export const MessagesProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setOnlineUsers(prev => {
       const updated = [...prev];
       const userIndex = updated.findIndex(u => u.id === status.userId);
-      
+
       if (userIndex !== -1) {
         // Update existing user
         updated[userIndex] = { ...updated[userIndex], isOnline: status.isOnline };
@@ -282,6 +282,8 @@ export const MessagesProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   useEffect(() => {
     if (user) {
       loadConversations();
+      // Don't auto-refresh - let WebSocket handle online status updates
+      // loadOnlineUsers will be called when Messages page is explicitly opened
     }
   }, [user]);
 

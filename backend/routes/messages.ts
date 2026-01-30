@@ -58,14 +58,14 @@ router.get('/conversations', auth, async (req: AuthRequest, res) => {
 
     // Bulk fetch profiles for these participants
     const participantUserIds = [...new Set((allParticipants || []).map(p => p.user_id))];
-    
+
     let profilesMap = new Map();
     if (participantUserIds.length > 0) {
       const { data: profiles } = await supabase
         .from('profiles')
         .select('id, full_name, username, avatar_url')
         .in('id', participantUserIds);
-      
+
       if (profiles) {
         profiles.forEach(p => profilesMap.set(p.id, p));
       }
@@ -88,50 +88,60 @@ router.get('/conversations', auth, async (req: AuthRequest, res) => {
       }
     });
 
-    // Fetch latest messages (still per convo but optimized fetch)
-    const formattedConversations = await Promise.all(
-      targetConversations.map(async (conv: any) => {
-        const participants = conversationParticipants.get(conv.id) || [];
-        
-        // Get latest message with sender profile
-        // Using explicit foreign key relationship if possible, or simplified fetch
-        const { data: latestMessages } = await supabase
-          .from('messages')
-          .select(`
-            id, content, created_at, from_user_id,
-            profiles!messages_from_user_id_fkey(id, full_name, username, avatar_url)
-          `)
-          .eq('conversation_id', conv.id)
-          .order('created_at', { ascending: false })
-          .limit(1);
+    // Fetch latest messages for ALL conversations in one query (to avoid N+1 problem)
+    const latestMessagesMap = new Map();
+    if (targetIds.length > 0) {
+      // Get the latest message for each conversation using a window function approach
+      // Since Supabase doesn't support window functions easily, we'll fetch all messages
+      // and filter client-side (better than N queries)
+      const { data: allMessages } = await supabase
+        .from('messages')
+        .select(`
+          id, content, created_at, from_user_id, conversation_id,
+          profiles!messages_from_user_id_fkey(id, full_name, username, avatar_url)
+        `)
+        .in('conversation_id', targetIds)
+        .order('created_at', { ascending: false })
+        .limit(targetIds.length * 5); // Get top 5 messages per conversation max
 
-        let latest_message = null;
-        if (latestMessages && latestMessages.length > 0) {
-          const msg = latestMessages[0];
-          // Handle nested profile data from the join
-          const senderProfile = (msg as any).profiles;
-          
-          latest_message = {
-            content: msg.content,
-            created_at: msg.created_at,
-            from_user: senderProfile ? {
-              id: senderProfile.id,
-              full_name: senderProfile.full_name || 'Unknown User',
-              username: senderProfile.username || 'unknown',
-              avatar_url: senderProfile.avatar_url || null
-            } : { id: msg.from_user_id, full_name: 'Unknown', username: 'unknown', avatar_url: null }
-          };
-        }
-        
-        return {
-          id: conv.id,
-          participants,
-          latest_message,
-          unread_count: 0,
-          updated_at: conv.updated_at
+      if (allMessages && allMessages.length > 0) {
+        // Group by conversation and keep only the latest
+        allMessages.forEach((msg: any) => {
+          if (!latestMessagesMap.has(msg.conversation_id)) {
+            latestMessagesMap.set(msg.conversation_id, msg);
+          }
+        });
+      }
+    }
+
+    // Format conversations with their latest messages
+    const formattedConversations = targetConversations.map((conv: any) => {
+      const participants = conversationParticipants.get(conv.id) || [];
+      const latestMsg = latestMessagesMap.get(conv.id);
+
+      let latest_message = null;
+      if (latestMsg) {
+        const senderProfile = latestMsg.profiles;
+        latest_message = {
+          content: latestMsg.content,
+          created_at: latestMsg.created_at,
+          from_user: senderProfile ? {
+            id: senderProfile.id,
+            full_name: senderProfile.full_name || 'Unknown User',
+            username: senderProfile.username || 'unknown',
+            avatar_url: senderProfile.avatar_url || null
+          } : { id: latestMsg.from_user_id, full_name: 'Unknown', username: 'unknown', avatar_url: null }
         };
-      })
-    );
+      }
+
+      return {
+        id: conv.id,
+        participants,
+        latest_message,
+        unread_count: 0,
+        updated_at: conv.updated_at
+      };
+    });
 
     res.json(formattedConversations);
   } catch (error) {
@@ -279,7 +289,34 @@ router.post('/conversations/:conversationId/messages', auth, async (req: AuthReq
         created_at: new Date().toISOString(),
       }));
 
-      await supabase.from('notifications').insert(notifications);
+      const { data: createdNotifications } = await supabase
+        .from('notifications')
+        .insert(notifications)
+        .select('*');
+
+      // Broadcast notifications via WebSocket to each recipient
+      if (createdNotifications && createdNotifications.length > 0) {
+        createdNotifications.forEach((notification: any) => {
+          const wsNotification = {
+            id: notification.id,
+            type: 'message' as const,
+            fromUser: {
+              id: user.id,
+              name: senderProfile?.full_name || 'Someone',
+              username: senderProfile?.username || 'unknown',
+              avatar: senderProfile?.avatar_url || undefined
+            },
+            data: {
+              conversationId,
+              messageId: message.id
+            },
+            createdAt: notification.created_at
+          };
+
+          wsManager.sendNotification(notification.receiver_id, wsNotification);
+          console.log(`📬 Sent message notification to user ${notification.receiver_id}`);
+        });
+      }
     }
 
     const formattedMessage = {
@@ -316,9 +353,9 @@ router.post('/conversations/:conversationId/messages', auth, async (req: AuthReq
           }
         }
       };
-      
+
       wsManager.broadcastToUsers(recipientIds, wsMessage);
-      console.log(`Broadcasted message to ${recipientIds.length} recipient(s)`);
+      console.log(`💬 Broadcasted message to ${recipientIds.length} recipient(s)`);
     }
 
     res.json(formattedMessage);

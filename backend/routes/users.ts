@@ -328,10 +328,17 @@ router.put('/profile', auth, async (req: AuthRequest, res) => {
     } = req.body;
 
     // Check if username is being changed and if it's already taken
-    if (username && username !== req.user.username) {
+    console.log('Update profile request:', {
+      currentId: id,
+      currentUsername: req.user.username,
+      newUsername: username
+    });
+
+    if (username && username.trim().toLowerCase() !== req.user.username?.trim().toLowerCase()) {
+      console.log('Username change detected, checking availability...');
       const { data: existingUsername, error: usernameCheckError } = await supabase
         .from('profiles')
-        .select('id')
+        .select('id, username')
         .eq('username', username.trim().toLowerCase())
         .neq('id', id)
         .maybeSingle();
@@ -342,6 +349,7 @@ router.put('/profile', auth, async (req: AuthRequest, res) => {
       }
 
       if (existingUsername) {
+        console.warn('Username taken by:', existingUsername);
         return res.status(400).json({ error: 'Username already taken' });
       }
     }

@@ -49,7 +49,7 @@ router.post('/:userId', auth, async (req: AuthRequest, res) => {
     const currentCredits = redeemerUser.perga_points || 0;
 
     if (currentCredits < redemptionCost) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: 'Insufficient credits',
         required: redemptionCost,
         current: currentCredits
@@ -59,7 +59,7 @@ router.post('/:userId', auth, async (req: AuthRequest, res) => {
     // Deduct credits from redeemer
     const { error: deductError } = await supabase
       .from('users')
-      .update({ 
+      .update({
         perga_points: currentCredits - redemptionCost,
         updated_at: new Date().toISOString()
       })
@@ -72,7 +72,7 @@ router.post('/:userId', auth, async (req: AuthRequest, res) => {
     // Remove ghost mode from target user
     const { error: restoreError } = await supabase
       .from('profiles')
-      .update({ 
+      .update({
         is_ghost: false,
         purge_count: 0,
         ghosted_at: null,
@@ -115,6 +115,70 @@ router.post('/:userId', auth, async (req: AuthRequest, res) => {
   } catch (error) {
     console.error('Error redeeming user:', error);
     res.status(500).json({ error: 'Failed to redeem user' });
+  }
+});
+
+// GET /api/redeem/ghosted-friends - Get list of user's friends who are in ghost mode
+router.get('/ghosted-friends', auth, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+
+    // Get user's friends who are in ghost mode
+    const { data: friendships, error: friendsError } = await supabase
+      .from('friends')
+      .select('user_id_1, user_id_2')
+      .or(`user_id_1.eq.${userId},user_id_2.eq.${userId}`);
+
+    if (friendsError) {
+      console.error('Error fetching friendships:', friendsError);
+      return res.json([]); // Return empty array instead of error
+    }
+
+    if (!friendships || friendships.length === 0) {
+      return res.json([]);
+    }
+
+    // Extract friend IDs (the ID that isn't the current user)
+    const friendIds = friendships.map(f =>
+      f.user_id_1 === userId ? f.user_id_2 : f.user_id_1
+    );
+
+    if (friendIds.length === 0) {
+      return res.json([]);
+    }
+
+    // Get profiles of friends who are in ghost mode
+    const { data: ghostedFriends, error: profilesError } = await supabase
+      .from('profiles')
+      .select('id, full_name, username, avatar_url, is_ghost, purge_count, ghosted_at')
+      .in('id', friendIds)
+      .eq('is_ghost', true);
+
+    if (profilesError) {
+      console.error('Error fetching ghosted profiles:', profilesError);
+      return res.json([]);
+    }
+
+    const formattedFriends = (ghostedFriends || []).map(friend => ({
+      id: friend.id,
+      fullName: friend.full_name,
+      username: friend.username,
+      avatarUrl: friend.avatar_url,
+      isGhost: friend.is_ghost,
+      purgeCount: friend.purge_count || 0,
+      ghostedAt: friend.ghosted_at,
+      redemptionCost: 100
+    }));
+
+    res.json(formattedFriends);
+
+  } catch (error) {
+    console.error('Error fetching ghosted friends:', error);
+    res.json([]); // Return empty array instead of error to prevent UI crashes
   }
 });
 

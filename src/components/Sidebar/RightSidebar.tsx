@@ -5,6 +5,7 @@ import api from '../../api/api';
 import { getFriendRequests, getAcceptedFriends, rejectFriendRequest, acceptFriendRequest, getFriendSuggestions, sendFriendRequest } from '../../services/friendService';
 import { User, Users, UserPlus, UserX, MessageSquare } from 'lucide-react';
 import { useUser } from '../../context/UserContext';
+import { useMessages } from '../../context/MessagesContext';
 import { toast } from 'react-hot-toast';
 import { motion } from 'framer-motion';
 import { DEFAULT_IMAGES } from '../../constants/defaultImages';
@@ -36,6 +37,8 @@ interface OnlineUser {
 const RightSidebar: React.FC = () => {
   const { user } = useUser();
   const { t } = useTranslation();
+  const { onlineUsers: liveOnlineUsers } = useMessages(); // Get real-time online users
+
   const [stats, setStats] = useState<UserStats>({
     posts: 0,
     following: 0,
@@ -44,17 +47,35 @@ const RightSidebar: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [friendRequests, setFriendRequests] = useState<FriendRequest[]>([]);
   const [friendRequestsLoading, setFriendRequestsLoading] = useState(true);
+
+  // Store all friends locally, then filter by live status
+  const [allFriends, setAllFriends] = useState<OnlineUser[]>([]);
   const [onlineFriends, setOnlineFriends] = useState<OnlineUser[]>([]);
   const [onlineFriendsLoading, setOnlineFriendsLoading] = useState(true);
+
   const [friendSuggestions, setFriendSuggestions] = useState<any[]>([]);
   const [friendSuggestionsLoading, setFriendSuggestionsLoading] = useState(true);
   const [pendingRequestIds, setPendingRequestIds] = useState<Set<string>>(new Set());
+
+  // Effect to update online friends whenever liveOnlineUsers or allFriends changes
+  useEffect(() => {
+    if (allFriends.length > 0) {
+      // Filter friends who are currently online
+      const liveFriends = allFriends.map(friend => ({
+        ...friend,
+        online: liveOnlineUsers.some(online => online.id === friend.id)
+      })).filter(friend => friend.online);
+
+      setOnlineFriends(liveFriends);
+    } else {
+      setOnlineFriends([]);
+    }
+  }, [allFriends, liveOnlineUsers]);
 
   useEffect(() => {
     const fetchUserStats = async () => {
       if (!user) return;
       try {
-        // axios baseURL is '/api', so we call without extra '/api'
         const response = await api.get(`/users/${user.id}/stats`);
         setStats(response.data);
       } catch (error) {
@@ -81,7 +102,6 @@ const RightSidebar: React.FC = () => {
     };
     fetchRequests();
 
-    // Live updates: subscribe to friend_requests changes for this user
     if (!user) return;
     const channel = supabase.channel('friend-requests-sidebar')
       .on(
@@ -104,19 +124,19 @@ const RightSidebar: React.FC = () => {
   }, [user]);
 
   useEffect(() => {
-    const fetchOnlineFriends = async () => {
+    const fetchFriends = async () => {
       setOnlineFriendsLoading(true);
       try {
         const data = await getAcceptedFriends();
-        setOnlineFriends(data);
+        setAllFriends(data || []);
       } catch (error) {
-        setOnlineFriends([]);
-        console.error('Error fetching online friends:', error);
+        console.error('Error fetching friends:', error);
+        setAllFriends([]);
       } finally {
         setOnlineFriendsLoading(false);
       }
     };
-    fetchOnlineFriends();
+    fetchFriends();
 
     const fetchFriendSuggestions = async () => {
       if (!user) return;
@@ -170,46 +190,47 @@ const RightSidebar: React.FC = () => {
       className="space-y-6"
     >
       {/* Quick Actions Header */}
-      <div className="flex items-center justify-between px-6 pt-6">
-        <h2 className="text-xl font-bold text-foreground">{t('rightSidebar.quickActions')}</h2>
+      <div className="flex items-center justify-between px-4 pt-4">
+        <h2 className="text-lg font-bold text-foreground">{t('rightSidebar.quickActions')}</h2>
         <QuickActions />
       </div>
 
       {/* Quick Action Buttons */}
-      <div className="px-6 -mt-2">
+      <div className="px-4 -mt-2">
         <div className="grid grid-cols-2 gap-2">
-          <Link to="/home" className="px-3 py-2 rounded-lg bg-accent/10 text-foreground hover:opacity-90 transition-all shadow-theme-sm hover:shadow-theme-md text-sm text-center">
+          <Link to="/home" className="px-2 py-2 rounded-lg bg-accent/10 text-foreground hover:opacity-90 transition-all shadow-theme-sm hover:shadow-theme-md text-xs font-medium text-center truncate">
             {t('rightSidebar.createPost')}
           </Link>
-          <Link to="/groups" className="px-3 py-2 rounded-lg bg-background-secondary text-foreground/90 hover:opacity-90 transition-all shadow-theme-sm hover:shadow-theme-md text-sm text-center">
+          <Link to="/groups" className="px-2 py-2 rounded-lg bg-background-secondary text-foreground/90 hover:opacity-90 transition-all shadow-theme-sm hover:shadow-theme-md text-xs font-medium text-center truncate">
             {t('rightSidebar.exploreGroups')}
           </Link>
-          <Link to="/notifications" className="px-3 py-2 rounded-lg bg-background-secondary text-foreground/90 hover:opacity-90 transition-all shadow-theme-sm hover:shadow-theme-md text-sm text-center">
+          <Link to="/notifications" className="px-2 py-2 rounded-lg bg-background-secondary text-foreground/90 hover:opacity-90 transition-all shadow-theme-sm hover:shadow-theme-md text-xs font-medium text-center truncate">
             {t('rightSidebar.notifications')}
           </Link>
-          <Link to="/settings" className="px-3 py-2 rounded-lg bg-background-secondary text-foreground/90 hover:opacity-90 transition-all shadow-theme-sm hover:shadow-theme-md text-sm text-center">
+          <Link to="/settings" className="px-2 py-2 rounded-lg bg-background-secondary text-foreground/90 hover:opacity-90 transition-all shadow-theme-sm hover:shadow-theme-md text-xs font-medium text-center truncate">
             {t('rightSidebar.settings')}
           </Link>
         </div>
       </div>
       {/* User Profile Summary */}
-      <div className="card-gradient p-6">
-        <h2 className="text-xl font-bold text-foreground mb-4">{t('rightSidebar.myProfile')}</h2>
+      <div className="card-gradient p-4">
+        <h2 className="text-lg font-bold text-foreground mb-3">{t('rightSidebar.myProfile')}</h2>
         <Link
           to="/profile"
-          className="flex items-center space-x-3 hover:bg-background-secondary p-2 rounded-lg transition-colors"
+          className="flex items-center space-x-3 hover:bg-background-secondary p-2 rounded-lg transition-colors group"
         >
           <img
             src={user.avatar || DEFAULT_IMAGES.avatar}
             alt={user.name}
-            className="w-12 h-12 rounded-full object-cover"
+            className="w-10 h-10 rounded-full object-cover flex-shrink-0"
           />
-          <div>
-            <p className="font-semibold text-foreground">{user.name}</p>
-            <p className="text-muted text-sm">@{user.username}</p>
+          <div className="min-w-0 flex-1">
+            <p className="font-semibold text-foreground truncate group-hover:text-accent transition-colors">{user.name}</p>
+            <p className="text-muted text-xs truncate">@{user.username}</p>
           </div>
         </Link>
 
+        {/* Stats Section */}
         {loading ? (
           <div className="flex justify-between text-sm text-muted animate-pulse mt-4">
             <div className="h-4 w-16 bg-background-secondary rounded"></div>
@@ -217,89 +238,89 @@ const RightSidebar: React.FC = () => {
             <div className="h-4 w-16 bg-background-secondary rounded"></div>
           </div>
         ) : (
-          <div className="grid grid-cols-3 gap-2 text-sm mt-4">
-            <div className="text-center p-2 bg-background-secondary rounded-lg">
-              <p className="text-muted">{t('rightSidebar.stats.posts')}</p>
-              <p className="text-foreground font-semibold">{stats.posts}</p>
+          <div className="grid grid-cols-3 gap-1 text-xs mt-3">
+            <div className="text-center p-1.5 bg-background-secondary rounded-lg">
+              <p className="text-muted text-[10px] uppercase tracking-wide">{t('rightSidebar.stats.posts')}</p>
+              <p className="text-foreground font-bold">{stats.posts}</p>
             </div>
-            <div className="text-center p-2 bg-background-secondary rounded-lg">
-              <p className="text-muted">{t('rightSidebar.stats.following')}</p>
-              <p className="text-foreground font-semibold">{stats.following}</p>
+            <div className="text-center p-1.5 bg-background-secondary rounded-lg">
+              <p className="text-muted text-[10px] uppercase tracking-wide">{t('rightSidebar.stats.following')}</p>
+              <p className="text-foreground font-bold">{stats.following}</p>
             </div>
-            <div className="text-center p-2 bg-background-secondary rounded-lg">
-              <p className="text-muted">{t('rightSidebar.stats.followers')}</p>
-              <p className="text-foreground font-semibold">{stats.followers}</p>
+            <div className="text-center p-1.5 bg-background-secondary rounded-lg">
+              <p className="text-muted text-[10px] uppercase tracking-wide">{t('rightSidebar.stats.followers')}</p>
+              <p className="text-foreground font-bold">{stats.followers}</p>
             </div>
           </div>
         )}
 
-        <div className="mt-4 space-y-2">
+        <div className="mt-3 space-y-2">
           <Link
             to="/profile"
-            className="flex items-center gap-2 px-4 py-2 text-foreground/80 hover:text-foreground hover:bg-background-secondary rounded-lg transition-colors"
+            className="flex items-center gap-2 px-3 py-1.5 text-foreground/80 hover:text-foreground hover:bg-background-secondary rounded-lg transition-colors text-sm"
           >
-            <User size={18} />
+            <User size={16} />
             <span>{t('rightSidebar.viewFullProfile')}</span>
           </Link>
           <Link
             to="/connections"
-            className="flex items-center gap-2 px-4 py-2 text-foreground/80 hover:text-foreground hover:bg-background-secondary rounded-lg transition-colors"
+            className="flex items-center gap-2 px-3 py-1.5 text-foreground/80 hover:text-foreground hover:bg-background-secondary rounded-lg transition-colors text-sm"
           >
-            <Users size={18} />
+            <Users size={16} />
             <span>{t('rightSidebar.myConnections')}</span>
           </Link>
         </div>
       </div>
 
       {/* Friend Requests */}
-      <div className="card-gradient p-6">
-        <h2 className="text-xl font-bold text-foreground mb-4">{t('rightSidebar.friendRequests')}</h2>
+      <div className="card-gradient p-4">
+        <h2 className="text-lg font-bold text-foreground mb-3">{t('rightSidebar.friendRequests')}</h2>
         {friendRequestsLoading ? (
-          <div className="text-muted">{t('rightSidebar.loadingText')}</div>
+          <div className="flex justify-center p-4">
+            <div className="h-5 w-5 border-2 border-accent border-t-transparent rounded-full animate-spin"></div>
+          </div>
         ) : friendRequests.length === 0 ? (
-          <div className="text-muted text-sm">{t('rightSidebar.noFriendRequests')}</div>
+          <div className="text-muted text-sm text-center py-2">{t('rightSidebar.noFriendRequests')}</div>
         ) : (
           <div className="space-y-3">
             {friendRequests.map(request => (
-              <div key={request.id} className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <img src={request.sender_avatar || DEFAULT_IMAGES.avatar} alt={request.sender_name} className="w-10 h-10 rounded-full object-cover" />
-                  <Link to={`/profile/${request.sender_id}`} className="text-foreground font-medium hover:underline">
+              <div key={request.id} className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0 flex-1">
+                  <img src={request.sender_avatar || DEFAULT_IMAGES.avatar} alt={request.sender_name} className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
+                  <Link to={`/profile/${request.sender_id}`} className="text-foreground text-sm font-medium hover:text-accent truncate block">
                     {request.sender_name}
                   </Link>
                 </div>
-                <div className="flex gap-2">
-                  <button 
+                <div className="flex gap-1 flex-shrink-0">
+                  <button
                     onClick={async () => {
                       try {
                         await acceptFriendRequest(request.id);
-                        toast.success('Friend request accepted');
+                        toast.success('Accepted');
                         setFriendRequests(prev => prev.filter(r => r.id !== request.id));
                       } catch (error) {
-                        console.error('Error accepting friend request:', error);
-                        toast.error('Failed to accept friend request');
+                        toast.error('Failed');
                       }
                     }}
-                    className="bg-[var(--accent)] text-white rounded-full p-2 hover:opacity-90 transition-colors"
+                    className="bg-accent/10 text-accent rounded-full p-1.5 hover:bg-accent hover:text-white transition-colors"
                     title={t('rightSidebar.accept')}
                   >
-                    <UserPlus size={18} />
+                    <UserPlus size={14} />
                   </button>
-                  <button 
+                  <button
                     onClick={async () => {
                       try {
                         await rejectFriendRequest(request.id);
-                        toast.success('Friend request rejected');
+                        toast.success('Rejected');
                         setFriendRequests(prev => prev.filter(r => r.id !== request.id));
                       } catch (error) {
-                        console.error('Error rejecting friend request:', error);
-                        toast.error('Failed to reject friend request');
+                        toast.error('Failed');
                       }
                     }}
-                    className="bg-red-500 text-white rounded-full p-2 hover:bg-red-600 transition-colors"
+                    className="bg-red-500/10 text-red-500 rounded-full p-1.5 hover:bg-red-500 hover:text-white transition-colors"
                     title={t('rightSidebar.reject')}
                   >
-                    <UserX size={18} />
+                    <UserX size={14} />
                   </button>
                 </div>
               </div>
@@ -309,83 +330,90 @@ const RightSidebar: React.FC = () => {
       </div>
 
       {/* Online Friends */}
-      <div className="card-gradient p-6">
-        <h2 className="text-xl font-bold text-foreground mb-4">{t('rightSidebar.onlineFriends')}</h2>
-        <div className="space-y-3">
+      <div className="card-gradient p-4">
+        <h2 className="text-lg font-bold text-foreground mb-3">{t('rightSidebar.onlineFriends')}</h2>
+        <div className="space-y-2">
           {onlineFriendsLoading ? (
-            <div className="text-muted">{t('rightSidebar.loadingText')}</div>
+            <div className="space-y-2">
+              {[1, 2].map(i => (
+                <div key={i} className="flex items-center gap-2 animate-pulse">
+                  <div className="w-8 h-8 bg-background-secondary rounded-full"></div>
+                  <div className="h-3 w-20 bg-background-secondary rounded"></div>
+                </div>
+              ))}
+            </div>
           ) : onlineFriends.length > 0 ? (
             onlineFriends.map(onlineUser => (
-              <div key={onlineUser.id} className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="relative">
-                    <img src={onlineUser.avatar || DEFAULT_IMAGES.avatar} alt={onlineUser.username} className="w-10 h-10 rounded-full object-cover" />
-                    {onlineUser.online && <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-card" title="Online" />}
+              <div key={onlineUser.id} className="flex items-center justify-between gap-2 group hover:bg-background-secondary/50 p-1.5 rounded-lg transition-colors -mx-1.5">
+                <div className="flex items-center gap-2 min-w-0 flex-1">
+                  <div className="relative flex-shrink-0">
+                    <img src={onlineUser.avatar || DEFAULT_IMAGES.avatar} alt={onlineUser.username} className="w-8 h-8 rounded-full object-cover" />
+                    <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-card" title="Online" />
                   </div>
-                  <Link to={`/profile/${onlineUser.username}`} className="text-foreground font-medium hover:underline">
+                  <Link to={`/profile/${onlineUser.username}`} className="text-foreground text-sm font-medium hover:text-accent truncate block">
                     {onlineUser.name || onlineUser.username}
                   </Link>
                 </div>
-                <Link to={`/messages/${onlineUser.id}`} className="bg-background-secondary text-accent rounded-full p-2 hover:bg-accent/10 transition-colors">
-                  <MessageSquare size={18} />
+                <Link to={`/messages/${onlineUser.id}`} className="text-muted hover:text-accent p-1.5 rounded-full hover:bg-accent/10 transition-colors opacity-0 group-hover:opacity-100">
+                  <MessageSquare size={16} />
                 </Link>
               </div>
             ))
           ) : (
-            <p className="text-muted text-sm">{t('rightSidebar.noFriendsOnline')}</p>
+            <p className="text-muted text-xs text-center py-2">{t('rightSidebar.noFriendsOnline')}</p>
           )}
         </div>
       </div>
 
       {/* Friend Suggestions */}
-      <div className="card-gradient p-6">
-        <h2 className="text-xl font-bold text-foreground mb-4">{t('rightSidebar.peopleYouMayKnow')}</h2>
+      <div className="card-gradient p-4">
+        <h2 className="text-lg font-bold text-foreground mb-3">{t('rightSidebar.peopleYouMayKnow')}</h2>
         {friendSuggestionsLoading ? (
-          <div className="text-muted">{t('rightSidebar.loadingText')}</div>
+          <div className="flex justify-center p-4">
+            <div className="h-5 w-5 border-2 border-accent border-t-transparent rounded-full animate-spin"></div>
+          </div>
         ) : friendSuggestions.length > 0 ? (
           <div className="space-y-3">
             {friendSuggestions.map(suggestion => (
-              <div key={suggestion.id} className="flex items-center justify-between gap-3">
-                <Link to={`/profile/${suggestion.username}`} className="flex items-center gap-3 group">
-                  <img src={suggestion.avatar || DEFAULT_IMAGES.avatar} alt={suggestion.name} className="w-10 h-10 rounded-full object-cover" />
-                  <span className="text-foreground font-medium group-hover:underline">{suggestion.name}</span>
-                </Link>
-                {pendingRequestIds.has(suggestion.id) || suggestion.status === 'pending' ? (
-                  <div className="px-3 py-1.5 text-xs text-yellow-400 font-semibold">
-                    Pending
+              <div key={suggestion.id} className="flex items-center justify-between gap-2">
+                <Link to={`/profile/${suggestion.username}`} className="flex items-center gap-2 group min-w-0 flex-1">
+                  <img src={suggestion.avatar || DEFAULT_IMAGES.avatar} alt={suggestion.name} className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
+                  <div className="min-w-0">
+                    <span className="text-foreground text-sm font-medium group-hover:text-accent truncate block">{suggestion.name}</span>
+                    <span className="text-muted text-xs truncate block">@{suggestion.username}</span>
                   </div>
-                ) : (
-                  <button
-                    onClick={async () => {
-                      setPendingRequestIds(prev => new Set(prev).add(suggestion.id));
-                      try {
-                        await sendFriendRequest(suggestion.id);
-                        toast.success(`Friend request sent to ${suggestion.name}`);
-                      } catch (error: any) {
-                        console.error('Error sending friend request:', error);
-                        setPendingRequestIds(prev => {
-                          const newSet = new Set(prev);
-                          newSet.delete(suggestion.id);
-                          return newSet;
-                        });
-                        if (error.response && error.response.data && error.response.data.message) {
-                          toast.error(error.response.data.message);
-                        } else {
-                          toast.error('Failed to send friend request');
+                </Link>
+                <div className="flex-shrink-0">
+                  {pendingRequestIds.has(suggestion.id) || suggestion.status === 'pending' ? (
+                    <span className="text-xs text-yellow-500 font-medium px-2">Pending</span>
+                  ) : (
+                    <button
+                      onClick={async () => {
+                        setPendingRequestIds(prev => new Set(prev).add(suggestion.id));
+                        try {
+                          await sendFriendRequest(suggestion.id);
+                          toast.success('Sent');
+                        } catch (error: any) {
+                          setPendingRequestIds(prev => {
+                            const newSet = new Set(prev);
+                            newSet.delete(suggestion.id);
+                            return newSet;
+                          });
+                          toast.error('Failed');
                         }
-                      }
-                    }}
-                    className="bg-accent text-white rounded-full p-2 hover:opacity-90 transition-colors"
-                    title={`Send friend request to ${suggestion.name}`}
-                  >
-                    <UserPlus size={18} />
-                  </button>
-                )}
+                      }}
+                      className="bg-accent/10 text-accent rounded-full p-1.5 hover:bg-accent hover:text-white transition-colors"
+                      title="Add Friend"
+                    >
+                      <UserPlus size={16} />
+                    </button>
+                  )}
+                </div>
               </div>
             ))}
           </div>
         ) : (
-          <p className="text-muted text-sm">{t('rightSidebar.noSuggestions')}</p>
+          <p className="text-muted text-xs text-center py-2">{t('rightSidebar.noSuggestions')}</p>
         )}
       </div>
 
