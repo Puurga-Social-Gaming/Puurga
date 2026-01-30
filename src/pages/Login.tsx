@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { supabase } from '../lib/supabaseClient';
 import PuurgaLogo from '../components/Icons/PuurgaLogo';
 import LoadingScreen from '../components/Loading/LoadingScreen';
 import WelcomeScreen from '../components/Loading/WelcomeScreen';
@@ -25,10 +26,36 @@ const Login: React.FC = () => {
   const [welcomeUsername, setWelcomeUsername] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  
+
   const { login, loading } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+
+  // CRITICAL: Check for password recovery flow FIRST, before anything else
+  // This handles when Supabase redirects to root/login with recovery tokens
+  useEffect(() => {
+    const hash = window.location.hash;
+    console.log('🔐 Login page loaded - checking hash:', hash);
+
+    // Check for recovery tokens in hash
+    if (hash && (hash.includes('type=recovery') || hash.includes('type=magiclink'))) {
+      console.log('✅ Recovery/Magic link detected! Redirecting to reset-password...');
+      // Pass the hash along so Supabase can process the token
+      window.location.href = `/reset-password${hash}`;
+      return;
+    }
+
+    // Also listen for Supabase auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      console.log('🔐 Auth state change:', event);
+      if (event === 'PASSWORD_RECOVERY') {
+        console.log('✅ PASSWORD_RECOVERY event detected! Redirecting...');
+        navigate('/reset-password');
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [navigate]);
 
   useEffect(() => {
     // Check for saved email
@@ -63,10 +90,10 @@ const Login: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    
+
     try {
       const result = loginSchema.safeParse({ email, password });
-      
+
       if (!result.success) {
         // Format Zod errors into readable messages
         const formattedErrors = result.error.issues.map(issue => issue.message);
@@ -75,7 +102,7 @@ const Login: React.FC = () => {
       }
 
       const trimmedEmail = email.trim().toLowerCase();
-      
+
       // Handle remember me
       if (rememberMe) {
         localStorage.setItem('rememberedEmail', trimmedEmail);
@@ -85,7 +112,7 @@ const Login: React.FC = () => {
 
       console.log('Attempting login with:', { email: trimmedEmail });
       const user = await login(trimmedEmail, password);
-      
+
       if (!user) {
         throw new Error('Login failed - no user data received');
       }
@@ -98,17 +125,17 @@ const Login: React.FC = () => {
 
       setWelcomeUsername(displayName);
       setShowWelcome(true);
-      
+
       // Start preloading posts immediately while welcome screen is showing
       preloadPosts();
-      
+
       // Navigate after showing welcome screen (3.5 seconds to allow posts to preload)
       setTimeout(() => {
         navigate('/home');
       }, 3500);
     } catch (err: any) {
       console.error('Detailed login error in component:', err);
-      
+
       // Handle different types of errors
       if (err instanceof z.ZodError) {
         const formattedErrors = err.issues.map(issue => issue.message);
@@ -154,7 +181,7 @@ const Login: React.FC = () => {
           <h2 className="mt-6 text-3xl font-bold text-white">Welcome back</h2>
           <p className="mt-2 text-gray-400">Sign in to your account</p>
         </div>
-        
+
         <form onSubmit={handleSubmit} className="mt-8 space-y-6">
           {error && (
             <div className="p-3 mb-4 text-sm text-red-500 bg-red-500/10 border border-red-500/20 rounded-lg">
@@ -166,7 +193,7 @@ const Login: React.FC = () => {
               ))}
             </div>
           )}
-          
+
           <div className="space-y-4">
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-300">
@@ -182,7 +209,7 @@ const Login: React.FC = () => {
                 placeholder="Enter your email"
               />
             </div>
-            
+
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-gray-300">
                 Password
@@ -229,9 +256,8 @@ const Login: React.FC = () => {
           <button
             type="submit"
             disabled={loading}
-            className={`w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white transition-colors ${
-              loading ? 'bg-orange-400 cursor-not-allowed' : 'bg-orange-600 hover:bg-orange-700'
-            }`}
+            className={`w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white transition-colors ${loading ? 'bg-orange-400 cursor-not-allowed' : 'bg-orange-600 hover:bg-orange-700'
+              }`}
           >
             {loading ? (
               <div className="flex items-center">
@@ -245,11 +271,11 @@ const Login: React.FC = () => {
               'Sign in'
             )}
           </button>
-          
+
           <p className="text-center text-sm text-gray-400">
             Don't have an account?{' '}
-            <Link 
-              to="/register" 
+            <Link
+              to="/register"
               onClick={handleRegisterClick}
               className="font-medium text-orange-500 hover:text-orange-400"
             >

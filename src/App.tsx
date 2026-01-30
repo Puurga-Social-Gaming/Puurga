@@ -36,6 +36,25 @@ import { MessagesProvider } from './context/MessagesContext';
 import Layout from './components/Layout';
 import 'leaflet/dist/leaflet.css';
 
+// Helper component to preserve hash/search when redirecting
+const RootRedirect: React.FC = () => {
+  const { hash, search } = window.location;
+  console.log('🔐 RootRedirect - hash:', hash);
+
+  // If we have recovery tokens, go directly to reset-password
+  if (hash && hash.includes('type=recovery')) {
+    console.log('✅ Recovery token detected at root! Redirecting to /reset-password');
+    return <Navigate to={`/reset-password${search}${hash}`} replace />;
+  }
+
+  // If we have an access token (other auth flows), go to login with the token
+  if (hash && hash.includes('access_token')) {
+    return <Navigate to={`/login${search}${hash}`} replace />;
+  }
+
+  return <Navigate to="/login" replace />;
+};
+
 // Create router with future flags
 const router = createBrowserRouter(
   createRoutesFromElements(
@@ -47,8 +66,9 @@ const router = createBrowserRouter(
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/test-reset-url" element={<TestResetUrl />} />
 
-      {/* Redirect root to login */}
-      <Route path="/" element={<Navigate to="/login" replace />} />
+      {/* Redirect root to login, preserving auth params if present */}
+      <Route path="/" element={<RootRedirect />} />
+
 
       {/* Protected Routes - Wrapped with Layout */}
       <Route element={

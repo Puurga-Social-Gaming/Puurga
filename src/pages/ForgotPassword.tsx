@@ -46,8 +46,11 @@ const ForgotPassword: React.FC = () => {
       };
 
       // Use Supabase's built-in password recovery
+      const redirectUrl = getRedirectUrl();
+      console.log('🔐 Password Reset - Redirect URL being sent to Supabase:', redirectUrl);
+
       const { error: supabaseError } = await supabase.auth.resetPasswordForEmail(trimmedEmail, {
-        redirectTo: getRedirectUrl(),
+        redirectTo: redirectUrl,
       });
 
       if (supabaseError) {
