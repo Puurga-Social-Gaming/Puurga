@@ -461,7 +461,7 @@ router.post('/conversations', auth, async (req: AuthRequest, res) => {
   }
 });
 
-// Get online users (for starting new conversations)
+// Get users available for messaging (friends and recent contacts)
 router.get('/users/online', auth, async (req: AuthRequest, res) => {
   try {
     const { user } = req;
@@ -469,19 +469,74 @@ router.get('/users/online', auth, async (req: AuthRequest, res) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    // Get online user IDs from WebSocket manager
-    const onlineUserIds = wsManager.getOnlineUsers().filter(id => id !== user.id);
+    // Get online user IDs from WebSocket manager for status indication
+    const onlineUserIds = new Set(wsManager.getOnlineUsers().filter(id => id !== user.id));
 
-    if (onlineUserIds.length === 0) {
+    // Fetch the user's friends from the friends table
+    const { data: friendships, error: friendsError } = await supabase
+      .from('friends')
+      .select('user_id_1, user_id_2')
+      .or(`user_id_1.eq.${user.id},user_id_2.eq.${user.id}`);
+
+    if (friendsError && friendsError.code !== '42P01') {
+      console.error('Error fetching friendships:', friendsError);
+      // Don't throw, just return empty friends list
+    }
+
+    // Extract friend IDs (the other user in each friendship)
+    const friendIds = (friendships || []).map(f =>
+      f.user_id_1 === user.id ? f.user_id_2 : f.user_id_1
+    );
+
+    // Also get users from existing conversations (for non-friends who have conversed)
+    const { data: conversationParticipants } = await supabase
+      .from('conversation_participants')
+      .select('conversation_id')
+      .eq('user_id', user.id);
+
+    let conversationUserIds: string[] = [];
+    if (conversationParticipants && conversationParticipants.length > 0) {
+      const convIds = conversationParticipants.map(c => c.conversation_id);
+      const { data: otherParticipants } = await supabase
+        .from('conversation_participants')
+        .select('user_id')
+        .in('conversation_id', convIds)
+        .neq('user_id', user.id);
+
+      if (otherParticipants) {
+        conversationUserIds = otherParticipants.map(p => p.user_id);
+      }
+    }
+
+    // Combine friends and conversation contacts, remove duplicates
+    let allUserIds = [...new Set([...friendIds, ...conversationUserIds])];
+
+    // Fallback: If no friends/contacts (or very few), fetch recent users so the list isn't empty
+    // This ensures new users have someone to message
+    if (allUserIds.length < 5) {
+      const { data: recentUsers } = await supabase
+        .from('profiles')
+        .select('id')
+        .neq('id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(20);
+
+      if (recentUsers) {
+        const recentIds = recentUsers.map(u => u.id);
+        allUserIds = [...new Set([...allUserIds, ...recentIds])];
+      }
+    }
+
+    if (allUserIds.length === 0) {
       return res.json([]);
     }
 
-    // Fetch profiles for online users
+    // Fetch profiles for these users
     const { data: users, error } = await supabase
       .from('profiles')
       .select('id, full_name, username, avatar_url')
-      .in('id', onlineUserIds)
-      .limit(50); // Optional limit if too many online
+      .in('id', allUserIds)
+      .limit(100);
 
     if (error) {
       if (error.code === '42P01') {
@@ -495,12 +550,28 @@ router.get('/users/online', auth, async (req: AuthRequest, res) => {
       full_name: u.full_name || 'Unknown User',
       username: u.username || 'unknown',
       avatar_url: u.avatar_url,
-      isOnline: true
+      isOnline: onlineUserIds.has(u.id)
     }));
+
+    // Sort: online -> friends -> others -> alphabetical
+    formattedUsers.sort((a: any, b: any) => {
+      // 1. Online status
+      if (a.isOnline && !b.isOnline) return -1;
+      if (!a.isOnline && b.isOnline) return 1;
+
+      // 2. Friend status (checks if id is in friendIds)
+      const aIsFriend = friendIds.includes(a.id);
+      const bIsFriend = friendIds.includes(b.id);
+      if (aIsFriend && !bIsFriend) return -1;
+      if (!aIsFriend && bIsFriend) return 1;
+
+      // 3. Alphabetical
+      return (a.full_name || '').localeCompare(b.full_name || '');
+    });
 
     res.json(formattedUsers);
   } catch (error) {
-    console.error('Error fetching online users:', error);
+    console.error('Error fetching users:', error);
     res.status(500).json({ error: 'Failed to fetch users' });
   }
 });

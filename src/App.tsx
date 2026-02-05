@@ -36,15 +36,65 @@ import { MessagesProvider } from './context/MessagesContext';
 import Layout from './components/Layout';
 import 'leaflet/dist/leaflet.css';
 
+// Imports needed for RootRedirect
+import { supabase } from './lib/supabaseClient';
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+
 // Helper component to preserve hash/search when redirecting
 const RootRedirect: React.FC = () => {
+  const [isChecking, setIsChecking] = useState(true);
+  const navigate = useNavigate();
   const { hash, search } = window.location;
-  console.log('🔐 RootRedirect - hash:', hash);
 
-  // If we have recovery tokens, go directly to reset-password
-  if (hash && hash.includes('type=recovery')) {
-    console.log('✅ Recovery token detected at root! Redirecting to /reset-password');
+  // 1. Immediate synchronous check for recovery token
+  // If we see it, don't wait for effects or auth states, just go there.
+  if ((hash && hash.includes('type=recovery')) || (search && search.includes('type=recovery'))) {
+    console.log('✅ Recovery token detected synchronously! Redirecting to /reset-password');
+    // Pass the hash and search params along so Supabase on the destination page can verify it
     return <Navigate to={`/reset-password${search}${hash}`} replace />;
+  }
+
+  useEffect(() => {
+    const checkAuthStatus = async () => {
+      console.log('🔐 RootRedirect - checking auth status...');
+
+      // 2. Listen for Supabase Auth Events (fires if Supabase client consumes the hash)
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+        console.log('🔐 RootRedirect - Auth Event:', event);
+
+        if (event === 'PASSWORD_RECOVERY') {
+          console.log('✅ PASSWORD_RECOVERY event detected! Redirecting to /reset-password');
+          navigate('/reset-password', { replace: true });
+        } else if (event === 'SIGNED_IN') {
+          // User is signed in. Check if we should be on a specific page?
+          // For now, let the fallback redirect to login (which will auto-redirect to app) handle it
+          setIsChecking(false);
+        } else {
+          setIsChecking(false);
+        }
+      });
+
+      // 3. Fallback: If no event fires quickly, we proceed
+      setTimeout(() => {
+        if (isChecking) setIsChecking(false);
+      }, 2000);
+
+      return () => {
+        subscription.unsubscribe();
+      };
+    };
+
+    checkAuthStatus();
+  }, [navigate]);
+
+  if (isChecking) {
+    // Show a minimal loading state while we check for auth events
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[var(--bg)]">
+        <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
   }
 
   // If we have an access token (other auth flows), go to login with the token

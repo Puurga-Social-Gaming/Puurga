@@ -3,6 +3,7 @@ import { Camera, Save } from 'lucide-react';
 import { useUser } from '../../context/UserContext';
 import { toast } from 'react-hot-toast';
 import { DEFAULT_IMAGES } from '../../constants/defaultImages';
+import api from '../../lib/axios';
 
 const ProfileSettings: React.FC = () => {
   const { user, updateUser } = useUser();
@@ -64,23 +65,28 @@ const ProfileSettings: React.FC = () => {
         const formData = new FormData();
         formData.append(type === 'profile' ? 'avatar' : 'coverPhoto', file);
 
+        // Use the same axios instance as the rest of the app for proper token handling
         // Align with backend routes in backend/routes/users.ts
         // avatar: PUT /api/users/profile/avatar (field name 'avatar')
         // cover:  PUT /api/users/profile/cover-photo (field name 'coverPhoto')
-        const response = await fetch(`/api/users/profile/${type === 'profile' ? 'avatar' : 'cover-photo'}`, {
-          method: 'PUT',
-          body: formData,
+        const endpoint = type === 'profile'
+          ? '/users/profile/avatar'
+          : '/users/profile/cover-photo';
+
+        const response = await api.put(endpoint, formData, {
           headers: {
-            Authorization: `Bearer ${localStorage.getItem('token')}`,
+            'Content-Type': 'multipart/form-data',
           },
         });
 
-        if (!response.ok) {
-          throw new Error(`Failed to upload ${type === 'profile' ? 'profile picture' : 'cover photo'}`);
-        }
+        // Explicitly map the response to the correct field for updateUser
+        // Backend returns { avatar: url } or { coverPhoto: url }
+        const updatedData = type === 'profile'
+          ? { avatar: response.data.avatar }
+          : { coverPhoto: response.data.coverPhoto };
 
-        const data = await response.json();
-        updateUser(data);
+        updateUser(updatedData);
+        console.log(`${type} photo updated in ProfileSettings:`, updatedData);
         toast.success(`${type === 'profile' ? 'Profile picture' : 'Cover photo'} updated successfully`);
       } catch (error) {
         console.error(`Error uploading ${type}:`, error);
@@ -202,7 +208,7 @@ const ProfileSettings: React.FC = () => {
   return (
     <div className="space-y-6">
       <h2 className="text-xl font-bold text-white">Profile Settings</h2>
-      
+
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Cover Photo Upload */}
         <div className="relative w-full h-48 mb-16 rounded-lg overflow-hidden bg-[#2d2d2d]">
@@ -373,18 +379,17 @@ const ProfileSettings: React.FC = () => {
                 name="confirmPassword"
                 value={formData.confirmPassword}
                 onChange={handleInputChange}
-                className={`w-full bg-[#2d2d2d] text-white rounded-lg px-4 py-2 focus:ring-2 ${
-                  formData.newPassword && formData.confirmPassword &&
-                  formData.newPassword !== formData.confirmPassword
+                className={`w-full bg-[#2d2d2d] text-white rounded-lg px-4 py-2 focus:ring-2 ${formData.newPassword && formData.confirmPassword &&
+                    formData.newPassword !== formData.confirmPassword
                     ? 'ring-2 ring-red-500'
                     : 'focus:ring-orange-500'
-                }`}
+                  }`}
                 placeholder="Confirm new password"
               />
               {formData.newPassword && formData.confirmPassword &&
-               formData.newPassword !== formData.confirmPassword && (
-                <p className="text-red-500 text-sm mt-1">Passwords do not match</p>
-              )}
+                formData.newPassword !== formData.confirmPassword && (
+                  <p className="text-red-500 text-sm mt-1">Passwords do not match</p>
+                )}
             </div>
           </div>
         </div>
@@ -393,18 +398,17 @@ const ProfileSettings: React.FC = () => {
         <button
           type="submit"
           disabled={!hasChanges || saveStatus === 'saving'}
-          className={`w-full py-2 rounded-lg flex items-center justify-center space-x-2 ${
-            hasChanges
+          className={`w-full py-2 rounded-lg flex items-center justify-center space-x-2 ${hasChanges
               ? 'bg-orange-500 hover:bg-orange-600 text-white'
               : 'bg-gray-600 text-gray-400 cursor-not-allowed'
-          } transition-colors`}
+            } transition-colors`}
         >
           <Save size={20} />
           <span>
-            {saveStatus === 'saving' ? 'Saving...' : 
-             saveStatus === 'success' ? 'Saved!' : 
-             saveStatus === 'error' ? 'Try Again' : 
-             'Save Changes'}
+            {saveStatus === 'saving' ? 'Saving...' :
+              saveStatus === 'success' ? 'Saved!' :
+                saveStatus === 'error' ? 'Try Again' :
+                  'Save Changes'}
           </span>
         </button>
 

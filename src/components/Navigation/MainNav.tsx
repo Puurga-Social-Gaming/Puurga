@@ -407,6 +407,18 @@ const MainNav: React.FC = () => {
                   </div>
                 )}
               </div>
+
+              {/* Divider */}
+              <div className="border-t border-border" />
+
+              {/* Logout */}
+              <button
+                onClick={handleLogout}
+                className="flex items-center gap-2 px-3 py-2 text-xs text-red-500 hover:text-red-400 transition-colors w-full text-left hover:bg-red-500/10"
+              >
+                <LogOut size={16} />
+                <span>{t('navigation.logout')}</span>
+              </button>
             </div>
           )}
         </div>

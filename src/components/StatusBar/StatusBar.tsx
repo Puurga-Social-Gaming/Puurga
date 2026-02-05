@@ -48,7 +48,7 @@ function mapApiStatus(data: Record<string, unknown>): Status {
 }
 
 const StatusBar = () => {
-  useUser();
+  const { user } = useUser();
   const [statuses, setStatuses] = useState<Status[]>([]);
   const [selectedStatus, setSelectedStatus] = useState<Status | null>(null);
   const [isCreating, setIsCreating] = useState(false);
@@ -252,8 +252,14 @@ const StatusBar = () => {
                 <div className="flex items-start gap-4">
                   {/* User Avatar - Context for who is posting */}
                   <div className="flex-shrink-0">
-                    {/* We assume useUser provides authorized user. StatusBar has no direct user access in props but hook is called. 
-                          We should probably get user from context. StatusBar line 51 calls useUser() but doesn't destructure user. */}
+                    {user && (
+                      <Avatar
+                        src={user.avatar || DEFAULT_IMAGES.avatar}
+                        alt={user.name}
+                        size="md"
+                        className="w-10 h-10"
+                      />
+                    )}
                   </div>
 
                   <textarea

@@ -46,7 +46,7 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
 
     try {
       setLoading(true);
-      const response = await api.get('/api/notifications');
+      const response = await api.get('/notifications');
       setNotifications(response.data || []);
       
       // Calculate unread count
@@ -64,7 +64,7 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
     if (!user) return;
 
     try {
-      const response = await api.get('/api/notifications/unread/count');
+      const response = await api.get('/notifications/unread/count');
       setUnreadCount(response.data.count || 0);
     } catch (error) {
       console.error('Error loading unread count:', error);
@@ -75,7 +75,7 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
     if (!user || notificationIds.length === 0) return;
 
     try {
-      await api.put('/api/notifications/read', { notificationIds });
+      await api.put('/notifications/read', { notificationIds });
       
       // Update local state (keep items, but mark read)
       setNotifications(prev =>

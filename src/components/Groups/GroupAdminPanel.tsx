@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
-import { 
-  Settings, 
-  UserPlus, 
-  UserMinus, 
-  Volume2, 
-  VolumeX, 
-  Shield, 
-  Trash2, 
+import {
+  Settings,
+  UserPlus,
+  UserMinus,
+  Volume2,
+  VolumeX,
+  Shield,
+  Trash2,
   Upload,
   X,
   Crown,
@@ -55,7 +55,7 @@ const GroupAdminPanel: React.FC<GroupAdminPanelProps> = ({
 
   const handleMuteMember = async (memberId: string, duration: number | null = null) => {
     try {
-      await api.post(`/api/groups/${groupId}/members/${memberId}/mute`, { duration });
+      await api.post(`/groups/${groupId}/members/${memberId}/mute`, { duration });
       toast.success('Member muted successfully');
       onUpdate();
     } catch (error: any) {
@@ -65,7 +65,7 @@ const GroupAdminPanel: React.FC<GroupAdminPanelProps> = ({
 
   const handleUnmuteMember = async (memberId: string) => {
     try {
-      await api.post(`/api/groups/${groupId}/members/${memberId}/unmute`);
+      await api.post(`/groups/${groupId}/members/${memberId}/unmute`);
       toast.success('Member unmuted successfully');
       onUpdate();
     } catch (error: any) {
@@ -75,9 +75,9 @@ const GroupAdminPanel: React.FC<GroupAdminPanelProps> = ({
 
   const handleRemoveMember = async (memberId: string) => {
     if (!confirm('Are you sure you want to remove this member?')) return;
-    
+
     try {
-      await api.delete(`/api/groups/${groupId}/members/${memberId}`);
+      await api.delete(`/groups/${groupId}/members/${memberId}`);
       toast.success('Member removed successfully');
       onUpdate();
     } catch (error: any) {
@@ -87,7 +87,7 @@ const GroupAdminPanel: React.FC<GroupAdminPanelProps> = ({
 
   const handleChangeRole = async (memberId: string, newRole: 'admin' | 'moderator' | 'member') => {
     try {
-      await api.put(`/api/groups/${groupId}/members/${memberId}/role`, { role: newRole });
+      await api.put(`/groups/${groupId}/members/${memberId}/role`, { role: newRole });
       toast.success(`Member role updated to ${newRole}`);
       onUpdate();
     } catch (error: any) {
@@ -103,8 +103,8 @@ const GroupAdminPanel: React.FC<GroupAdminPanelProps> = ({
 
     try {
       // First, find user by username
-      const usersResponse = await api.get(`/api/users/search?q=${inviteUsername}`);
-      const user = usersResponse.data.find((u: any) => 
+      const usersResponse = await api.get(`/users/search?q=${inviteUsername}`);
+      const user = usersResponse.data.find((u: any) =>
         u.username.toLowerCase() === inviteUsername.toLowerCase()
       );
 
@@ -113,7 +113,7 @@ const GroupAdminPanel: React.FC<GroupAdminPanelProps> = ({
         return;
       }
 
-      await api.post(`/api/groups/${groupId}/invite`, { invitedUserId: user.id });
+      await api.post(`/groups/${groupId}/invite`, { invitedUserId: user.id });
       toast.success('Member invited successfully');
       setInviteUsername('');
       setShowInviteModal(false);
@@ -128,14 +128,14 @@ const GroupAdminPanel: React.FC<GroupAdminPanelProps> = ({
     formData.append(type === 'profile' ? 'profileImage' : 'coverImage', file);
 
     try {
-      const endpoint = type === 'profile' 
-        ? `/api/groups/${groupId}/profile-image`
-        : `/api/groups/${groupId}/cover-image`;
-      
+      const endpoint = type === 'profile'
+        ? `/groups/${groupId}/profile-image`
+        : `/groups/${groupId}/cover-image`;
+
       await api.put(endpoint, formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
-      
+
       toast.success(`${type === 'profile' ? 'Group icon' : 'Cover image'} updated successfully`);
       onUpdate();
     } catch (error: any) {
@@ -145,7 +145,7 @@ const GroupAdminPanel: React.FC<GroupAdminPanelProps> = ({
 
   const handleDeleteGroup = async () => {
     try {
-      await api.delete(`/api/groups/${groupId}`);
+      await api.delete(`/groups/${groupId}`);
       toast.success('Group deleted successfully');
       onDeleteGroup();
     } catch (error: any) {

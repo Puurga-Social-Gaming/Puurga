@@ -57,30 +57,30 @@ const Register: React.FC = () => {
   // Generate username from full name
   const generateUsername = (fullName: string): string => {
     if (!fullName.trim()) return '';
-    
+
     // Convert to lowercase, remove extra spaces, and split into words
     const words = fullName.trim().toLowerCase().split(/\s+/).filter(word => word.length > 0);
-    
+
     if (words.length === 0) return '';
-    
+
     // Remove special characters from each word, keeping only letters, numbers, and underscores
     const cleanWords = words.map(word => word.replace(/[^a-z0-9_]/g, '')).filter(word => word.length > 0);
-    
+
     if (cleanWords.length === 0) return '';
-    
+
     // Join words with underscores or combine if single word
     let generated = cleanWords.join('_');
-    
+
     // If the generated username is too short, pad it
     if (generated.length < 3) {
       generated = generated + '_user';
     }
-    
+
     // Ensure it doesn't exceed reasonable length (max 30 characters for username)
     if (generated.length > 30) {
       generated = generated.substring(0, 30);
     }
-    
+
     return generated;
   };
 
@@ -226,10 +226,10 @@ const Register: React.FC = () => {
       const user = await register(name.trim(), email.trim(), password, finalUsername.trim());
       if (user) {
         setShowWelcome(true);
-        
+
         // Start preloading posts immediately while welcome screen is showing
         preloadPosts();
-        
+
         setTimeout(() => {
           navigate('/home');
         }, 3500);
@@ -278,14 +278,14 @@ const Register: React.FC = () => {
           <h2 className="mt-6 text-3xl font-bold text-white">Create an account</h2>
           <p className="mt-2 text-gray-400">Join our community</p>
         </div>
-        
+
         <form onSubmit={handleSubmit} className="mt-8 space-y-6">
           {error && (
             <div className="bg-red-500/10 border border-red-500/50 text-red-500 p-3 rounded-lg text-sm text-center">
               {error}
             </div>
           )}
-          
+
           <div className="space-y-4">
             <div>
               <label htmlFor="name" className="block text-sm font-medium text-gray-300">
@@ -297,9 +297,8 @@ const Register: React.FC = () => {
                   type="text"
                   value={name}
                   onChange={(e) => handleFieldChange('name', e.target.value)}
-                  className={`mt-1 block w-full rounded-lg bg-[#1a1a1a] border px-4 py-2 text-white focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 ${
-                    validations.name.valid ? 'border-[#2d2d2d]' : 'border-red-500'
-                  }`}
+                  className={`mt-1 block w-full rounded-lg bg-[#1a1a1a] border px-4 py-2 text-white focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 ${validations.name.valid ? 'border-[#2d2d2d]' : 'border-red-500'
+                    }`}
                   placeholder="Enter your name"
                 />
                 {name && (
@@ -315,13 +314,9 @@ const Register: React.FC = () => {
               {!validations.name.valid && (
                 <p className="mt-1 text-sm text-red-500">{validations.name.message}</p>
               )}
-              {username && (
-                <p className="mt-1 text-xs text-gray-400">
-                  Username: <span className="text-orange-400 font-medium">{username}</span>
-                </p>
-              )}
+
             </div>
-            
+
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-300">
                 Email address
@@ -332,9 +327,8 @@ const Register: React.FC = () => {
                   type="email"
                   value={email}
                   onChange={(e) => handleFieldChange('email', e.target.value)}
-                  className={`mt-1 block w-full rounded-lg bg-[#1a1a1a] border px-4 py-2 text-white focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 ${
-                    validations.email.valid ? 'border-[#2d2d2d]' : 'border-red-500'
-                  }`}
+                  className={`mt-1 block w-full rounded-lg bg-[#1a1a1a] border px-4 py-2 text-white focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 ${validations.email.valid ? 'border-[#2d2d2d]' : 'border-red-500'
+                    }`}
                   placeholder="Enter your email"
                 />
                 {email && (
@@ -351,7 +345,7 @@ const Register: React.FC = () => {
                 <p className="mt-1 text-sm text-red-500">{validations.email.message}</p>
               )}
             </div>
-            
+
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-gray-300">
                 Password
@@ -362,9 +356,8 @@ const Register: React.FC = () => {
                   type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(e) => handleFieldChange('password', e.target.value)}
-                  className={`mt-1 block w-full rounded-lg bg-[#1a1a1a] border px-4 py-2 text-white focus:ring-2 focus:ring-orange-500 focus:border-transparent pr-10 transition-all duration-200 ${
-                    validations.password.valid ? 'border-[#2d2d2d]' : 'border-red-500'
-                  }`}
+                  className={`mt-1 block w-full rounded-lg bg-[#1a1a1a] border px-4 py-2 text-white focus:ring-2 focus:ring-orange-500 focus:border-transparent pr-10 transition-all duration-200 ${validations.password.valid ? 'border-[#2d2d2d]' : 'border-red-500'
+                    }`}
                   placeholder="Choose a password (min. 8 characters)"
                 />
                 <button
@@ -406,9 +399,8 @@ const Register: React.FC = () => {
                   type={showVerifyPassword ? "text" : "password"}
                   value={verifyPassword}
                   onChange={(e) => handleFieldChange('verifyPassword', e.target.value)}
-                  className={`mt-1 block w-full rounded-lg bg-[#1a1a1a] border px-4 py-2 text-white focus:ring-2 focus:ring-orange-500 focus:border-transparent pr-10 transition-all duration-200 ${
-                    validations.verifyPassword.valid ? 'border-[#2d2d2d]' : 'border-red-500'
-                  }`}
+                  className={`mt-1 block w-full rounded-lg bg-[#1a1a1a] border px-4 py-2 text-white focus:ring-2 focus:ring-orange-500 focus:border-transparent pr-10 transition-all duration-200 ${validations.verifyPassword.valid ? 'border-[#2d2d2d]' : 'border-red-500'
+                    }`}
                   placeholder="Verify your password"
                 />
                 <button
@@ -428,9 +420,8 @@ const Register: React.FC = () => {
           <button
             type="submit"
             disabled={loading}
-            className={`w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white transition-colors ${
-              loading ? 'bg-orange-400 cursor-not-allowed' : 'bg-orange-600 hover:bg-orange-700'
-            }`}
+            className={`w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white transition-colors ${loading ? 'bg-orange-400 cursor-not-allowed' : 'bg-orange-600 hover:bg-orange-700'
+              }`}
           >
             {loading ? (
               <div className="flex items-center">
@@ -444,11 +435,11 @@ const Register: React.FC = () => {
               'Create account'
             )}
           </button>
-          
+
           <p className="text-center text-sm text-gray-400">
             Already have an account?{' '}
-            <Link 
-              to="/login" 
+            <Link
+              to="/login"
               onClick={handleSignInClick}
               className="font-medium text-orange-500 hover:text-orange-400"
             >

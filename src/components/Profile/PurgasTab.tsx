@@ -63,7 +63,7 @@ const PurgasTab: React.FC = () => {
   const fetchPurgeActivity = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/api/posts/purges/my-activity');
+      const response = await api.get('/posts/purges/my-activity');
       setPurgeData(response.data);
     } catch (error) {
       console.error('Failed to fetch purge activity, falling back to local storage stats:', error);
@@ -105,7 +105,7 @@ const PurgasTab: React.FC = () => {
 
   const fetchCredits = async () => {
     try {
-      const response = await api.get('/api/credits');
+      const response = await api.get('/credits');
       setCreditData(response.data);
     } catch (error) {
       console.error('Failed to fetch credits:', error);

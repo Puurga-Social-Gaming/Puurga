@@ -11,6 +11,8 @@ import CommentSection from '../Comment/CommentSection';
 import PostReactions from './PostReactions';
 import ShareButton from './ShareButton';
 import PuurgaLogo from '../Icons/PuurgaLogo';
+import SupabaseImage from '../UI/SupabaseImage';
+import Avatar from '../Avatar';
 
 interface PostProps {
   post: PostType;
@@ -31,12 +33,12 @@ const Post: React.FC<PostProps> = ({ post, onUpdate }) => {
   const [commentCount, setCommentCount] = useState(post.comments || 0);
   const commentSectionRef = useRef<HTMLDivElement>(null);
   const [isExpanded, setIsExpanded] = useState(false);
-  
+
   // Text truncation for mobile (typical social media limit is ~150-200 chars)
   const TEXT_LIMIT = 150;
   const shouldTruncate = post.content.length > TEXT_LIMIT;
-  const displayText = isExpanded || !shouldTruncate 
-    ? post.content 
+  const displayText = isExpanded || !shouldTruncate
+    ? post.content
     : post.content.substring(0, TEXT_LIMIT) + '...';
 
   useEffect(() => {
@@ -44,7 +46,7 @@ const Post: React.FC<PostProps> = ({ post, onUpdate }) => {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
         setShowMenu(false);
       }
-      
+
       // Close comments if clicking outside the comment section
       if (commentSectionRef.current && !commentSectionRef.current.contains(event.target as Node)) {
         setShowComments(false);
@@ -67,10 +69,10 @@ const Post: React.FC<PostProps> = ({ post, onUpdate }) => {
 
   const handleSaveEdit = async () => {
     try {
-      const response = await api.put(`/api/posts/${post.id}`, {
+      const response = await api.put(`/posts/${post.id}`, {
         content: editedContent
       });
-      
+
       if (response.status === 200) {
         toast.success(t('post.postUpdated'));
         setIsEditing(false);
@@ -110,10 +112,10 @@ const Post: React.FC<PostProps> = ({ post, onUpdate }) => {
     if (!window.confirm(t('post.deleteConfirm'))) {
       return;
     }
-    
+
     try {
-      const response = await api.delete(`/api/posts/${post.id}`);
-      
+      const response = await api.delete(`/posts/${post.id}`);
+
       if (response.status === 200) {
         toast.success(t('post.postDeleted'));
         // Signal parent to remove this post from the list
@@ -127,17 +129,17 @@ const Post: React.FC<PostProps> = ({ post, onUpdate }) => {
 
   const handlePurgeClick = async () => {
     if (isPurging) return;
-    
+
     try {
       setIsPurging(true);
-      const response = await api.post(`/api/posts/${post.id}/purge`);
-      
+      const response = await api.post(`/posts/${post.id}/purge`);
+
       const newPurgeCount = response.data.purges;
       const newPurgedState = response.data.purged;
-      
+
       setLocalPurges(newPurgeCount);
       setIsPurged(newPurgedState);
-      
+
       // Check if user should go into ghost mode (5+ purges)
       if (newPurgeCount >= 5) {
         toast.error(`⚠️ This post has been purged ${newPurgeCount} times. User may enter ghost mode.`, {
@@ -146,7 +148,7 @@ const Post: React.FC<PostProps> = ({ post, onUpdate }) => {
       } else {
         toast.success(newPurgedState ? '🔥 Post purged!' : 'Purge removed');
       }
-      
+
       if (onUpdate) onUpdate({
         ...post,
         purges: newPurgeCount,
@@ -154,7 +156,7 @@ const Post: React.FC<PostProps> = ({ post, onUpdate }) => {
       });
     } catch (error: any) {
       console.error('Error purging post:', error);
-      
+
       // Handle specific error cases
       if (error.response?.status === 403 && error.response?.data?.code === 'OWN_POST') {
         toast.error('🚫 You cannot purge your own posts', {
@@ -185,19 +187,20 @@ const Post: React.FC<PostProps> = ({ post, onUpdate }) => {
 
   return (
     <div id={`post-${post.id}`}>
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         className="py-6"
       >
         <div className="flex items-start gap-3">
           <Link to={`/profile/${post.user.username}`}>
-            <motion.img
-              whileHover={{ scale: 1.1 }}
-              transition={{ type: "spring", stiffness: 300 }}
+            <Avatar
               src={post.user.avatar || '/default-avatar.png'}
               alt={post.user.name}
-              className="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover ring-2 ring-orange-500/20 hover:ring-orange-500 transition-all duration-200"
+              size="md"
+              userId={post.user.id}
+              showOnlineStatus={true}
+              className="ring-2 ring-orange-500/20 hover:ring-orange-500 transition-all duration-200"
             />
           </Link>
           <div className="flex-1 min-w-0">
@@ -225,7 +228,7 @@ const Post: React.FC<PostProps> = ({ post, onUpdate }) => {
 
                 <AnimatePresence>
                   {showMenu && (
-                    <motion.div 
+                    <motion.div
                       initial={{ opacity: 0, scale: 0.95, y: -10 }}
                       animate={{ opacity: 1, scale: 1, y: 0 }}
                       exit={{ opacity: 0, scale: 0.95, y: -10 }}
@@ -254,10 +257,10 @@ const Post: React.FC<PostProps> = ({ post, onUpdate }) => {
                 </AnimatePresence>
               </div>
             </div>
-            
+
             <AnimatePresence mode="wait">
               {isEditing ? (
-                <motion.div 
+                <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
@@ -316,8 +319,8 @@ const Post: React.FC<PostProps> = ({ post, onUpdate }) => {
               const shouldShowExpand = images.length > 2 && !showAllImages;
               const imagesToShow = shouldShowExpand ? images.slice(0, 2) : images;
               const remainingCount = images.length - 2;
-              
-              // Determine grid layout based on media_layout
+
+              // Determine grid layout based on media_layout and mobile-first approach
               const getGridClasses = () => {
                 if (images.length === 1) return 'grid-cols-1';
                 const layout = post.media_layout || 'grid';
@@ -325,27 +328,32 @@ const Post: React.FC<PostProps> = ({ post, onUpdate }) => {
                   case 'rows':
                     return 'grid-cols-1';
                   case 'columns':
-                    return 'grid-cols-2';
+                    return 'grid-cols-2 gap-1.5';
                   case 'grid':
                   default:
-                    return 'grid-cols-2 sm:grid-cols-3';
+                    // Mobile-first: 2 columns on mobile, 3 on desktop
+                    return 'grid-cols-2 sm:grid-cols-3 gap-1.5';
                 }
               };
 
               const getImageClasses = (isSingle: boolean, layout?: string) => {
-                // Uniform size for all images - max height to prevent tall images from taking too much space
+                // Mobile-first responsive image sizing like TikTok/Instagram
                 if (isSingle) {
-                  return 'max-h-[300px] sm:max-h-[350px] w-full object-contain';
+                  // Single image: reduced height on mobile, larger on desktop
+                  return 'h-[40vh] sm:h-[60vh] max-h-[400px] w-full object-cover rounded-xl';
                 }
                 const mediaLayout = layout || 'grid';
                 switch (mediaLayout) {
                   case 'rows':
-                    return 'max-h-[300px] sm:max-h-[350px] w-full object-contain';
+                    // Rows: full width with reduced height
+                    return 'h-[30vh] sm:h-[40vh] max-h-[350px] w-full object-cover rounded-xl';
                   case 'columns':
-                    return 'h-32 sm:h-40 object-cover';
+                    // Columns: square/rectangular aspect ratio
+                    return 'aspect-[3/4] sm:aspect-[4/5] w-full object-cover rounded-xl';
                   case 'grid':
                   default:
-                    return 'h-32 sm:h-40 object-cover';
+                    // Grid: more compact aspect ratio for mobile
+                    return 'aspect-[3/4] sm:aspect-[4/5] w-full object-cover rounded-xl';
                 }
               };
 
@@ -353,19 +361,17 @@ const Post: React.FC<PostProps> = ({ post, onUpdate }) => {
                 <motion.div
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className={`mt-3 grid gap-2 ${getGridClasses()}`}
+                  className={`mt-3 grid gap-1.5 ${getGridClasses()}`}
                 >
                   {imagesToShow.map((image, index) => (
                     <motion.div
                       key={index}
                       className="relative"
                     >
-                      <motion.img
-                        whileHover={{ scale: 1.02 }}
+                      <SupabaseImage
                         src={image}
                         alt={`Post image ${index + 1}`}
-                        className={`rounded-xl w-full transition-transform duration-200 hover:shadow-lg ${getImageClasses(images.length === 1, post.media_layout)}`}
-                        style={{ maxWidth: '100%' }}
+                        className={`transition-transform duration-200 hover:shadow-lg ${getImageClasses(images.length === 1, post.media_layout)}`}
                       />
                       {/* View All Overlay - Show on last visible image when there are more */}
                       {shouldShowExpand && index === 1 && (
@@ -390,12 +396,10 @@ const Post: React.FC<PostProps> = ({ post, onUpdate }) => {
                           animate={{ opacity: 1, scale: 1 }}
                           className="relative"
                         >
-                          <motion.img
-                            whileHover={{ scale: 1.02 }}
+                          <SupabaseImage
                             src={image}
                             alt={`Post image ${index + 3}`}
-                            className={`rounded-xl w-full transition-transform duration-200 hover:shadow-lg ${getImageClasses(false, post.media_layout)}`}
-                            style={{ maxWidth: '100%' }}
+                            className={`transition-transform duration-200 hover:shadow-lg ${getImageClasses(false, post.media_layout)}`}
                           />
                         </motion.div>
                       ))}
@@ -404,7 +408,7 @@ const Post: React.FC<PostProps> = ({ post, onUpdate }) => {
                 </motion.div>
               );
             })()}
-            
+
             <div className="mt-4 flex items-center gap-4 sm:gap-6">
               <PostReactions
                 postId={post.id}
@@ -412,7 +416,7 @@ const Post: React.FC<PostProps> = ({ post, onUpdate }) => {
                 onReactionChange={handleReactionChange}
               />
 
-              <motion.button 
+              <motion.button
                 whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.9 }}
                 onClick={handleCommentClick}
@@ -422,7 +426,7 @@ const Post: React.FC<PostProps> = ({ post, onUpdate }) => {
                 <MessageCircle size={18} className={`sm:w-5 sm:h-5 ${showComments ? 'text-blue-500' : ''}`} />
                 <span className="text-xs sm:text-sm">{commentCount}</span>
               </motion.button>
-              
+
               <ShareButton
                 postId={post.id}
                 postContent={post.content}
@@ -434,9 +438,8 @@ const Post: React.FC<PostProps> = ({ post, onUpdate }) => {
                 whileTap={{ scale: 0.9 }}
                 onClick={handlePurgeClick}
                 disabled={isPurging}
-                className={`flex items-center gap-1 transition-colors ${
-                  isPurged ? 'text-orange-500' : 'text-gray-400 hover:text-orange-500'
-                } ${isPurging ? 'opacity-50 cursor-not-allowed' : ''}`}
+                className={`flex items-center gap-1 transition-colors ${isPurged ? 'text-orange-500' : 'text-gray-400 hover:text-orange-500'
+                  } ${isPurging ? 'opacity-50 cursor-not-allowed' : ''}`}
                 title="Purge post"
               >
                 <PuurgaLogo size={18} className="sm:w-5 sm:h-5" />

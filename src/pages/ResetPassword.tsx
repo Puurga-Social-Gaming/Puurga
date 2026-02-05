@@ -26,29 +26,89 @@ const ResetPassword: React.FC = () => {
   const [success, setSuccess] = useState(false);
   const [isValidToken, setIsValidToken] = useState(true);
   const [checkingToken, setCheckingToken] = useState(true);
-  
+
   const navigate = useNavigate();
 
   // Check if there's a valid session (user came from email link)
   useEffect(() => {
+    let mounted = true;
+
     const checkSession = async () => {
       try {
         setCheckingToken(true);
-        const { data: { session }, error } = await supabase.auth.getSession();
-        
-        if (error || !session) {
+
+        // 1. First check existing session
+        const { data: { session } } = await supabase.auth.getSession();
+
+        if (session) {
+          if (mounted) {
+            setIsValidToken(true);
+            setCheckingToken(false);
+          }
+          return;
+        }
+
+        // 2. If no session, but we have hash params, wait for Supabase to process them
+        // The RootRedirect might have forwarded us here with the hash
+        const hash = window.location.hash;
+        if (hash && (hash.includes('access_token') || hash.includes('type=recovery'))) {
+          console.log('ResetPassword: Hash found, waiting for session processing...');
+          // We will rely on the onAuthStateChange listener below to catch the session
+          return;
+        }
+
+        // 3. If no session and no hash, truly invalid
+        if (mounted) {
           setIsValidToken(false);
+          setCheckingToken(false);
           toast.error('Invalid or expired reset link. Please request a new one.');
         }
+
       } catch (err) {
-        setIsValidToken(false);
-        toast.error('Error validating reset link.');
-      } finally {
-        setCheckingToken(false);
+        if (mounted) {
+          setIsValidToken(false);
+          setCheckingToken(false); // Make sure we stop loading
+          toast.error('Error validating reset link.');
+        }
       }
     };
 
+    // Set up auth state listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('ResetPassword: Auth event:', event);
+      if (mounted) {
+        if (event === 'PASSWORD_RECOVERY' || (event === 'SIGNED_IN' && session)) {
+          setIsValidToken(true);
+          setCheckingToken(false);
+        } else if (event === 'SIGNED_OUT') {
+          // Only mark invalid if we aren't already valid/checking? 
+          // be careful not to override valid state if we just haven't got the SW session yet
+        }
+      }
+    });
+
     checkSession();
+
+    // Fallback timeout in case auth listener never fires despite hash
+    const timeoutId = setTimeout(() => {
+      if (mounted && checkingToken) { // Only force fail if we are still checking
+        console.log('ResetPassword: Verification timed out');
+        // One last check
+        supabase.auth.getSession().then(({ data: { session } }) => {
+          if (!session && mounted) {
+            setIsValidToken(false);
+            setCheckingToken(false);
+            toast.error('Verification timed out. Link may be invalid.');
+          }
+        });
+      }
+    }, 5000);
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+      clearTimeout(timeoutId);
+    };
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {

@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, ReactNode, useCallback } from 'react';
+import { supabase } from '../lib/supabaseClient';
 
 // Types
 export interface User {
@@ -64,61 +65,82 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // In a real app, you'd fetch the user from an API
   React.useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      // Try to load from localStorage first for faster loading
-      const storedUser = localStorage.getItem('user');
-      if (storedUser) {
-        try {
-          const userData = JSON.parse(storedUser);
-          // Normalize stored data
-          const normalized = {
-            id: userData.id,
-            name: userData.full_name ?? userData.name ?? '',
-            username: userData.username ?? '',
-            email: userData.email ?? '',
-            avatar: userData.avatar_url ?? userData.avatar ?? null,
-            coverPhoto: userData.cover_photo ?? userData.coverPhoto ?? null,
-            bio: userData.bio ?? '',
-            location: userData.location ?? '',
-            website: userData.website ?? '',
-            createdAt: userData.created_at ?? userData.createdAt ?? new Date().toISOString(),
-            role: userData.role ?? 'user',
-            isBlocked: userData.is_blocked ?? false,
-            isOnline: userData.isOnline ?? false,
-            isFriend: userData.isFriend ?? false,
-            occupation: userData.occupation ?? '',
-            education: userData.education ?? '',
-            relationship: userData.relationship ?? '',
-            isPrivate: userData.is_private ?? false,
-            hideFromSuggestions: userData.hide_from_suggestions ?? false,
-            messageRequests: userData.message_requests ?? 'everyone',
-            showReadReceipts: userData.show_read_receipts ?? true,
-            showOnlineStatus: userData.show_online_status ?? true,
-            commentPrivacy: userData.comment_privacy ?? 'everyone',
-            storyPrivacy: userData.story_privacy ?? 'everyone',
-            isVerified: userData.isVerified ?? false,
-            joinDate: userData.joinDate ?? userData.created_at ?? undefined,
-            postCount: userData.postCount ?? 0,
-            totalLikes: userData.totalLikes ?? 0,
-            stats: userData.stats ?? { posts: 0, followers: 0, following: 0, puurgas: 0 },
-            credits: userData.credits ?? 0,
-          } as User;
-          setUser(normalized);
-        } catch (error) {
-          console.error('Error parsing stored user data:', error);
-        }
+    const initializeUser = async () => {
+      // First check Supabase session to ensure we have the correct user
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+      if (sessionError || !session) {
+        console.log('No valid Supabase session found, clearing local data');
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        setLoading(false);
+        return;
       }
 
-      // Always fetch fresh data from API
-      fetch('/api/users/profile', {
-        headers: { Authorization: `Bearer ${token}` }
-      })
-        .then(res => res.ok ? res.json() : null)
-        .then(data => {
-          if (data) {
+      const token = session.access_token;
+      if (token) {
+        // Update localStorage with current session token
+        localStorage.setItem('token', token);
+
+        // Try to load from localStorage first for faster loading
+        const storedUser = localStorage.getItem('user');
+        if (storedUser) {
+          try {
+            const userData = JSON.parse(storedUser);
+            // Verify that stored user matches current session user
+            if (userData.id === session.user.id) {
+              // Normalize stored data
+              const normalized = {
+                id: userData.id,
+                name: userData.full_name ?? userData.name ?? '',
+                username: userData.username ?? '',
+                email: userData.email ?? '',
+                avatar: userData.avatar_url ?? userData.avatar ?? null,
+                coverPhoto: userData.cover_photo ?? userData.coverPhoto ?? null,
+                bio: userData.bio ?? '',
+                location: userData.location ?? '',
+                website: userData.website ?? '',
+                createdAt: userData.created_at ?? userData.createdAt ?? new Date().toISOString(),
+                role: userData.role ?? 'user',
+                isBlocked: userData.is_blocked ?? false,
+                isOnline: userData.isOnline ?? false,
+                isFriend: userData.isFriend ?? false,
+                occupation: userData.occupation ?? '',
+                education: userData.education ?? '',
+                relationship: userData.relationship ?? '',
+                isPrivate: userData.is_private ?? false,
+                hideFromSuggestions: userData.hide_from_suggestions ?? false,
+                messageRequests: userData.message_requests ?? 'everyone',
+                showReadReceipts: userData.show_read_receipts ?? true,
+                showOnlineStatus: userData.show_online_status ?? true,
+                commentPrivacy: userData.comment_privacy ?? 'everyone',
+                storyPrivacy: userData.story_privacy ?? 'everyone',
+                isVerified: userData.isVerified ?? false,
+                joinDate: userData.joinDate ?? userData.created_at ?? undefined,
+                postCount: userData.postCount ?? 0,
+                totalLikes: userData.totalLikes ?? 0,
+                stats: userData.stats ?? { posts: 0, followers: 0, following: 0, puurgas: 0 },
+                credits: userData.credits ?? 0,
+              } as User;
+              setUser(normalized);
+            } else {
+              // User mismatch, clear stored data
+              localStorage.removeItem('user');
+            }
+          } catch (error) {
+            console.error('Error parsing stored user data:', error);
+            localStorage.removeItem('user');
+          }
+        }
+
+        // Always fetch fresh data from API to ensure correct user
+        try {
+          const res = await fetch('/users/profile', {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (res.ok) {
+            const data = await res.json();
             console.log('Raw profile data from API:', {
               avatar: data.avatar,
               avatar_url: data.avatar_url,
@@ -180,38 +202,70 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
             });
             setUser(normalized);
           }
-          setLoading(false);
-        })
-        .catch(() => setLoading(false));
-    } else {
+        } catch (error) {
+          console.error('Error fetching fresh user data:', error);
+        }
+      }
       setLoading(false);
-    }
+    };
+
+    initializeUser();
+
+    // Listen for auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event: any, session: any) => {
+      console.log('Auth state changed:', event, session?.user?.id);
+      if (event === 'SIGNED_OUT' || event === 'TOKEN_REFRESHED') {
+        localStorage.removeItem('user');
+        if (event === 'SIGNED_OUT') {
+          setUser(null);
+        }
+      }
+      if (session) {
+        // Re-initialize user when auth state changes
+        initializeUser();
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   const updateUser = useCallback((data: Partial<User>) => {
     setUser(prevUser => {
       if (prevUser) {
+        // Merge the updated data with previous user state
         const updatedUser = { ...prevUser, ...data };
 
         // Update localStorage with the new user data
         try {
           const currentStoredUser = JSON.parse(localStorage.getItem('user') || '{}');
+
+          // Build updated storage object with both frontend and backend field names
           const updatedStoredUser = {
             ...currentStoredUser,
-            // Map frontend fields to backend fields for storage
-            avatar_url: data.avatar || currentStoredUser.avatar_url,
-            cover_photo: data.coverPhoto || currentStoredUser.cover_photo,
-            full_name: data.name || currentStoredUser.full_name,
-            username: data.username || currentStoredUser.username,
-            email: data.email || currentStoredUser.email,
-            // Keep frontend fields for immediate use
-            ...data
+            // Explicitly set all relevant fields from the update
+            ...data,
+            // Map frontend fields to backend fields for storage consistency
+            // Avatar: support both 'avatar' and 'avatar_url'
+            avatar: data.avatar ?? currentStoredUser.avatar ?? currentStoredUser.avatar_url,
+            avatar_url: data.avatar ?? currentStoredUser.avatar_url ?? currentStoredUser.avatar,
+            // Cover photo: support both 'coverPhoto' and 'cover_photo'
+            coverPhoto: data.coverPhoto ?? currentStoredUser.coverPhoto ?? currentStoredUser.cover_photo,
+            cover_photo: data.coverPhoto ?? currentStoredUser.cover_photo ?? currentStoredUser.coverPhoto,
+            // Other fields
+            full_name: data.name ?? currentStoredUser.full_name ?? currentStoredUser.name,
+            name: data.name ?? currentStoredUser.name ?? currentStoredUser.full_name,
+            username: data.username ?? currentStoredUser.username,
+            email: data.email ?? currentStoredUser.email,
           };
+
           localStorage.setItem('user', JSON.stringify(updatedStoredUser));
           console.log('Updated localStorage with:', {
-            username: updatedStoredUser.username,
-            name: updatedStoredUser.name,
-            full_name: updatedStoredUser.full_name
+            avatar: updatedStoredUser.avatar,
+            avatar_url: updatedStoredUser.avatar_url,
+            coverPhoto: updatedStoredUser.coverPhoto,
+            cover_photo: updatedStoredUser.cover_photo,
           });
         } catch (error) {
           console.error('Error updating localStorage:', error);

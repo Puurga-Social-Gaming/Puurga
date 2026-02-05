@@ -31,7 +31,7 @@ export const useGhostMode = () => {
       }
 
       try {
-        const response = await api.get(`/api/redeem/status/${user.id}`);
+        const response = await api.get(`/redeem/status/${user.id}`);
         setGhostStatus({
           isGhost: response.data.isGhost,
           purgeCount: response.data.purgeCount,

@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { MapPin, Link2, Calendar, Trophy, Flame, Loader2, AlertCircle, Camera, Briefcase, GraduationCap, Heart, Settings, Gamepad2, Shield, ChevronDown, ChevronUp } from 'lucide-react';
-import { motion } from 'framer-motion';
+import React, { useState, useRef, useEffect } from 'react';
+import { toast } from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 import { useUser } from '../context/UserContext';
 import api from '../lib/axios';
-import toast from 'react-hot-toast';
+import { Camera, Settings, Heart, Calendar, MapPin, Loader2, AlertCircle, Link2, Briefcase, GraduationCap, ChevronUp, ChevronDown, Trophy, Flame, Gamepad2, Shield } from 'lucide-react';
+import { motion } from 'framer-motion';
+import Avatar from '../components/Avatar';
 import PurgasTab from '../components/Profile/PurgasTab';
 import GalleryTab from '../components/Profile/GalleryTab';
 
@@ -96,7 +97,7 @@ const Profile: React.FC = () => {
     const fieldName = type === 'profile' ? 'avatar' : 'coverPhoto';
     formData.append(fieldName, file);
 
-    const endpoint = type === 'profile' ? '/api/users/profile/avatar' : '/api/users/profile/cover-photo';
+    const endpoint = type === 'profile' ? '/users/profile/avatar' : '/users/profile/cover-photo';
     const toastId = toast.loading(`${t('profile.uploading')} ${type} ${t('profile.photoUpdated')}`);
 
     try {
@@ -107,22 +108,14 @@ const Profile: React.FC = () => {
       });
 
       // Update user context with new image URL
+      // UserContext.updateUser handles localStorage persistence automatically
       const updatedData = type === 'profile'
         ? { avatar: response.data.avatar }
         : { coverPhoto: response.data.coverPhoto };
 
       updateUser(updatedData);
 
-      // Store in localStorage for persistence with both frontend and backend field names
-      const currentUser = JSON.parse(localStorage.getItem('user') || '{ }');
-      const updatedUser = {
-        ...currentUser,
-        ...updatedData,
-        // Also store backend field names for consistency
-        ...(type === 'profile' ? { avatar_url: response.data.avatar } : { cover_photo: response.data.coverPhoto })
-      };
-      localStorage.setItem('user', JSON.stringify(updatedUser));
-
+      console.log(`${type} photo updated:`, updatedData);
       toast.success(`${type.charAt(0).toUpperCase() + type.slice(1)} ${t('profile.photoUpdated')}`, { id: toastId });
     } catch (error) {
       console.error(`Failed to upload ${type} photo:`, error);
@@ -138,14 +131,17 @@ const Profile: React.FC = () => {
         username: formData.username,
         email: formData.email
       });
-      const response = await api.put('/api/users/profile', formData);
+      const response = await api.put('/users/profile', formData);
       console.log('Profile update response:', {
         username: response.data.username,
         full_name: response.data.full_name,
-        name: response.data.name
+        name: response.data.name,
+        avatar: response.data.avatar,
+        coverPhoto: response.data.coverPhoto
       });
 
       // Map backend response to frontend User format
+      // Include avatar and coverPhoto to ensure they're preserved
       const updatedUserData = {
         name: response.data.full_name || response.data.name || formData.name,
         username: response.data.username || formData.username,
@@ -163,28 +159,20 @@ const Profile: React.FC = () => {
         showOnlineStatus: response.data.show_online_status,
         commentPrivacy: response.data.comment_privacy,
         storyPrivacy: response.data.story_privacy,
+        // Include avatar and coverPhoto from response to preserve them
+        avatar: response.data.avatar || response.data.avatar_url,
+        coverPhoto: response.data.coverPhoto || response.data.cover_photo,
       };
 
       console.log('Updating user context with:', {
         username: updatedUserData.username,
-        name: updatedUserData.name
+        name: updatedUserData.name,
+        avatar: updatedUserData.avatar,
+        coverPhoto: updatedUserData.coverPhoto
       });
 
-      // Update user context
+      // Update user context - this also handles localStorage persistence
       updateUser(updatedUserData);
-
-      // Update localStorage with complete data
-      const currentUser = JSON.parse(localStorage.getItem('user') || '{ }');
-      const updatedStoredUser = {
-        ...currentUser,
-        ...response.data,
-        // Ensure both formats are stored
-        full_name: response.data.full_name || formData.name,
-        name: response.data.full_name || formData.name,
-        username: response.data.username || formData.username,
-        email: response.data.email || formData.email,
-      };
-      localStorage.setItem('user', JSON.stringify(updatedStoredUser));
 
       console.log('Profile save complete. Username should now be:', updatedUserData.username);
 
@@ -255,10 +243,13 @@ const Profile: React.FC = () => {
           {/* Profile Picture - Smaller on mobile */}
           <div className="absolute -top-8 sm:-top-12 left-2 sm:left-4 z-30">
             <div className="relative">
-              <img
+              <Avatar
                 src={profileData.avatar || '/default-avatar.png'}
                 alt={profileData.name}
-                className="w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 rounded-full border-2 sm:border-4 border-background object-cover bg-background-secondary"
+                size="xl"
+                userId={profileData.id}
+                showOnlineStatus={true}
+                className="border-2 sm:border-4 border-background bg-background-secondary"
               />
               {isEditMode && (
                 <button
@@ -285,11 +276,11 @@ const Profile: React.FC = () => {
               {profileData.bio && (
                 <p className="text-gray-300 mt-1 sm:mt-2 max-w-xl text-xs sm:text-sm md:text-base line-clamp-2">{profileData.bio}</p>
               )}
-              
+
               {/* Basic Info - Always Visible, Compact on mobile */}
               <div className="flex items-center gap-1.5 sm:gap-2 md:gap-4 mt-2 sm:mt-3 text-[10px] sm:text-xs md:text-sm text-gray-400 flex-wrap">
                 <span className="flex items-center gap-0.5 sm:gap-1">
-                  <Calendar size={12} className="sm:w-4 sm:h-4 text-accent" /> 
+                  <Calendar size={12} className="sm:w-4 sm:h-4 text-accent" />
                   <span className="hidden sm:inline">{t('profile.joined')}</span>
                   <span className="text-[10px] sm:text-xs">{new Date(profileData.joinDate || Date.now()).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</span>
                 </span>
@@ -379,11 +370,11 @@ const Profile: React.FC = () => {
         {/* Profile Tabs - Part of sticky header, more compact on mobile */}
         <div className="bg-background w-full border-b border-gray-800">
           <div className="flex justify-around px-1 sm:px-2 md:px-4 overflow-x-auto bg-background">
-            <TabButton 
-              label={t('profile.gallery')} 
-              icon={<Trophy size={18} />} 
-              isActive={activeTab === 'posts'} 
-              onClick={() => setActiveTab('posts')} 
+            <TabButton
+              label={t('profile.gallery')}
+              icon={<Trophy size={18} />}
+              isActive={activeTab === 'posts'}
+              onClick={() => setActiveTab('posts')}
             />
             <TabButton
               label={t('profile.puurgas')}

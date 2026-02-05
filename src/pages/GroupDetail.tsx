@@ -80,7 +80,7 @@ const GroupDetail: React.FC = () => {
   // Poll for new messages every 3 seconds
   useEffect(() => {
     if (!id || !group?.is_member) return;
-    
+
     const interval = setInterval(() => {
       fetchMessages();
     }, 3000);
@@ -143,7 +143,7 @@ const GroupDetail: React.FC = () => {
 
   const handleLeaveGroup = async () => {
     if (!confirm('Are you sure you want to leave this group?')) return;
-    
+
     try {
       await api.post(`/groups/${id}/leave`);
       toast.success('Left group successfully');
@@ -237,7 +237,7 @@ const GroupDetail: React.FC = () => {
       className="min-h-screen bg-[#0a0a0a] flex flex-col"
     >
       {/* Header */}
-      <div 
+      <div
         className="relative h-48 bg-cover bg-center"
         style={{
           backgroundImage: group.cover_image_url ? `url(${group.cover_image_url})` : undefined,
@@ -245,7 +245,7 @@ const GroupDetail: React.FC = () => {
         }}
       >
         <div className="absolute inset-0 bg-gradient-to-b from-black/50 to-black/80" />
-        
+
         <div className="absolute top-4 left-4 right-4 flex items-center justify-between">
           <button
             onClick={() => navigate('/groups')}
@@ -253,7 +253,7 @@ const GroupDetail: React.FC = () => {
           >
             <ArrowLeft size={20} />
           </button>
-          
+
           <div className="flex items-center gap-2">
             <button
               onClick={() => setShowMembers(!showMembers)}
@@ -262,7 +262,7 @@ const GroupDetail: React.FC = () => {
               <Users size={20} />
             </button>
             {(group.user_role === 'admin' || group.user_role === 'moderator') && (
-              <button 
+              <button
                 onClick={() => setShowSettings(!showSettings)}
                 className={`p-2 rounded-full text-white transition-colors ${showSettings ? 'bg-orange-500' : 'bg-black/50 hover:bg-black/70'}`}
               >
@@ -317,9 +317,21 @@ const GroupDetail: React.FC = () => {
                   </div>
                 ) : (
                   messages.map((message, index) => {
-                    const isOwnMessage = message.sender_id === user?.id;
-                    const showDate = index === 0 || 
+                    // Use String() comparison to handle potential type mismatches (UUID vs string)
+                    const isOwnMessage = String(message.sender_id) === String(user?.id);
+                    const showDate = index === 0 ||
                       formatDate(messages[index - 1].created_at) !== formatDate(message.created_at);
+
+                    // Debug logging (remove after fixing)
+                    if (index === 0) {
+                      console.log('Message ownership check:', {
+                        messageSenderId: message.sender_id,
+                        currentUserId: user?.id,
+                        isOwnMessage,
+                        senderType: typeof message.sender_id,
+                        userIdType: typeof user?.id
+                      });
+                    }
 
                     return (
                       <React.Fragment key={message.id}>
@@ -350,11 +362,10 @@ const GroupDetail: React.FC = () => {
                                 </p>
                               )}
                               <div
-                                className={`px-4 py-2 rounded-2xl ${
-                                  isOwnMessage
+                                className={`px-4 py-2 rounded-2xl ${isOwnMessage
                                     ? 'bg-orange-500 text-white rounded-br-md'
                                     : 'bg-[#1a1a1a] text-white rounded-bl-md'
-                                }`}
+                                  }`}
                               >
                                 <p className="break-words">{message.content}</p>
                               </div>
@@ -408,7 +419,7 @@ const GroupDetail: React.FC = () => {
                   <h3 className="text-lg font-bold text-white">Members</h3>
                   <span className="text-sm text-gray-400">{group.member_count}</span>
                 </div>
-                
+
                 <div className="space-y-3">
                   {group.members.map((member) => (
                     <div key={member.id} className="flex items-center gap-3">
@@ -508,17 +519,16 @@ const GroupDetail: React.FC = () => {
                               {member.profile?.full_name || member.profile?.username || 'Unknown'}
                             </p>
                             <div className="flex items-center gap-2">
-                              <span className={`text-xs px-2 py-0.5 rounded ${
-                                member.role === 'admin' ? 'bg-orange-500/20 text-orange-400' :
-                                member.role === 'moderator' ? 'bg-blue-500/20 text-blue-400' :
-                                'bg-gray-500/20 text-gray-400'
-                              }`}>
+                              <span className={`text-xs px-2 py-0.5 rounded ${member.role === 'admin' ? 'bg-orange-500/20 text-orange-400' :
+                                  member.role === 'moderator' ? 'bg-blue-500/20 text-blue-400' :
+                                    'bg-gray-500/20 text-gray-400'
+                                }`}>
                                 {member.role}
                               </span>
                             </div>
                           </div>
                         </div>
-                        
+
                         {/* Admin controls for non-admin members */}
                         {group.user_role === 'admin' && member.role !== 'admin' && member.user_id !== user?.id && (
                           <div className="flex items-center gap-1">
@@ -540,7 +550,7 @@ const GroupDetail: React.FC = () => {
                             </button>
                           </div>
                         )}
-                        
+
                         {/* Moderator controls for regular members */}
                         {group.user_role === 'moderator' && member.role === 'member' && member.user_id !== user?.id && (
                           <button

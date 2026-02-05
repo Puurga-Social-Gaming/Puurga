@@ -37,11 +37,13 @@ const ForgotPassword: React.FC = () => {
       // For development, use current localhost with port
       // For production, use window.location.origin
       const getRedirectUrl = () => {
-        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-          // Development: use current port (e.g., :5174)
-          return `${window.location.origin}/reset-password`;
+        // If VITE_SITE_URL is set (e.g. for production), use it
+        const siteUrl = import.meta.env.VITE_SITE_URL;
+        if (siteUrl) {
+          return `${siteUrl}/reset-password`;
         }
-        // Production: use current domain
+
+        // Otherwise use the current window origin (works for both localhost and dynamic domains)
         return `${window.location.origin}/reset-password`;
       };
 

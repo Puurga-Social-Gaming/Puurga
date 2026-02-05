@@ -185,6 +185,7 @@
         "acceptedFriendRequest": "accepted your friend request",
         "likedPost": "liked your post",
         "commentedPost": "commented on your post",
+        "sentMessage": "sent you a message",
         "accept": "Accept",
         "decline": "Decline",
         "viewProfile": "View Profile",

@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useMessages } from '../context/MessagesContext';
 import { formatDistanceToNow } from 'date-fns';
 import { Send, Search, Smile, MoreVertical, Phone, Video, MessageSquare, X, Plus, Loader2 } from 'lucide-react';
@@ -6,9 +7,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { useUser } from '../context/UserContext';
 import toast from 'react-hot-toast';
+import Avatar from '../components/Avatar';
 
 const Messages: React.FC = () => {
   const { t } = useTranslation();
+  const [searchParams] = useSearchParams();
   const { user } = useUser();
   const {
     conversations,
@@ -40,10 +43,21 @@ const Messages: React.FC = () => {
     }
   }, [user, loadOnlineUsers]);
 
+  // Handle URL parameter for conversation
+  useEffect(() => {
+    const conversationId = searchParams.get('conversation');
+    if (conversationId && conversations.length > 0) {
+      const conversation = conversations.find(c => c.id === conversationId);
+      if (conversation) {
+        handleSelectConversation(conversation);
+      }
+    }
+  }, [searchParams, conversations]);
+
   // Helper function to check if a user is online
-  const isUserOnline = (userId: string): boolean => {
-    return onlineUsers.some(u => u.id === userId && u.isOnline);
-  };
+  // const isUserOnline = (userId: string): boolean => {
+  //   return onlineUsers.some(u => u.id === userId && u.isOnline);
+  // };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -90,7 +104,7 @@ const Messages: React.FC = () => {
         clearTimeout(typingTimeoutRef.current);
       }
       await sendTypingStatus(currentConversation.id, false);
-      
+
       await sendMessage(currentConversation.id, newMessage);
       setNewMessage('');
     } catch (error) {
@@ -113,7 +127,7 @@ const Messages: React.FC = () => {
     // Send typing indicator
     if (value.trim()) {
       sendTypingStatus(currentConversation.id, true);
-      
+
       // Stop typing after 2 seconds of inactivity
       typingTimeoutRef.current = setTimeout(() => {
         sendTypingStatus(currentConversation.id, false);
@@ -132,30 +146,17 @@ const Messages: React.FC = () => {
         }`}
     >
       <div className="relative flex-shrink-0">
-        <div className="w-12 h-12 rounded-full bg-background-secondary flex items-center justify-center overflow-hidden">
-          {conversation.participants[0]?.avatar_url ? (
-            <img
-              src={conversation.participants[0].avatar_url}
-              alt={conversation.participants[0]?.full_name || 'User'}
-              className="w-full h-full object-cover"
-            />
-          ) : (
-            <span className="text-foreground font-semibold">
-              {conversation.participants[0]?.full_name?.charAt(0) || '?'}
-            </span>
-          )}
-        </div>
-        {/* Online status indicator */}
-        {onlineUsers.some(u => u.id === conversation.participants[0]?.id) && (
-          <div className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-green-500 rounded-full border-2 border-black"></div>
-        )}
+        <Avatar
+          src={conversation.participants[0]?.avatar_url || ''}
+          alt={conversation.participants[0]?.full_name || 'User'}
+          size="md"
+          userId={conversation.participants[0]?.id || ''}
+          showOnlineStatus={true}
+        />
         {conversation.unread_count > 0 && (
-          <div className="absolute -top-1 -right-1 w-5 h-5 bg-accent rounded-full flex items-center justify-center">
+          <div className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center">
             <span className="text-xs font-bold text-white">{conversation.unread_count}</span>
           </div>
-        )}
-        {isUserOnline(conversation.participants[0]?.id) && (
-          <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-background"></div>
         )}
       </div>
       <div className="flex-1 min-w-0">
@@ -261,79 +262,79 @@ const Messages: React.FC = () => {
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
               className="flex flex-col h-full w-full fixed inset-0 lg:relative lg:inset-auto bg-background z-50 lg:z-auto"
             >
-            {/* User List Header */}
-            <div className="h-16 px-4 flex items-center justify-between border-b border-border">
-              <div className="flex items-center gap-3">
+              {/* User List Header */}
+              <div className="h-16 px-4 flex items-center justify-between border-b border-border">
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => {
+                      setShowUserList(false);
+                      setShowMobileSidebar(true);
+                    }}
+                    className="lg:hidden p-2.5 text-muted hover:text-foreground hover:bg-card-hover rounded-lg transition-colors touch-manipulation"
+                    aria-label={t('common.close')}
+                  >
+                    <X size={20} className="sm:w-5 sm:h-5" />
+                  </button>
+                  <h3 className="text-lg font-semibold text-foreground">{t('messages.startNewConversation')}</h3>
+                </div>
                 <button
-                  onClick={() => {
-                    setShowUserList(false);
-                    setShowMobileSidebar(true);
-                  }}
-                  className="lg:hidden p-2.5 text-muted hover:text-foreground hover:bg-card-hover rounded-lg transition-colors touch-manipulation"
+                  onClick={() => setShowUserList(false)}
+                  className="p-2.5 text-muted hover:text-foreground hover:bg-card-hover rounded-lg transition-colors touch-manipulation"
                   aria-label={t('common.close')}
                 >
                   <X size={20} className="sm:w-5 sm:h-5" />
                 </button>
-                <h3 className="text-lg font-semibold text-foreground">{t('messages.startNewConversation')}</h3>
               </div>
-              <button
-                onClick={() => setShowUserList(false)}
-                className="p-2.5 text-muted hover:text-foreground hover:bg-card-hover rounded-lg transition-colors touch-manipulation"
-                aria-label={t('common.close')}
-              >
-                <X size={20} className="sm:w-5 sm:h-5" />
-              </button>
-            </div>
 
-            {/* Users List */}
-            <div className="flex-1 overflow-y-auto p-4">
-              {loading ? (
-                <div className="flex items-center justify-center py-12">
-                  <Loader2 className="w-6 h-6 animate-spin text-accent" />
-                </div>
-              ) : onlineUsers.length === 0 ? (
-                <div className="text-center py-12 text-gray-400">
-                  <p>{t('messages.noUsersAvailable')}</p>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {onlineUsers.map((onlineUser) => (
-                    <div
-                      key={onlineUser.id}
-                      onClick={() => handleStartConversation(onlineUser)}
-                      className="flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all hover:bg-card-hover border border-transparent hover:border-border"
-                    >
-                      <div className="relative flex-shrink-0">
-                        <div className="w-12 h-12 rounded-full bg-background-secondary flex items-center justify-center overflow-hidden">
-                          {onlineUser.avatar_url ? (
-                            <img
-                              src={onlineUser.avatar_url}
-                              alt={onlineUser.full_name}
-                              className="w-full h-full object-cover"
-                            />
-                          ) : (
-                            <span className="text-foreground font-semibold">
-                              {onlineUser.full_name.charAt(0)}
-                            </span>
+              {/* Users List */}
+              <div className="flex-1 overflow-y-auto p-4">
+                {loading ? (
+                  <div className="flex items-center justify-center py-12">
+                    <Loader2 className="w-6 h-6 animate-spin text-accent" />
+                  </div>
+                ) : onlineUsers.length === 0 ? (
+                  <div className="text-center py-12 text-gray-400">
+                    <p>{t('messages.noUsersAvailable')}</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {onlineUsers.map((onlineUser) => (
+                      <div
+                        key={onlineUser.id}
+                        onClick={() => handleStartConversation(onlineUser)}
+                        className="flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all hover:bg-card-hover border border-transparent hover:border-border"
+                      >
+                        <div className="relative flex-shrink-0">
+                          <div className="w-12 h-12 rounded-full bg-background-secondary flex items-center justify-center overflow-hidden">
+                            {onlineUser.avatar_url ? (
+                              <img
+                                src={onlineUser.avatar_url}
+                                alt={onlineUser.full_name}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <span className="text-foreground font-semibold">
+                                {onlineUser.full_name.charAt(0)}
+                              </span>
+                            )}
+                          </div>
+                          {onlineUser.isOnline && (
+                            <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-background"></div>
                           )}
                         </div>
-                        {onlineUser.isOnline && (
-                          <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-background"></div>
-                        )}
-                      </div>
-                      <div className="flex-1">
-                        <div className="font-semibold text-foreground text-sm">
-                          {onlineUser.full_name}
-                        </div>
-                        <div className="text-xs text-muted">
-                          @{onlineUser.username}
+                        <div className="flex-1">
+                          <div className="font-semibold text-foreground text-sm">
+                            {onlineUser.full_name}
+                          </div>
+                          <div className="text-xs text-muted">
+                            @{onlineUser.username}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
@@ -350,19 +351,13 @@ const Messages: React.FC = () => {
                 >
                   <MessageSquare size={20} className="sm:w-5 sm:h-5" />
                 </button>
-                <div className="w-10 h-10 rounded-full bg-background-secondary flex items-center justify-center overflow-hidden flex-shrink-0">
-                  {currentConversation.participants[0]?.avatar_url ? (
-                    <img
-                      src={currentConversation.participants[0].avatar_url}
-                      alt={currentConversation.participants[0]?.full_name || 'User'}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <span className="text-foreground font-semibold">
-                      {currentConversation.participants[0]?.full_name?.charAt(0) || '?'}
-                    </span>
-                  )}
-                </div>
+                <Avatar
+                  src={currentConversation.participants[0]?.avatar_url || ''}
+                  alt={currentConversation.participants[0]?.full_name || 'User'}
+                  size="md"
+                  userId={currentConversation.participants[0]?.id || ''}
+                  showOnlineStatus={true}
+                />
                 <div>
                   <h3 className="font-semibold text-foreground text-sm">
                     {currentConversation.participants[0]?.full_name || 'Unknown User'}
@@ -373,19 +368,19 @@ const Messages: React.FC = () => {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <button 
+                <button
                   className="p-2.5 text-muted hover:text-foreground hover:bg-card-hover rounded-lg transition-colors touch-manipulation"
                   aria-label="Call"
                 >
                   <Phone size={18} className="sm:w-5 sm:h-5" />
                 </button>
-                <button 
+                <button
                   className="p-2.5 text-muted hover:text-foreground hover:bg-card-hover rounded-lg transition-colors touch-manipulation"
                   aria-label="Video call"
                 >
                   <Video size={18} className="sm:w-5 sm:h-5" />
                 </button>
-                <button 
+                <button
                   className="p-2.5 text-muted hover:text-foreground hover:bg-card-hover rounded-lg transition-colors touch-manipulation"
                   aria-label="More options"
                 >
@@ -408,8 +403,20 @@ const Messages: React.FC = () => {
                 </div>
               ) : (
                 messages.map((message, index) => {
-                  const isFromCurrentUser = message.from_user_id === user?.id;
+                  // Use String() comparison to handle potential type mismatches
+                  const isFromCurrentUser = String(message.from_user_id) === String(user?.id);
                   const showAvatar = index === 0 || messages[index - 1]?.from_user_id !== message.from_user_id;
+
+                  // Debug logging (remove after fixing)
+                  if (index === 0) {
+                    console.log('Personal message ownership check:', {
+                      messageFromUserId: message.from_user_id,
+                      currentUserId: user?.id,
+                      isFromCurrentUser,
+                      fromUserIdType: typeof message.from_user_id,
+                      userIdType: typeof user?.id
+                    });
+                  }
 
                   return (
                     <motion.div
@@ -421,19 +428,13 @@ const Messages: React.FC = () => {
                     >
                       <div className="w-8 flex-shrink-0">
                         {showAvatar && !isFromCurrentUser && (
-                          <div className="w-8 h-8 rounded-full bg-background-secondary flex items-center justify-center overflow-hidden">
-                            {message.from_user.avatar_url ? (
-                              <img
-                                src={message.from_user.avatar_url}
-                                alt={message.from_user.full_name}
-                                className="w-full h-full object-cover"
-                              />
-                            ) : (
-                              <span className="text-foreground text-xs font-semibold">
-                                {message.from_user.full_name.charAt(0)}
-                              </span>
-                            )}
-                          </div>
+                          <Avatar
+                            src={message.from_user.avatar_url || ''}
+                            alt={message.from_user.full_name}
+                            size="sm"
+                            userId={message.from_user.id}
+                            showOnlineStatus={true}
+                          />
                         )}
                       </div>
                       <div className={`flex-1 ${isFromCurrentUser ? 'flex flex-col items-end' : ''}`}>

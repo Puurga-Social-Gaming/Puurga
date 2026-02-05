@@ -45,7 +45,9 @@ const PurgaSlicer: React.FC<PurgaSlicerProps> = ({ className }) => {
   const [showSettings, setShowSettings] = useState(false);
   const [creditsEarned, setCreditsEarned] = useState(0);
   const [selectedBackground, setSelectedBackground] = useState('obsidian_ember');
+  const [customBgUrl, setCustomBgUrl] = useState<string | null>(null);
   const [selectedBlade, setSelectedBlade] = useState('ember');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     livesRef.current = lives;
@@ -59,6 +61,12 @@ const PurgaSlicer: React.FC<PurgaSlicerProps> = ({ className }) => {
     const storedBg = localStorage.getItem('perga_bg') || 'obsidian_ember';
     const storedBlade = localStorage.getItem('perga_blade') || 'ember';
     const storedOwned = localStorage.getItem('perga_owned_backgrounds') || 'obsidian_ember';
+    const storedCustomBg = localStorage.getItem('perga_custom_bg');
+
+    if (storedCustomBg) {
+      setCustomBgUrl(storedCustomBg);
+    }
+
     ownedBackgroundsRef.current = new Set(storedOwned.split(',').filter(Boolean));
     setSelectedBackground(storedBg);
     setSelectedBlade(storedBlade);
@@ -123,9 +131,19 @@ const PurgaSlicer: React.FC<PurgaSlicerProps> = ({ className }) => {
       return { top: '#0a0a0a', bottom: '#000000' };
     };
 
-    const bg = getBgPalette(selectedBackground);
-    const bgTex = createGradientTexture(bg.top, bg.bottom);
-    const bgMaterial = new THREE.MeshBasicMaterial({ map: bgTex, transparent: true, opacity: 1 });
+    let bgMaterial;
+
+    if (selectedBackground === 'custom' && customBgUrl) {
+      const loader = new THREE.TextureLoader();
+      const tex = loader.load(customBgUrl);
+      tex.minFilter = THREE.LinearFilter;
+      bgMaterial = new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 1 });
+    } else {
+      const bg = getBgPalette(selectedBackground);
+      const bgTex = createGradientTexture(bg.top, bg.bottom);
+      bgMaterial = new THREE.MeshBasicMaterial({ map: bgTex, transparent: true, opacity: 1 });
+    }
+
     const bgGeometry = new THREE.PlaneGeometry(aspect * viewSize * 2, viewSize * 2);
     const bgPlane = new THREE.Mesh(bgGeometry, bgMaterial);
     bgPlane.position.z = -5;
@@ -173,7 +191,7 @@ const PurgaSlicer: React.FC<PurgaSlicerProps> = ({ className }) => {
       sprite.scale.set(scale, scale, 1);
 
       const vx = (Math.random() - 0.5) * 4;
-      const vy = 12.5 + Math.random() * 6;
+      const vy = 16 + Math.random() * 6; // Increased from 12.5 to reach higher
 
       const obj: GameObject = {
         sprite,
@@ -281,6 +299,7 @@ const PurgaSlicer: React.FC<PurgaSlicerProps> = ({ className }) => {
 
       if (hitObj.isCorruption) {
         setLives(prev => prev - 1);
+        livesRef.current -= 1; // Immediate update for game loop logic
         setCombo(0);
         corruptionHitsRef.current += 1;
       } else {
@@ -356,6 +375,7 @@ const PurgaSlicer: React.FC<PurgaSlicerProps> = ({ className }) => {
             scene.remove(obj.sprite);
             if (!obj.isCorruption && !obj.sliced) {
               setLives(prev => prev - 1);
+              livesRef.current -= 1; // Immediate update for game loop logic
               setCombo(0);
             }
           } else {
@@ -411,12 +431,13 @@ const PurgaSlicer: React.FC<PurgaSlicerProps> = ({ className }) => {
       gameObjectsRef.current.length = 0;
       renderer.dispose();
     };
-  }, [gameState, selectedBackground, selectedBlade]);
+  }, [gameState, selectedBackground, selectedBlade, customBgUrl]);
 
   const startGame = () => {
     setGameState('playing');
     setScore(0);
     setLives(3);
+    livesRef.current = 3; // Immediate reset for game loop safety
     setCombo(0);
     setTimeLeft(60);
     setShowSettings(false);
@@ -442,8 +463,9 @@ const PurgaSlicer: React.FC<PurgaSlicerProps> = ({ className }) => {
     setGameState('menu');
     setScore(0);
     setLives(3);
+    livesRef.current = 3; // Immediate reset for game loop safety
     setCombo(0);
-    setTimeLeft(30);
+    setTimeLeft(60);
     setShowSettings(false);
     setCreditsEarned(0);
     // Reset tracking refs
@@ -476,6 +498,13 @@ const PurgaSlicer: React.FC<PurgaSlicerProps> = ({ className }) => {
         });
 
         setCreditsEarned(result.net);
+
+        // Update Local Stats
+        const currentHigh = Number(localStorage.getItem('perga_high_score') || '0');
+        if (score > currentHigh) localStorage.setItem('perga_high_score', String(score));
+
+        const gamesPlayed = Number(localStorage.getItem('perga_games_played') || '0');
+        localStorage.setItem('perga_games_played', String(gamesPlayed + 1));
       };
 
       processCredits();
@@ -538,6 +567,27 @@ const PurgaSlicer: React.FC<PurgaSlicerProps> = ({ className }) => {
     }
   };
 
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 2 * 1024 * 1024) { // 2MB limit
+      toast.error('Image too large (max 2MB)');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const result = e.target?.result as string;
+      setCustomBgUrl(result);
+      setSelectedBackground('custom');
+      localStorage.setItem('perga_custom_bg', result);
+      localStorage.setItem('perga_bg', 'custom');
+      toast.success('Background uploaded!');
+    };
+    reader.readAsDataURL(file);
+  };
+
   return (
     <div className={`relative w-full h-full bg-black ${className}`}>
       <div className="absolute inset-0">
@@ -545,15 +595,15 @@ const PurgaSlicer: React.FC<PurgaSlicerProps> = ({ className }) => {
         <canvas ref={trailCanvasRef} className="absolute inset-0 pointer-events-none" />
 
         {/* Game UI Overlay */}
-        <div className="absolute top-0 left-0 right-0 p-2 sm:p-4 flex justify-between items-start text-white">
-          <div className="bg-black/60 rounded-lg p-2 sm:p-3 border border-orange-500/20">
+        <div className="absolute top-0 left-0 right-0 p-2 sm:p-4 flex justify-between items-start text-white pointer-events-none">
+          <div className="bg-black/60 rounded-lg p-2 sm:p-3 border border-orange-500/20 pointer-events-auto">
             <div className="text-xs sm:text-sm">Score: {score}</div>
             <div className="text-xs sm:text-sm">Lives: {lives}</div>
             <div className="text-xs sm:text-sm">Combo: x{combo}</div>
             <div className="text-xs sm:text-sm">Time: {timeLeft}s</div>
             <div className="text-xs sm:text-sm">Credits: {balance}</div>
           </div>
-          <div className="flex gap-1 sm:gap-2">
+          <div className="flex gap-1 sm:gap-2 pointer-events-auto">
             {gameState === 'playing' && (
               <button
                 onClick={pauseGame}
@@ -601,6 +651,24 @@ const PurgaSlicer: React.FC<PurgaSlicerProps> = ({ className }) => {
                 <div>
                   <div className="font-semibold mb-3">Hallowed Grounds</div>
                   <div className="space-y-2">
+                    {/* Custom Upload Button */}
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      onChange={handleFileUpload}
+                      accept="image/*"
+                      className="hidden"
+                    />
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      className={`w-full text-left px-3 sm:px-4 py-2 sm:py-3 rounded-lg border transition-colors ${selectedBackground === 'custom' ? 'border-orange-500 bg-orange-500/10' : 'border-[#222] bg-black/40 hover:border-orange-500/40'}`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium text-sm sm:text-base">Custom Image</span>
+                        <span className="text-xs sm:text-sm text-blue-400">Upload</span>
+                      </div>
+                    </button>
+
                     {backgrounds.map(bg => {
                       const owned = ownedBackgroundsRef.current.has(bg.id);
                       const active = selectedBackground === bg.id;

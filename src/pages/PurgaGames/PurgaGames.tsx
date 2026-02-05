@@ -5,12 +5,10 @@ import {
   Gamepad2,
   Trophy,
   Star,
-  Clock,
   ArrowLeft,
   Zap,
   Puzzle,
   Target,
-  Sparkles,
   Play,
   Users,
   TrendingUp,
@@ -19,6 +17,8 @@ import {
   Eye
 } from 'lucide-react';
 import PurgaSlicer from '../../components/Games/PurgaSlicer';
+import { useUser } from '../../context/UserContext';
+import api from '../../lib/axios';
 
 type GameType = 'menu' | 'purgaslicer' | 'purgapuzzle' | 'purgashooter';
 
@@ -80,10 +80,33 @@ const PurgaGames: React.FC = () => {
     }
   ];
 
+  const { user } = useUser();
+  const [leaderboard, setLeaderboard] = useState<any[]>([]);
+  const [localStats, setLocalStats] = useState({ highScore: 0, gamesPlayed: 0 });
+
+  React.useEffect(() => {
+    // Fetch leaderboard
+    const fetchLeaderboard = async () => {
+      try {
+        const res = await api.get('/api/games/leaderboard');
+        setLeaderboard(res.data);
+      } catch (err) {
+        console.error('Failed to load leaderboard', err);
+      }
+    };
+    fetchLeaderboard();
+
+    // Load local stats
+    setLocalStats({
+      highScore: Number(localStorage.getItem('perga_high_score') || 0),
+      gamesPlayed: Number(localStorage.getItem('perga_games_played') || 0)
+    });
+  }, []);
+
   const stats = [
-    { icon: Trophy, label: 'High Score', value: '0', color: 'text-yellow-500', bg: 'bg-yellow-500/10' },
-    { icon: Star, label: 'Games Played', value: '0', color: 'text-accent', bg: 'bg-accent/10' },
-    { icon: Clock, label: 'Total Time', value: '0m', color: 'text-blue-500', bg: 'bg-blue-500/10' },
+    { icon: Trophy, label: 'High Score', value: localStats.highScore.toLocaleString(), color: 'text-yellow-500', bg: 'bg-yellow-500/10' },
+    { icon: Star, label: 'Games Played', value: localStats.gamesPlayed.toLocaleString(), color: 'text-accent', bg: 'bg-accent/10' },
+    { icon: Zap, label: 'Credits Balance', value: (user?.credits || 0).toLocaleString(), color: 'text-blue-500', bg: 'bg-blue-500/10' },
   ];
 
   const handleGameSelect = (gameId: string) => {
@@ -230,34 +253,18 @@ const PurgaGames: React.FC = () => {
         animate="visible"
         className="relative z-10 px-4 sm:px-6 lg:px-8 py-6 sm:py-8 max-w-7xl mx-auto space-y-6 sm:space-y-8"
       >
-        {/* Header */}
-        <motion.div variants={itemVariants} className="text-center space-y-4">
+        {/* Header - Simplified & Professional */}
+        <motion.div variants={itemVariants} className="text-center space-y-4 mb-8">
           <div className="flex items-center justify-center gap-3">
-            <motion.div
-              animate={{
-                rotate: [0, -10, 10, -10, 0],
-                scale: [1, 1.1, 1]
-              }}
-              transition={{
-                duration: 2,
-                repeat: Infinity,
-                repeatDelay: 3
-              }}
-            >
-              <Gamepad2 className="w-10 h-10 sm:w-12 sm:h-12 text-accent" />
-            </motion.div>
-            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold bg-gradient-to-r from-foreground via-orange-100 to-orange-300 bg-clip-text text-transparent">
+            <div className="p-3 bg-accent/10 rounded-xl border border-accent/20">
+              <Gamepad2 className="w-8 h-8 text-accent" />
+            </div>
+            <h1 className="text-3xl sm:text-4xl font-bold text-foreground">
               Puurga Games
             </h1>
-            <motion.div
-              animate={{ rotate: 360 }}
-              transition={{ duration: 8, repeat: Infinity, ease: 'linear' }}
-            >
-              <Sparkles className="w-6 h-6 sm:w-8 sm:h-8 text-orange-400" />
-            </motion.div>
           </div>
-          <p className="text-muted text-sm sm:text-base lg:text-lg max-w-2xl mx-auto">
-            Enter the trials of wisdom and prove your righteousness through divine challenges
+          <p className="text-muted text-base max-w-2xl mx-auto">
+            Compete, earn credits, and climb the ranks.
           </p>
         </motion.div>
 
@@ -271,25 +278,19 @@ const PurgaGames: React.FC = () => {
               key={stat.label}
               variants={itemVariants}
               whileHover={{ scale: 1.03, y: -2 }}
-              className="bg-card/80 backdrop-blur-sm rounded-xl sm:rounded-2xl p-3 sm:p-6 border border-border hover:border-muted transition-all duration-300"
+              className="bg-card/90 backdrop-blur-sm rounded-xl p-4 border border-border/50 hover:border-accent/30 transition-all duration-300"
             >
-              <div className="flex flex-col items-center gap-2 sm:gap-3">
-                <motion.div
-                  className={`p-2 sm:p-3 rounded-lg sm:rounded-xl ${stat.bg}`}
-                  whileHover={{ rotate: [0, -10, 10, 0] }}
-                  transition={{ duration: 0.5 }}
+              <div className="flex items-center gap-4">
+                <div
+                  className={`p-3 rounded-lg ${stat.bg}`}
                 >
-                  <stat.icon className={`w-5 h-5 sm:w-6 sm:h-6 ${stat.color}`} />
-                </motion.div>
-                <div className="text-center">
-                  <p className="text-[10px] sm:text-sm text-muted/80 uppercase tracking-wide">{stat.label}</p>
-                  <motion.p
-                    className="text-lg sm:text-2xl font-bold text-foreground mt-1"
-                    initial={{ scale: 1 }}
-                    whileHover={{ scale: 1.1 }}
-                  >
+                  <stat.icon className={`w-6 h-6 ${stat.color}`} />
+                </div>
+                <div className="text-left">
+                  <p className="text-xs text-muted uppercase tracking-wider font-semibold">{stat.label}</p>
+                  <p className="text-2xl font-bold text-foreground mt-0.5" >
                     {stat.value}
-                  </motion.p>
+                  </p>
                 </div>
               </div>
             </motion.div>
@@ -472,6 +473,52 @@ const PurgaGames: React.FC = () => {
               ))}
             </AnimatePresence>
           </motion.div>
+        </motion.div>
+
+        {/* Leaderboard Section */}
+        <motion.div variants={itemVariants} className="pt-8">
+          <div className="flex items-center gap-2 mb-6">
+            <TrendingUp className="text-accent" />
+            <h2 className="text-xl font-bold text-foreground">Top Players</h2>
+          </div>
+
+          <div className="bg-card/50 border border-border rounded-xl overflow-hidden">
+            <div className="grid grid-cols-12 gap-4 p-4 text-xs font-semibold text-muted uppercase border-b border-border/50">
+              <div className="col-span-2 sm:col-span-1 text-center">#</div>
+              <div className="col-span-7 sm:col-span-8">Player</div>
+              <div className="col-span-3 sm:col-span-3 text-right">Credits</div>
+            </div>
+            <div className="divide-y divide-border/30">
+              {leaderboard.length === 0 ? (
+                <div className="p-8 text-center text-muted text-sm">Loading ranks...</div>
+              ) : (
+                leaderboard.map((player, index) => (
+                  <div key={player.id} className="grid grid-cols-12 gap-4 p-4 items-center hover:bg-white/5 transition-colors">
+                    <div className="col-span-2 sm:col-span-1 text-center font-mono text-muted-foreground">
+                      {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : index + 1}
+                    </div>
+                    <div className="col-span-7 sm:col-span-8 flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-accent/10 overflow-hidden">
+                        {player.avatar_url ? (
+                          <img src={player.avatar_url} alt={player.username} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-xs font-bold text-accent">
+                            {player.full_name?.charAt(0) || '?'}
+                          </div>
+                        )}
+                      </div>
+                      <div className="truncate">
+                        <span className="text-sm font-medium text-foreground block truncate">{player.full_name || 'Anonymous'}</span>
+                      </div>
+                    </div>
+                    <div className="col-span-3 sm:col-span-3 text-right font-mono text-accent font-medium">
+                      {player.credits?.toLocaleString() || 0}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
         </motion.div>
 
         {/* Bottom Spacing for Mobile Nav */}

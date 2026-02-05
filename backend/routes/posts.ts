@@ -251,8 +251,19 @@ router.post('/:id/purge', auth, async (req, res) => {
 
     const targetUserId = post.user_id;
 
+    // Debug logging to identify comparison issue
+    console.log('Purge check:', {
+      userId: userId,
+      targetUserId: targetUserId,
+      userIdType: typeof userId,
+      targetUserIdType: typeof targetUserId,
+      areEqual: userId === targetUserId,
+      stringComparison: String(userId) === String(targetUserId)
+    });
+
     // Prevent users from purging their own posts
-    if (userId === targetUserId) {
+    // Use String() comparison to handle potential type mismatches
+    if (String(userId) === String(targetUserId)) {
       return res.status(403).json({
         error: 'Cannot purge your own post',
         message: 'You cannot purge your own posts. Purges are meant for content from other users.',
@@ -313,7 +324,7 @@ router.post('/:id/purge', auth, async (req, res) => {
         if (currentStreak === 5) {
           creditsToAdd = 7; // 1 base + 6 bonus = 7 total
           bonusAwarded = true;
-          
+
           // Reset streak after bonus
           await supabase
             .from('profiles')

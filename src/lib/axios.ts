@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { toast } from 'react-hot-toast';
+import { supabase } from './supabaseClient';
 
 interface EnhancedError extends Error {
   response?: any;
@@ -8,16 +9,18 @@ interface EnhancedError extends Error {
 }
 
 const api = axios.create({
-  baseURL: '',
+  baseURL: '/api',
   headers: {
     'Content-Type': 'application/json',
   },
   timeout: 10000, // 10 second timeout
 });
 
+console.log('🔧 Axios baseURL configured to:', api.defaults.baseURL);
+
 // Request interceptor
 api.interceptors.request.use(
-  (config) => {
+  async (config) => {
     console.log('🚀 Making request:', {
       method: config.method,
       url: config.url,
@@ -26,11 +29,22 @@ api.interceptors.request.use(
         Authorization: config.headers.Authorization ? '***present***' : '***not-present***'
       }
     });
+
+    let token = localStorage.getItem('token');
     
-    const token = localStorage.getItem('token');
+    if (!token) {
+      // If no token, check Supabase session for fresh token
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.access_token) {
+        token = session.access_token;
+        localStorage.setItem('token', token);
+      }
+    }
+    
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    
     return config;
   },
   (error) => {
@@ -63,14 +77,27 @@ api.interceptors.response.use(
       return Promise.reject(new Error('Network error - Please check if the server is running'));
     }
 
+    // Handle 401 Unauthorized - Clean up and redirect to login
+    if (error.response.status === 401) {
+      console.log('🔒 401 Unauthorized - Clearing session and redirecting to login');
+      // Only clear if we actually have a token to prevent loops if login itself failed
+      if (localStorage.getItem('token')) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        localStorage.removeItem('supabase.auth.token');
+        window.location.href = '/login';
+        return Promise.reject(new Error('Session expired. Please login again.'));
+      }
+    }
+
     // Enhance error object with more details
     const enhancedError: EnhancedError = new Error(
-      error.response?.data?.message || 
-      error.response?.data?.error || 
-      error.message || 
+      error.response?.data?.message ||
+      error.response?.data?.error ||
+      error.message ||
       'An unexpected error occurred'
     );
-    
+
     enhancedError.response = error.response;
     enhancedError.status = error.response?.status;
     enhancedError.data = error.response?.data;

@@ -79,7 +79,7 @@ export const MessagesProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         setLoading(true);
       }
 
-      const response = await api.get('/api/messages/conversations');
+      const response = await api.get('/messages/conversations');
       console.log('Loaded conversations:', response.data?.length || 0);
       setConversations(response.data || []);
       setLoading(false);
@@ -104,7 +104,7 @@ export const MessagesProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     try {
       setLoading(true);
-      const response = await api.get(`/api/messages/conversations/${conversationId}/messages`);
+      const response = await api.get(`/messages/conversations/${conversationId}/messages`);
       console.log('Loaded messages:', response.data);
       setMessages(response.data || []);
     } catch (error) {
@@ -119,7 +119,7 @@ export const MessagesProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     if (!user || !content.trim()) return;
 
     try {
-      const response = await api.post(`/api/messages/conversations/${conversationId}/messages`, {
+      const response = await api.post(`/messages/conversations/${conversationId}/messages`, {
         content: content.trim()
       });
 
@@ -139,7 +139,7 @@ export const MessagesProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const sendTypingStatus = async (conversationId: string, isTyping: boolean) => {
     if (!user) return;
     try {
-      await api.post(`/api/messages/conversations/${conversationId}/typing`, { isTyping });
+      await api.post(`/messages/conversations/${conversationId}/typing`, { isTyping });
     } catch (error) {
       console.error('Error sending typing status:', error);
     }
@@ -149,7 +149,7 @@ export const MessagesProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     if (!user) return null;
 
     try {
-      const response = await api.post('/api/messages/conversations', {
+      const response = await api.post('/messages/conversations', {
         otherUserId
       });
 
@@ -169,7 +169,7 @@ export const MessagesProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     if (!user) return;
 
     try {
-      const response = await api.get('/api/messages/users/online');
+      const response = await api.get('/messages/users/online');
       console.log('Loaded online users:', response.data);
       setOnlineUsers(response.data || []);
     } catch (error) {

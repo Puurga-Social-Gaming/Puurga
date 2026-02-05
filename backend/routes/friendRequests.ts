@@ -36,8 +36,8 @@ router.post('/send', auth, async (req: AuthRequest, res) => {
     // Check if they're already friends
     const { data: friendRows, error: friendError } = await supabase
       .from('friends')
-      .select('id')
-      .or(`and(user_id.eq.${user.id},friend_id.eq.${receiverId}),and(user_id.eq.${receiverId},friend_id.eq.${user.id})`);
+      .select('id, user_id_1, user_id_2')
+      .or(`and(user_id_1.eq.${user.id},user_id_2.eq.${receiverId}),and(user_id_1.eq.${receiverId},user_id_2.eq.${user.id})`);
 
     if (friendError) {
       // Missing table is handled gracefully
@@ -84,8 +84,8 @@ router.post('/send', auth, async (req: AuthRequest, res) => {
           const { error: friendshipError } = await supabase
             .from('friends')
             .insert({
-              user_id: user.id,
-              friend_id: receiverId,
+              user_id_1: user.id,
+              user_id_2: receiverId,
               created_at: new Date().toISOString()
             });
 
@@ -274,8 +274,8 @@ router.post('/:requestId/accept', auth, async (req: AuthRequest, res) => {
     const { error: friendshipError } = await supabase
       .from('friends')
       .insert({
-        user_id: request.sender_id,
-        friend_id: request.receiver_id,
+        user_id_1: request.sender_id,
+        user_id_2: request.receiver_id,
         created_at: new Date().toISOString()
       });
 

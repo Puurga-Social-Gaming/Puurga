@@ -16,6 +16,7 @@ import {
   Share2
 } from 'lucide-react';
 import api from '../lib/axios';
+import { supabase } from '../lib/supabaseClient';
 import { toast } from 'react-hot-toast';
 import Avatar from '../components/Avatar';
 import FriendRequestButton from '../components/FriendRequestButton/FriendRequestButton';
@@ -67,11 +68,43 @@ const UserProfile: React.FC = () => {
     }
   }, [username]);
 
+  // Real-time subscription for profile status updates
+  useEffect(() => {
+    if (!profile?.id || !currentUser?.id) return;
+
+    const channel = supabase.channel(`profile-status:${profile.id}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'friend_requests', filter: `sender_id=eq.${currentUser.id}` },
+        () => loadProfile()
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'friend_requests', filter: `receiver_id=eq.${currentUser.id}` },
+        () => loadProfile()
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'friends', filter: `user_id=eq.${currentUser.id}` },
+        () => loadProfile()
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'friends', filter: `friend_id=eq.${currentUser.id}` },
+        () => loadProfile()
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [profile?.id, currentUser?.id]);
+
   const loadProfile = async () => {
     try {
       setLoading(true);
       setError(null);
-      const response = await api.get(`/api/users/profile/${username}`);
+      const response = await api.get(`/users/profile/${username}`);
       const data = response.data;
 
       setProfile({
@@ -105,7 +138,7 @@ const UserProfile: React.FC = () => {
   const loadUserPosts = async () => {
     try {
       setLoadingPosts(true);
-      const response = await api.get(`/api/users/${username}/posts`);
+      const response = await api.get(`/users/${username}/posts`);
       const posts = Array.isArray(response.data) ? response.data : response.data.posts || [];
       setUserPosts(posts.map((p: any) => ({
         id: p.id,
@@ -127,7 +160,7 @@ const UserProfile: React.FC = () => {
     if (!profile) return;
     try {
       setSendingRequest(true);
-      await api.delete(`/api/friends/${profile.id}`);
+      await api.delete(`/friends/${profile.id}`);
       toast.success('Friend removed');
       setProfile(prev => prev ? { ...prev, isFriend: false } : null);
     } catch (err) {
@@ -262,7 +295,7 @@ const UserProfile: React.FC = () => {
                     </button>
                   </>
                 ) : (
-                  <FriendRequestButton 
+                  <FriendRequestButton
                     targetUserId={profile.id}
                   />
                 )}

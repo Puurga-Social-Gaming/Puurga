@@ -22,6 +22,7 @@ import commentsRoutes from './routes/comments';
 import redemptionRoutes from './routes/redemption';
 import testGhostModeRoutes from './routes/testGhostMode';
 import creditsRoutes from './routes/credits';
+import gamesRoutes from './routes/games';
 
 dotenv.config();
 
@@ -33,7 +34,9 @@ const defaultCorsOrigins = [
   'http://localhost:5174',
   'http://localhost:5175',
   'http://localhost:5176',
-  'http://localhost:5177'
+  'http://localhost:5177',
+  'https://www.puurga.com',
+  'https://puurga.com'
 ];
 
 const envCorsOrigins = (process.env.ALLOWED_ORIGINS || '')

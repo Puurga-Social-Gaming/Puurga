@@ -14,7 +14,7 @@ export const useCredits = () => {
      */
     const syncCreditsToBackend = useCallback(async (newBalance: number) => {
         try {
-            await api.post('/api/credits/update', { credits: newBalance });
+            await api.post('/credits/update', { credits: newBalance });
             return true;
         } catch (error) {
             console.error('Failed to sync credits with backend:', error);
@@ -143,7 +143,7 @@ export const useCredits = () => {
      */
     const refreshCredits = useCallback(async () => {
         try {
-            const response = await api.get('/api/credits');
+            const response = await api.get('/credits');
             if (response.data && typeof response.data.credits === 'number') {
                 updateUser({ credits: response.data.credits });
                 localStorage.setItem('perga_points', String(response.data.credits));

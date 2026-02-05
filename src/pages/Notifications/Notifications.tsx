@@ -16,7 +16,7 @@ interface NotificationUser {
 
 interface Notification {
   id: string;
-  type: 'friend_request' | 'friend_request_accepted' | 'like' | 'comment';
+  type: 'friend_request' | 'friend_request_accepted' | 'like' | 'comment' | 'message';
   read: boolean;
   createdAt: string;
   fromUser?: NotificationUser;
@@ -24,6 +24,8 @@ interface Notification {
     friendRequestId?: string;
     postId?: string;
     commentId?: string;
+    conversationId?: string;
+    messageId?: string;
   };
 }
 
@@ -52,7 +54,7 @@ const Notifications: React.FC = () => {
 
   const fetchNotifications = async () => {
     try {
-      const response = await api.get('/api/notifications');
+      const response = await api.get('/notifications');
       setNotifications(response.data);
     } catch (error) {
       console.error('Error fetching notifications:', error);
@@ -65,7 +67,7 @@ const Notifications: React.FC = () => {
       // Optimistically remove notification
       deleteNotification(notificationId);
       await api.post(`/api/friend-requests/${friendRequestId}/accept`);
-      await api.put(`/api/notifications/read`, { notificationIds: [notificationId] });
+      await api.put(`/notifications/read`, { notificationIds: [notificationId] });
       toast.success(t('notifications.acceptSuccess'));
     } catch (error) {
       console.error('Error accepting friend request:', error);
@@ -78,7 +80,7 @@ const Notifications: React.FC = () => {
       // Optimistically remove notification
       deleteNotification(notificationId);
       await api.post(`/api/friend-requests/${friendRequestId}/reject`);
-      await api.put(`/api/notifications/read`, { notificationIds: [notificationId] });
+      await api.put(`/notifications/read`, { notificationIds: [notificationId] });
       toast.success(t('notifications.rejectSuccess'));
     } catch (error) {
       console.error('Error rejecting friend request:', error);
@@ -101,6 +103,8 @@ const Notifications: React.FC = () => {
       navigate(`/home?post=${data.postId}`);
     } else if (type === 'friend_request_accepted' && fromUser?.username) {
       navigate(`/profile/${fromUser.username}`);
+    } else if (type === 'message' && data.conversationId) {
+      navigate(`/messages?conversation=${data.conversationId}`);
     }
   };
 
@@ -248,6 +252,37 @@ const Notifications: React.FC = () => {
                   <p className="text-foreground">
                     <span className="font-semibold">{fromUser.name || t('notifications.someone')}</span>
                     <span className="text-muted"> {t('notifications.commentedPost')}</span>
+                  </p>
+                  <p className="text-sm text-muted-light">{formatDate(notification.createdAt)}</p>
+                </div>
+              </div>
+              {fromUser.username && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleViewProfile(fromUser.username); }}
+                  className="px-3 py-1 bg-[#333] hover:bg-[#444] text-white rounded-lg text-sm"
+                >
+                  View Profile
+                </button>
+              )}
+            </div>
+          </div>
+        );
+
+      case 'message':
+        return (
+          <div key={notification.id} onClick={() => handleNotificationClick(notification)} className={`p-4 rounded-lg cursor-pointer ${notification.read ? 'bg-[#1a1a1a]' : 'bg-[#1a1a1a] border-l-4 border-purple-500'}`}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="relative">
+                  <Avatar src={fromUser.avatar || DEFAULT_IMAGES.avatar} alt={fromUser.name} size="md" />
+                  <div className="absolute -bottom-1 -right-1 bg-purple-500 rounded-full p-1">
+                    <MessageCircle size={12} className="text-white" />
+                  </div>
+                </div>
+                <div className="min-w-0">
+                  <p className="text-foreground">
+                    <span className="font-semibold">{fromUser.name || t('notifications.someone')}</span>
+                    <span className="text-muted"> {t('notifications.sentMessage')}</span>
                   </p>
                   <p className="text-sm text-muted-light">{formatDate(notification.createdAt)}</p>
                 </div>

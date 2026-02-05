@@ -6,6 +6,7 @@ import PostList from '../components/Post/PostList';
 import StatusBar from '../components/StatusBar/StatusBar';
 import api from '../api/api';
 import { toast } from 'react-hot-toast';
+import { supabase } from '../lib/supabaseClient';
 import FloatingCreateButton from '../components/Post/FloatingCreateButton';
 import '../styles/neo-home.css';
 import RedeemUserButton from '../components/GhostMode/RedeemUserButton';
@@ -250,33 +251,38 @@ export default function Home() {
     fetchPosts(1);
   }, []);
 
-  // Removed JS-driven fade; using CSS top mask for per-post fade at boundary.
+  // Subscription for new posts
+  useEffect(() => {
+    const channel = supabase
+      .channel('public:posts')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'posts'
+        },
+        async (payload: unknown) => {
+          console.log('New post received:', payload);
+          // When a new post comes in, we want to show it immediately.
+          // Since the payload doesn't contain the joined user info, 
+          // we fetch the latest feed to ensure consistency.
+          // Optimization: fetch just the new post if we implement a get-single-post endpoint,
+          // but for now, refreshing page 1 is safest and fetches the new post at the top.
+          fetchPosts(1);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
   const fetchPosts = async (pageNum: number) => {
     try {
       setLoading(true);
       const limit = 10;
-      const CACHE_KEY = 'home_feed_cache';
-
-      // Check cache for page 1
-      if (pageNum === 1) {
-        const cached = sessionStorage.getItem(CACHE_KEY);
-        if (cached) {
-          const { timestamp, data } = JSON.parse(cached);
-          // Cache valid for 2 minutes
-          if (Date.now() - timestamp < 120000 && Array.isArray(data) && data.length > 0) {
-            console.log(' Using cached feed');
-            const mappedPosts = data.map(mapBackendPost);
-            setPosts(mappedPosts);
-            setPage(1);
-            setHasMore(true); // Assume more if we have cached data
-            setLoading(false);
-
-            // Background refresh to keep fresh (optional, but saves bandwidth if we skip it)
-            // For strict bandwidth saving, we skip background refresh if cache is valid.
-            return;
-          }
-        }
-      }
 
       const response = await api.get(`/posts/feed?page=${pageNum}&limit=${limit}`);
       const data = Array.isArray(response.data) ? response.data : (response.data?.data ?? []);
@@ -289,15 +295,17 @@ export default function Home() {
         setHasMore(true);
       }
 
-      setPosts(prev => pageNum === 1 ? mappedPosts : [...prev, ...mappedPosts]);
+      setPosts(prev => {
+        // If refreshing page 1, replace. Otherwise append.
+        if (pageNum === 1) {
+          return mappedPosts;
+        }
 
-      // Save page 1 to cache
-      if (pageNum === 1) {
-        sessionStorage.setItem(CACHE_KEY, JSON.stringify({
-          timestamp: Date.now(),
-          data: data // Save raw backend data to map later
-        }));
-      }
+        // Prevent duplicates when appending
+        const existingIds = new Set(prev.map(p => p.id));
+        const uniqueNewPosts = mappedPosts.filter(p => !existingIds.has(p.id));
+        return [...prev, ...uniqueNewPosts];
+      });
 
       setPage(pageNum);
       setError(null);

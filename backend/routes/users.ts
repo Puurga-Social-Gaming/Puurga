@@ -80,6 +80,24 @@ router.get('/profile', auth, async (req: AuthRequest, res) => {
       return res.status(404).json({ error: 'Profile not found' });
     }
 
+    // Calculate stats
+    const [
+      { count: followersCount },
+      { count: followingCount },
+      { data: posts }
+    ] = await Promise.all([
+      supabase.from('friends').select('*', { count: 'exact', head: true }).eq('user_id_2', user.id),
+      supabase.from('friends').select('*', { count: 'exact', head: true }).eq('user_id_1', user.id),
+      supabase.from('posts').select('id').eq('user_id', user.id)
+    ]);
+
+    let puurgas = 0;
+    if (posts && posts.length > 0) {
+      const postIds = posts.map(p => p.id);
+      const { count } = await supabase.from('likes').select('*', { count: 'exact', head: true }).in('post_id', postIds);
+      puurgas = count || 0;
+    }
+
     // Return profile with both snake_case and camelCase for compatibility
     const responseData = {
       ...profile,
@@ -88,15 +106,16 @@ router.get('/profile', auth, async (req: AuthRequest, res) => {
       avatar_url: normalizeImageUrl(profile.avatar_url),
       coverPhoto: normalizeImageUrl(profile.cover_photo),
       cover_photo: normalizeImageUrl(profile.cover_photo),
-      email: user.email
+      email: user.email,
+      stats: {
+        followers: followersCount || 0,
+        following: followingCount || 0,
+        posts: (posts || []).length,
+        puurgas
+      }
     };
 
-    console.log('Profile fetched with images:', {
-      avatar_url: profile.avatar_url,
-      cover_photo: profile.cover_photo,
-      avatar: responseData.avatar,
-      coverPhoto: responseData.coverPhoto
-    });
+    console.log('Profile fetched with stats:', responseData.stats);
 
     res.json(responseData);
   } catch (error) {
@@ -648,14 +667,61 @@ router.post('/upload', uploadHandler.array('images', 4), async (req, res) => {
         console.error('Supabase upload error:', uploadResult.error);
         return res.status(500).json({ error: 'Failed to upload image(s)' });
       }
-      // Get public URL
-      const { data: publicUrlData } = supabase.storage.from(bucket).getPublicUrl(filename);
-      urls.push(publicUrlData.publicUrl);
+      // Get signed URL instead of public URL (more reliable for private buckets)
+      const { data: signedUrlData, error: signedUrlError } = await supabase.storage.from(bucket).createSignedUrl(filename, 31536000); // 1 year expiry
+      if (signedUrlError || !signedUrlData) {
+        console.error('Error creating signed URL:', signedUrlError);
+        // Fallback to public URL
+        const { data: publicUrlData } = supabase.storage.from(bucket).getPublicUrl(filename);
+        urls.push(publicUrlData.publicUrl);
+      } else {
+        urls.push(signedUrlData.signedUrl);
+      }
     }
     res.json({ urls });
   } catch (error) {
     console.error('Error uploading images:', error);
     res.status(500).json({ error: 'Failed to upload images' });
+  }
+});
+
+// --- GET /api/proxy/image ---
+router.get('/proxy/image', async (req, res) => {
+  try {
+    const { url } = req.query;
+
+    if (!url || typeof url !== 'string') {
+      return res.status(400).json({ error: 'URL is required' });
+    }
+
+    // Only allow proxying Supabase storage URLs
+    if (!url.includes('supabase.co/storage/v1/object/public/')) {
+      return res.status(400).json({ error: 'Invalid URL' });
+    }
+
+    // Extract bucket and file path from URL
+    const urlObj = new URL(url);
+    const pathParts = urlObj.pathname.split('/object/public/');
+    if (pathParts.length !== 2) {
+      return res.status(400).json({ error: 'Invalid Supabase URL format' });
+    }
+
+    const [bucket, ...filePathParts] = pathParts[1].split('/');
+    const filePath = filePathParts.join('/');
+
+    // Get signed URL for the file
+    const { data: signedUrlData, error } = await supabase.storage.from(bucket).createSignedUrl(filePath, 3600); // 1 hour expiry
+
+    if (error || !signedUrlData) {
+      console.error('Error creating signed URL for proxy:', error);
+      return res.status(500).json({ error: 'Failed to create signed URL' });
+    }
+
+    // Redirect to signed URL
+    res.redirect(302, signedUrlData.signedUrl);
+  } catch (error) {
+    console.error('Error in image proxy:', error);
+    res.status(500).json({ error: 'Failed to proxy image' });
   }
 });
 
@@ -799,28 +865,32 @@ router.get('/:id/stats', auth, async (req: AuthRequest, res) => {
 
     const postIds: string[] = (posts || []).map((p: { id: string }) => p.id);
 
-    // Followers: users who follow this user
-    const { data: followersRows, error: followersError } = await supabase
-      .from('followers')
-      .select('id')
-      .eq('following_id', userId);
+    // Followers: Friends where this user accepted the request (user_id_2)
+    const { count: followersCount, error: followersError } = await supabase
+      .from('friends')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id_2', userId);
+
     if (followersError) {
       if ((followersError as any).code === '42P01' || (followersError as any).code === '42703') {
-        return res.json({ followers: 0, following: 0, posts: (posts || []).length, puurgas: 0 });
+        // Table doesn't exist?
+      } else {
+        throw followersError;
       }
-      throw followersError;
     }
 
-    // Following: users this user follows
-    const { data: followingRows, error: followingError } = await supabase
-      .from('followers')
-      .select('id')
-      .eq('follower_id', userId);
+    // Following: Friends where this user sent the request (user_id_1)
+    const { count: followingCount, error: followingError } = await supabase
+      .from('friends')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id_1', userId);
+
     if (followingError) {
       if ((followingError as any).code === '42P01' || (followingError as any).code === '42703') {
-        return res.json({ followers: (followersRows || []).length, following: 0, posts: (posts || []).length, puurgas: 0 });
+        // Table doesn't exist?
+      } else {
+        throw followingError;
       }
-      throw followingError;
     }
 
     // Puurgas: total likes received on this user's posts
@@ -842,8 +912,8 @@ router.get('/:id/stats', auth, async (req: AuthRequest, res) => {
     }
 
     res.json({
-      followers: (followersRows || []).length,
-      following: (followingRows || []).length,
+      followers: followersCount || 0,
+      following: followingCount || 0,
       posts: (posts || []).length,
       puurgas,
     });
