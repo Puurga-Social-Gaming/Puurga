@@ -1,6 +1,5 @@
 import axios from 'axios';
 import { toast } from 'react-hot-toast';
-import { supabase } from './supabaseClient';
 
 interface EnhancedError extends Error {
   response?: any;
@@ -9,18 +8,16 @@ interface EnhancedError extends Error {
 }
 
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: '',
   headers: {
     'Content-Type': 'application/json',
   },
   timeout: 10000, // 10 second timeout
 });
 
-console.log('🔧 Axios baseURL configured to:', api.defaults.baseURL);
-
 // Request interceptor
 api.interceptors.request.use(
-  async (config) => {
+  (config) => {
     console.log('🚀 Making request:', {
       method: config.method,
       url: config.url,
@@ -30,21 +27,10 @@ api.interceptors.request.use(
       }
     });
 
-    let token = localStorage.getItem('token');
-    
-    if (!token) {
-      // If no token, check Supabase session for fresh token
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.access_token) {
-        token = session.access_token;
-        localStorage.setItem('token', token);
-      }
-    }
-    
+    const token = localStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
-    
     return config;
   },
   (error) => {

@@ -136,7 +136,7 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
 
         // Always fetch fresh data from API to ensure correct user
         try {
-          const res = await fetch('/users/profile', {
+          const res = await fetch('/api/users/profile', {
             headers: { Authorization: `Bearer ${token}` }
           });
           if (res.ok) {

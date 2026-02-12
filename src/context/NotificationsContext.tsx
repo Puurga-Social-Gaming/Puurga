@@ -95,11 +95,29 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
   const dismissNotifications = useCallback(async (notificationIds: string[]) => {
     if (!user || notificationIds.length === 0) return;
 
-    // Mark as read server-side first
-    await markAsRead(notificationIds);
+    try {
+      // Delete notifications from database
+      await Promise.all(
+        notificationIds.map(id =>
+          api.delete(`/notifications/${id}`)
+        )
+      );
 
-    // Then remove from UI entirely
-    setNotifications(prev => prev.filter(n => !notificationIds.includes(n.id)));
+      // Remove from UI
+      setNotifications(prev => prev.filter(n => !notificationIds.includes(n.id)));
+
+      // Update unread count
+      setUnreadCount(prev => Math.max(0, prev - notificationIds.length));
+    } catch (error) {
+      console.error('Error dismissing notifications:', error);
+      // Fallback: try to mark as read if delete fails
+      try {
+        await markAsRead(notificationIds);
+        setNotifications(prev => prev.filter(n => !notificationIds.includes(n.id)));
+      } catch (fallbackError) {
+        console.error('Fallback also failed:', fallbackError);
+      }
+    }
   }, [user, markAsRead]);
 
   const markAllAsRead = useCallback(async () => {

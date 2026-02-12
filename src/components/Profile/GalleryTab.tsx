@@ -21,7 +21,7 @@ const GalleryTab: React.FC = () => {
     const fetchGalleryImages = async () => {
       setLoading(true);
       try {
-        const response = await api.get('/api/users/gallery');
+        const response = await api.get('/users/gallery');
         setImages(response.data || []);
       } catch (error) {
         console.error('Failed to fetch gallery images:', error);
@@ -35,8 +35,8 @@ const GalleryTab: React.FC = () => {
   }, []);
 
   // Filter images by category
-  const filteredImages = selectedCategory === 'all' 
-    ? images 
+  const filteredImages = selectedCategory === 'all'
+    ? images
     : images.filter(img => img.category === selectedCategory);
 
   // Count images by category
@@ -71,44 +71,40 @@ const GalleryTab: React.FC = () => {
       <div className="flex flex-wrap gap-2 pb-4 border-b border-border">
         <button
           onClick={() => setSelectedCategory('all')}
-          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${
-            selectedCategory === 'all'
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${selectedCategory === 'all'
               ? 'bg-accent text-white'
               : 'bg-card text-muted hover:bg-card-hover hover:text-foreground'
-          }`}
+            }`}
         >
           <ImageIcon size={16} />
           All ({categoryCounts.all})
         </button>
         <button
           onClick={() => setSelectedCategory('profile')}
-          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${
-            selectedCategory === 'profile'
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${selectedCategory === 'profile'
               ? 'bg-accent text-white'
               : 'bg-card text-muted hover:bg-card-hover hover:text-foreground'
-          }`}
+            }`}
         >
           <User size={16} />
           Profile ({categoryCounts.profile})
         </button>
         <button
           onClick={() => setSelectedCategory('cover')}
-          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${
-            selectedCategory === 'cover'
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${selectedCategory === 'cover'
               ? 'bg-accent text-white'
               : 'bg-card text-muted hover:bg-card-hover hover:text-foreground'
-          }`}
+            }`}
         >
           <Camera size={16} />
           Cover ({categoryCounts.cover})
         </button>
         <button
           onClick={() => setSelectedCategory('post')}
-          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${
-            selectedCategory === 'post'
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${selectedCategory === 'post'
               ? 'bg-accent text-white'
               : 'bg-card text-muted hover:bg-card-hover hover:text-foreground'
-          }`}
+            }`}
         >
           <Image size={16} />
           Posts ({categoryCounts.post})
@@ -125,14 +121,14 @@ const GalleryTab: React.FC = () => {
       ) : (
         <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2 sm:gap-4">
           {filteredImages.map((image) => (
-            <div 
-              key={image.id} 
+            <div
+              key={image.id}
               className="aspect-square bg-card rounded-lg overflow-hidden relative group cursor-pointer"
             >
-              <img 
-                src={image.imageUrl} 
-                alt={image.alt} 
-                className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" 
+              <img
+                src={image.imageUrl}
+                alt={image.alt}
+                className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                 loading="lazy"
               />
               <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
@@ -142,11 +138,10 @@ const GalleryTab: React.FC = () => {
               </div>
               {/* Category badge in corner */}
               <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                <div className={`px-2 py-1 rounded text-xs font-medium ${
-                  image.category === 'profile' ? 'bg-blue-500/80 text-white' :
-                  image.category === 'cover' ? 'bg-purple-500/80 text-white' :
-                  'bg-orange-500/80 text-white'
-                }`}>
+                <div className={`px-2 py-1 rounded text-xs font-medium ${image.category === 'profile' ? 'bg-blue-500/80 text-white' :
+                    image.category === 'cover' ? 'bg-purple-500/80 text-white' :
+                      'bg-orange-500/80 text-white'
+                  }`}>
                   {image.category}
                 </div>
               </div>

@@ -35,7 +35,7 @@ const PostReactions: React.FC<PostReactionsProps> = ({
   // Find user's current reaction
   useEffect(() => {
     if (!user) return;
-    
+
     for (const [type, data] of Object.entries(reactions)) {
       if (data.users.some(u => u.id === user.id)) {
         setUserReaction(type);
@@ -50,11 +50,11 @@ const PostReactions: React.FC<PostReactionsProps> = ({
 
     setIsLoading(true);
     try {
-      const response = await api.post(`/api/posts/${postId}/react`, { type });
+      const response = await api.post(`/posts/${postId}/react`, { type });
       setReactions(response.data);
       onReactionChange?.(response.data);
       setShowPicker(false);
-      
+
       // Update user's reaction
       if (user) {
         for (const [reactionType, data] of Object.entries(response.data as { [key: string]: ReactionCount })) {
@@ -94,11 +94,10 @@ const PostReactions: React.FC<PostReactionsProps> = ({
           whileHover={{ scale: 1.1 }}
           whileTap={{ scale: 0.9 }}
           onClick={() => setShowPicker(!showPicker)}
-          className={`flex items-center gap-1 transition-colors ${
-            userReaction 
-              ? 'text-orange-500 hover:text-orange-400' 
+          className={`flex items-center gap-1 transition-colors ${userReaction
+              ? 'text-orange-500 hover:text-orange-400'
               : 'text-gray-400 hover:text-white'
-          }`}
+            }`}
         >
           {userReaction ? (
             <>
@@ -121,8 +120,8 @@ const PostReactions: React.FC<PostReactionsProps> = ({
         {showPicker && (
           <>
             {/* Backdrop to close picker */}
-            <div 
-              className="fixed inset-0 z-40" 
+            <div
+              className="fixed inset-0 z-40"
               onClick={() => setShowPicker(false)}
             />
             <motion.div
@@ -135,16 +134,15 @@ const PostReactions: React.FC<PostReactionsProps> = ({
                 const reactionData = reactions[reaction.name];
                 const count = reactionData?.count || 0;
                 const isUserReaction = userReaction === reaction.name;
-                
+
                 return (
                   <motion.button
                     key={reaction.name}
                     whileHover={{ scale: 1.2 }}
                     whileTap={{ scale: 0.9 }}
                     onClick={() => handleReaction(reaction.name)}
-                    className={`p-1.5 sm:p-2 hover:bg-white/5 rounded-full transition-colors relative group ${
-                      isUserReaction ? 'bg-orange-500/20' : ''
-                    }`}
+                    className={`p-1.5 sm:p-2 hover:bg-white/5 rounded-full transition-colors relative group ${isUserReaction ? 'bg-orange-500/20' : ''
+                      }`}
                     disabled={isLoading}
                   >
                     <span className="text-lg sm:text-xl">{reaction.emoji}</span>

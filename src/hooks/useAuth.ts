@@ -269,7 +269,7 @@ export const useAuth = () => {
 
       // Fetch latest user profile from backend
       try {
-        const res = await fetch('/users/profile', {
+        const res = await fetch('/api/users/profile', {
           headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
         });
         if (res.ok) {

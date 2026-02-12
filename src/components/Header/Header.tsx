@@ -32,9 +32,8 @@ const Header: React.FC<HeaderProps> = ({ className }) => {
       className
     )}>
       <div className="container mx-auto px-3 sm:px-4 py-2 sm:py-3 flex justify-between items-center">
-        <Link to="/home" className="text-lg sm:text-xl lg:text-2xl font-bold text-orange-500 flex items-center gap-1 sm:gap-2">
+        <Link to="/home" className="flex items-center">
           <PuurgaLogo size={24} className="text-orange-500 sm:w-8 sm:h-8" />
-          <span className="tracking-wider">PUURGA</span>
         </Link>
         <nav className="flex items-center space-x-3 sm:space-x-4 md:space-x-8">
           <NavLink to="/home" icon={<Home className="w-5 h-5 sm:w-6 sm:h-6" />} />

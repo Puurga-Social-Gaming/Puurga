@@ -27,7 +27,7 @@ const Layout: React.FC = () => {
       {/* Main Content Container - Properly constrained and scrollable */}
       <div className="flex-1 min-w-0 relative h-screen overflow-y-auto scrollbar-hide">
         {/* Main Content - Full width on mobile, constrained on desktop */}
-        <div className="w-full min-h-full pb-20 lg:pb-0">
+        <div className={`w-full min-h-full pb-20 lg:pb-0 ${!loading && isGhost ? 'pointer-events-none select-none' : ''}`}>
           <Outlet />
         </div>
       </div>
@@ -44,9 +44,9 @@ const Layout: React.FC = () => {
       </div>
 
       {/* Mobile Bottom Navigation - Fixed to viewport, outside main flex container */}
-      <div 
+      <div
         className="lg:hidden fixed bottom-0 left-0 right-0 bg-background border-t border-border z-[9999]"
-        style={{ 
+        style={{
           position: 'fixed',
           transform: 'none',
           willChange: 'auto',

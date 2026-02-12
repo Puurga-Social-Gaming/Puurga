@@ -10,6 +10,7 @@ export interface Message {
   from_user_id: string;
   created_at: string;
   conversation_id?: string;
+  images?: string[];
   from_user: {
     id: string;
     full_name: string;
@@ -52,7 +53,7 @@ interface MessagesContextType {
   typingUsers: Record<string, string[]>; // conversationId -> userIds
   loadConversations: () => Promise<void>;
   loadMessages: (conversationId: string) => Promise<void>;
-  sendMessage: (conversationId: string, content: string) => Promise<void>;
+  sendMessage: (conversationId: string, content: string, imageUrls?: string[]) => Promise<void>;
   sendTypingStatus: (conversationId: string, isTyping: boolean) => Promise<void>;
   setCurrentConversation: (conversation: Conversation | null) => void;
   createConversation: (otherUserId: string) => Promise<Conversation | null>;
@@ -70,7 +71,7 @@ export const MessagesProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [loading, setLoading] = useState(false);
   const [typingUsers, setTypingUsers] = useState<Record<string, string[]>>({});
 
-  const loadConversations = async (retryCount = 0) => {
+  const loadConversations = useCallback(async (retryCount = 0) => {
     if (!user) return;
 
     try {
@@ -80,7 +81,6 @@ export const MessagesProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       }
 
       const response = await api.get('/messages/conversations');
-      console.log('Loaded conversations:', response.data?.length || 0);
       setConversations(response.data || []);
       setLoading(false);
     } catch (error: any) {
@@ -97,7 +97,7 @@ export const MessagesProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       // Only log error if it's not a transient network issue or if retries failed
       console.error('Error loading conversations:', error.message || error);
     }
-  };
+  }, [user, conversations.length]);
 
   const loadMessages = async (conversationId: string) => {
     if (!user) return;
@@ -115,12 +115,13 @@ export const MessagesProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
   };
 
-  const sendMessage = async (conversationId: string, content: string) => {
-    if (!user || !content.trim()) return;
+  const sendMessage = async (conversationId: string, content: string, imageUrls: string[] = []) => {
+    if (!user || (!content.trim() && imageUrls.length === 0)) return;
 
     try {
       const response = await api.post(`/messages/conversations/${conversationId}/messages`, {
-        content: content.trim()
+        content: content.trim(),
+        images: imageUrls
       });
 
       console.log('Message sent:', response.data);
@@ -165,18 +166,17 @@ export const MessagesProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
   };
 
-  const loadOnlineUsers = async () => {
+  const loadOnlineUsers = useCallback(async () => {
     if (!user) return;
 
     try {
       const response = await api.get('/messages/users/online');
-      console.log('Loaded online users:', response.data);
       setOnlineUsers(response.data || []);
     } catch (error) {
       console.error('Error loading online users:', error);
       setOnlineUsers([]);
     }
-  };
+  }, [user]);
 
   // WebSocket Handlers
   const handleNewMessage = useCallback((payload: any) => {

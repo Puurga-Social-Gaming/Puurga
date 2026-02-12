@@ -133,6 +133,8 @@ export const useCredits = () => {
 
         if (result.net > 0) {
             await addCredits(result.net, `${params.gameId} session complete`);
+        } else if (result.net < 0) {
+            await deductPenalty(Math.abs(result.net), `${params.gameId} session penalty`);
         }
 
         return result;

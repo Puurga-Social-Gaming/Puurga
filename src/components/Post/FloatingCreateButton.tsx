@@ -21,15 +21,24 @@ const FloatingCreateButton: React.FC<FloatingCreateButtonProps> = ({ onPostCreat
     <>
       {/* Floating Button */}
       <motion.button
+        drag
+        dragConstraints={{
+          left: 0,
+          right: window.innerWidth - 100,
+          top: 0,
+          bottom: window.innerHeight - 100,
+        }}
+        dragElastic={0.1}
         initial={{ scale: 0 }}
         animate={{ scale: 1 }}
-        whileHover={{ scale: 1.1 }}
-        whileTap={{ scale: 0.9 }}
+        whileHover={{ scale: 1.05, opacity: 1 }}
+        whileTap={{ scale: 0.95 }}
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-24 right-4 lg:bottom-6 lg:right-6 z-50 w-14 h-14 rounded-full flex items-center justify-center transition-all bg-black dark:bg-black hover:bg-gray-900 dark:hover:bg-gray-900 shadow-[0_12px_48px_rgba(156,163,175,0.4),0_8px_24px_rgba(156,163,175,0.3),0_4px_12px_rgba(156,163,175,0.2),0_2px_6px_rgba(156,163,175,0.15)] dark:shadow-[0_12px_48px_rgba(0,0,0,0.7),0_8px_24px_rgba(0,0,0,0.5),0_4px_12px_rgba(0,0,0,0.4),0_2px_6px_rgba(0,0,0,0.3)]"
+        className="fixed bottom-24 right-4 lg:bottom-6 lg:right-6 z-50 w-24 h-24 flex items-center justify-center transition-all opacity-30 hover:opacity-100 cursor-move"
         aria-label="Create post"
+        style={{ touchAction: 'none' }}
       >
-        <PuurgaLogo size={28} className="text-orange-500" />
+        <PuurgaLogo size={64} />
       </motion.button>
 
       {/* Modal Overlay */}

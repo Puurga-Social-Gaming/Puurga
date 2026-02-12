@@ -2,12 +2,13 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useMessages } from '../context/MessagesContext';
 import { formatDistanceToNow } from 'date-fns';
-import { Send, Search, Smile, MoreVertical, Phone, Video, MessageSquare, X, Plus, Loader2 } from 'lucide-react';
+import { Send, Search, MoreVertical, Phone, Video, MessageSquare, X, Plus, Loader2, Image } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { useUser } from '../context/UserContext';
 import toast from 'react-hot-toast';
 import Avatar from '../components/Avatar';
+import imageCompression from 'browser-image-compression';
 
 const Messages: React.FC = () => {
   const { t } = useTranslation();
@@ -34,11 +35,13 @@ const Messages: React.FC = () => {
   const [showMobileSidebar, setShowMobileSidebar] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [selectedImages, setSelectedImages] = useState<File[]>([]);
+  const [imagePreviewUrls, setImagePreviewUrls] = useState<string[]>([]);
 
   // Load online users on component mount
   useEffect(() => {
     if (user) {
-      console.log('Loading online users on mount');
       loadOnlineUsers();
     }
   }, [user, loadOnlineUsers]);
@@ -66,6 +69,64 @@ const Messages: React.FC = () => {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  const compressImage = async (file: File): Promise<File> => {
+    const options = {
+      maxSizeMB: 1,
+      maxWidthOrHeight: 1920,
+      useWebWorker: true,
+      fileType: file.type,
+      initialQuality: 0.8,
+    };
+
+    try {
+      const compressedFile = await imageCompression(file, options);
+
+      if (compressedFile.size > file.size) {
+        console.log('Compressed file is larger than original, using original');
+        return file;
+      }
+
+      return compressedFile;
+    } catch (error) {
+      console.error('Error compressing image:', error);
+      return file;
+    }
+  };
+
+  const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length + selectedImages.length > 5) {
+      toast.error(t('messages.maxImagesError', 'Maximum 5 images allowed'));
+      return;
+    }
+
+    const newImages = files.filter(file => file.type.startsWith('image/'));
+
+    try {
+      // Compress images
+      const compressedImages = await Promise.all(
+        newImages.map(file => compressImage(file))
+      );
+
+      setSelectedImages(prev => [...prev, ...compressedImages]);
+
+      // Create preview URLs
+      const newPreviewUrls = compressedImages.map(file => URL.createObjectURL(file));
+      setImagePreviewUrls(prev => [...prev, ...newPreviewUrls]);
+
+      toast.success(t('messages.imagesAdded', 'Images added successfully'));
+    } catch (error) {
+      console.error('Error processing images:', error);
+      toast.error(t('messages.errorProcessing', 'Error processing images'));
+    }
+  };
+
+  const removeImage = (index: number) => {
+    setSelectedImages(prev => prev.filter((_, i) => i !== index));
+    URL.revokeObjectURL(imagePreviewUrls[index]);
+    setImagePreviewUrls(prev => prev.filter((_, i) => i !== index));
+  };
 
   const handleSelectConversation = (conversation: typeof currentConversation) => {
     if (conversation) {
@@ -96,7 +157,7 @@ const Messages: React.FC = () => {
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!currentConversation || !newMessage.trim()) return;
+    if (!currentConversation || (!newMessage.trim() && selectedImages.length === 0)) return;
 
     try {
       // Stop typing indicator
@@ -105,8 +166,38 @@ const Messages: React.FC = () => {
       }
       await sendTypingStatus(currentConversation.id, false);
 
-      await sendMessage(currentConversation.id, newMessage);
+      let imageUrls: string[] = [];
+
+      if (selectedImages.length > 0) {
+        const formData = new FormData();
+        selectedImages.forEach((file, index) => {
+          // Ensure file has proper extension in name
+          const fileExtension = file.type.split('/')[1];
+          const fileName = `message_image${index}.${fileExtension}`;
+          const newFile = new File([file], fileName, { type: file.type });
+          formData.append('images', newFile);
+        });
+
+        const uploadResponse = await fetch('/api/users/upload', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          },
+          body: formData,
+        });
+
+        if (!uploadResponse.ok) {
+          throw new Error('Failed to upload images');
+        }
+
+        const uploadData = await uploadResponse.json();
+        imageUrls = uploadData.urls;
+      }
+
+      await sendMessage(currentConversation.id, newMessage, imageUrls);
       setNewMessage('');
+      setSelectedImages([]);
+      setImagePreviewUrls([]);
     } catch (error) {
       console.error('Failed to send message:', error);
       toast.error(t('messages.failedToSend'));
@@ -407,17 +498,6 @@ const Messages: React.FC = () => {
                   const isFromCurrentUser = String(message.from_user_id) === String(user?.id);
                   const showAvatar = index === 0 || messages[index - 1]?.from_user_id !== message.from_user_id;
 
-                  // Debug logging (remove after fixing)
-                  if (index === 0) {
-                    console.log('Personal message ownership check:', {
-                      messageFromUserId: message.from_user_id,
-                      currentUserId: user?.id,
-                      isFromCurrentUser,
-                      fromUserIdType: typeof message.from_user_id,
-                      userIdType: typeof user?.id
-                    });
-                  }
-
                   return (
                     <motion.div
                       key={message.id}
@@ -455,6 +535,22 @@ const Messages: React.FC = () => {
                           <p className="text-sm leading-relaxed break-words">
                             {message.content}
                           </p>
+                          {message.images && message.images.length > 0 && (
+                            <div className={`mt-2 grid gap-1 ${message.images.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
+                              {message.images.map((imageUrl: string, imgIndex: number) => (
+                                <img
+                                  key={imgIndex}
+                                  src={imageUrl}
+                                  alt={`Message image ${imgIndex + 1}`}
+                                  className="w-full h-auto max-h-48 object-cover rounded-lg cursor-pointer"
+                                  onClick={() => {
+                                    // Open image in new tab for viewing
+                                    window.open(imageUrl, '_blank');
+                                  }}
+                                />
+                              ))}
+                            </div>
+                          )}
                         </div>
                       </div>
                     </motion.div>
@@ -482,22 +578,57 @@ const Messages: React.FC = () => {
 
             {/* Sticky Message Input - Above Footer */}
             <div className="sticky bottom-20 lg:bottom-0 z-[100] p-3 sm:p-4 border-t border-border bg-background flex-shrink-0">
-              <form onSubmit={handleSendMessage} className="flex items-center gap-2">
+              {/* Image Previews */}
+              {imagePreviewUrls.length > 0 && (
+                <div className="mb-3">
+                  <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto">
+                    {imagePreviewUrls.map((url, index) => (
+                      <div key={index} className="relative group">
+                        <img
+                          src={url}
+                          alt={`Preview ${index + 1}`}
+                          className="w-full h-20 object-cover rounded-lg"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeImage(index)}
+                          className="absolute top-1 right-1 p-1 bg-background/80 rounded-full text-foreground opacity-0 group-hover:opacity-100 transition-opacity touch-manipulation"
+                        >
+                          <X size={12} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <form onSubmit={handleSendMessage} className="flex items-end gap-2">
                 <button
                   type="button"
-                  className="p-2.5 sm:p-2 text-muted hover:text-foreground transition-colors flex-shrink-0 touch-manipulation"
-                  aria-label="Add emoji"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="p-2.5 sm:p-2 text-muted hover:text-accent rounded-full hover:bg-accent/10 flex-shrink-0 touch-manipulation"
+                  aria-label="Add image"
                 >
-                  <Smile size={20} className="sm:w-5 sm:h-5" />
+                  <Image size={20} className="sm:w-5 sm:h-5" />
                 </button>
                 <input
-                  type="text"
-                  value={newMessage}
-                  onChange={handleTyping}
-                  placeholder={t('messages.messageUserPlaceholder', { username: currentConversation.participants[0]?.full_name || t('messages.user') })}
-                  className="flex-1 bg-input text-foreground rounded-full px-4 py-2.5 sm:py-2 text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-accent"
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleImageSelect}
+                  accept="image/*"
+                  multiple
+                  className="hidden"
                 />
-                {newMessage.trim() && (
+                <div className="flex-1">
+                  <input
+                    type="text"
+                    value={newMessage}
+                    onChange={handleTyping}
+                    placeholder={t('messages.messageUserPlaceholder', { username: currentConversation.participants[0]?.full_name || t('messages.user') })}
+                    className="w-full bg-input text-foreground rounded-full px-4 py-2.5 sm:py-2 text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-accent"
+                  />
+                </div>
+                {(newMessage.trim() || selectedImages.length > 0) && (
                   <button
                     type="submit"
                     className="bg-accent text-white p-2.5 sm:p-2 rounded-full hover:bg-accent-hover transition-colors flex-shrink-0 touch-manipulation"

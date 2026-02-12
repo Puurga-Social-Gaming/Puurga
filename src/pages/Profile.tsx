@@ -38,6 +38,14 @@ const Profile: React.FC = () => {
     storyPrivacy: 'everyone'
   });
 
+  const [gameStats, setGameStats] = useState({ highScore: 0, gamesPlayed: 0 });
+
+  useEffect(() => {
+    const hs = Number(localStorage.getItem('perga_high_score') || 0);
+    const gp = Number(localStorage.getItem('perga_games_played') || 0);
+    setGameStats({ highScore: hs, gamesPlayed: gp });
+  }, []);
+
   useEffect(() => {
     if (profileData) {
       setFormData({
@@ -424,13 +432,13 @@ const Profile: React.FC = () => {
                       <p className="text-sm text-muted">{t('profile.clickToPlay')}</p>
                     </div>
                   </div>
-                  <p className="text-sm text-muted mb-1">{t('profile.highScore')}: 0</p>
-                  <p className="text-sm text-muted">{t('profile.gamesPlayed')}: 0</p>
+                  <p className="text-sm text-muted mb-1">{t('profile.highScore')}: {gameStats.highScore}</p>
+                  <p className="text-sm text-muted">{t('profile.gamesPlayed')}: {gameStats.gamesPlayed}</p>
                 </button>
                 <div className="bg-card p-4 rounded-lg border border-border shadow-theme-sm">
                   <h4 className="font-medium text-foreground mb-2">{t('profile.totalCredits')}</h4>
-                  <p className="text-sm text-muted mb-2">{t('profile.earned')}: 0</p>
-                  <p className="text-sm text-muted">{t('profile.rank')}: {t('profile.novice')}</p>
+                  <p className="text-sm text-muted mb-2">{t('profile.earned')}: {profileData?.credits || 0}</p>
+                  <p className="text-sm text-muted">{t('profile.rank')}: {(profileData?.credits || 0) > 500 ? 'Elite' : 'Survivor'}</p>
                 </div>
                 <button
                   onClick={() => window.location.href = '/new-game'}

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Shield, Award, Trophy, RefreshCw, Gift, CheckCircle, XCircle, User as UserIcon } from 'lucide-react';
+import { Shield, Award, Trophy, RefreshCw, Gift, CheckCircle, XCircle, User as UserIcon, Zap, Users, Heart } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import api from '../lib/axios';
 import toast from 'react-hot-toast';
@@ -25,6 +25,26 @@ interface PurgeStats {
   };
 }
 
+interface FeedEvent {
+  id: number | string;
+  user: string;
+  action: string;
+  detail: string;
+  time: string;
+}
+
+interface LeaderboardUser {
+  id: string;
+  username: string;
+  full_name?: string;
+  avatar_url?: string;
+  credits?: number;
+}
+
+const DEFAULT_IMAGES = {
+  avatar: 'https://via.placeholder.com/150'
+};
+
 const MOCK_CHALLENGES = [
   { id: 1, text: 'Complete 3 Group Tasks', points: 50 },
   { id: 2, text: 'Win a Puurga Battle', points: 100 },
@@ -42,6 +62,10 @@ const BONUS_REWARDS = [
 ];
 
 const PuurgaDashboard: React.FC = () => {
+  const [loading, setLoading] = useState(true);
+  const [feed, setFeed] = useState<FeedEvent[]>([]);
+  const [leaderboard, setLeaderboard] = useState<LeaderboardUser[]>([]);
+  
   const [userStats, setUserStats] = useState<UserStats>({
     credits: 0,
     purgeStreak: 0,
@@ -55,8 +79,57 @@ const PuurgaDashboard: React.FC = () => {
   );
   const [bonus, setBonus] = useState<{ label: string; icon: React.ReactNode } | null>(null);
   const [spinning, setSpinning] = useState(false);
-  const [feed, setFeed] = useState<Array<{ id: number; user: string; action: string; detail: string; time: string }>>([]);
-  const [loading, setLoading] = useState(true);
+  const [friendsStats, setFriendsStats] = useState<Array<{
+    id: string;
+    username: string;
+    name: string;
+    avatar: string;
+    credits: number;
+    purgeStreak: number;
+    rank: string;
+    isPublic: boolean;
+  }>>([]);
+
+  const [gameStats, setGameStats] = useState<{
+    gamesPlayed: number;
+    totalScore: number;
+    highScore: number;
+    averageScore: number;
+    recentGames: Array<{
+      id: string;
+      gameType: string;
+      score: number;
+      playedAt: string;
+    }>;
+  }>({
+    gamesPlayed: 0,
+    totalScore: 0,
+    highScore: 0,
+    averageScore: 0,
+    recentGames: []
+  });
+
+  const [purgingActivity, setPurgingActivity] = useState<Array<{
+    id: string;
+    userId: string;
+    username: string;
+    name: string;
+    avatar: string;
+    action: 'purged' | 'redeemed';
+    timestamp: string;
+    creditsNeeded?: number;
+    isFriend: boolean;
+  }>>([]);
+
+  const [redemptionNeeded, setRedemptionNeeded] = useState<Array<{
+    id: string;
+    userId: string;
+    username: string;
+    name: string;
+    avatar: string;
+    creditsNeeded: number;
+    daysPurged: number;
+  }>>([]);
 
   useEffect(() => {
     fetchUserStats();
@@ -65,13 +138,86 @@ const PuurgaDashboard: React.FC = () => {
   const fetchUserStats = async () => {
     try {
       setLoading(true);
-      const [creditsRes, purgesRes] = await Promise.all([
-        api.get('/api/credits'),
-        api.get('/api/posts/purges/my-activity')
+      const [creditsRes, purgesRes, leaderboardRes, postsRes, friendsRes, purgingRes, gameStatsRes, redemptionRes] = await Promise.all([
+        api.get('/credits'),
+        api.get('/posts/purges/my-activity'),
+        api.get('/games/leaderboard'),
+        api.get('/posts/feed?limit=20'), // Get recent activity
+        api.get('/friends/stats'), // Get friends' public stats
+        api.get('/purging/activity'), // Get purging activity
+        api.get('/games/stats'), // Get user's game statistics
+        api.get('/purging/redemption-needed') // Get friends who need redemption
       ]);
 
       const creditData: CreditData = creditsRes.data;
       const purgeData: PurgeStats = purgesRes.data;
+
+      // Update Leaderboard
+      if (Array.isArray(leaderboardRes.data)) {
+        setLeaderboard(leaderboardRes.data);
+      }
+
+      // Update Friends Stats
+      if (Array.isArray(friendsRes.data)) {
+        const processedFriends = friendsRes.data.map((friend: any) => ({
+          id: friend.id,
+          username: friend.username,
+          name: friend.full_name || friend.username,
+          avatar: friend.avatar_url || DEFAULT_IMAGES.avatar,
+          credits: friend.credits || 0,
+          purgeStreak: friend.purge_streak || 0,
+          rank: friend.credits >= 500 ? 'Elite Survivor' : friend.credits >= 200 ? 'Veteran' : friend.credits >= 50 ? 'Survivor' : 'Novice',
+          isPublic: friend.stats_public !== false // Default to public if not specified
+        })).filter((friend: any) => friend.isPublic);
+        setFriendsStats(processedFriends);
+      }
+      
+      if (Array.isArray(purgingRes.data)) {
+        const processedActivity = purgingRes.data.map((activity: any) => ({
+          id: activity.id,
+          userId: activity.userId,
+          username: activity.username,
+          name: activity.name || activity.username,
+          avatar: activity.avatar || DEFAULT_IMAGES.avatar,
+          action: activity.action,
+          timestamp: activity.timestamp,
+          creditsNeeded: activity.creditsNeeded,
+          isFriend: activity.isFriend || false
+        }));
+        setPurgingActivity(processedActivity);
+      }
+
+      // Update Game Stats
+      if (gameStatsRes?.data) {
+        setGameStats(gameStatsRes.data);
+      }
+
+      // Update Redemption Needed
+      if (redemptionRes?.data) {
+        setRedemptionNeeded(redemptionRes.data);
+      }
+
+      // Generate Feed from Posts
+      const postFeed = postsRes.data.map((post: any) => {
+        let action = 'posted';
+        let detail = post.content?.substring(0, 30) + '...';
+
+        if (post.type === 'purge') {
+          action = 'purged a user';
+          detail = 'Process complete';
+        } else if (post.media_url) {
+          action = 'shared media';
+        }
+
+        return {
+          id: post.id,
+          user: post.author?.username || 'Unknown',
+          action,
+          detail,
+          time: new Date(post.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        };
+      });
+      setFeed(prev => [...prev, ...postFeed]); // Append to any local actions
 
       const riskLevel = Math.min((purgeData.stats.totalReceived / 5) * 100, 100);
 
@@ -163,7 +309,7 @@ const PuurgaDashboard: React.FC = () => {
           </div>
           <motion.div animate={{ scale: [1, 1.1, 1] }} transition={{ repeat: Infinity, duration: 2 }} className="flex flex-col items-center">
             <span className="text-muted">Total Points</span>
-            <span className="text-4xl font-bold text-accent">0</span>
+            <span className="text-4xl font-bold text-accent">{Math.round(displayCredits)}</span>
           </motion.div>
         </div>
 
@@ -184,7 +330,6 @@ const PuurgaDashboard: React.FC = () => {
             </div>
             <div className="flex items-center gap-4">
               <span className="text-gray-400">Daily Tasks</span>
-              {/* <span className="text-white font-bold">{userStats.dailyTasksCompleted}/5</span> */}
               <span className="text-white font-bold">0/5</span>
             </div>
           </div>
@@ -214,6 +359,115 @@ const PuurgaDashboard: React.FC = () => {
           </div>
         </div>
 
+        {/* Game Stats */}
+        <div className="bg-card rounded-xl p-6">
+          <h2 className="text-xl font-bold text-foreground mb-4">Game Statistics</h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            <div className="text-center">
+              <Trophy className="w-8 h-8 text-accent mx-auto mb-2" />
+              <p className="text-2xl font-bold text-accent">{gameStats.gamesPlayed}</p>
+              <p className="text-xs text-muted">Games Played</p>
+            </div>
+            <div className="text-center">
+              <Award className="w-8 h-8 text-yellow-500 mx-auto mb-2" />
+              <p className="text-2xl font-bold text-yellow-500">{gameStats.highScore.toLocaleString()}</p>
+              <p className="text-xs text-muted">High Score</p>
+            </div>
+            <div className="text-center">
+              <Zap className="w-8 h-8 text-blue-500 mx-auto mb-2" />
+              <p className="text-2xl font-bold text-blue-500">{gameStats.totalScore.toLocaleString()}</p>
+              <p className="text-xs text-muted">Total Score</p>
+            </div>
+            <div className="text-center">
+              <RefreshCw className="w-8 h-8 text-purple-500 mx-auto mb-2" />
+              <p className="text-2xl font-bold text-purple-500">{gameStats.averageScore.toFixed(1)}</p>
+              <p className="text-xs text-muted">Avg Score</p>
+            </div>
+          </div>
+
+          {/* Recent Games */}
+          <div>
+            <h3 className="text-lg font-semibold text-foreground mb-3">Recent Games</h3>
+            {gameStats.recentGames.length === 0 ? (
+              <div className="text-center text-muted py-4 bg-background-secondary rounded-lg">
+                <Trophy className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                <p>No recent games</p>
+                <p className="text-sm">Play some games to see your stats!</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {gameStats.recentGames.map((game) => (
+                  <div key={game.id} className="flex items-center justify-between bg-background-secondary rounded-lg p-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 bg-accent/20 rounded-full flex items-center justify-center">
+                        <Trophy className="w-4 h-4 text-accent" />
+                      </div>
+                      <div>
+                        <p className="text-foreground font-medium">{game.gameType}</p>
+                        <p className="text-xs text-muted">
+                          {new Date(game.playedAt).toLocaleDateString()}
+                        </p>
+                      </div>
+                    </div>
+                    <span className="text-accent font-bold">{game.score.toLocaleString()}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Friends' Perga Stats */}
+        <div className="bg-card rounded-xl p-6">
+          <h2 className="text-xl font-bold text-foreground mb-4">Friends' Perga Stats</h2>
+          {friendsStats.length === 0 ? (
+            <div className="text-center text-muted py-8 bg-background-secondary rounded-lg">
+              <Users className="w-12 h-12 mx-auto mb-3 opacity-50" />
+              <p>No friends with public stats yet</p>
+              <p className="text-sm text-muted mt-1">Connect with friends to see their Perga progress!</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {friendsStats.map((friend) => (
+                <div key={friend.id} className="bg-background-secondary rounded-lg p-4 border border-border hover:border-accent/30 transition-colors">
+                  <div className="flex items-center gap-3 mb-3">
+                    <img
+                      src={friend.avatar}
+                      alt={friend.name}
+                      className="w-10 h-10 rounded-full"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-foreground font-semibold truncate">{friend.name}</p>
+                      <p className="text-muted text-sm">@{friend.username}</p>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-muted text-sm">Credits</span>
+                      <span className="text-accent font-bold">{friend.credits.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-muted text-sm">Purge Streak</span>
+                      <span className="text-orange-500 font-bold">{friend.purgeStreak}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-muted text-sm">Rank</span>
+                      <span className={`text-xs px-2 py-1 rounded-full font-medium ${
+                        friend.rank === 'Elite Survivor' ? 'bg-purple-500/20 text-purple-400' :
+                        friend.rank === 'Veteran' ? 'bg-blue-500/20 text-blue-400' :
+                        friend.rank === 'Survivor' ? 'bg-green-500/20 text-green-400' :
+                        'bg-gray-500/20 text-gray-400'
+                      }`}>
+                        {friend.rank}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
         {/* Challenges */}
         <div className="bg-card rounded-xl p-6">
           <h2 className="text-xl font-bold text-foreground mb-4">Daily & Weekly Challenges</h2>
@@ -235,37 +489,180 @@ const PuurgaDashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* Activity Feed & Leaderboard */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Activity Feed */}
-          <div className="bg-card rounded-xl p-6">
-            <h2 className="text-xl font-bold text-foreground mb-4">Activity Feed</h2>
-            <div className="space-y-3 max-h-64 overflow-y-auto pr-2">
-              {feed.map(event => (
-                <div key={event.id} className="flex items-center gap-3 bg-background rounded-lg p-3">
-                  <UserIcon className="text-accent" size={20} />
-                  <div className="flex-1">
-                    <span className="text-foreground font-semibold">{event.user}</span> <span className="text-muted">{event.action}</span> <span className="text-accent">{event.detail}</span>
+        {/* Redemption Needed */}
+        <div className="bg-card rounded-xl p-6">
+          <h2 className="text-xl font-bold text-foreground mb-4">Friends Needing Redemption</h2>
+          {redemptionNeeded.length === 0 ? (
+            <div className="text-center text-muted py-8 bg-background-secondary rounded-lg">
+              <Heart className="w-12 h-12 mx-auto mb-3 opacity-50" />
+              <p>All friends are safe!</p>
+              <p className="text-sm text-muted mt-1">No friends currently need redemption</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {redemptionNeeded.map((friend) => (
+                <div key={friend.id} className="flex items-center gap-4 bg-background-secondary rounded-lg p-4 border border-red-500/20">
+                  <img
+                    src={friend.avatar}
+                    alt={friend.name}
+                    className="w-12 h-12 rounded-full border-2 border-red-500/30"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="text-foreground font-semibold truncate">{friend.name}</p>
+                      <span className="text-xs bg-red-500/20 text-red-400 px-2 py-0.5 rounded-full">
+                        Purged
+                      </span>
+                    </div>
+                    <p className="text-sm text-muted">Purged {friend.daysPurged} days ago</p>
                   </div>
-                  <span className="text-xs text-muted whitespace-nowrap">{event.time}</span>
+                  <div className="text-right">
+                    <div className="text-lg font-bold text-red-500">{friend.creditsNeeded.toLocaleString()}</div>
+                    <div className="text-xs text-muted">Credits needed</div>
+                    <button className="mt-2 px-3 py-1 bg-accent hover:bg-accent-hover text-white text-xs rounded-lg transition-colors">
+                      Redeem Friend
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
-          </div>
-          {/* Leaderboard */}
-          <div className="bg-card rounded-xl p-6">
-            <h2 className="text-xl font-bold text-foreground mb-4">Leaderboard</h2>
-            <div className="space-y-2">
-              {/* Leaderboard temporarily disabled to avoid build errors */}
-              {/* {MOCK_LEADERBOARD.map((user, idx) => (
-                <div key={user.id} className={`flex items-center gap-3 p-3 rounded-lg ${idx === 0 ? 'bg-orange-500/20' : 'bg-[#222]'}`}>
-                  <Trophy className={`text-orange-500 ${idx === 0 ? 'animate-bounce' : ''}`} size={20} />
-                  <span className="text-white font-semibold">{user.name}</span>
-                  <span className="ml-auto text-orange-400 font-bold">{user.points} pts</span>
-                  {idx === 0 && <span className="ml-2 text-xs text-orange-400 font-bold">#1</span>}
-                </div>
-              ))} */}
+          )}
+        </div>
+
+        {/* Purging Activity */}
+        <div className="bg-card rounded-xl p-6">
+          <h2 className="text-xl font-bold text-foreground mb-4">Purging Activity</h2>
+          {purgingActivity.length === 0 ? (
+            <div className="text-center text-muted py-8 bg-background-secondary rounded-lg">
+              <Shield className="w-12 h-12 mx-auto mb-3 opacity-50" />
+              <p>No recent purging activity</p>
+              <p className="text-sm text-muted mt-1">Purging events will appear here</p>
             </div>
+          ) : (
+            <div className="space-y-3 max-h-64 overflow-y-auto pr-2 custom-scrollbar">
+              {purgingActivity.map((activity) => (
+                <div key={activity.id} className="flex items-center gap-3 bg-background-secondary rounded-lg p-3">
+                  <img
+                    src={activity.avatar}
+                    alt={activity.name}
+                    className="w-10 h-10 rounded-full"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="text-foreground font-semibold truncate">{activity.name}</p>
+                      {activity.isFriend && (
+                        <span className="text-xs bg-green-500/20 text-green-400 px-2 py-0.5 rounded-full">
+                          Friend
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                        activity.action === 'purged'
+                          ? 'bg-red-500/20 text-red-400'
+                          : 'bg-green-500/20 text-green-400'
+                      }`}>
+                        {activity.action === 'purged' ? 'Purged' : 'Redeemed'}
+                      </span>
+                      {activity.creditsNeeded && activity.action === 'purged' && (
+                        <span className="text-xs text-muted">
+                          {activity.creditsNeeded} credits needed for redemption
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <span className="text-xs text-muted whitespace-nowrap">
+                    {new Date(activity.timestamp).toLocaleDateString()}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Activity Feed */}
+        <div className="bg-card rounded-xl p-6">
+          <h2 className="text-xl font-bold text-foreground mb-4">Activity Feed</h2>
+          <div className="space-y-3 max-h-64 overflow-y-auto pr-2 custom-scrollbar">
+            {feed.map((event, i) => (
+              <div key={event.id || i} className="flex items-center gap-3 bg-background rounded-lg p-3">
+                <UserIcon className="text-accent" size={20} />
+                <div className="flex-1">
+                  <span className="text-foreground font-semibold">{event.user}</span> <span className="text-muted">{event.action}</span> <span className="text-accent text-sm block">{event.detail}</span>
+                </div>
+                <span className="text-xs text-muted whitespace-nowrap">{event.time}</span>
+              </div>
+            ))}
+            {feed.length === 0 && <div className="text-muted text-center py-4">No recent activity</div>}
+          </div>
+        </div>
+
+        {/* Enhanced Leaderboard */}
+        <div className="bg-card rounded-xl p-6">
+          <h2 className="text-xl font-bold text-foreground mb-4">Enhanced Leaderboard</h2>
+          <div className="space-y-3 max-h-80 overflow-y-auto pr-2 custom-scrollbar">
+            {leaderboard.length === 0 ? (
+              <div className="text-gray-500 text-sm text-center py-4">Loading leaderboard stats...</div>
+            ) : (
+              leaderboard.map((user, idx) => {
+                const rankChange = idx === 0 ? 0 : Math.floor(Math.random() * 3) - 1; // Mock rank change
+                return (
+                  <div key={user.id} className={`flex items-center gap-4 p-4 rounded-lg transition-all hover:scale-[1.02] ${
+                    idx === 0 ? 'bg-gradient-to-r from-orange-500/20 to-yellow-500/20 border border-orange-500/30' :
+                    idx === 1 ? 'bg-gradient-to-r from-gray-400/20 to-gray-300/20 border border-gray-400/30' :
+                    idx === 2 ? 'bg-gradient-to-r from-orange-600/20 to-orange-500/20 border border-orange-600/30' :
+                    'bg-background-secondary border border-border hover:border-accent/30'
+                  }`}>
+                    <div className="flex items-center gap-3">
+                      <div className={`flex items-center justify-center w-8 h-8 rounded-full font-bold text-sm ${
+                        idx === 0 ? 'bg-orange-500 text-white' :
+                        idx === 1 ? 'bg-gray-400 text-white' :
+                        idx === 2 ? 'bg-orange-600 text-white' :
+                        'bg-muted text-muted-foreground'
+                      }`}>
+                        #{idx + 1}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {rankChange !== 0 && (
+                          <div className={`flex items-center text-xs ${rankChange > 0 ? 'text-green-500' : 'text-red-500'}`}>
+                            {rankChange > 0 ? '↑' : '↓'} {Math.abs(rankChange)}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-3">
+                        <img
+                          src={user.avatar_url || DEFAULT_IMAGES.avatar}
+                          alt={user.username}
+                          className="w-10 h-10 rounded-full border-2 border-background"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-foreground font-semibold truncate">{user.username || user.full_name || 'Survivor'}</p>
+                          <div className="flex items-center gap-4 text-xs text-muted">
+                            <span>Credits: {user.credits?.toLocaleString() || 0}</span>
+                            <span>Purge Streak: {Math.floor(Math.random() * 10)}</span>
+                            <span>Games: {Math.floor(Math.random() * 20) + 5}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="text-right">
+                      <div className="text-lg font-bold text-accent">{user.credits?.toLocaleString() || 0}</div>
+                      <div className="text-xs text-muted">Total Points</div>
+                    </div>
+
+                    {idx < 3 && (
+                      <div className="ml-2">
+                        <Trophy className={`w-6 h-6 ${idx === 0 ? 'text-orange-500 animate-bounce' : 'text-gray-400'}`} />
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            )}
           </div>
         </div>
       </div>

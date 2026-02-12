@@ -154,15 +154,15 @@ const StatusBar = () => {
 
   return (
     <div className="mb-2">
-      <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
+      <div className="flex gap-3 sm:gap-4 overflow-x-auto pb-2 scrollbar-hide">
         {/* Add Status Button */}
         <button
           onClick={() => setIsCreating(true)}
-          className="flex flex-col items-center min-w-[56px]"
+          className="flex flex-col items-center min-w-[48px] sm:min-w-[56px]"
           aria-label="Add Status"
         >
-          <div className="relative w-12 h-12 rounded-full border border-border flex items-center justify-center hover:border-accent transition-colors bg-card">
-            <Plus size={20} className="text-accent" />
+          <div className="relative w-10 h-10 sm:w-12 sm:h-12 rounded-full border border-border flex items-center justify-center hover:border-accent transition-colors bg-card">
+            <Plus size={18} className="sm:w-5 sm:h-5 text-accent" />
           </div>
           <span className="text-xs text-muted mt-1">Add</span>
         </button>
@@ -173,12 +173,12 @@ const StatusBar = () => {
             <button
               key={status.id}
               onClick={() => setSelectedStatus(status)}
-              className="flex flex-col items-center min-w-[56px] group"
+              className="flex flex-col items-center min-w-[48px] sm:min-w-[56px] group"
               aria-label={status.User.name}
               title={status.User.name}
             >
               <div className="relative">
-                <div className={`w-12 h-12 rounded-full border-2 ${getStatusRingColor(status)} p-[1px] ${isStatusActive(status) ? 'animate-pulse' : ''} overflow-hidden bg-card`}>
+                <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full border-2 ${getStatusRingColor(status)} p-[1px] ${isStatusActive(status) ? 'animate-pulse' : ''} overflow-hidden bg-card`}>
                   {status.mediaUrl ? (
                     <img
                       src={status.mediaUrl}

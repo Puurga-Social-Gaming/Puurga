@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
@@ -6,6 +6,7 @@ import api from '../../lib/axios';
 import { UserCheck, UserX, Heart, MessageCircle } from 'lucide-react';
 import Avatar from '../../components/Avatar';
 import { DEFAULT_IMAGES } from '../../constants/defaultImages';
+import { useNotifications } from '../../context/NotificationsContext';
 
 interface NotificationUser {
   id: string;
@@ -20,7 +21,7 @@ interface Notification {
   read: boolean;
   createdAt: string;
   fromUser?: NotificationUser;
-  data: {
+  data?: {
     friendRequestId?: string;
     postId?: string;
     commentId?: string;
@@ -32,7 +33,7 @@ interface Notification {
 const Notifications: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const { notifications, dismissNotifications } = useNotifications();
 
   // Safe accessor for fromUser with defaults
   const getFromUser = (notification: Notification): NotificationUser => {
@@ -44,28 +45,10 @@ const Notifications: React.FC = () => {
     };
   };
 
-  useEffect(() => {
-    fetchNotifications();
-  }, []);
-
-  const deleteNotification = (id: string) => {
-    setNotifications(prev => prev.filter(n => n.id !== id));
-  };
-
-  const fetchNotifications = async () => {
-    try {
-      const response = await api.get('/notifications');
-      setNotifications(response.data);
-    } catch (error) {
-      console.error('Error fetching notifications:', error);
-      toast.error(t('notifications.fetchFailed'));
-    }
-  };
-
   const handleAcceptFriendRequest = async (friendRequestId: string, notificationId: string) => {
     try {
       // Optimistically remove notification
-      deleteNotification(notificationId);
+      await dismissNotifications([notificationId]);
       await api.post(`/api/friend-requests/${friendRequestId}/accept`);
       await api.put(`/notifications/read`, { notificationIds: [notificationId] });
       toast.success(t('notifications.acceptSuccess'));
@@ -78,7 +61,7 @@ const Notifications: React.FC = () => {
   const handleRejectFriendRequest = async (friendRequestId: string, notificationId: string) => {
     try {
       // Optimistically remove notification
-      deleteNotification(notificationId);
+      await dismissNotifications([notificationId]);
       await api.post(`/api/friend-requests/${friendRequestId}/reject`);
       await api.put(`/notifications/read`, { notificationIds: [notificationId] });
       toast.success(t('notifications.rejectSuccess'));
@@ -89,21 +72,20 @@ const Notifications: React.FC = () => {
   };
 
   const handleNotificationClick = async (notification: Notification) => {
-    // Mark as read and dismiss
+    // Delete notification when opened
     try {
-      await api.put('/api/notifications/read', { notificationIds: [notification.id] });
-      deleteNotification(notification.id);
+      await dismissNotifications([notification.id]);
     } catch (error) {
-      console.error('Failed to mark notification as read:', error);
+      console.error('Failed to delete notification:', error);
     }
 
     // Navigate
     const { type, data, fromUser } = notification;
-    if ((type === 'like' || type === 'comment') && data.postId) {
+    if ((type === 'like' || type === 'comment') && data?.postId) {
       navigate(`/home?post=${data.postId}`);
     } else if (type === 'friend_request_accepted' && fromUser?.username) {
       navigate(`/profile/${fromUser.username}`);
-    } else if (type === 'message' && data.conversationId) {
+    } else if (type === 'message' && data?.conversationId) {
       navigate(`/messages?conversation=${data.conversationId}`);
     }
   };
@@ -132,16 +114,16 @@ const Notifications: React.FC = () => {
   const renderNotification = (notification: Notification) => {
     const fromUser = getFromUser(notification);
     const data = notification.data || {};
-    
+
     switch (notification.type) {
       case 'friend_request':
         return (
-          <div key={notification.id} className={`p-4 rounded-lg ${notification.read ? 'bg-[#1a1a1a]' : 'bg-[#1a1a1a] border-l-4 border-blue-500'}`}>
+          <div key={notification.id} className={`p-4 rounded-lg card-gradient border border-border ${notification.read ? '' : 'border-l-4 border-l-blue-500'}`}>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <Avatar src={fromUser.avatar || DEFAULT_IMAGES.avatar} alt={fromUser.name} size="md" />
                 <div>
-                  <p className="text-white">
+                  <p className="text-foreground">
                     <span className="font-semibold">{fromUser.name || t('notifications.someone')}</span>
                     <span className="text-muted"> {t('notifications.sentFriendRequest')}</span>
                   </p>
@@ -170,7 +152,7 @@ const Notifications: React.FC = () => {
                 {fromUser.username && (
                   <button
                     onClick={() => handleViewProfile(fromUser.username)}
-                    className="px-3 py-1 bg-[#333] hover:bg-[#444] text-white rounded-lg text-sm"
+                    className="px-3 py-1 bg-background-secondary hover:bg-background-tertiary text-foreground rounded-lg text-sm"
                   >
                     {t('notifications.viewProfile')}
                   </button>
@@ -182,12 +164,12 @@ const Notifications: React.FC = () => {
 
       case 'friend_request_accepted':
         return (
-          <div key={notification.id} onClick={() => handleNotificationClick(notification)} className={`p-4 rounded-lg cursor-pointer ${notification.read ? 'bg-[#1a1a1a]' : 'bg-[#1a1a1a] border-l-4 border-green-500'}`}>
+          <div key={notification.id} onClick={() => handleNotificationClick(notification)} className={`p-4 rounded-lg cursor-pointer card-gradient border border-border ${notification.read ? '' : 'border-l-4 border-l-green-500'}`}>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <Avatar src={fromUser.avatar || DEFAULT_IMAGES.avatar} alt={fromUser.name} size="md" />
                 <div>
-                  <p className="text-white">
+                  <p className="text-foreground">
                     <span className="font-semibold">{fromUser.name || t('notifications.someone')}</span>
                     <span className="text-muted"> {t('notifications.acceptedFriendRequest')}</span>
                   </p>
@@ -197,7 +179,7 @@ const Notifications: React.FC = () => {
               {fromUser.username && (
                 <button
                   onClick={(e) => { e.stopPropagation(); handleViewProfile(fromUser.username); }}
-                  className="px-3 py-1 bg-[#333] hover:bg-[#444] text-white rounded-lg text-sm"
+                  className="px-3 py-1 bg-background-secondary hover:bg-background-tertiary text-foreground rounded-lg text-sm"
                 >
                   View Profile
                 </button>
@@ -208,7 +190,7 @@ const Notifications: React.FC = () => {
 
       case 'like':
         return (
-          <div key={notification.id} onClick={() => handleNotificationClick(notification)} className={`p-4 rounded-lg cursor-pointer ${notification.read ? 'bg-[#1a1a1a]' : 'bg-[#1a1a1a] border-l-4 border-pink-500'}`}>
+          <div key={notification.id} onClick={() => handleNotificationClick(notification)} className={`p-4 rounded-lg cursor-pointer card-gradient border border-border ${notification.read ? '' : 'border-l-4 border-l-pink-500'}`}>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="relative">
@@ -228,7 +210,7 @@ const Notifications: React.FC = () => {
               {fromUser.username && (
                 <button
                   onClick={(e) => { e.stopPropagation(); handleViewProfile(fromUser.username); }}
-                  className="px-3 py-1 bg-[#333] hover:bg-[#444] text-white rounded-lg text-sm"
+                  className="px-3 py-1 bg-background-secondary hover:bg-background-tertiary text-foreground rounded-lg text-sm"
                 >
                   View Profile
                 </button>
@@ -239,7 +221,7 @@ const Notifications: React.FC = () => {
 
       case 'comment':
         return (
-          <div key={notification.id} onClick={() => handleNotificationClick(notification)} className={`p-4 rounded-lg cursor-pointer ${notification.read ? 'bg-[#1a1a1a]' : 'bg-[#1a1a1a] border-l-4 border-orange-500'}`}>
+          <div key={notification.id} onClick={() => handleNotificationClick(notification)} className={`p-4 rounded-lg cursor-pointer card-gradient border border-border ${notification.read ? '' : 'border-l-4 border-l-orange-500'}`}>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="relative">
@@ -259,7 +241,7 @@ const Notifications: React.FC = () => {
               {fromUser.username && (
                 <button
                   onClick={(e) => { e.stopPropagation(); handleViewProfile(fromUser.username); }}
-                  className="px-3 py-1 bg-[#333] hover:bg-[#444] text-white rounded-lg text-sm"
+                  className="px-3 py-1 bg-background-secondary hover:bg-background-tertiary text-foreground rounded-lg text-sm"
                 >
                   View Profile
                 </button>
@@ -270,7 +252,7 @@ const Notifications: React.FC = () => {
 
       case 'message':
         return (
-          <div key={notification.id} onClick={() => handleNotificationClick(notification)} className={`p-4 rounded-lg cursor-pointer ${notification.read ? 'bg-[#1a1a1a]' : 'bg-[#1a1a1a] border-l-4 border-purple-500'}`}>
+          <div key={notification.id} onClick={() => handleNotificationClick(notification)} className={`p-4 rounded-lg cursor-pointer card-gradient border border-border ${notification.read ? '' : 'border-l-4 border-l-purple-500'}`}>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="relative">
@@ -290,7 +272,7 @@ const Notifications: React.FC = () => {
               {fromUser.username && (
                 <button
                   onClick={(e) => { e.stopPropagation(); handleViewProfile(fromUser.username); }}
-                  className="px-3 py-1 bg-[#333] hover:bg-[#444] text-white rounded-lg text-sm"
+                  className="px-3 py-1 bg-background-secondary hover:bg-background-tertiary text-foreground rounded-lg text-sm"
                 >
                   View Profile
                 </button>

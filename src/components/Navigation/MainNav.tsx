@@ -218,41 +218,44 @@ const MainNav: React.FC = () => {
       </div>
 
       {/* Mobile Bottom Navigation */}
-      <div className="lg:hidden flex justify-around items-center w-full">
+      <div className="lg:hidden flex justify-around items-center w-full px-1 py-1">
         {/* Home */}
         <NavLink
           to="/home"
           className={({ isActive }) => `
-            flex flex-col items-center gap-0.5 px-2 py-1.5 transition-colors relative
-            ${isActive ? 'text-accent' : 'text-muted hover:text-foreground'}
+            flex flex-col items-center justify-center gap-0.5 px-3 py-2 min-h-[44px] transition-colors relative
+            ${isActive ? 'text-accent' : 'text-muted-foreground hover:text-foreground'}
           `}
         >
-          <Home size={20} />
+          <Home size={22} />
+          <span className="text-[10px] leading-none">Home</span>
         </NavLink>
 
         {/* Profile */}
         <NavLink
           to="/profile"
           className={({ isActive }) => `
-            flex flex-col items-center gap-0.5 px-2 py-1.5 text-muted transition-colors relative
-            ${isActive ? 'text-accent' : 'hover:text-foreground'}
+            flex flex-col items-center justify-center gap-0.5 px-3 py-2 min-h-[44px] transition-colors relative
+            ${isActive ? 'text-accent' : 'text-muted-foreground hover:text-foreground'}
           `}
         >
-          <UserCircle size={20} />
+          <UserCircle size={22} />
+          <span className="text-[10px] leading-none">Profile</span>
         </NavLink>
 
         {/* Notifications */}
         <NavLink
           to="/notifications"
           className={({ isActive }) => `
-            flex flex-col items-center gap-0.5 px-2 py-1.5 text-muted transition-colors relative
-            ${isActive ? 'text-accent' : 'hover:text-foreground'}
+            flex flex-col items-center justify-center gap-0.5 px-3 py-2 min-h-[44px] transition-colors relative
+            ${isActive ? 'text-accent' : 'text-muted-foreground hover:text-foreground'}
           `}
         >
-          <Bell size={20} />
+          <Bell size={22} />
+          <span className="text-[10px] leading-none">Alerts</span>
           {unreadCount > 0 && (
-            <span className="absolute top-0 right-1 bg-blue-500 text-white text-[10px] rounded-full h-4 w-4 flex items-center justify-center font-medium">
-              {unreadCount > 9 ? '9+' : unreadCount}
+            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] rounded-full h-5 w-5 flex items-center justify-center font-medium border border-background">
+              {unreadCount > 99 ? '99+' : unreadCount > 9 ? '9+' : unreadCount}
             </span>
           )}
         </NavLink>
@@ -261,11 +264,12 @@ const MainNav: React.FC = () => {
         <NavLink
           to="/messages"
           className={({ isActive }) => `
-            flex flex-col items-center gap-0.5 px-2 py-1.5 text-muted transition-colors relative
-            ${isActive ? 'text-accent' : 'hover:text-foreground'}
+            flex flex-col items-center justify-center gap-0.5 px-3 py-2 min-h-[44px] transition-colors relative
+            ${isActive ? 'text-accent' : 'text-muted-foreground hover:text-foreground'}
           `}
         >
-          <MessageSquare size={20} />
+          <MessageSquare size={22} />
+          <span className="text-[10px] leading-none">Chat</span>
         </NavLink>
 
         {/* More Menu Button */}
@@ -275,26 +279,29 @@ const MainNav: React.FC = () => {
               setMoreMenuOpen(!moreMenuOpen);
               setLanguageMenuOpen(false);
             }}
-            className={`flex flex-col items-center gap-0.5 px-2 py-1.5 text-muted transition-colors relative ${moreMenuOpen ? 'text-accent' : 'hover:text-foreground'}`}
+            className={`flex flex-col items-center justify-center gap-0.5 px-3 py-2 min-h-[44px] transition-colors relative ${moreMenuOpen ? 'text-accent' : 'text-muted-foreground hover:text-foreground'}`}
           >
-            {moreMenuOpen ? <X size={20} /> : <MoreHorizontal size={20} />}
+            {moreMenuOpen ? <X size={22} /> : <MoreHorizontal size={22} />}
+            <span className="text-[10px] leading-none">More</span>
           </button>
 
-          {/* More Menu Dropdown - Compact */}
+          {/* More Menu Dropdown - Mobile Optimized */}
           {moreMenuOpen && (
-            <div className="absolute bottom-full right-0 mb-2 bg-card border border-border rounded-lg shadow-lg min-w-[160px] overflow-hidden z-50">
+            <div className="absolute bottom-full right-0 mb-2 bg-card border border-border rounded-lg shadow-lg min-w-[180px] max-w-[200px] overflow-hidden z-50">
               {/* Groups */}
               <NavLink
                 to="/groups"
                 onClick={() => setMoreMenuOpen(false)}
                 className={({ isActive }) => `
-                  flex items-center gap-2 px-3 py-2 text-xs text-foreground transition-colors w-full text-left hover:bg-card-hover
+                  flex items-center gap-3 px-4 py-3 text-sm text-foreground transition-colors w-full text-left hover:bg-card-hover active:bg-card-hover
                   ${isActive ? 'bg-card-hover' : ''}
                 `}
               >
-                <Users size={16} />
+                <Users size={18} />
                 <span>{t('navigation.groups')}</span>
               </NavLink>
+
+              {/* Games */}
 
               {/* Games */}
               <NavLink

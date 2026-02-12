@@ -23,6 +23,7 @@ import redemptionRoutes from './routes/redemption';
 import testGhostModeRoutes from './routes/testGhostMode';
 import creditsRoutes from './routes/credits';
 import gamesRoutes from './routes/games';
+import purgingRoutes from './routes/purging';
 
 dotenv.config();
 
@@ -77,7 +78,17 @@ app.use('/uploads', express.static(getUploadPath(), {
   }
 }));
 
+// Serve static files from public directory
+app.use(express.static(path.join(__dirname, '../public'), {
+  setHeaders: (res) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Access-Control-Allow-Methods', 'GET');
+    res.set('Cache-Control', 'public, max-age=3600'); // 1 hour cache for public assets
+  }
+}));
+
 console.log('Serving uploads from:', getUploadPath());
+console.log('Serving public files from:', path.join(__dirname, '../public'));
 
 // Request logging middleware
 app.use((req: Request, res: Response, next: NextFunction) => {
@@ -154,6 +165,9 @@ app.use('/api/test/ghost-mode', testGhostModeRoutes);
 
 // Use credits routes
 app.use('/api/credits', creditsRoutes);
+
+// Use purging routes
+app.use('/api/purging', purgingRoutes);
 
 // Create HTTP server and initialize WebSocket manager
 const server = createServer(app);

@@ -42,8 +42,8 @@ router.get('/suggestions', auth, async (req: AuthRequest, res) => {
     // Queries existing relations to exclude them
     const { data: friends, error: friendsError } = await supabase
       .from('friends')
-      .select('user_id_1, user_id_2')
-      .or(`user_id_1.eq.${user.id},user_id_2.eq.${user.id}`);
+      .select('user_id, friend_id')
+      .or(`user_id.eq.${user.id},friend_id.eq.${user.id}`);
 
     const { data: requests, error: requestsError } = await supabase
       .from('friend_requests')
@@ -74,12 +74,9 @@ router.get('/suggestions', auth, async (req: AuthRequest, res) => {
     const safeFriends = friends || [];
     const safeRequests = requests || [];
 
-    const friendIds = new Set(safeFriends.map((f: any) => {
-      // Handle user_id_1/user_id_2 column names
-      return f.user_id_1 === user.id ? f.user_id_2 : f.user_id_1;
-    }));
+    const friendIds = new Set(safeFriends.map(f => (f.user_id === user.id ? f.friend_id : f.user_id)));
     const requestMap = new Map();
-    safeRequests.forEach((r: any) => {
+    safeRequests.forEach(r => {
       const otherUserId = r.sender_id === user.id ? r.receiver_id : r.sender_id;
       // Prioritize 'pending' status if multiple requests exist (e.g., one rejected, one pending)
       if (r.status === 'pending' || !requestMap.has(otherUserId)) {
@@ -88,6 +85,8 @@ router.get('/suggestions', auth, async (req: AuthRequest, res) => {
     });
 
     // Step 2: Fetch all profiles, excluding the user and their existing friends.
+    const excludedIds = [user.id, ...Array.from(friendIds)];
+
     // Build filter to exclude IDs - Supabase doesn't support .not('id', 'in', ...) easily for large lists
     // So we fetch all and filter client-side.
     // OPTIMIZATION: Get newest users first (most likely to be relevant/active) and limit 100
@@ -110,7 +109,6 @@ router.get('/suggestions', auth, async (req: AuthRequest, res) => {
     }
 
     // Filter out excluded IDs
-    const excludedIds = [user.id, ...Array.from(friendIds)];
     const suggestions = (allSuggestions || []).filter((s: any) => !excludedIds.includes(s.id)).slice(0, 20);
 
     // Step 3: Map the status to each suggestion.
@@ -179,11 +177,11 @@ router.get('/accepted', auth, async (req: AuthRequest, res) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    // Get all friends where user is either user_id_1 or user_id_2
+    // Get all friends where user is either user_id or friend_id
     const { data: friends, error } = await supabase
       .from('friends')
-      .select('user_id_1, user_id_2')
-      .or(`user_id_1.eq.${user.id},user_id_2.eq.${user.id}`);
+      .select('friend_id, user_id')
+      .or(`user_id.eq.${user.id},friend_id.eq.${user.id}`);
 
     if (error) {
       if ((error as any).code === '42P01' || (error as any).code === '42703') {
@@ -194,10 +192,7 @@ router.get('/accepted', auth, async (req: AuthRequest, res) => {
 
     // Get the IDs of the user's friends (exclude self)
     const friendIds = (friends || [])
-      .map((f: any) => {
-        // Handle user_id_1/user_id_2 column names
-        return f.user_id_1 === user.id ? f.user_id_2 : f.user_id_1;
-      })
+      .map((f: any) => f.user_id === user.id ? f.friend_id : f.user_id)
       .filter((id: string) => id !== user.id);
 
     if (friendIds.length === 0) return res.json([]);

@@ -11,7 +11,6 @@ import { motion } from 'framer-motion';
 import { DEFAULT_IMAGES } from '../../constants/defaultImages';
 import { supabase } from '../../lib/supabaseClient';
 import QuickActions from './QuickActions';
-import Avatar from '../Avatar';
 
 interface UserStats {
   posts: number;
@@ -95,8 +94,8 @@ const RightSidebar: React.FC = () => {
         const data = await getFriendRequests();
         setFriendRequests(data);
       } catch (error) {
-        console.error('Error fetching friend requests:', error);
         setFriendRequests([]);
+        console.error('Error fetching friend requests:', error);
       } finally {
         setFriendRequestsLoading(false);
       }
@@ -168,7 +167,6 @@ const RightSidebar: React.FC = () => {
         setPendingRequestIds(pendingIds);
 
         const suggestions = await getFriendSuggestions();
-        
         // Filter out current user (safety check) and set initial status based on pending requests
         const suggestionsWithStatus = suggestions
           .filter((s: any) => s.id !== user.id) // Exclude current user
@@ -297,14 +295,8 @@ const RightSidebar: React.FC = () => {
             {friendRequests.map(request => (
               <div key={request.id} className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2 min-w-0 flex-1">
-                  <Avatar
-                    src={request.sender_avatar || DEFAULT_IMAGES.avatar}
-                    alt={request.sender_name}
-                    size="sm"
-                    userId={request.sender_id}
-                    showOnlineStatus={true}
-                  />
-                  <Link to={`/profile/${request.sender_username || request.sender_id}`} className="text-foreground text-sm font-medium hover:text-accent truncate block">
+                  <img src={request.sender_avatar || DEFAULT_IMAGES.avatar} alt={request.sender_name} className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
+                  <Link to={`/profile/${request.sender_id}`} className="text-foreground text-sm font-medium hover:text-accent truncate block">
                     {request.sender_name}
                   </Link>
                 </div>
@@ -363,13 +355,10 @@ const RightSidebar: React.FC = () => {
             onlineFriends.map(onlineUser => (
               <div key={onlineUser.id} className="flex items-center justify-between gap-2 group hover:bg-background-secondary/50 p-1.5 rounded-lg transition-colors -mx-1.5">
                 <div className="flex items-center gap-2 min-w-0 flex-1">
-                  <Avatar
-                    src={onlineUser.avatar || DEFAULT_IMAGES.avatar}
-                    alt={onlineUser.username}
-                    size="sm"
-                    userId={onlineUser.id}
-                    showOnlineStatus={true}
-                  />
+                  <div className="relative flex-shrink-0">
+                    <img src={onlineUser.avatar || DEFAULT_IMAGES.avatar} alt={onlineUser.username} className="w-8 h-8 rounded-full object-cover" />
+                    <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-card" title="Online" />
+                  </div>
                   <Link to={`/profile/${onlineUser.username}`} className="text-foreground text-sm font-medium hover:text-accent truncate block">
                     {onlineUser.name || onlineUser.username}
                   </Link>
@@ -397,13 +386,7 @@ const RightSidebar: React.FC = () => {
             {friendSuggestions.map(suggestion => (
               <div key={suggestion.id} className="flex items-center justify-between gap-2">
                 <Link to={`/profile/${suggestion.username}`} className="flex items-center gap-2 group min-w-0 flex-1">
-                  <Avatar
-                    src={suggestion.avatar || DEFAULT_IMAGES.avatar}
-                    alt={suggestion.name}
-                    size="sm"
-                    userId={suggestion.id}
-                    showOnlineStatus={true}
-                  />
+                  <img src={suggestion.avatar || DEFAULT_IMAGES.avatar} alt={suggestion.name} className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
                   <div className="min-w-0">
                     <span className="text-foreground text-sm font-medium group-hover:text-accent truncate block">{suggestion.name}</span>
                     <span className="text-muted text-xs truncate block">@{suggestion.username}</span>

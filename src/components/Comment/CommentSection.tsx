@@ -39,9 +39,9 @@ const CommentSection: React.FC<CommentSectionProps> = ({ postId, comments: initi
   const fetchComments = async () => {
     try {
       setIsLoading(true);
-      const response = await api.get(`/api/posts/${postId}/comments`);
+      const response = await api.get(`/posts/${postId}/comments`);
       setComments(response.data);
-      
+
       // Update comment count
       if (onCommentCountChange) {
         onCommentCountChange(response.data.length);
@@ -59,7 +59,7 @@ const CommentSection: React.FC<CommentSectionProps> = ({ postId, comments: initi
 
     setIsSubmitting(true);
     try {
-      const response = await api.post(`/api/posts/${postId}/comments`, {
+      const response = await api.post(`/posts/${postId}/comments`, {
         content: newComment.trim()
       });
 
@@ -68,12 +68,12 @@ const CommentSection: React.FC<CommentSectionProps> = ({ postId, comments: initi
       setComments(newComments);
       setNewComment('');
       toast.success('Comment added');
-      
+
       // Update comment count
       if (onCommentCountChange) {
         onCommentCountChange(newComments.length);
       }
-      
+
       // Update post comment count
       if (onUpdate) {
         await fetchComments();
@@ -117,10 +117,10 @@ const CommentSection: React.FC<CommentSectionProps> = ({ postId, comments: initi
 
       {/* Comment Form */}
       <form onSubmit={handleSubmit} className="flex gap-2 items-center pt-2">
-        <Avatar 
-          src={user?.avatar || DEFAULT_IMAGES.avatar} 
-          alt={user?.name || 'User avatar'} 
-          size="sm" 
+        <Avatar
+          src={user?.avatar || DEFAULT_IMAGES.avatar}
+          alt={user?.name || 'User avatar'}
+          size="sm"
         />
         <div className="flex-1 relative">
           <input

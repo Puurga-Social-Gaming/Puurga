@@ -28,7 +28,7 @@ const PurgaSlicer: React.FC<PurgaSlicerProps> = ({ className }) => {
   const isSlicingRef = useRef(false);
   const lastTrailPointRef = useRef<{ x: number; y: number } | null>(null);
   const ownedBackgroundsRef = useRef<Set<string>>(new Set());
-  const livesRef = useRef(3);
+  const livesRef = useRef(5);
   const comboRef = useRef(0);
   const corruptionHitsRef = useRef(0);
   const missedTargetsRef = useRef(0);
@@ -39,7 +39,7 @@ const PurgaSlicer: React.FC<PurgaSlicerProps> = ({ className }) => {
 
   const [gameState, setGameState] = useState<'menu' | 'playing' | 'paused' | 'gameOver'>('menu');
   const [score, setScore] = useState(0);
-  const [lives, setLives] = useState(3);
+  const [lives, setLives] = useState(5);
   const [combo, setCombo] = useState(0);
   const [timeLeft, setTimeLeft] = useState(30);
   const [showSettings, setShowSettings] = useState(false);
@@ -358,7 +358,7 @@ const PurgaSlicer: React.FC<PurgaSlicerProps> = ({ className }) => {
             }
             return prev - 1;
           });
-          timeTimer = 0;
+          timeTimer -= 1; // Correct drift
         }
 
         const bottomOut = -viewSize - 1.2;
@@ -436,8 +436,8 @@ const PurgaSlicer: React.FC<PurgaSlicerProps> = ({ className }) => {
   const startGame = () => {
     setGameState('playing');
     setScore(0);
-    setLives(3);
-    livesRef.current = 3; // Immediate reset for game loop safety
+    setLives(5);
+    livesRef.current = 5; // Immediate reset for game loop safety
     setCombo(0);
     setTimeLeft(60);
     setShowSettings(false);
@@ -462,8 +462,8 @@ const PurgaSlicer: React.FC<PurgaSlicerProps> = ({ className }) => {
   const resetGame = () => {
     setGameState('menu');
     setScore(0);
-    setLives(3);
-    livesRef.current = 3; // Immediate reset for game loop safety
+    setLives(5);
+    livesRef.current = 5; // Immediate reset for game loop safety
     setCombo(0);
     setTimeLeft(60);
     setShowSettings(false);
@@ -505,6 +505,15 @@ const PurgaSlicer: React.FC<PurgaSlicerProps> = ({ className }) => {
 
         const gamesPlayed = Number(localStorage.getItem('perga_games_played') || '0');
         localStorage.setItem('perga_games_played', String(gamesPlayed + 1));
+
+        // Save detailed result for Arena feed
+        localStorage.setItem('perga_last_result', JSON.stringify({
+          game: 'Judgment',
+          net: result.net,
+          score: score,
+          timestamp: Date.now(),
+          details: `Lives: ${lives}, Combo: ${combo}`
+        }));
       };
 
       processCredits();
@@ -757,7 +766,10 @@ const PurgaSlicer: React.FC<PurgaSlicerProps> = ({ className }) => {
           <div className="absolute inset-0 bg-black/80 flex items-center justify-center">
             <div className="text-center text-white px-4">
               <div className="text-3xl sm:text-4xl mb-2">🕯️</div>
-              <h2 className="text-2xl sm:text-3xl font-bold mb-3 sm:mb-4 text-orange-500">Judgment Rendered</h2>
+              <h2 className="text-2xl sm:text-3xl font-bold mb-1 sm:mb-2 text-orange-500">Judgment Rendered</h2>
+              <p className="text-red-400 font-semibold mb-3">
+                {lives <= 0 ? 'Lives Depleted' : 'Time Expired'}
+              </p>
               <p className="text-lg sm:text-xl mb-2">Final Score: {score}</p>
               <p className="text-xs sm:text-sm text-gray-400 mb-4 sm:mb-6">Credits Earned: +{creditsEarned}</p>
               <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center">

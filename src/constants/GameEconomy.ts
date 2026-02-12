@@ -178,7 +178,7 @@ export const calculateGameResult = (params: GameResultParams): { earned: number;
         lost += (rules.penalties.corruption || 0) * corruptionHits;
     }
 
-    const net = Math.max(0, earned - lost);
+    const net = earned - lost;
 
     return { earned, lost, net };
 };

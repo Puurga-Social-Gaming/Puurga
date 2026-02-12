@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useUser } from '../context/UserContext';
+import { useNavigate } from 'react-router-dom';
 import { Post, ReactionCount } from '../types';
 import PostList from '../components/Post/PostList';
 import StatusBar from '../components/StatusBar/StatusBar';
@@ -10,11 +11,7 @@ import { supabase } from '../lib/supabaseClient';
 import FloatingCreateButton from '../components/Post/FloatingCreateButton';
 import '../styles/neo-home.css';
 import RedeemUserButton from '../components/GhostMode/RedeemUserButton';
-import {
-  Zap,
-  Shield,
-  Eye
-} from 'lucide-react';
+
 
 // Safe helpers to coerce unknown values without using 'any'
 const asString = (v: unknown, fallback = ''): string =>
@@ -134,6 +131,7 @@ function mapBackendPost(post: unknown): Post {
 export default function Home() {
   const { t } = useTranslation();
   const { user, updateUser } = useUser();
+  const navigate = useNavigate();
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -148,34 +146,37 @@ export default function Home() {
   // Games data
   const games = [
     {
-      id: 'purgaslicer',
+      id: 'judgment',
       name: 'Judgment',
       description: 'Wield divine precision to cleanse corruption',
-      icon: Zap,
+      image: '/images/games/judgment.jpg',
       color: 'orange',
       players: '1.2K',
       rating: 4.8,
-      available: true
+      available: true,
+      link: '/new-game'
     },
     {
       id: 'redemption',
       name: 'Redemption',
       description: 'Path of Restoration: Make moral choices to redeem your soul.',
-      icon: Shield,
+      image: '/images/games/redemption.jpg',
       color: 'orange',
       players: '2.4K',
       rating: 4.9,
-      available: true
+      available: true,
+      link: '/new-game'
     },
     {
       id: 'watchman',
-      name: 'Part of the Watchmen',
+      name: 'The Watchman',
       description: 'Navigate the chaos. Use your light to strike down corruption.',
-      icon: Eye,
+      image: '/images/games/watchman.jpg',
       color: 'blue',
       players: '150',
       rating: 5.0,
-      available: true
+      available: true,
+      link: '/new-game'
     }
   ];
 
@@ -218,13 +219,11 @@ export default function Home() {
   }, []);
 
   const handleGameSelect = (gameId: string) => {
-    if (gameId === 'purgaslicer') {
-      window.open('/puurga-games', '_blank');
-    } else if (gameId === 'redemption') {
-      window.open('/new-game', '_blank');
-    } else if (gameId === 'watchman') {
-      window.open('/next-game', '_blank');
-    }
+    // Determine target route based on game
+    if (gameId === 'judgment') navigate('/puurga-games');
+    else if (gameId === 'redemption') navigate('/new-game');
+    else if (gameId === 'watchman') navigate('/next-game');
+    else navigate('/puurga-games');
   };
 
   // Fetch ghosted friends
@@ -417,7 +416,7 @@ export default function Home() {
             <div className="w-px bg-border/50" />
 
             {/* Right Column - Games & Ghosted Friends (Responsive, Completely Sticky) */}
-            <div className="flex-shrink-0 pl-2 lg:w-1/3 xl:w-1/4">
+            <div className="flex-shrink-0 pl-2 w-32 lg:w-1/3 xl:w-1/4">
               <div className="sticky top-0 h-[calc(100vh-6rem-env(safe-area-inset-top,0))] space-y-4 pb-20 overflow-hidden pt-12">
                 {/* PUURGA GAMES Section - Enhanced with Professional Gradients */}
                 <div className="relative">
@@ -447,10 +446,11 @@ export default function Home() {
 
                           {/* Game Card */}
                           <div className="relative bg-gradient-to-br from-background/80 to-background/60 dark:from-background/80 dark:to-background/60 backdrop-blur-sm border border-gray-200/20 dark:border-transparent rounded-lg p-2 group-hover:border-gray-300/30 dark:group-hover:border-transparent transition-all duration-300">
-                            <div className={`p-1.5 rounded ${game.color === 'orange' ? 'bg-gradient-to-br from-orange-400/20 to-orange-500/15 dark:from-orange-500/30 dark:to-orange-600/20' : 'bg-gradient-to-br from-blue-400/20 to-blue-500/15 dark:from-blue-500/30 dark:to-blue-600/20'} mb-1`}>
-                              <game.icon className={`w-3 h-3 ${game.color === 'orange' ? 'text-orange-600 dark:text-orange-400' : 'text-blue-600 dark:text-blue-400'} drop-shadow-sm`} />
+                            <div className={`aspect-square w-full mb-1 rounded overflow-hidden shadow-sm relative group-hover:scale-105 transition-transform duration-300`}>
+                              <img src={game.image} alt={game.name} className="w-full h-full object-cover" />
+                              <div className="absolute inset-0 bg-black/10 group-hover:bg-transparent transition-colors" />
                             </div>
-                            <h4 className="font-bold text-gray-800 dark:text-foreground text-xs text-center bg-gradient-to-r from-gray-700 to-gray-900 dark:from-white dark:to-gray-300 bg-clip-text text-transparent">
+                            <h4 className="font-bold text-gray-800 dark:text-foreground text-[10px] leading-tight text-center bg-gradient-to-r from-gray-700 to-gray-900 dark:from-white dark:to-gray-300 bg-clip-text text-transparent truncate">
                               {game.name}
                             </h4>
                             <div className="flex items-center justify-center gap-1 mt-1">

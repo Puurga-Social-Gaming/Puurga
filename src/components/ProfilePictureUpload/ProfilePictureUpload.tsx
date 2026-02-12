@@ -46,7 +46,7 @@ const ProfilePictureUpload: React.FC<ProfilePictureUploadProps> = ({ onUploadSuc
     setIsUploading(true);
     try {
       // Backend route: PUT /api/users/profile/avatar (field name 'avatar')
-      const response = await api.put('/users/profile/avatar', formData, {
+      const response = await api.put('/api/users/profile/avatar', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
@@ -71,7 +71,7 @@ const ProfilePictureUpload: React.FC<ProfilePictureUploadProps> = ({ onUploadSuc
   const handleRemoveAvatar = async () => {
     try {
       // Backend expects 'avatar_url' on PUT /api/users/profile
-      await api.put('/users/profile', { avatar_url: null });
+      await api.put('/api/users/profile', { avatar_url: null });
       updateUser({ avatar: undefined });
       onUploadSuccess?.('');
       setPreviewUrl(null);

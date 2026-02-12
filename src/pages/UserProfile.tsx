@@ -13,7 +13,9 @@ import {
   ArrowLeft,
   Heart,
   MessageSquare,
-  Share2
+  Share2,
+  Flame,
+  Zap
 } from 'lucide-react';
 import api from '../lib/axios';
 import { supabase } from '../lib/supabaseClient';
@@ -35,6 +37,8 @@ interface UserProfileData {
   joinedAt?: string;
   friendsCount: number;
   postsCount: number;
+  credits: number;
+  purgeStreak: number;
   isFriend: boolean;
   hasPendingRequest: boolean;
   isOwnProfile: boolean;
@@ -119,6 +123,8 @@ const UserProfile: React.FC = () => {
         joinedAt: data.created_at || data.createdAt,
         friendsCount: data.friends_count || data.friendsCount || 0,
         postsCount: data.posts_count || data.postsCount || 0,
+        credits: data.credits || 0,
+        purgeStreak: data.purge_streak || data.purgeStreak || 0,
         isFriend: data.is_friend || data.isFriend || false,
         hasPendingRequest: data.has_pending_request || data.hasPendingRequest || false,
         isOwnProfile: currentUser?.username === username,
@@ -199,7 +205,7 @@ const UserProfile: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-[#0a0a0a]">
+      <div className="flex items-center justify-center min-h-screen bg-background">
         <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
       </div>
     );
@@ -207,12 +213,12 @@ const UserProfile: React.FC = () => {
 
   if (error || !profile) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen gap-4 bg-[#0a0a0a]">
+      <div className="flex flex-col items-center justify-center min-h-screen gap-4 bg-background">
         <AlertCircle className="w-12 h-12 text-red-500" />
-        <p className="text-gray-400">{error || 'Profile not found'}</p>
+        <p className="text-muted">{error || 'Profile not found'}</p>
         <button
           onClick={() => navigate(-1)}
-          className="flex items-center gap-2 px-4 py-2 bg-[#1a1a1a] text-white rounded-lg hover:bg-[#252525] transition-colors"
+          className="flex items-center gap-2 px-4 py-2 bg-card text-foreground rounded-lg hover:bg-card/80 transition-colors"
         >
           <ArrowLeft size={18} />
           Go Back
@@ -226,10 +232,10 @@ const UserProfile: React.FC = () => {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.3 }}
-      className="min-h-screen bg-[#0a0a0a]"
+      className="min-h-screen bg-background"
     >
       {/* Cover Photo */}
-      <div className="relative h-48 sm:h-64 bg-gradient-to-br from-orange-500/20 via-[#1a1a1a] to-purple-500/20">
+      <div className="relative h-48 sm:h-64 bg-gradient-to-br from-orange-500/20 via-background-secondary to-purple-500/20">
         {profile.coverPhoto && (
           <img
             src={profile.coverPhoto}
@@ -237,7 +243,7 @@ const UserProfile: React.FC = () => {
             className="w-full h-full object-cover"
           />
         )}
-        <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0a] via-transparent to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent" />
 
         {/* Back Button */}
         <button
@@ -257,10 +263,10 @@ const UserProfile: React.FC = () => {
               src={profile.avatar}
               alt={profile.name}
               size="lg"
-              className="w-28 h-28 sm:w-32 sm:h-32 border-4 border-[#0a0a0a] rounded-full"
+              className="w-28 h-28 sm:w-32 sm:h-32 border-4 border-background rounded-full"
             />
             {profile.isFriend && (
-              <div className="absolute bottom-2 right-2 bg-green-500 text-white text-xs px-2 py-1 rounded-full">
+              <div className="absolute bottom-2 right-2 bg-green-500 text-white text-xs px-2 py-1 rounded-full border-2 border-background">
                 Friend
               </div>
             )}
@@ -269,8 +275,8 @@ const UserProfile: React.FC = () => {
           {/* Name and Actions */}
           <div className="flex-1 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4">
             <div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-white">{profile.name}</h1>
-              <p className="text-gray-400">@{profile.username}</p>
+              <h1 className="text-2xl sm:text-3xl font-bold text-foreground">{profile.name}</h1>
+              <p className="text-muted">@{profile.username}</p>
             </div>
 
             {/* Action Buttons - Only show for other users */}
@@ -280,7 +286,7 @@ const UserProfile: React.FC = () => {
                   <>
                     <button
                       onClick={handleMessage}
-                      className="flex items-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition-colors"
+                      className="flex items-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition-colors shadow-lg shadow-orange-500/20"
                     >
                       <MessageCircle size={18} />
                       Message
@@ -288,7 +294,7 @@ const UserProfile: React.FC = () => {
                     <button
                       onClick={handleRemoveFriend}
                       disabled={sendingRequest}
-                      className="flex items-center gap-2 px-4 py-2 bg-[#1a1a1a] hover:bg-red-500/20 text-gray-300 hover:text-red-400 border border-gray-700 hover:border-red-500/50 rounded-lg transition-colors"
+                      className="flex items-center gap-2 px-4 py-2 bg-card hover:bg-red-500/10 text-muted hover:text-red-500 border border-border hover:border-red-500/50 rounded-lg transition-colors"
                     >
                       <UserMinus size={18} />
                       Unfriend
@@ -307,10 +313,10 @@ const UserProfile: React.FC = () => {
         {/* Bio and Details */}
         <div className="mt-6 space-y-4">
           {profile.bio && (
-            <p className="text-gray-300 text-lg">{profile.bio}</p>
+            <p className="text-foreground/90 text-lg">{profile.bio}</p>
           )}
 
-          <div className="flex flex-wrap gap-4 text-gray-400 text-sm">
+          <div className="flex flex-wrap gap-4 text-muted text-sm">
             {profile.location && (
               <div className="flex items-center gap-1">
                 <MapPin size={16} />
@@ -336,31 +342,52 @@ const UserProfile: React.FC = () => {
             )}
           </div>
 
-          {/* Stats */}
-          <div className="flex gap-6 py-4 border-t border-b border-gray-800">
-            <div className="text-center">
-              <p className="text-xl font-bold text-white">{profile.friendsCount}</p>
-              <p className="text-gray-400 text-sm flex items-center gap-1">
-                <Users size={14} /> Friends
-              </p>
+          {/* Stats - Compact horizontal layout */}
+          <div className="flex items-center justify-center gap-6 py-4 border-t border-b border-border">
+            <div className="flex items-center gap-2">
+              <Users className="w-5 h-5 text-blue-500" />
+              <div className="text-center">
+                <p className="text-lg font-bold text-foreground">{profile.friendsCount}</p>
+                <p className="text-xs text-muted font-medium">Friends</p>
+              </div>
             </div>
-            <div className="text-center">
-              <p className="text-xl font-bold text-white">{profile.postsCount}</p>
-              <p className="text-gray-400 text-sm">Posts</p>
+
+            <div className="flex items-center gap-2">
+              <MessageSquare className="w-5 h-5 text-purple-500" />
+              <div className="text-center">
+                <p className="text-lg font-bold text-foreground">{profile.postsCount}</p>
+                <p className="text-xs text-muted font-medium">Posts</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Zap className="w-5 h-5 text-yellow-500" />
+              <div className="text-center">
+                <p className="text-lg font-bold text-foreground">{profile.credits}</p>
+                <p className="text-xs text-muted font-medium">Credits</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Flame className="w-5 h-5 text-red-500" />
+              <div className="text-center">
+                <p className="text-lg font-bold text-foreground">{profile.purgeStreak}</p>
+                <p className="text-xs text-muted font-medium">Streak</p>
+              </div>
             </div>
           </div>
         </div>
 
         {/* User Posts */}
         <div className="mt-6 pb-8">
-          <h2 className="text-xl font-bold text-white mb-4">Posts</h2>
+          <h2 className="text-xl font-bold text-foreground mb-4">Posts</h2>
 
           {loadingPosts ? (
-            <div className="flex items-center justify-center text-gray-400 py-8">
+            <div className="flex items-center justify-center text-muted py-8">
               <Loader2 className="w-6 h-6 animate-spin mr-2" /> Loading posts...
             </div>
           ) : userPosts.length === 0 ? (
-            <div className="text-center text-gray-400 py-12 bg-[#1a1a1a] rounded-xl">
+            <div className="text-center text-muted py-12 bg-card rounded-xl border border-border">
               <MessageSquare className="w-12 h-12 mx-auto mb-3 opacity-50" />
               <p>No posts yet</p>
             </div>
@@ -371,17 +398,17 @@ const UserProfile: React.FC = () => {
                   key={post.id}
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="bg-[#1a1a1a] rounded-xl p-4 border border-gray-800 hover:border-gray-700 transition-colors"
+                  className="bg-card rounded-xl p-4 border border-border hover:border-border-hover transition-colors shadow-sm"
                 >
                   <div className="flex items-center gap-3 mb-3">
                     <Avatar src={profile.avatar} alt={profile.name} size="sm" />
                     <div>
-                      <p className="text-white font-medium">{profile.name}</p>
-                      <p className="text-gray-500 text-xs">{formatPostDate(post.createdAt)}</p>
+                      <p className="text-foreground font-medium">{profile.name}</p>
+                      <p className="text-muted text-xs">{formatPostDate(post.createdAt)}</p>
                     </div>
                   </div>
 
-                  <p className="text-gray-200 mb-3">{post.content}</p>
+                  <p className="text-foreground/90 mb-3 whitespace-pre-wrap">{post.content}</p>
 
                   {post.mediaUrl && (
                     <img
@@ -391,7 +418,7 @@ const UserProfile: React.FC = () => {
                     />
                   )}
 
-                  <div className="flex items-center gap-6 pt-3 border-t border-gray-800 text-gray-400">
+                  <div className="flex items-center gap-6 pt-3 border-t border-border text-muted">
                     <button className="flex items-center gap-2 hover:text-pink-500 transition-colors">
                       <Heart size={18} className={post.liked ? 'fill-pink-500 text-pink-500' : ''} />
                       <span>{post.likes}</span>
@@ -414,4 +441,4 @@ const UserProfile: React.FC = () => {
   );
 };
 
-export default UserProfile; 
+export default UserProfile;
