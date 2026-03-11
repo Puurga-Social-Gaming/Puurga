@@ -79,7 +79,11 @@ const ProfileSettings: React.FC = () => {
           },
         });
 
-        // Explicitly map the response to the correct field for updateUser
+        console.log('Raw API response:', response);
+        console.log('Response data:', response.data);
+        console.log('Response status:', response.status);
+
+        // Explicitly map the response to the correct field names for updateUser
         // Backend returns { avatar: url } or { coverPhoto: url }
         const updatedData = type === 'profile'
           ? { avatar: response.data.avatar }

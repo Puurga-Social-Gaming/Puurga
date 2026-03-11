@@ -1,30 +1,25 @@
 import React from 'react';
+import { useTheme } from '../../context/ThemeContext';
 
-const PuurgaLogo: React.FC<{ size?: number; className?: string }> = ({ size = 32, className = '' }) => (
-  <svg
-    width={size}
-    height={size}
-    viewBox="0 0 100 100"
-    className={className}
-    xmlns="http://www.w3.org/2000/svg"
-  >
-    <path
-      d="M85 15 C85 15, 70 30, 70 30 L50 50 L30 70 C30 70, 15 85, 15 85"
-      stroke="currentColor"
-      strokeWidth="8"
-      fill="none"
-      strokeLinecap="round"
-      className="stroke-current"
+const PuurgaLogo: React.FC<{ size?: number; className?: string }> = ({ size = 32, className = '' }) => {
+  const { theme } = useTheme();
+
+  // Using the 3D version for a premium look
+  // 3dDark is the orange version (looks good on dark), 3dLight is the black version (looks good on light)
+  const logoUrl = theme === 'dark'
+    ? 'https://vhvxfnxtyrgiydztsonz.supabase.co/storage/v1/object/public/Logos/3dDark.png'
+    : 'https://vhvxfnxtyrgiydztsonz.supabase.co/storage/v1/object/public/Logos/3dLight.png';
+
+  return (
+    <img
+      src={logoUrl}
+      alt="Puurga"
+      width={size}
+      height={size}
+      className={`object-contain ${className}`}
+      style={{ width: size, height: size }}
     />
-    <path
-      d="M85 15 L85 40"
-      stroke="currentColor"
-      strokeWidth="8"
-      fill="none"
-      strokeLinecap="round"
-      className="stroke-current"
-    />
-  </svg>
-);
+  );
+};
 
 export default PuurgaLogo;

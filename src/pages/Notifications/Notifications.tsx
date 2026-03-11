@@ -15,20 +15,9 @@ interface NotificationUser {
   avatar: string;
 }
 
-interface Notification {
-  id: string;
-  type: 'friend_request' | 'friend_request_accepted' | 'like' | 'comment' | 'message';
-  read: boolean;
-  createdAt: string;
-  fromUser?: NotificationUser;
-  data?: {
-    friendRequestId?: string;
-    postId?: string;
-    commentId?: string;
-    conversationId?: string;
-    messageId?: string;
-  };
-}
+import { Notification as ContextNotification } from '../../context/NotificationsContext';
+
+type Notification = ContextNotification;
 
 const Notifications: React.FC = () => {
   const { t } = useTranslation();
@@ -49,7 +38,7 @@ const Notifications: React.FC = () => {
     try {
       // Optimistically remove notification
       await dismissNotifications([notificationId]);
-      await api.post(`/api/friend-requests/${friendRequestId}/accept`);
+      await api.post(`/friend-requests/${friendRequestId}/accept`);
       await api.put(`/notifications/read`, { notificationIds: [notificationId] });
       toast.success(t('notifications.acceptSuccess'));
     } catch (error) {
@@ -62,7 +51,7 @@ const Notifications: React.FC = () => {
     try {
       // Optimistically remove notification
       await dismissNotifications([notificationId]);
-      await api.post(`/api/friend-requests/${friendRequestId}/reject`);
+      await api.post(`/friend-requests/${friendRequestId}/reject`);
       await api.put(`/notifications/read`, { notificationIds: [notificationId] });
       toast.success(t('notifications.rejectSuccess'));
     } catch (error) {

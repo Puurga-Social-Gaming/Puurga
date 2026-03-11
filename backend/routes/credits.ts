@@ -1,6 +1,8 @@
 import express from 'express';
 import { supabase } from '../config/supabase';
 import { supabaseAuth as auth, AuthRequest } from '../middleware/supabaseAuth';
+import { wsManager } from '../websocketManager';
+import { createNotification } from './createNotification';
 
 const router = express.Router();
 
@@ -11,7 +13,7 @@ router.get('/', auth, async (req: AuthRequest, res) => {
 
     const { data: profile, error } = await supabase
       .from('profiles')
-      .select('credits, purge_streak')
+      .select('purga_points, credits, purge_streak')
       .eq('id', userId)
       .single();
 
@@ -20,8 +22,9 @@ router.get('/', auth, async (req: AuthRequest, res) => {
       return res.status(500).json({ error: 'Failed to fetch credits' });
     }
 
+    // Prefer purga_points, fallback to legacy credits
     res.json({
-      credits: profile?.credits || 0,
+      credits: Number(profile?.purga_points ?? profile?.credits ?? 0),
       purgeStreak: profile?.purge_streak || 0
     });
   } catch (error) {
@@ -42,9 +45,9 @@ router.post('/update', auth, async (req: AuthRequest, res) => {
 
     const { data: updatedProfile, error } = await supabase
       .from('profiles')
-      .update({ credits: credits })
+      .update({ purga_points: credits, credits: credits, updated_at: new Date().toISOString() })
       .eq('id', userId)
-      .select('credits')
+      .select('purga_points, credits')
       .single();
 
     if (error) {
@@ -52,9 +55,17 @@ router.post('/update', auth, async (req: AuthRequest, res) => {
       return res.status(500).json({ error: 'Failed to update credits' });
     }
 
+    const finalCredits = Number(updatedProfile?.purga_points ?? updatedProfile?.credits ?? credits);
+
+    // Emit credit update via WebSocket
+    wsManager.sendToUser(userId, {
+      type: 'credit_update',
+      payload: { userId, credits: finalCredits }
+    });
+
     res.json({
       success: true,
-      credits: updatedProfile?.credits || credits
+      credits: finalCredits
     });
   } catch (error) {
     console.error('Error in credits update route:', error);
@@ -104,6 +115,13 @@ router.post('/activity', auth, async (req: AuthRequest, res) => {
       console.error('Error recording activity:', insertError);
       return res.status(500).json({ error: 'Failed to record activity' });
     }
+
+    // Create notification for the ghost user
+    await createNotification({
+      type: 'redemption_contribution',
+      senderId: userId,
+      receiverId: ghostUserId
+    });
 
     // Get total redemption progress
     const { data: activities, error: countError } = await supabase

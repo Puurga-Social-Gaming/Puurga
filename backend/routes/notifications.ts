@@ -2,6 +2,7 @@ import express from 'express';
 import { supabase } from '../config/supabase';
 import { supabaseAuth as auth } from '../middleware/supabaseAuth';
 import { wsManager } from '../websocketManager';
+import { normalizeImageUrl } from '../utils/url';
 
 const router = express.Router();
 
@@ -62,7 +63,7 @@ router.get('/', auth, async (req, res) => {
           id: n.sender_id || '',
           name: sender?.full_name || '',
           username: sender?.username || '',
-          avatar: sender?.avatar_url || '',
+          avatar: normalizeImageUrl(sender?.avatar_url) || '',
         },
         data: {
           friendRequestId: n.friend_request_id || undefined,

@@ -30,6 +30,8 @@ import UserProfile from './pages/UserProfile';
 import UserList from './pages/Admin/UserList';
 import SuperAdmin from './pages/SuperAdmin/SuperAdmin';
 import ProtectedRoute from './components/ProtectedRoute/index.tsx';
+import SuperAdminRoute from './components/SuperAdminRoute/index.tsx';
+
 import { NotificationProvider } from './context/NotificationContext';
 import { NotificationsProvider } from './context/NotificationsContext';
 import { MessagesProvider } from './context/MessagesContext';
@@ -138,7 +140,12 @@ const router = createBrowserRouter(
         <Route path="/settings" element={<Settings />} />
         <Route path="/profile/:username" element={<UserProfile />} />
         <Route path="/admin/users" element={<UserList />} />
-        <Route path="/super-admin" element={<SuperAdmin />} />
+        <Route path="/super-admin" element={
+          <SuperAdminRoute>
+            <SuperAdmin />
+          </SuperAdminRoute>
+        } />
+
         {/* Temporary route for new game code integration */}
         <Route path="/new-game" element={<NewGameCode />} />
         <Route path="/next-game" element={<TheNextGame />} />

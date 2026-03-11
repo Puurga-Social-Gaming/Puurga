@@ -2,16 +2,13 @@ import express from 'express';
 import multer from 'multer';
 import { supabaseAuth as auth, AuthRequest } from '../middleware/supabaseAuth';
 import { supabase } from '../config/supabase';
-import { getUploadPath, generateUniqueFilename } from '../config/storage';
 import { normalizeImageUrl } from '../utils/url';
+import path from 'path';
 
 const router = express.Router();
 
-// Configure multer for file uploads (local disk, same as users avatar/cover)
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, getUploadPath()),
-  filename: (req, file, cb) => cb(null, generateUniqueFilename(file.originalname))
-});
+// Configure multer for memory storage (direct to Supabase)
+const storage = multer.memoryStorage();
 const upload = multer({
   storage,
   limits: { fileSize: 10 * 1024 * 1024 },
@@ -103,13 +100,38 @@ router.post('/', auth, upload.single('media'), async (req: AuthRequest, res) => 
 
     let mediaUrl: string | null = null;
     if (req.file) {
-      mediaUrl = `/uploads/${req.file.filename}`;
+      const fileExt = path.extname(req.file.originalname);
+      const filename = `status-${userId}-${Date.now()}${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('avatars') // Reusing avatars bucket or could use a 'statuses' bucket if it exists
+        .upload(filename, req.file.buffer, {
+          contentType: req.file.mimetype,
+          cacheControl: '31536000',
+          upsert: false
+        });
+
+      if (uploadError) {
+        console.error('❌ STATUS MEDIA UPLOAD ERROR:', uploadError);
+        return res.status(500).json({ error: 'Failed to upload status image' });
+      }
+
+      const { data: publicUrlData } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(filename);
+
+      mediaUrl = publicUrlData.publicUrl;
     }
 
     // Insert only fields that exist in the current statuses table schema
+    const expiresAt = new Date();
+    expiresAt.setHours(expiresAt.getHours() + 24);
+
     const insertPayload: any = {
       user_id: userId,
       media_url: mediaUrl,
+      type: mediaUrl ? 'media' : 'text',
+      expires_at: expiresAt.toISOString(),
     };
 
     console.log('Creating status with payload:', insertPayload);
@@ -139,15 +161,15 @@ router.post('/', auth, upload.single('media'), async (req: AuthRequest, res) => 
     const avatar = normalizeImageUrl(rawAvatar);
 
     // Calculate expiry time (24 hours from creation)
-    const expiresAt = new Date(data.created_at);
-    expiresAt.setHours(expiresAt.getHours() + 24);
+    const calculatedExpiresAt = new Date(data.created_at);
+    calculatedExpiresAt.setHours(calculatedExpiresAt.getHours() + 24);
 
     res.status(201).json({
       id: data.id,
       mediaUrl: data.media_url ? normalizeImageUrl(data.media_url) : undefined,
       type: data.media_url ? 'media' as const : 'text' as const,
       createdAt: data.created_at,
-      expiresAt: expiresAt.toISOString(),
+      expiresAt: calculatedExpiresAt.toISOString(),
       User: {
         id: userId,
         name: prof?.full_name ?? '',

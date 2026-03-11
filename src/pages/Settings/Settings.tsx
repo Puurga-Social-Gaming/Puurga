@@ -1,14 +1,43 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { toast } from 'react-hot-toast';
-import { Bell, Shield, Eye, Globe, Moon, Sun } from 'lucide-react';
+import { Bell, Shield, Eye, Globe, Moon, Sun, Loader2 } from 'lucide-react';
 
 import { useTheme } from '../../context/ThemeContext';
+import { useUser } from '../../context/UserContext';
+import api from '../../lib/axios';
+
+interface SettingsState {
+  dataCollection: boolean;
+  analyticsTracking: boolean;
+  crashReporting: boolean;
+  pushNotifications: boolean;
+  emailNotifications: boolean;
+  soundEnabled: boolean;
+  vibrationEnabled: boolean;
+  darkMode: boolean;
+  language: string;
+  fontSize: string;
+  highContrast: boolean;
+  autoplayVideos: boolean;
+  showSensitiveContent: boolean;
+  dataUsage: string;
+  // Optional admin fields
+  canModerate?: boolean;
+  canBanUsers?: boolean;
+  canManageGroups?: boolean;
+  canViewAnalytics?: boolean;
+  canManageSettings?: boolean;
+  adminNotifications?: boolean;
+  systemAlerts?: boolean;
+}
 
 const Settings: React.FC = () => {
   const { theme, toggleTheme } = useTheme();
-  const [isLoading, setIsLoading] = useState(false);
-  const [appSettings, setAppSettings] = useState({
+  const { user } = useUser();
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [appSettings, setAppSettings] = useState<SettingsState>({
     // Privacy & Security
     dataCollection: true,
     analyticsTracking: false,
@@ -32,6 +61,74 @@ const Settings: React.FC = () => {
     dataUsage: 'standard'
   });
 
+  // Load settings from backend on component mount
+  useEffect(() => {
+    const loadSettings = async () => {
+      if (!user) return;
+
+      try {
+        const response = await api.get('/settings');
+        const serverSettings = response.data.settings;
+
+        // Update local state with server settings
+        setAppSettings(prev => ({
+          ...prev,
+          ...serverSettings
+        }));
+
+        // Update theme if different
+        if (serverSettings.darkMode !== undefined && serverSettings.darkMode !== (theme === 'dark')) {
+          if (serverSettings.darkMode && theme !== 'dark') {
+            toggleTheme();
+          } else if (!serverSettings.darkMode && theme === 'dark') {
+            toggleTheme();
+          }
+        }
+
+      } catch (error) {
+        console.error('Error loading settings:', error);
+        toast.error('Failed to load settings');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadSettings();
+  }, [user, theme, toggleTheme]);
+
+  // Add admin-specific settings to state if user is admin
+  useEffect(() => {
+    if (user?.role === 'admin' || user?.role === 'super_admin') {
+      setAppSettings(prev => ({
+        ...prev,
+        // Admin settings
+        canModerate: true,
+        canBanUsers: user?.role === 'super_admin',
+        canManageGroups: true,
+        canViewAnalytics: true,
+        canManageSettings: user?.role === 'super_admin',
+        adminNotifications: true,
+        systemAlerts: true
+      }));
+    }
+  }, [user]);
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="text-center"
+        >
+          <Loader2 className="w-8 h-8 animate-spin text-accent mx-auto mb-4" />
+          <p className="text-muted">Loading settings...</p>
+        </motion.div>
+      </div>
+    );
+  }
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
     setAppSettings(prev => ({
@@ -40,19 +137,24 @@ const Settings: React.FC = () => {
     }));
   };
 
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
+    setIsSaving(true);
 
     try {
-      // Save app settings to localStorage for now
+      // Save settings to backend
+      await api.put('/settings', { settings: appSettings });
+
+      // Also update localStorage as backup
       localStorage.setItem('appSettings', JSON.stringify(appSettings));
-      toast.success('App settings updated successfully');
+
+      toast.success('Settings updated successfully');
     } catch (error) {
-      console.error('Error updating app settings:', error);
-      toast.error('Failed to update app settings');
+      console.error('Error updating settings:', error);
+      toast.error('Failed to update settings');
     } finally {
-      setIsLoading(false);
+      setIsSaving(false);
     }
   };
 
@@ -86,7 +188,25 @@ const Settings: React.FC = () => {
               </div>
               <button
                 type="button"
-                onClick={toggleTheme}
+                onClick={async () => {
+                  const newTheme = theme === 'dark' ? 'light' : 'dark';
+                  toggleTheme();
+
+                  // Update settings state
+                  setAppSettings(prev => ({
+                    ...prev,
+                    darkMode: newTheme === 'dark'
+                  }));
+
+                  // Save to backend
+                  try {
+                    await api.put('/settings', {
+                      settings: { ...appSettings, darkMode: newTheme === 'dark' }
+                    });
+                  } catch (error) {
+                    console.error('Error updating theme setting:', error);
+                  }
+                }}
                 className="relative inline-flex h-10 w-20 items-center rounded-full bg-background-secondary border border-border shadow-theme-sm transition-colors hover:bg-card-hover btn-float"
               >
                 <span className="sr-only">Toggle theme</span>
@@ -313,13 +433,161 @@ const Settings: React.FC = () => {
             </div>
           </div>
 
+          {/* Admin Settings - Only visible to admins and super admins */}
+          {(user?.role === 'admin' || user?.role === 'super_admin') && (
+            <div className="bg-card border border-border rounded-xl p-6 shadow-theme-md">
+              <div className="flex items-center gap-3 mb-6">
+                <Shield className="w-6 h-6 text-accent" />
+                <h2 className="text-xl font-semibold text-foreground">Admin Settings</h2>
+                <span className="text-xs bg-accent/10 text-accent px-2 py-1 rounded-full">
+                  {user.role === 'super_admin' ? 'Super Admin' : 'Admin'}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label className="text-sm font-medium text-foreground">Can Moderate</label>
+                    <p className="text-xs text-muted">Moderate posts and comments</p>
+                  </div>
+                  <input
+                    type="checkbox"
+                    name="canModerate"
+                    checked={appSettings.canModerate}
+                    onChange={handleChange}
+                    className="w-4 h-4 bg-input border border-input-border rounded text-accent focus:ring-accent"
+                  />
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label className="text-sm font-medium text-foreground">Can Manage Groups</label>
+                    <p className="text-xs text-muted">Create and manage groups</p>
+                  </div>
+                  <input
+                    type="checkbox"
+                    name="canManageGroups"
+                    checked={appSettings.canManageGroups}
+                    onChange={handleChange}
+                    className="w-4 h-4 bg-input border border-input-border rounded text-accent focus:ring-accent"
+                  />
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label className="text-sm font-medium text-foreground">Can View Analytics</label>
+                    <p className="text-xs text-muted">Access platform analytics</p>
+                  </div>
+                  <input
+                    type="checkbox"
+                    name="canViewAnalytics"
+                    checked={appSettings.canViewAnalytics}
+                    onChange={handleChange}
+                    className="w-4 h-4 bg-input border border-input-border rounded text-accent focus:ring-accent"
+                  />
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label className="text-sm font-medium text-foreground">Admin Notifications</label>
+                    <p className="text-xs text-muted">Receive admin alerts</p>
+                  </div>
+                  <input
+                    type="checkbox"
+                    name="adminNotifications"
+                    checked={appSettings.adminNotifications}
+                    onChange={handleChange}
+                    className="w-4 h-4 bg-input border border-input-border rounded text-accent focus:ring-accent"
+                  />
+                </div>
+
+                {user?.role === 'super_admin' && (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <label className="text-sm font-medium text-foreground">Can Ban Users</label>
+                        <p className="text-xs text-muted">Ban and unban users</p>
+                      </div>
+                      <input
+                        type="checkbox"
+                        name="canBanUsers"
+                        checked={appSettings.canBanUsers}
+                        onChange={handleChange}
+                        className="w-4 h-4 bg-input border border-input-border rounded text-accent focus:ring-accent"
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <label className="text-sm font-medium text-foreground">Can Manage Settings</label>
+                        <p className="text-xs text-muted">Modify global platform settings</p>
+                      </div>
+                      <input
+                        type="checkbox"
+                        name="canManageSettings"
+                        checked={appSettings.canManageSettings}
+                        onChange={handleChange}
+                        className="w-4 h-4 bg-input border border-input-border rounded text-accent focus:ring-accent"
+                      />
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Global Settings - Only visible to super admins */}
+          {user?.role === 'super_admin' && (
+            <div className="bg-gradient-to-r from-red-500/10 to-orange-500/10 border border-red-500/20 rounded-xl p-6 shadow-theme-md">
+              <div className="flex items-center gap-3 mb-6">
+                <Globe className="w-6 h-6 text-red-500" />
+                <h2 className="text-xl font-semibold text-foreground">Global Platform Settings</h2>
+                <span className="text-xs bg-red-500/10 text-red-500 px-2 py-1 rounded-full">
+                  Super Admin Only
+                </span>
+              </div>
+
+              <div className="space-y-4 text-sm">
+                <p className="text-muted">
+                  ⚠️ These settings affect the entire platform and all users. Changes take effect immediately.
+                </p>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      // TODO: Open global settings modal or navigate to global settings page
+                      toast('Global settings management coming soon', { icon: 'ℹ️' });
+                    }}
+                    className="p-4 bg-card border border-border rounded-lg hover:bg-card-hover transition-colors text-left"
+                  >
+                    <h3 className="font-medium text-foreground mb-1">Platform Rules</h3>
+                    <p className="text-xs text-muted">Manage registration, content moderation, and user limits</p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      toast('System maintenance tools coming soon', { icon: 'ℹ️' });
+                    }}
+                    className="p-4 bg-card border border-border rounded-lg hover:bg-card-hover transition-colors text-left"
+                  >
+                    <h3 className="font-medium text-foreground mb-1">System Maintenance</h3>
+                    <p className="text-xs text-muted">Database cleanup, cache management, and system tools</p>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="bg-card border border-border rounded-xl p-6 shadow-theme-md">
             <button
               type="submit"
-              disabled={isLoading}
-              className="w-full px-4 py-2 bg-accent text-white rounded-lg hover:bg-accent-hover transition-colors disabled:opacity-50 btn-float shadow-theme-button"
+              disabled={isSaving}
+              className="w-full px-4 py-2 bg-accent text-white rounded-lg hover:bg-accent-hover transition-colors disabled:opacity-50 btn-float shadow-theme-button flex items-center justify-center gap-2"
             >
-              {isLoading ? 'Saving...' : 'Save App Settings'}
+              {isSaving && <Loader2 className="w-4 h-4 animate-spin" />}
+              {isSaving ? 'Saving Settings...' : 'Save App Settings'}
             </button>
           </div>
         </form>

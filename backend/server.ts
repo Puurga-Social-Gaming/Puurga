@@ -1,6 +1,19 @@
+import dotenv from 'dotenv';
+import path from 'path';
+import * as fs from 'fs';
+dotenv.config(); // Load from process.cwd()
+dotenv.config({ path: path.resolve(__dirname, '.env') }); // Load from same dir as server.ts (dev)
+dotenv.config({ path: path.resolve(__dirname, '../.env') }); // Load from parent dir as server.js/dist (prod)
+
+if (!process.env.JWT_SECRET) {
+  throw new Error("JWT_SECRET environment variable must be defined");
+}
+
+export const JWT_SECRET = process.env.JWT_SECRET;
+// Clear line 12
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
+import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import { initializeStorage, getUploadPath } from './config/storage';
 import jwt from 'jsonwebtoken';
@@ -17,6 +30,7 @@ import onlineStatusRoutes from './routes/onlineStatus';
 import testNotificationRoutes from './routes/testNotifications';
 import messagesRoutes from './routes/messages';
 import typingRoutes from './routes/typing';
+import settingsRoutes from './routes/settings';
 import groupsRoutes from './routes/groups';
 import commentsRoutes from './routes/comments';
 import redemptionRoutes from './routes/redemption';
@@ -24,10 +38,29 @@ import testGhostModeRoutes from './routes/testGhostMode';
 import creditsRoutes from './routes/credits';
 import gamesRoutes from './routes/games';
 import purgingRoutes from './routes/purging';
+import superadminRoutes from './routes/superadmin';
+import { errorHandler } from './middleware/errorHandler';
 
-dotenv.config();
+
 
 const app = express();
+app.set('trust proxy', 1); // Trust first proxy (Nginx)
+
+// Apply security headers
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", 'data:', 'blob:', 'https://*.supabase.co', '*'],
+      connectSrc: ["'self'", 'https://*.supabase.co', 'wss://*.supabase.co', 'ws://www.puurga.com', 'wss://www.puurga.com'],
+      fontSrc: ["'self'", 'data:', 'https://fonts.gstatic.com']
+    }
+  },
+  crossOriginEmbedderPolicy: false
+}));
+
 const PORT = process.env.PORT ? Number(process.env.PORT) : 3005;
 
 const defaultCorsOrigins = [
@@ -52,13 +85,7 @@ initializeStorage();
 
 // CORS configuration
 app.use(cors({
-  origin: [
-    'http://localhost:5173',
-    'http://localhost:5174',
-    'http://localhost:5175',
-    'http://localhost:5176',
-    'http://localhost:5177'
-  ],
+  origin: corsOrigins,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
@@ -69,7 +96,10 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Serve uploaded files statically
-app.use('/uploads', express.static(getUploadPath(), {
+const storagePath = path.resolve(__dirname, '..', 'storage', 'media', 'uploads');
+const fallbackStoragePath = path.resolve(__dirname, '..', '..', 'storage', 'media', 'uploads');
+
+app.use('/uploads', express.static(fs.existsSync(storagePath) ? storagePath : fallbackStoragePath, {
   setHeaders: (res) => {
     res.set('Access-Control-Allow-Origin', '*');
     res.set('Access-Control-Allow-Methods', 'GET');
@@ -109,14 +139,25 @@ app.get('/health', (req, res) => {
 });
 
 // Add rate limiting
-const apiLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per windowMs
-  message: 'Too many requests from this IP, please try again after 15 minutes'
+const authLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 5,
+  message: { error: 'Too many login attempts. Please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false
 });
 
-// Apply to auth routes
-app.use('/api/auth', apiLimiter);
+const apiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 100,
+  message: { error: 'Too many requests. Please slow down.' },
+  standardHeaders: true,
+  legacyHeaders: false
+});
+
+// Apply limiters
+app.use('/api/auth', authLimiter);
+app.use('/api', apiLimiter);
 
 // Use auth routes
 app.use('/api/auth', authRoutes);
@@ -169,6 +210,19 @@ app.use('/api/credits', creditsRoutes);
 // Use purging routes
 app.use('/api/purging', purgingRoutes);
 
+// Use games routes
+app.use('/api/games', gamesRoutes);
+
+// Use settings routes
+app.use('/api/settings', settingsRoutes);
+
+// Use superadmin routes
+app.use('/api/admin', superadminRoutes);
+
+// Global Error Handler (Must be last)
+app.use(errorHandler);
+
+
 // Create HTTP server and initialize WebSocket manager
 const server = createServer(app);
 const wsManager = WebSocketManager.getInstance();
@@ -193,7 +247,7 @@ const startServer = async () => {
 export const generateToken = (user: { id: string }): string => {
   return jwt.sign(
     { userId: user.id },
-    process.env.JWT_SECRET || 'your-secret-key',
+    JWT_SECRET,
     { expiresIn: '24h' }
   );
 };

@@ -1,23 +1,18 @@
 import express from 'express';
 import { supabase } from '../config/supabase';
+import { wsManager } from '../websocketManager';
 import { supabaseAuth as auth, AuthRequest } from '../middleware/supabaseAuth';
 import multer from 'multer';
-import { getUploadPath, generateUniqueFilename } from '../config/storage';
+
 import { normalizeImageUrl } from '../utils/url';
+import { logSuperAdminAction } from '../utils/auditLogger';
 import { validate as uuidValidate } from 'uuid';
 
 const router = express.Router();
 
-// Configure multer for file uploads
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, getUploadPath());
-  },
-  filename: (req, file, cb) => {
-    const uniqueFilename = generateUniqueFilename(file.originalname);
-    cb(null, uniqueFilename);
-  },
-});
+// Configure multer for file uploads - use memoryStorage so req.file.buffer is available
+// for uploading to Supabase Storage
+const storage = multer.memoryStorage();
 
 const upload = multer({
   storage,
@@ -238,20 +233,20 @@ router.get('/points', auth, async (req: AuthRequest, res) => {
 
     const { data, error } = await supabase
       .from('profiles')
-      .select('perga_points')
+      .select('purga_points')
       .eq('id', id)
       .maybeSingle();
 
     if (error) {
       const msg = String((error as any).message || '').toLowerCase();
       const code = String((error as any).code || '');
-      if (code === '42703' || msg.includes('perga_points')) {
+      if (code === '42703' || msg.includes('purga_points')) {
         return res.json({ points: null, supported: false });
       }
       return res.status(500).json({ error: 'Failed to fetch points' });
     }
 
-    const points = Number((data as any)?.perga_points ?? 0);
+    const points = Number((data as any)?.purga_points ?? 0);
     res.json({ points: Number.isFinite(points) ? points : 0, supported: true });
   } catch (error) {
     console.error('Error fetching points:', error);
@@ -279,20 +274,20 @@ router.put('/points', auth, async (req: AuthRequest, res) => {
     if (hasDelta) {
       const { data: existing, error: existingErr } = await supabase
         .from('profiles')
-        .select('perga_points')
+        .select('purga_points')
         .eq('id', id)
         .maybeSingle();
 
       if (existingErr) {
         const msg = String((existingErr as any).message || '').toLowerCase();
         const code = String((existingErr as any).code || '');
-        if (code === '42703' || msg.includes('perga_points')) {
+        if (code === '42703' || msg.includes('purga_points')) {
           return res.json({ points: null, supported: false });
         }
         return res.status(500).json({ error: 'Failed to fetch points' });
       }
 
-      const current = Number((existing as any)?.perga_points ?? 0);
+      const current = Number((existing as any)?.purga_points ?? 0);
       const safeCurrent = Number.isFinite(current) ? current : 0;
       nextPoints = Math.max(0, safeCurrent + Number(rawDelta));
     } else {
@@ -301,22 +296,31 @@ router.put('/points', auth, async (req: AuthRequest, res) => {
 
     const { data: updated, error: updateErr } = await supabase
       .from('profiles')
-      .update({ perga_points: nextPoints, updated_at: new Date().toISOString() })
+      .update({ purga_points: nextPoints, updated_at: new Date().toISOString() })
       .eq('id', id)
-      .select('perga_points')
+      .select('purga_points')
       .maybeSingle();
 
     if (updateErr) {
       const msg = String((updateErr as any).message || '').toLowerCase();
       const code = String((updateErr as any).code || '');
-      if (code === '42703' || msg.includes('perga_points')) {
+      if (code === '42703' || msg.includes('purga_points')) {
         return res.json({ points: null, supported: false });
       }
       return res.status(500).json({ error: 'Failed to update points' });
     }
 
-    const points = Number((updated as any)?.perga_points ?? nextPoints);
-    res.json({ points: Number.isFinite(points) ? points : nextPoints, supported: true });
+    const points = Number.isFinite(Number((updated as any)?.purga_points))
+      ? Number((updated as any)?.purga_points)
+      : nextPoints;
+
+    // Emit credit update via WebSocket
+    wsManager.sendToUser(id, {
+      type: 'credit_update',
+      payload: { userId: id, credits: points }
+    });
+
+    res.json({ points, supported: true });
   } catch (error) {
     console.error('Error updating points:', error);
     res.status(500).json({ error: 'Failed to update points' });
@@ -326,7 +330,21 @@ router.put('/points', auth, async (req: AuthRequest, res) => {
 // Update user profile
 router.put('/profile', auth, async (req: AuthRequest, res) => {
   try {
-    const { id } = req.user;
+    const isSuperAdmin = req.user.role === 'super_admin' || req.user.role === 'superadmin';
+    const { targetId } = req.body;
+    const id = (isSuperAdmin && targetId) ? targetId : req.user.id;
+
+    if (isSuperAdmin && targetId && targetId !== req.user.id) {
+      await logSuperAdminAction({
+        superadminId: req.user.id,
+        action: 'UPDATE_PROFILE_BYPASS',
+        targetId: targetId,
+        targetType: 'user',
+        details: { updated_fields: Object.keys(req.body).filter(k => k !== 'targetId') },
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent']
+      });
+    }
     const {
       name,
       username,
@@ -419,8 +437,10 @@ router.put('/profile', auth, async (req: AuthRequest, res) => {
     const responseData = {
       ...data,
       name: data.full_name,
-      avatar: data.avatar_url,
-      coverPhoto: data.cover_photo,
+      avatar: normalizeImageUrl(data.avatar_url),
+      avatar_url: normalizeImageUrl(data.avatar_url),
+      coverPhoto: normalizeImageUrl(data.cover_photo),
+      cover_photo: normalizeImageUrl(data.cover_photo),
       email: email || req.user.email
     };
 
@@ -455,8 +475,31 @@ router.put('/profile/avatar', auth, upload.single('avatar'), async (req: AuthReq
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
-    const publicUrl = `/uploads/${req.file.filename}`;
-    console.log('Generated public URL:', publicUrl);
+    // Upload to Supabase Storage (avatars bucket)
+    const ext = req.file.originalname.split('.').pop();
+    const filename = `${Date.now()}-${Math.random().toString(36).substring(2, 8)}.${ext}`;
+
+    console.log('🚀 UPLOADING TO SUPABASE STORAGE - AVATARS BUCKET:', filename);
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from('avatars')
+      .upload(filename, req.file.buffer, {
+        contentType: req.file.mimetype,
+        cacheControl: '31536000',
+        upsert: false
+      });
+
+    if (uploadError) {
+      console.error('❌ SUPABASE UPLOAD ERROR:', uploadError);
+      return res.status(500).json({ error: 'Failed to upload avatar to storage' });
+    }
+
+    console.log('✅ SUPABASE UPLOAD SUCCESSFUL, getting public URL...');
+    const { data: publicUrlData } = supabase.storage
+      .from('avatars')
+      .getPublicUrl(filename);
+
+    const publicUrl = publicUrlData.publicUrl;
+    console.log('🎯 FINAL SUPABASE URL:', publicUrl);
 
     // First check if profile exists
     const { data: existingProfile, error: checkError } = await supabase
@@ -546,7 +589,7 @@ router.put('/profile/avatar', auth, upload.single('avatar'), async (req: AuthReq
       console.log('Avatar also updated in users table:', usersUpdate.data.avatar_url);
     }
 
-    res.json({ avatar: profileUpdate.data.avatar_url });
+    res.json({ avatar: normalizeImageUrl(profileUpdate.data.avatar_url) });
   } catch (error) {
     console.error('Error uploading avatar:', {
       message: error instanceof Error ? error.message : 'Unknown error',
@@ -575,7 +618,30 @@ router.put('/profile/cover-photo', auth, upload.single('coverPhoto'), async (req
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
-    const publicUrl = `/uploads/${req.file.filename}`;
+    // Upload to Supabase Storage (covers bucket)
+    const ext = req.file.originalname.split('.').pop();
+    const filename = `${Date.now()}-${Math.random().toString(36).substring(2, 8)}.${ext}`;
+
+    console.log('Uploading to Supabase Storage covers bucket:', filename);
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from('covers')
+      .upload(filename, req.file.buffer, {
+        contentType: req.file.mimetype,
+        cacheControl: '31536000',
+        upsert: false
+      });
+
+    if (uploadError) {
+      console.error('Supabase upload error:', uploadError);
+      return res.status(500).json({ error: 'Failed to upload cover photo to storage' });
+    }
+
+    console.log('Upload successful, getting public URL...');
+    const { data: publicUrlData } = supabase.storage
+      .from('covers')
+      .getPublicUrl(filename);
+
+    const publicUrl = publicUrlData.publicUrl;
     console.log('Generated public URL:', publicUrl);
 
     // First check if profile exists
@@ -631,7 +697,7 @@ router.put('/profile/cover-photo', auth, upload.single('coverPhoto'), async (req
     }
 
     console.log('Cover photo updated successfully:', data[0].cover_photo);
-    res.json({ coverPhoto: data[0].cover_photo });
+    res.json({ coverPhoto: normalizeImageUrl(data[0].cover_photo) });
   } catch (error) {
     console.error('Error uploading cover photo:', {
       message: error instanceof Error ? error.message : 'Unknown error',
@@ -648,7 +714,7 @@ const uploadHandler = multer({
   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB per file
 });
 
-router.post('/upload', uploadHandler.array('images', 4), async (req, res) => {
+router.post('/upload', auth, uploadHandler.array('images', 4), async (req: AuthRequest, res) => {
   try {
     if (!req.files || !(req.files instanceof Array) || req.files.length === 0) {
       return res.status(400).json({ error: 'No images uploaded' });
@@ -1295,7 +1361,28 @@ router.put('/groups/:id/profile-image', auth, upload.single('profileImage'), asy
       return res.status(403).json({ error: 'Only group admins can update images' });
     }
 
-    const publicUrl = `/uploads/${req.file.filename}`;
+    // Upload to Supabase Storage (avatars bucket)
+    const ext = req.file.originalname.split('.').pop();
+    const filename = `group-${id}-profile-${Date.now()}.${ext}`;
+
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from('avatars')
+      .upload(filename, req.file.buffer, {
+        contentType: req.file.mimetype,
+        cacheControl: '31536000',
+        upsert: false
+      });
+
+    if (uploadError) {
+      console.error('Supabase upload error:', uploadError);
+      return res.status(500).json({ error: 'Failed to upload profile image to storage' });
+    }
+
+    const { data: publicUrlData } = supabase.storage
+      .from('avatars')
+      .getPublicUrl(filename);
+
+    const publicUrl = publicUrlData.publicUrl;
 
     const { data: group, error } = await supabase
       .from('groups')
@@ -1338,7 +1425,28 @@ router.put('/groups/:id/cover-image', auth, upload.single('coverImage'), async (
       return res.status(403).json({ error: 'Only group admins can update images' });
     }
 
-    const publicUrl = `/uploads/${req.file.filename}`;
+    // Upload to Supabase Storage (covers bucket)
+    const ext = req.file.originalname.split('.').pop();
+    const filename = `group-${id}-cover-${Date.now()}.${ext}`;
+
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from('covers')
+      .upload(filename, req.file.buffer, {
+        contentType: req.file.mimetype,
+        cacheControl: '31536000',
+        upsert: false
+      });
+
+    if (uploadError) {
+      console.error('Supabase upload error:', uploadError);
+      return res.status(500).json({ error: 'Failed to upload cover image to storage' });
+    }
+
+    const { data: publicUrlData } = supabase.storage
+      .from('covers')
+      .getPublicUrl(filename);
+
+    const publicUrl = publicUrlData.publicUrl;
 
     const { data: group, error } = await supabase
       .from('groups')

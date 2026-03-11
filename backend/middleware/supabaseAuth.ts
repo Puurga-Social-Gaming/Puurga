@@ -6,7 +6,7 @@ export interface AuthUser {
   full_name: string;
   email: string;
   username: string;
-  role: 'user' | 'admin' | 'super_admin' | 'business';
+  role: 'user' | 'admin' | 'super_admin' | 'superadmin' | 'business';
   is_private: boolean;
   hide_from_suggestions: boolean;
   message_requests: 'everyone' | 'followers' | 'none';

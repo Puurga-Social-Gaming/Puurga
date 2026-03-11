@@ -84,8 +84,8 @@ const Settings = () => {
   const handleSave = async () => {
     try {
       setLoading(true);
-      const response = await api.put('/api/users/settings', formData);
-      
+      const response = await api.put('/users/settings', formData);
+
       if (updateUser) {
         updateUser(response.data);
         toast.success('Settings updated successfully');
@@ -112,44 +112,40 @@ const Settings = () => {
         <div className="flex gap-4 border-b border-[#333] mb-6">
           <button
             onClick={() => setActiveTab('notifications')}
-            className={`px-4 py-2 font-medium ${
-              activeTab === 'notifications'
+            className={`px-4 py-2 font-medium ${activeTab === 'notifications'
                 ? 'text-orange-500 border-b-2 border-orange-500'
                 : 'text-gray-400 hover:text-white'
-            }`}
+              }`}
           >
             <Bell className="inline-block mr-2" size={20} />
             Notifications
           </button>
           <button
             onClick={() => setActiveTab('appearance')}
-            className={`px-4 py-2 font-medium ${
-              activeTab === 'appearance'
+            className={`px-4 py-2 font-medium ${activeTab === 'appearance'
                 ? 'text-orange-500 border-b-2 border-orange-500'
                 : 'text-gray-400 hover:text-white'
-            }`}
+              }`}
           >
             <Moon className="inline-block mr-2" size={20} />
             Appearance
           </button>
           <button
             onClick={() => setActiveTab('privacy')}
-            className={`px-4 py-2 font-medium ${
-              activeTab === 'privacy'
+            className={`px-4 py-2 font-medium ${activeTab === 'privacy'
                 ? 'text-orange-500 border-b-2 border-orange-500'
                 : 'text-gray-400 hover:text-white'
-            }`}
+              }`}
           >
             <Shield className="inline-block mr-2" size={20} />
             Privacy
           </button>
           <button
             onClick={() => setActiveTab('content')}
-            className={`px-4 py-2 font-medium ${
-              activeTab === 'content'
+            className={`px-4 py-2 font-medium ${activeTab === 'content'
                 ? 'text-orange-500 border-b-2 border-orange-500'
                 : 'text-gray-400 hover:text-white'
-            }`}
+              }`}
           >
             <Globe className="inline-block mr-2" size={20} />
             Content
@@ -334,9 +330,8 @@ const Settings = () => {
           <button
             onClick={handleSave}
             disabled={loading}
-            className={`w-full py-3 px-4 rounded-lg text-white font-medium transition-colors ${
-              loading ? 'bg-orange-400 cursor-not-allowed' : 'bg-orange-600 hover:bg-orange-700'
-            }`}
+            className={`w-full py-3 px-4 rounded-lg text-white font-medium transition-colors ${loading ? 'bg-orange-400 cursor-not-allowed' : 'bg-orange-600 hover:bg-orange-700'
+              }`}
           >
             {loading ? (
               <div className="flex items-center justify-center">

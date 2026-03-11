@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import api from '../../lib/axios';
 import { useUser } from '../../context/UserContext';
 import { useCredits } from '../../hooks/useCredits';
-// import toast from 'react-hot-toast';
+import toast from 'react-hot-toast';
 
 interface PurgeActivity {
   id: string;
@@ -53,12 +53,50 @@ const PurgasTab: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const { user } = useUser();
   const { balance, refreshCredits } = useCredits();
+  const [redemptionNeeded, setRedemptionNeeded] = useState<any[]>([]);
+  const [redeeming, setRedeeming] = useState<string | null>(null);
 
   useEffect(() => {
     fetchPurgeActivity();
     fetchCredits();
+    fetchRedemptionNeeded();
     refreshCredits();
   }, [refreshCredits]);
+
+  const fetchRedemptionNeeded = async () => {
+    try {
+      const response = await api.get('/purging/redemption-needed');
+      setRedemptionNeeded(response.data);
+    } catch (error) {
+      console.error('Failed to fetch redemption needed:', error);
+    }
+  };
+
+  const handleRedeemFriend = async (friendId: string, name: string) => {
+    try {
+      setRedeeming(friendId);
+      const toastId = toast.loading(`Redeeming ${name}...`);
+      const response = await api.post(`/redeem/${friendId}`);
+
+      if (response.data.success) {
+        toast.success(response.data.message || `Successfully redeemed ${name}`, { id: toastId });
+        refreshCredits();
+        fetchRedemptionNeeded();
+        fetchPurgeActivity();
+      }
+    } catch (error: any) {
+      console.error('Redemption error:', error);
+      const errorMsg = error.response?.data?.error || 'Failed to redeem friend';
+      toast.error(errorMsg);
+      // If it fails with "not in ghost mode", sync the list
+      if (error.response?.status === 400 && errorMsg.includes('not in ghost mode')) {
+        fetchRedemptionNeeded();
+        fetchPurgeActivity();
+      }
+    } finally {
+      setRedeeming(null);
+    }
+  };
 
   const fetchPurgeActivity = async () => {
     try {
@@ -241,6 +279,47 @@ const PurgasTab: React.FC = () => {
           );
         })()}
       </div>
+
+      {/* Ghosted Friends Section */}
+      {redemptionNeeded.length > 0 && (
+        <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-6 mb-6">
+          <h3 className="font-bold text-red-500 flex items-center gap-2 mb-4">
+            <Shield className="w-5 h-5" />
+            Friends Needing Redemption
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {redemptionNeeded.map((friend) => (
+              <div key={friend.id} className="bg-card p-4 rounded-lg border border-red-500/30 flex items-center gap-4">
+                <img
+                  src={friend.avatar}
+                  alt={friend.name}
+                  className="w-12 h-12 rounded-full border-2 border-red-500/30 object-cover"
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <p className="text-foreground font-bold truncate">{friend.name}</p>
+                    <span className="text-[10px] bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded-full">Ghosted</span>
+                  </div>
+                  <p className="text-xs text-muted truncate">@{friend.username}</p>
+                  <p className="text-[10px] text-muted mt-1">Ghosted {friend.daysPurged} days ago</p>
+                </div>
+                <div className="text-right">
+                  <div className="text-sm font-bold text-red-500">{friend.creditsNeeded}</div>
+                  <div className="text-[10px] text-muted mb-2">credits</div>
+                  <button
+                    onClick={() => handleRedeemFriend(friend.userId, friend.name)}
+                    disabled={redeeming === friend.userId}
+                    className="bg-accent hover:bg-accent-hover text-white text-xs px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1 shadow-sm font-medium"
+                  >
+                    {redeeming === friend.userId ? <Loader2 className="w-3 h-3 animate-spin" /> : <Heart className="w-3 h-3" />}
+                    Redeem
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Tab Selector */}
       <div className="flex gap-2 border-b border-border">

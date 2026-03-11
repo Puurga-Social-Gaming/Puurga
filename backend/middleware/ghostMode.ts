@@ -22,7 +22,13 @@ export const checkGhostMode = async (req: AuthRequest, res: Response, next: Next
       return next();
     }
 
+    // Super admins bypass ghost mode checks
+    if (req.user?.role === 'super_admin' || req.user?.role === 'superadmin') {
+      return next();
+    }
+
     if (profile?.is_ghost) {
+
       return res.status(403).json({ 
         error: 'Account is in ghost mode',
         ghostMode: true,

@@ -35,9 +35,13 @@ interface OnlineUser {
 }
 
 const RightSidebar: React.FC = () => {
+  console.log('🔥 RightSidebar component MOUNTING!');
   const { user } = useUser();
   const { t } = useTranslation();
-  const { onlineUsers: liveOnlineUsers } = useMessages(); // Get real-time online users
+  const { onlineUsers: liveOnlineUsers, loadOnlineUsers } = useMessages(); // Get real-time online users and load function
+
+  console.log('RightSidebar: Current user:', user);
+  console.log('RightSidebar: Live online users:', liveOnlineUsers);
 
   const [stats, setStats] = useState<UserStats>({
     posts: 0,
@@ -57,8 +61,20 @@ const RightSidebar: React.FC = () => {
   const [friendSuggestionsLoading, setFriendSuggestionsLoading] = useState(true);
   const [pendingRequestIds, setPendingRequestIds] = useState<Set<string>>(new Set());
 
+  // Load online users when component mounts
+  useEffect(() => {
+    if (user) {
+      console.log('RightSidebar: Loading online users...');
+      loadOnlineUsers();
+    }
+  }, [user, loadOnlineUsers]);
+
   // Effect to update online friends whenever liveOnlineUsers or allFriends changes
   useEffect(() => {
+    console.log('RightSidebar: Updating online friends...');
+    console.log('RightSidebar: allFriends:', allFriends);
+    console.log('RightSidebar: liveOnlineUsers:', liveOnlineUsers);
+    
     if (allFriends.length > 0) {
       // Filter friends who are currently online
       const liveFriends = allFriends.map(friend => ({
@@ -66,8 +82,10 @@ const RightSidebar: React.FC = () => {
         online: liveOnlineUsers.some(online => online.id === friend.id)
       })).filter(friend => friend.online);
 
+      console.log('RightSidebar: Friends who are online:', liveFriends);
       setOnlineFriends(liveFriends);
     } else {
+      console.log('RightSidebar: No friends to check for online status');
       setOnlineFriends([]);
     }
   }, [allFriends, liveOnlineUsers]);
@@ -89,13 +107,15 @@ const RightSidebar: React.FC = () => {
 
   useEffect(() => {
     const fetchRequests = async () => {
+      console.log('RightSidebar: Starting to fetch friend requests...');
       setFriendRequestsLoading(true);
       try {
         const data = await getFriendRequests();
+        console.log('RightSidebar: Friend requests fetched:', data);
         setFriendRequests(data);
       } catch (error) {
+        console.error('RightSidebar: Error fetching friend requests:', error);
         setFriendRequests([]);
-        console.error('Error fetching friend requests:', error);
       } finally {
         setFriendRequestsLoading(false);
       }
@@ -132,12 +152,14 @@ const RightSidebar: React.FC = () => {
 
   useEffect(() => {
     const fetchFriends = async () => {
+      console.log('RightSidebar: Starting to fetch accepted friends...');
       setOnlineFriendsLoading(true);
       try {
         const data = await getAcceptedFriends();
+        console.log('RightSidebar: Accepted friends fetched:', data);
         setAllFriends(data || []);
       } catch (error) {
-        console.error('Error fetching friends:', error);
+        console.error('RightSidebar: Error fetching friends:', error);
         setAllFriends([]);
       } finally {
         setOnlineFriendsLoading(false);
@@ -147,6 +169,7 @@ const RightSidebar: React.FC = () => {
 
     const fetchFriendSuggestions = async () => {
       if (!user) return;
+      console.log('RightSidebar: Starting to fetch friend suggestions...');
       setFriendSuggestionsLoading(true);
       try {
         // Fetch pending sent requests first
@@ -167,6 +190,7 @@ const RightSidebar: React.FC = () => {
         setPendingRequestIds(pendingIds);
 
         const suggestions = await getFriendSuggestions();
+        console.log('RightSidebar: Friend suggestions fetched:', suggestions);
         // Filter out current user (safety check) and set initial status based on pending requests
         const suggestionsWithStatus = suggestions
           .filter((s: any) => s.id !== user.id) // Exclude current user
@@ -177,7 +201,7 @@ const RightSidebar: React.FC = () => {
         setFriendSuggestions(suggestionsWithStatus);
 
       } catch (error) {
-        console.error('Error fetching friend suggestions:', error);
+        console.error('RightSidebar: Error fetching friend suggestions:', error);
       } finally {
         setFriendSuggestionsLoading(false);
       }
@@ -232,6 +256,7 @@ const RightSidebar: React.FC = () => {
             src={user.avatar || DEFAULT_IMAGES.avatar}
             alt={user.name}
             className="w-10 h-10 rounded-full object-cover flex-shrink-0"
+            onError={(e) => { e.currentTarget.src = DEFAULT_IMAGES.avatar; }}
           />
           <div className="min-w-0 flex-1">
             <p className="font-semibold text-foreground truncate group-hover:text-accent transition-colors">{user.name}</p>
@@ -295,8 +320,8 @@ const RightSidebar: React.FC = () => {
             {friendRequests.map(request => (
               <div key={request.id} className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2 min-w-0 flex-1">
-                  <img src={request.sender_avatar || DEFAULT_IMAGES.avatar} alt={request.sender_name} className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
-                  <Link to={`/profile/${request.sender_id}`} className="text-foreground text-sm font-medium hover:text-accent truncate block">
+                  <img src={request.sender_avatar || DEFAULT_IMAGES.avatar} alt={request.sender_name} className="w-8 h-8 rounded-full object-cover flex-shrink-0" onError={(e) => { e.currentTarget.src = DEFAULT_IMAGES.avatar; }} />
+                  <Link to={`/profile/${request.sender_username}`} className="text-foreground text-sm font-medium hover:text-accent truncate block">
                     {request.sender_name}
                   </Link>
                 </div>
@@ -356,7 +381,7 @@ const RightSidebar: React.FC = () => {
               <div key={onlineUser.id} className="flex items-center justify-between gap-2 group hover:bg-background-secondary/50 p-1.5 rounded-lg transition-colors -mx-1.5">
                 <div className="flex items-center gap-2 min-w-0 flex-1">
                   <div className="relative flex-shrink-0">
-                    <img src={onlineUser.avatar || DEFAULT_IMAGES.avatar} alt={onlineUser.username} className="w-8 h-8 rounded-full object-cover" />
+                    <img src={onlineUser.avatar || DEFAULT_IMAGES.avatar} alt={onlineUser.username} className="w-8 h-8 rounded-full object-cover" onError={(e) => { e.currentTarget.src = DEFAULT_IMAGES.avatar; }} />
                     <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-card" title="Online" />
                   </div>
                   <Link to={`/profile/${onlineUser.username}`} className="text-foreground text-sm font-medium hover:text-accent truncate block">
@@ -386,7 +411,7 @@ const RightSidebar: React.FC = () => {
             {friendSuggestions.map(suggestion => (
               <div key={suggestion.id} className="flex items-center justify-between gap-2">
                 <Link to={`/profile/${suggestion.username}`} className="flex items-center gap-2 group min-w-0 flex-1">
-                  <img src={suggestion.avatar || DEFAULT_IMAGES.avatar} alt={suggestion.name} className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
+                  <img src={suggestion.avatar || DEFAULT_IMAGES.avatar} alt={suggestion.name} className="w-8 h-8 rounded-full object-cover flex-shrink-0" onError={(e) => { e.currentTarget.src = DEFAULT_IMAGES.avatar; }} />
                   <div className="min-w-0">
                     <span className="text-foreground text-sm font-medium group-hover:text-accent truncate block">{suggestion.name}</span>
                     <span className="text-muted text-xs truncate block">@{suggestion.username}</span>

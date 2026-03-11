@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, Loader2, UserPlus, Heart, MessageCircle, UserCheck, CheckCheck } from 'lucide-react';
+import { Bell, Loader2, UserPlus, Heart, MessageCircle, UserCheck, CheckCheck, Ghost, Star, Award } from 'lucide-react';
 import { useNotifications } from '../../context/NotificationsContext';
 import { formatDistanceToNow } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -22,6 +22,14 @@ const NotificationsDropdown: React.FC = () => {
         return <MessageCircle className="w-5 h-5 text-orange-500" />;
       case 'message':
         return <MessageCircle className="w-5 h-5 text-purple-500" />;
+      case 'redemption':
+        return <Award className="w-5 h-5 text-yellow-400" />;
+      case 'redemption_contribution':
+        return <Star className="w-5 h-5 text-yellow-500" />;
+      case 'friend_ghosted':
+        return <Ghost className="w-5 h-5 text-gray-400" />;
+      case 'purge':
+        return <span className="text-lg">🔥</span>;
       default:
         return <Bell className="w-5 h-5 text-gray-500" />;
     }
@@ -39,6 +47,14 @@ const NotificationsDropdown: React.FC = () => {
         return 'commented on your post';
       case 'message':
         return 'sent you a message';
+      case 'redemption':
+        return 'redeemed you from ghost mode! 🎉';
+      case 'redemption_contribution':
+        return 'contributed credits towards your redemption';
+      case 'friend_ghosted':
+        return 'has been ghosted (purged)';
+      case 'purge':
+        return 'purged your post';
       default:
         return 'sent you a notification';
     }
@@ -47,8 +63,16 @@ const NotificationsDropdown: React.FC = () => {
   const getNotificationTarget = (notification: typeof notifications[0]) => {
     const data = notification.data || {};
 
-    if (notification.type === 'message' || data.messageId) {
+    if (notification.type === 'message' || data.messageId || data.conversationId) {
       return '/messages';
+    }
+
+    if (notification.type === 'redemption' || notification.type === 'redemption_contribution') {
+      return '/puurga-dashboard';
+    }
+
+    if (notification.type === 'friend_ghosted') {
+      return '/puurga-dashboard';
     }
 
     if (data.postId) {

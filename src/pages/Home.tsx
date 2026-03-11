@@ -9,6 +9,7 @@ import api from '../api/api';
 import { toast } from 'react-hot-toast';
 import { supabase } from '../lib/supabaseClient';
 import FloatingCreateButton from '../components/Post/FloatingCreateButton';
+import { useWebSocket } from '../hooks/useWebSocket';
 import '../styles/neo-home.css';
 import RedeemUserButton from '../components/GhostMode/RedeemUserButton';
 
@@ -226,24 +227,44 @@ export default function Home() {
     else navigate('/puurga-games');
   };
 
+  const fetchGhostedFriends = async () => {
+    if (!user) return;
+    setGhostedFriendsLoading(true);
+    try {
+      const response = await api.get('/redeem/ghosted-friends');
+      setGhostedFriends(response.data || []);
+    } catch (error) {
+      console.error('Error fetching ghosted friends:', error);
+      setGhostedFriends([]);
+    } finally {
+      setGhostedFriendsLoading(false);
+    }
+  };
+
   // Fetch ghosted friends
   useEffect(() => {
-    const fetchGhostedFriends = async () => {
-      if (!user) return;
-      setGhostedFriendsLoading(true);
-      try {
-        const response = await api.get('/redeem/ghosted-friends');
-        setGhostedFriends(response.data || []);
-      } catch (error) {
-        console.error('Error fetching ghosted friends:', error);
-        setGhostedFriends([]);
-      } finally {
-        setGhostedFriendsLoading(false);
-      }
-    };
-
     fetchGhostedFriends();
   }, [user]);
+
+  // Real-time updates
+  useWebSocket({
+    onCreditUpdate: (payload) => {
+      if (user && payload.userId === user.id) {
+        setUserPoints(payload.credits);
+      }
+    },
+    onProfileUpdate: (payload) => {
+      // Refresh list if ANY friend was updated
+      fetchGhostedFriends();
+      // If the current user was redeemed/ghosted, they might need to know too
+      if (user && payload.userId === user.id) {
+        // Points might have changed too
+        api.get('/users/points').then(res => {
+          if (res.data.supported) setUserPoints(res.data.points);
+        });
+      }
+    }
+  });
 
   // Initial fetch
   useEffect(() => {
@@ -514,24 +535,27 @@ export default function Home() {
                     ) : (
                       <div className="space-y-1">
                         {ghostedFriends.map((friend) => (
-                          <div key={friend.id} className="flex flex-col items-center p-1 hover:bg-gray-100/50 dark:hover:bg-white/5 rounded-lg transition-colors">
+                          <div key={friend.id} className="flex flex-col items-center p-2 hover:bg-gray-100/10 dark:hover:bg-white/5 rounded-lg transition-colors border border-transparent hover:border-red-500/20">
                             <div className="relative">
                               <img
-                                src={friend.avatar || '/default-avatar.png'}
-                                alt={friend.name}
-                                className="w-4 h-4 rounded-full object-cover ring-1 ring-red-500/30"
+                                src={friend.avatarUrl || friend.avatar || '/default-avatar.png'}
+                                alt={friend.name || friend.fullName}
+                                className="w-10 h-10 rounded-full object-cover ring-2 ring-red-500/30"
                               />
-                              <div className="absolute -top-1 -right-1 bg-gradient-to-r from-red-500 to-orange-500 text-white text-xs rounded-full w-3 h-3 flex items-center justify-center font-bold text-[8px] shadow-lg">
-                                {friend.ghostingPercentage || Math.floor(Math.random() * 100)}%
+                              <div className="absolute -top-1 -right-1 bg-gradient-to-r from-red-500 to-orange-500 text-white text-[8px] rounded-full w-4 h-4 flex items-center justify-center font-bold shadow-lg border border-background">
+                                {friend.purgeCount || 0}
                               </div>
                             </div>
-                            <p className="text-xs font-medium text-gray-800 dark:text-foreground mt-1 text-center truncate w-full">{friend.name}</p>
-                            <p className="text-xs text-red-600 dark:text-red-400 text-center animate-pulse">{friend.ghostingPercentage || Math.floor(Math.random() * 100)}% ghosted</p>
-                            <RedeemUserButton
-                              userId={friend.id}
-                              userName={friend.name}
-                              isGhost={true}
-                            />
+                            <p className="text-[10px] font-bold text-foreground mt-1 text-center truncate w-full">{friend.name || friend.fullName}</p>
+                            <p className="text-[9px] text-muted text-center truncate w-full">@{friend.username}</p>
+                            <div className="mt-2 w-full">
+                              <RedeemUserButton
+                                userId={friend.id}
+                                userName={friend.name || friend.fullName}
+                                isGhost={friend.isGhost ?? friend.is_ghost ?? true}
+                                onRedeemed={fetchGhostedFriends}
+                              />
+                            </div>
                           </div>
                         ))}
                       </div>

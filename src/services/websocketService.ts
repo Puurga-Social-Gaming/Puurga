@@ -1,5 +1,5 @@
 interface WebSocketMessage {
-  type: 'new_message' | 'message_read' | 'typing' | 'notification' | 'user_online' | 'user_offline';
+  type: 'new_message' | 'message_read' | 'typing' | 'notification' | 'user_online' | 'user_offline' | 'credit_update' | 'profile_update';
   payload: any;
 }
 
@@ -50,7 +50,7 @@ class WebSocketService {
       // In development, connect directly to backend (Vite proxy doesn't handle WebSocket upgrades well)
       // In production, use the same host with appropriate protocol (nginx will proxy it)
       const isDevelopment = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-      
+
       let wsUrl: string;
       if (isDevelopment) {
         // Connect directly to backend server in development
@@ -60,7 +60,7 @@ class WebSocketService {
         const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         wsUrl = `${wsProtocol}//${window.location.host}/ws?token=${encodeURIComponent(token)}`;
       }
-      
+
       console.log('Connecting to WebSocket:', wsUrl.replace(/token=[^&]+/, 'token=***'));
       this.ws = new WebSocket(wsUrl);
 
@@ -118,6 +118,12 @@ class WebSocketService {
         this.onlineUsers.delete(offlinePayload.userId);
         this.emit('user_status_change', offlinePayload);
         break;
+      case 'credit_update':
+        this.emit('credit_update', message.payload);
+        break;
+      case 'profile_update':
+        this.emit('profile_update', message.payload);
+        break;
       default:
         console.warn('Unknown WebSocket message type:', message.type);
     }
@@ -131,9 +137,9 @@ class WebSocketService {
 
     this.reconnectAttempts++;
     const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1);
-    
+
     console.log(`Attempting to reconnect in ${delay}ms (attempt ${this.reconnectAttempts})`);
-    
+
     setTimeout(() => {
       this.connect();
     }, delay);

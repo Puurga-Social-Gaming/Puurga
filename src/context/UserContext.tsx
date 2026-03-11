@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, ReactNode, useCallback } from 'react';
 import { supabase } from '../lib/supabaseClient';
+import { useWebSocket } from '../hooks/useWebSocket';
 
 // Types
 export interface User {
@@ -13,7 +14,7 @@ export interface User {
   location?: string | null;
   website?: string | null;
   createdAt: string;
-  role?: 'user' | 'admin' | 'super_admin';
+  role?: 'user' | 'admin' | 'super_admin' | 'superadmin' | 'business';
   isBlocked?: boolean;
   isOnline?: boolean;
   isFriend?: boolean;
@@ -39,6 +40,8 @@ export interface User {
     puurgas: number;
   };
   credits: number;
+  isGhost?: boolean;
+  purgeCount?: number;
 }
 
 interface UserContextType {
@@ -122,6 +125,8 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
                 totalLikes: userData.totalLikes ?? 0,
                 stats: userData.stats ?? { posts: 0, followers: 0, following: 0, puurgas: 0 },
                 credits: userData.credits ?? 0,
+                isGhost: userData.is_ghost ?? userData.isGhost ?? false,
+                purgeCount: userData.purge_count ?? userData.purgeCount ?? 0,
               } as User;
               setUser(normalized);
             } else {
@@ -192,6 +197,8 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
               totalLikes: mergedData.totalLikes ?? 0,
               stats: mergedData.stats ?? { posts: 0, followers: 0, following: 0, puurgas: 0 },
               credits: mergedData.credits ?? 0,
+              isGhost: mergedData.is_ghost ?? mergedData.isGhost ?? false,
+              purgeCount: mergedData.purge_count ?? mergedData.purgeCount ?? 0,
             } as User;
 
             console.log('Profile data loaded:', {
@@ -230,6 +237,25 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
       subscription.unsubscribe();
     };
   }, []);
+
+  // Set up WebSocket for real-time updates to user data
+  useWebSocket({
+    onCreditUpdate: (payload) => {
+      if (user && payload.userId === user.id) {
+        console.log('Global credit sync:', payload.credits);
+        updateUser({ credits: payload.credits });
+      }
+    },
+    onProfileUpdate: (payload) => {
+      if (user && payload.userId === user.id) {
+        console.log('Global profile sync:', payload);
+        updateUser({
+          isGhost: payload.isGhost,
+          purgeCount: payload.purgeCount
+        });
+      }
+    }
+  });
 
   const updateUser = useCallback((data: Partial<User>) => {
     setUser(prevUser => {

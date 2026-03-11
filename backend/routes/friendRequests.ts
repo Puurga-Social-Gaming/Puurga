@@ -98,7 +98,7 @@ router.post('/send', auth, async (req: AuthRequest, res) => {
             type: 'friend_request_accepted',
             senderId: user.id,
             receiverId: receiverId,
-            friendRequestId: existingRequest.id
+            // friendRequestId removed (column not in DB)
           });
 
           return res.json({ message: 'Friend request accepted', status: 'accepted' });
@@ -128,7 +128,7 @@ router.post('/send', auth, async (req: AuthRequest, res) => {
           type: 'friend_request',
           senderId: user.id,
           receiverId: receiverId,
-          friendRequestId: updatedRequest.id
+          // friendRequestId removed (column not in DB)
         });
 
         return res.json({ message: 'Friend request sent', status: 'pending', requestId: updatedRequest.id });
@@ -165,7 +165,7 @@ router.post('/send', auth, async (req: AuthRequest, res) => {
       type: 'friend_request',
       senderId: user.id,
       receiverId: receiverId,
-      friendRequestId: newRequest.id
+      // friendRequestId removed (column not in DB)
     });
 
     res.json({ message: 'Friend request sent', status: 'pending', requestId: newRequest.id });
@@ -189,7 +189,7 @@ router.get('/status/:targetUserId', auth, async (req: AuthRequest, res) => {
     const { data: existingFriend, error: friendError } = await supabase
       .from('friends')
       .select('id')
-      .or(`and(user_id.eq.${user.id},friend_id.eq.${targetUserId}),and(user_id.eq.${targetUserId},friend_id.eq.${user.id})`)
+      .or(`and(user_id_1.eq.${user.id},user_id_2.eq.${targetUserId}),and(user_id_1.eq.${targetUserId},user_id_2.eq.${user.id})`)
       .maybeSingle();
 
     if (friendError && friendError.code !== 'PGRST116' && (friendError as any).code !== '42P01') {
@@ -289,7 +289,7 @@ router.post('/:requestId/accept', auth, async (req: AuthRequest, res) => {
       type: 'friend_request_accepted',
       senderId: user.id,
       receiverId: request.sender_id,
-      friendRequestId: requestId
+      // friendRequestId removed (column not in DB)
     });
 
     res.json({ message: 'Friend request accepted', status: 'accepted' });

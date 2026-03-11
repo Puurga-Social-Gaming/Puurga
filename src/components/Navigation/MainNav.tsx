@@ -17,10 +17,12 @@ import {
   Sun,
   Moon,
   Globe,
+  ShieldCheck,
 } from 'lucide-react';
 import { LucideIcon } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { useNotifications } from '../../context/NotificationContext';
+import { useUser } from '../../context/UserContext';
 import { supabase } from '../../lib/supabaseClient';
 import { toast } from 'react-hot-toast';
 import { updateUserLanguage } from '../../services/languageService';
@@ -38,7 +40,9 @@ const MainNav: React.FC = () => {
   const { t, i18n } = useTranslation();
   const { theme, toggleTheme } = useTheme();
   const { unreadCount } = useNotifications();
+  const { user: currentUser } = useUser();
   const navigate = useNavigate();
+  const isSuperAdmin = currentUser?.role === 'super_admin' || currentUser?.role === 'superadmin';
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const [languageMenuOpen, setLanguageMenuOpen] = useState(false);
   const [isChangingLanguage, setIsChangingLanguage] = useState(false);
@@ -154,6 +158,11 @@ const MainNav: React.FC = () => {
     ];
 
     const roleBasedItems: NavigationItem[] = [];
+
+    // Super Admin link — only visible to super admins
+    if (isSuperAdmin) {
+      roleBasedItems.push({ to: '/super-admin', icon: ShieldCheck, label: 'Super Admin', className: 'text-red-500 hover:text-red-400' });
+    }
 
     return [...commonItems, ...roleBasedItems];
   };
@@ -354,6 +363,21 @@ const MainNav: React.FC = () => {
                 <Settings size={16} />
                 <span>{t('navigation.settings')}</span>
               </NavLink>
+
+              {/* Super Admin - only for super admins */}
+              {isSuperAdmin && (
+                <NavLink
+                  to="/super-admin"
+                  onClick={() => setMoreMenuOpen(false)}
+                  className={({ isActive }) => `
+                    flex items-center gap-2 px-3 py-2 text-xs text-red-500 hover:text-red-400 transition-colors w-full text-left hover:bg-red-500/10
+                    ${isActive ? 'bg-red-500/10' : ''}
+                  `}
+                >
+                  <ShieldCheck size={16} />
+                  <span>Super Admin</span>
+                </NavLink>
+              )}
 
               {/* Divider */}
               <div className="border-t border-border" />

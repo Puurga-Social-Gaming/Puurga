@@ -2,6 +2,7 @@ import express from 'express';
 import { supabase } from '../config/supabase';
 import { supabaseAuth as auth, AuthRequest } from '../middleware/supabaseAuth';
 import { wsManager } from '../websocketManager';
+import { normalizeImageUrl } from '../utils/url';
 
 const router = express.Router();
 
@@ -83,7 +84,7 @@ router.get('/conversations', auth, async (req: AuthRequest, res) => {
           id: profile.id,
           full_name: profile.full_name || 'Unknown User',
           username: profile.username || 'unknown',
-          avatar_url: profile.avatar_url || null
+          avatar_url: normalizeImageUrl(profile.avatar_url) || null
         });
       }
     });
@@ -129,7 +130,7 @@ router.get('/conversations', auth, async (req: AuthRequest, res) => {
             id: senderProfile.id,
             full_name: senderProfile.full_name || 'Unknown User',
             username: senderProfile.username || 'unknown',
-            avatar_url: senderProfile.avatar_url || null
+            avatar_url: normalizeImageUrl(senderProfile.avatar_url) || null
           } : { id: latestMsg.from_user_id, full_name: 'Unknown', username: 'unknown', avatar_url: null }
         };
       }
@@ -201,7 +202,7 @@ router.get('/conversations/:conversationId/messages', auth, async (req: AuthRequ
         id: msg.profiles?.id || msg.from_user_id,
         full_name: msg.profiles?.full_name || 'Unknown User',
         username: msg.profiles?.username || 'unknown',
-        avatar_url: msg.profiles?.avatar_url || null
+        avatar_url: normalizeImageUrl(msg.profiles?.avatar_url) || null
       }
     }));
 
@@ -285,7 +286,7 @@ router.post('/conversations/:conversationId/messages', auth, async (req: AuthReq
         message_id: message.id,
         title: 'New Message',
         message: `${senderProfile?.full_name || 'Someone'} sent you a message`,
-        is_read: false,
+        read: false,
         created_at: new Date().toISOString(),
       }));
 
@@ -304,7 +305,7 @@ router.post('/conversations/:conversationId/messages', auth, async (req: AuthReq
               id: user.id,
               name: senderProfile?.full_name || 'Someone',
               username: senderProfile?.username || 'unknown',
-              avatar: senderProfile?.avatar_url || undefined
+              avatar: normalizeImageUrl(senderProfile?.avatar_url) || undefined
             },
             data: {
               conversationId,
@@ -328,7 +329,7 @@ router.post('/conversations/:conversationId/messages', auth, async (req: AuthReq
         id: (message as any).profiles?.id || message.from_user_id,
         full_name: (message as any).profiles?.full_name || 'Unknown User',
         username: (message as any).profiles?.username || 'unknown',
-        avatar_url: (message as any).profiles?.avatar_url || null
+        avatar_url: normalizeImageUrl((message as any).profiles?.avatar_url) || null
       }
     };
 
@@ -348,7 +349,7 @@ router.post('/conversations/:conversationId/messages', auth, async (req: AuthReq
               id: formattedMessage.from_user.id,
               name: formattedMessage.from_user.full_name,
               username: formattedMessage.from_user.username,
-              avatar: formattedMessage.from_user.avatar_url || undefined
+              avatar: formattedMessage.from_user.avatar_url || undefined  // already normalized above
             }
           }
         }
@@ -451,7 +452,7 @@ router.post('/conversations', auth, async (req: AuthRequest, res) => {
         id: otherUserProfile?.id || otherUserId,
         full_name: otherUserProfile?.full_name || 'Unknown User',
         username: otherUserProfile?.username || 'unknown',
-        avatar_url: otherUserProfile?.avatar_url || null
+        avatar_url: normalizeImageUrl(otherUserProfile?.avatar_url) || null
       }],
       unread_count: 0
     });
@@ -549,7 +550,7 @@ router.get('/users/online', auth, async (req: AuthRequest, res) => {
       id: u.id,
       full_name: u.full_name || 'Unknown User',
       username: u.username || 'unknown',
-      avatar_url: u.avatar_url,
+      avatar_url: normalizeImageUrl(u.avatar_url),
       isOnline: onlineUserIds.has(u.id)
     }));
 

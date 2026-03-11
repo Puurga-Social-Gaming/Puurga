@@ -139,8 +139,8 @@ body,
 }
 
 body {
-  background-color: var(--bg);
-  color: var(--fg);
+  background-color: rgb(var(--bg));
+  color: rgb(var(--fg));
   transition: background-color 0.2s ease, color 0.2s ease;
 }
 
@@ -172,28 +172,28 @@ body {
 
 /* Utility classes bridging tokens to Tailwind when desired */
 .theme-bg {
-  background-color: var(--bg);
+  background-color: rgb(var(--bg));
 }
 
 .theme-bg-secondary {
-  background-color: var(--bg-secondary);
+  background-color: rgb(var(--bg-secondary));
 }
 
 .theme-fg {
-  color: var(--fg);
+  color: rgb(var(--fg));
 }
 
 .theme-fg-secondary {
-  color: var(--fg-secondary);
+  color: rgb(var(--fg-secondary));
 }
 
 .theme-muted {
-  color: var(--muted);
+  color: rgb(var(--muted));
 }
 
 .theme-card {
-  background-color: var(--card);
-  color: var(--card-foreground);
+  background-color: rgb(var(--card));
+  color: rgb(var(--card-foreground));
 }
 
 .theme-card-hover:hover {
@@ -205,9 +205,9 @@ body {
 }
 
 .theme-input {
-  background-color: var(--input);
-  border-color: var(--input-border);
-  color: var(--fg);
+  background-color: rgb(var(--input));
+  border-color: rgb(var(--input-border));
+  color: rgb(var(--fg));
 }
 
 /* Shadow utilities */
@@ -352,13 +352,10 @@ body {
 
 /* Regular Sidebar Styling (Light Mode) */
 .sidebar {
-  background: var(--bg);
+  background: rgb(var(--bg));
   /* Match main background to blend in */
   border-right: none;
   border-left: none;
-  /* Feathered effect using mask */
-  mask-image: linear-gradient(to bottom, black 95%, transparent 100%);
-  -webkit-mask-image: linear-gradient(to bottom, black 95%, transparent 100%);
 }
 
 /* Enforce black text for posts in light mode */
@@ -486,6 +483,7 @@ img.rounded-xl {
 .dark [class*="bg-white"] {
   background-color: var(--card) !important;
 }
+
 /* Universal Scrollbar Styling to match theme (Invisible/Blended) */
 * {
   scrollbar-width: thin;

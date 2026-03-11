@@ -2,6 +2,8 @@ import express from 'express';
 import { UserService } from '../services/userService';
 import { supabase } from '../config/supabase';
 import { supabaseAuth } from '../middleware/supabaseAuth';
+import { normalizeImageUrl } from '../utils/url';
+import { logSuperAdminAction } from '../utils/auditLogger';
 
 const router = express.Router();
 
@@ -23,8 +25,8 @@ router.post('/register', async (req, res) => {
 
     // Validate password - only check minimum length, allow all special characters
     if (password.length < 8) {
-      return res.status(400).json({ 
-        message: 'Password must be at least 8 characters long' 
+      return res.status(400).json({
+        message: 'Password must be at least 8 characters long'
       });
     }
 
@@ -41,8 +43,8 @@ router.post('/register', async (req, res) => {
     }
 
     if (existingUser) {
-      return res.status(400).json({ 
-        message: existingUser.email === email ? 'Email already exists' : 'Username already exists' 
+      return res.status(400).json({
+        message: existingUser.email === email ? 'Email already exists' : 'Username already exists'
       });
     }
 
@@ -67,26 +69,32 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ message: 'Failed to create user account' });
     }
 
-    // Create user profile
+    // Create user profile in both 'users' and 'profiles' to be safe
+    const userPayload = {
+      id: authData.user.id,
+      email: email.trim().toLowerCase(),
+      full_name: full_name.trim(),
+      username: username.trim().toLowerCase(),
+      role: 'user',
+      is_private: false,
+      hide_from_suggestions: false,
+      message_requests: 'everyone',
+      show_read_receipts: true,
+      show_online_status: true,
+      comment_privacy: 'everyone',
+      story_privacy: 'everyone',
+      is_blocked: false
+    };
+
     const { data: profile, error: profileError } = await supabase
       .from('users')
-      .insert({
-        id: authData.user.id,
-        email: email.trim().toLowerCase(),
-        full_name: full_name.trim(),
-        username: username.trim().toLowerCase(),
-        role: 'user',
-        is_private: false,
-        hide_from_suggestions: false,
-        message_requests: 'everyone',
-        show_read_receipts: true,
-        show_online_status: true,
-        comment_privacy: 'everyone',
-        story_privacy: 'everyone',
-        is_blocked: false
-      })
+      .insert(userPayload)
       .select()
       .single();
+
+    // Also try inserting into 'profiles' table
+    await supabase.from('profiles').insert(userPayload).select().single();
+
 
     if (profileError) {
       console.error('Profile creation error:', profileError);
@@ -106,7 +114,7 @@ router.post('/register', async (req, res) => {
     });
   } catch (error) {
     console.error('Registration error:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       message: 'Error during registration',
       details: error instanceof Error ? error.message : 'Unknown error'
     });
@@ -161,7 +169,7 @@ router.post('/login', async (req, res) => {
 
       if (friendships && friendships.length > 0) {
         // Extract friend IDs (the other person in each friendship)
-        const friendIds = friendships.map(f => 
+        const friendIds = friendships.map(f =>
           f.user_id === authData.user.id ? f.friend_id : f.user_id
         );
 
@@ -191,7 +199,8 @@ router.post('/login', async (req, res) => {
         full_name: profile.full_name,
         email: profile.email,
         username: profile.username,
-        avatar_url: profile.avatar_url,
+        role: profile.role || 'user',
+        avatar_url: normalizeImageUrl(profile.avatar_url),
         is_private: profile.is_private,
         hide_from_suggestions: profile.hide_from_suggestions,
         message_requests: profile.message_requests,
@@ -203,7 +212,7 @@ router.post('/login', async (req, res) => {
     });
   } catch (error) {
     console.error('Login error:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       message: 'Error during login',
       details: error instanceof Error ? error.message : 'Unknown error'
     });
@@ -228,7 +237,8 @@ router.get('/me', supabaseAuth, async (req, res) => {
       full_name: profile.full_name,
       email: profile.email,
       username: profile.username,
-      avatar_url: profile.avatar_url,
+      role: profile.role || 'user',
+      avatar_url: normalizeImageUrl(profile.avatar_url),
       is_private: profile.is_private,
       hide_from_suggestions: profile.hide_from_suggestions,
       message_requests: profile.message_requests,
@@ -239,7 +249,7 @@ router.get('/me', supabaseAuth, async (req, res) => {
     });
   } catch (error) {
     console.error('Get user error:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       message: 'Error fetching user profile',
       details: error instanceof Error ? error.message : 'Unknown error'
     });
@@ -254,7 +264,7 @@ router.post('/logout', supabaseAuth, async (req, res) => {
     res.json({ message: 'Logged out successfully' });
   } catch (error) {
     console.error('Logout error:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       message: 'Error during logout',
       details: error instanceof Error ? error.message : 'Unknown error'
     });
@@ -282,7 +292,7 @@ router.post('/reset-password', async (req, res) => {
     res.json({ message: 'Password reset email sent' });
   } catch (error) {
     console.error('Password reset request error:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       message: 'Error processing password reset request',
       details: error instanceof Error ? error.message : 'Unknown error'
     });
@@ -300,8 +310,8 @@ router.post('/update-password', async (req, res) => {
 
     // Validate password - only check minimum length, allow all special characters
     if (password.length < 8) {
-      return res.status(400).json({ 
-        message: 'Password must be at least 8 characters long' 
+      return res.status(400).json({
+        message: 'Password must be at least 8 characters long'
       });
     }
 
@@ -317,7 +327,7 @@ router.post('/update-password', async (req, res) => {
     res.json({ message: 'Password updated successfully' });
   } catch (error) {
     console.error('Password update error:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       message: 'Error updating password',
       details: error instanceof Error ? error.message : 'Unknown error'
     });
@@ -346,7 +356,7 @@ router.post('/verify-email', async (req, res) => {
     res.json({ message: 'Verification email sent' });
   } catch (error) {
     console.error('Email verification request error:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       message: 'Error processing email verification request',
       details: error instanceof Error ? error.message : 'Unknown error'
     });
@@ -402,7 +412,7 @@ router.post('/change-email', supabaseAuth, async (req, res) => {
     res.json({ message: 'Email change request sent. Please check your new email for verification.' });
   } catch (error) {
     console.error('Email change error:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       message: 'Error processing email change request',
       details: error instanceof Error ? error.message : 'Unknown error'
     });
@@ -412,28 +422,43 @@ router.post('/change-email', supabaseAuth, async (req, res) => {
 // Delete account
 router.delete('/delete-account', supabaseAuth, async (req, res) => {
   try {
-    // Delete user profile
-    const { error: profileError } = await supabase
-      .from('users')
-      .delete()
-      .eq('id', req.user.id);
+    const isSuperAdmin = req.user.role === 'super_admin' || req.user.role === 'superadmin';
+    const { targetId } = req.body;
+    const userIdToDelete = (isSuperAdmin && targetId) ? targetId : req.user.id;
 
-    if (profileError) {
-      console.error('Profile deletion error:', profileError);
-      return res.status(400).json({ message: 'Error deleting user profile' });
+    if (!isSuperAdmin && targetId && targetId !== req.user.id) {
+      return res.status(403).json({ message: 'Forbidden: Only super admins can delete other accounts' });
     }
 
+    if (isSuperAdmin && targetId && targetId !== req.user.id) {
+      await logSuperAdminAction({
+        superadminId: req.user.id,
+        action: 'DELETE_USER_BYPASS',
+        targetId: targetId,
+        targetType: 'user',
+        details: { reason: 'Super Admin deletion request' },
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent']
+      });
+    }
+
+    // Delete user profile (from both tables to be safe)
+    await Promise.all([
+      supabase.from('users').delete().eq('id', userIdToDelete),
+      supabase.from('profiles').delete().eq('id', userIdToDelete)
+    ]);
+
     // Delete auth user
-    const { error: authError } = await supabase.auth.admin.deleteUser(req.user.id);
+    const { error: authError } = await supabase.auth.admin.deleteUser(userIdToDelete);
     if (authError) {
       console.error('Auth user deletion error:', authError);
       return res.status(400).json({ message: 'Error deleting auth user' });
     }
 
-    res.json({ message: 'Account deleted successfully' });
+    res.json({ message: `Account ${userIdToDelete} deleted successfully` });
   } catch (error) {
     console.error('Account deletion error:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       message: 'Error deleting account',
       details: error instanceof Error ? error.message : 'Unknown error'
     });
@@ -466,17 +491,17 @@ router.post('/forgot-password', async (req, res) => {
     if (error) {
       console.warn('Password reset request for email:', trimmedEmail, 'Error:', error.message);
       // Still return success to prevent email enumeration attacks
-      return res.json({ 
-        message: 'If an account with that email exists, a password reset link has been sent' 
+      return res.json({
+        message: 'If an account with that email exists, a password reset link has been sent'
       });
     }
 
-    res.json({ 
-      message: 'Password reset link has been sent to your email' 
+    res.json({
+      message: 'Password reset link has been sent to your email'
     });
   } catch (error) {
     console.error('Forgot password error:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       message: 'Error processing password reset request',
       details: error instanceof Error ? error.message : 'Unknown error'
     });
@@ -499,8 +524,8 @@ router.post('/reset-password', async (req, res) => {
 
     // Validate password - only check minimum length, allow all special characters
     if (password.length < 8) {
-      return res.status(400).json({ 
-        message: 'Password must be at least 8 characters long' 
+      return res.status(400).json({
+        message: 'Password must be at least 8 characters long'
       });
     }
 
@@ -517,7 +542,7 @@ router.post('/reset-password', async (req, res) => {
     res.json({ message: 'Password reset successfully' });
   } catch (error) {
     console.error('Reset password error:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       message: 'Error resetting password',
       details: error instanceof Error ? error.message : 'Unknown error'
     });
@@ -543,14 +568,14 @@ router.post('/verify-reset-token', async (req, res) => {
       return res.status(400).json({ message: 'Invalid or expired reset token' });
     }
 
-    res.json({ 
+    res.json({
       message: 'Token is valid',
       user_id: data.user.id,
       email: data.user.email
     });
   } catch (error) {
     console.error('Token verification error:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       message: 'Error verifying token',
       details: error instanceof Error ? error.message : 'Unknown error'
     });

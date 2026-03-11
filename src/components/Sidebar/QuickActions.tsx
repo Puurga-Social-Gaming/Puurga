@@ -29,6 +29,7 @@ const QuickActions: React.FC = () => {
         onClick={() => setIsOpen(!isOpen)}
         className="flex items-center justify-center w-10 h-10 rounded-full bg-background-secondary hover:bg-accent/10 transition-colors"
         aria-label="Quick actions"
+        title="Options"
       >
         <div className="w-1.5 h-1.5 rounded-full bg-foreground/70 relative">
           <div className="absolute -top-2.5 left-0 w-1.5 h-1.5 rounded-full bg-foreground/70"></div>
@@ -74,11 +75,10 @@ const QuickActions: React.FC = () => {
                     i18n.changeLanguage(lang.code);
                     setIsOpen(false);
                   }}
-                  className={`w-full flex items-center px-4 py-2 text-left text-sm rounded-md transition-colors ${
-                    i18n.language.startsWith(lang.code)
+                  className={`w-full flex items-center px-4 py-2 text-left text-sm rounded-md transition-colors ${i18n.language.startsWith(lang.code)
                       ? 'bg-accent/10 text-accent font-medium'
                       : 'text-foreground hover:bg-card-hover'
-                  }`}
+                    }`}
                 >
                   <Globe size={16} className="mr-3 text-muted" />
                   {lang.name}

@@ -60,9 +60,20 @@ interface OnlineStatusPayload {
   isOnline: boolean;
 }
 
+interface CreditUpdatePayload {
+  userId: string;
+  credits: number;
+}
+
+interface ProfileUpdatePayload {
+  userId: string;
+  isGhost: boolean;
+  purgeCount?: number;
+}
+
 interface WebSocketMessage {
-  type: 'new_message' | 'message_read' | 'typing' | 'notification' | 'user_online' | 'user_offline';
-  payload: NewMessagePayload | MessageReadPayload | TypingPayload | NotificationPayload | OnlineStatusPayload;
+  type: 'new_message' | 'message_read' | 'typing' | 'notification' | 'user_online' | 'user_offline' | 'credit_update' | 'profile_update';
+  payload: NewMessagePayload | MessageReadPayload | TypingPayload | NotificationPayload | OnlineStatusPayload | CreditUpdatePayload | ProfileUpdatePayload;
 }
 
 class WebSocketManager {
@@ -70,7 +81,7 @@ class WebSocketManager {
   private clients: Map<string, WebSocketClient[]> = new Map();
   private static instance: WebSocketManager | null = null;
 
-  private constructor() {}
+  private constructor() { }
 
   public static getInstance(): WebSocketManager {
     if (!WebSocketManager.instance) {
@@ -128,7 +139,7 @@ class WebSocketManager {
         this.clients.get(userId)!.push(wsClient);
 
         console.log(`User ${userId} connected to WebSocket`);
-        
+
         // Send all currently online users to the new client
         const onlineUserIds = this.getOnlineUsers();
         for (const onlineUserId of onlineUserIds) {
@@ -140,7 +151,7 @@ class WebSocketManager {
             this.sendToUser(userId, statusMessage);
           }
         }
-        
+
         // Broadcast this user's online status to all connected users
         this.broadcastUserStatus(userId, true);
 
@@ -155,7 +166,7 @@ class WebSocketManager {
             if (userClients.length === 0) {
               this.clients.delete(userId);
               console.log(`User ${userId} disconnected from WebSocket`);
-              
+
               // Broadcast user offline status to all connected users
               this.broadcastUserStatus(userId, false);
             }

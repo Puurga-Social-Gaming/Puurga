@@ -67,7 +67,7 @@ export type Tables = {
     occupation?: string;
     education?: string;
     relationship?: string;
-    role: 'user' | 'admin' | 'super_admin' | 'business';
+    role: 'user' | 'admin' | 'super_admin' | 'superadmin' | 'business';
     is_private: boolean;
     hide_from_suggestions: boolean;
     message_requests: 'everyone' | 'followers' | 'none';
@@ -76,7 +76,7 @@ export type Tables = {
     comment_privacy: 'everyone' | 'followers' | 'none';
     story_privacy: 'everyone' | 'followers' | 'close_friends';
     is_blocked: boolean;
-    perga_points?: number;
+    purga_points?: number;
     created_at: string;
     updated_at: string;
   };

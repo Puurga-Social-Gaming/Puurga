@@ -25,16 +25,17 @@ BEGIN
   WHERE 
     p.id != p_user_id -- Exclude self
     AND p.id NOT IN (
-        -- Exclude existing friends (both directions)
-        SELECT friend_id FROM friends WHERE user_id = p_user_id
+        -- Exclude existing friends (both directions from the friends table)
+        SELECT user_id_2 FROM friends WHERE user_id_1 = p_user_id
         UNION
-        SELECT user_id FROM friends WHERE friend_id = p_user_id
+        SELECT user_id_1 FROM friends WHERE user_id_2 = p_user_id
     )
     AND p.id NOT IN (
-        -- Exclude pending requests (optional, but good UX)
-        SELECT receiver_id FROM friend_requests WHERE sender_id = p_user_id AND status = 'pending'
+        -- Exclude pending OR accepted requests (both directions from the friend_requests table)
+        -- We include 'accepted' as a safety net in case the user relations are only in this table
+        SELECT receiver_id FROM friend_requests WHERE sender_id = p_user_id AND status IN ('pending', 'accepted')
         UNION
-        SELECT sender_id FROM friend_requests WHERE receiver_id = p_user_id AND status = 'pending'
+        SELECT sender_id FROM friend_requests WHERE receiver_id = p_user_id AND status IN ('pending', 'accepted')
     )
   ORDER BY random() -- Randomize suggestions
   LIMIT p_limit;

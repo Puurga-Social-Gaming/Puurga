@@ -21,7 +21,7 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ isOpen, onClose, on
   const [profileImagePreview, setProfileImagePreview] = useState<string>('');
   const [coverImagePreview, setCoverImagePreview] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
+
   const coverImageInputRef = React.useRef<HTMLInputElement>(null);
   const profileImageInputRef = React.useRef<HTMLInputElement>(null);
 
@@ -64,7 +64,7 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ isOpen, onClose, on
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!formData.name.trim()) {
       toast.error('Group name is required');
       return;
@@ -74,7 +74,7 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ isOpen, onClose, on
 
     try {
       // Create the group first
-      const groupResponse = await api.post('/api/groups', {
+      const groupResponse = await api.post('/groups', {
         name: formData.name.trim(),
         description: formData.description.trim() || null,
         is_private: formData.is_private
@@ -86,9 +86,9 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ isOpen, onClose, on
       if (profileImage) {
         const profileFormData = new FormData();
         profileFormData.append('profileImage', profileImage);
-        
+
         try {
-          await api.put(`/api/groups/${groupId}/profile-image`, profileFormData, {
+          await api.put(`/groups/${groupId}/profile-image`, profileFormData, {
             headers: { 'Content-Type': 'multipart/form-data' }
           });
         } catch (error) {
@@ -100,9 +100,9 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ isOpen, onClose, on
       if (coverImage) {
         const coverFormData = new FormData();
         coverFormData.append('coverImage', coverImage);
-        
+
         try {
-          await api.put(`/api/groups/${groupId}/cover-image`, coverFormData, {
+          await api.put(`/groups/${groupId}/cover-image`, coverFormData, {
             headers: { 'Content-Type': 'multipart/form-data' }
           });
         } catch (error) {
@@ -141,7 +141,7 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ isOpen, onClose, on
             className="fixed inset-0 bg-black/50 backdrop-blur-sm"
             onClick={handleClose}
           />
-          
+
           <motion.div
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -174,7 +174,7 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ isOpen, onClose, on
                 <label className="block text-sm font-medium text-gray-300 mb-2">
                   Cover Image (Optional)
                 </label>
-                <div 
+                <div
                   onClick={() => coverImageInputRef.current?.click()}
                   className="relative w-full h-32 bg-gray-800 rounded-lg border-2 border-dashed border-gray-600 hover:border-orange-500 transition-colors cursor-pointer overflow-hidden"
                   style={{
@@ -207,7 +207,7 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ isOpen, onClose, on
                   Group Icon (Optional)
                 </label>
                 <div className="flex items-center gap-4">
-                  <div 
+                  <div
                     onClick={() => profileImageInputRef.current?.click()}
                     className="relative w-20 h-20 bg-gray-800 rounded-xl border-2 border-dashed border-gray-600 hover:border-orange-500 transition-colors cursor-pointer overflow-hidden"
                     style={{

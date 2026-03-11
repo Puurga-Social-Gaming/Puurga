@@ -8,11 +8,11 @@ interface EnhancedError extends Error {
 }
 
 const api = axios.create({
-  baseURL: '',
+  baseURL: '/api',
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 10000, // 10 second timeout
+  timeout: 20000, // 20 second timeout
 });
 
 // Request interceptor

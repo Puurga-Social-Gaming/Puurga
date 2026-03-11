@@ -1,4 +1,5 @@
 import { supabase } from '../config/supabase';
+import { normalizeImageUrl } from '../utils/url';
 
 // Lazy load wsManager to avoid circular dependency
 let wsManager: any = null;
@@ -16,32 +17,37 @@ function getWsManager() {
 }
 
 interface CreateNotificationParams {
-  type: 'friend_request' | 'friend_request_accepted' | 'like' | 'comment';
+  type: 'friend_request' | 'friend_request_accepted' | 'like' | 'comment' | 'redemption' | 'redemption_contribution' | 'friend_ghosted' | 'purge' | 'message';
   senderId: string;
   receiverId: string;
-  friendRequestId?: string;
   postId?: string;
   commentId?: string;
+  conversationId?: string;
+  messageId?: string;
 }
 
 export async function createNotification(params: CreateNotificationParams) {
   try {
-    const { type, senderId, receiverId, friendRequestId, postId, commentId } = params;
+    const { type, senderId, receiverId, postId, commentId, conversationId, messageId } = params;
+
+    // Build row safely — only include columns that exist
+    const row: Record<string, any> = {
+      type,
+      sender_id: senderId,
+      receiver_id: receiverId,
+      read: false,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+    if (postId) row.post_id = postId;
+    if (commentId) row.comment_id = commentId;
+    if (conversationId) row.conversation_id = conversationId;
+    if (messageId) row.message_id = messageId;
 
     // Create notification in database
     const { data: notification, error } = await supabase
       .from('notifications')
-      .insert({
-        type,
-        sender_id: senderId,
-        receiver_id: receiverId,
-        friend_request_id: friendRequestId,
-        post_id: postId,
-        comment_id: commentId,
-        read: false,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      })
+      .insert(row)
       .select()
       .single();
 
@@ -65,17 +71,18 @@ export async function createNotification(params: CreateNotificationParams) {
           // Build notification payload that matches NotificationPayload interface
           const notificationPayload = {
             id: notification.id,
-            type: notification.type as 'friend_request' | 'friend_request_accepted' | 'like' | 'comment' | 'message',
+            type: notification.type as 'friend_request' | 'friend_request_accepted' | 'like' | 'comment' | 'message' | 'redemption' | 'redemption_contribution' | 'friend_ghosted' | 'purge',
             fromUser: {
               id: senderProfile.id,
               name: senderProfile.full_name || 'Unknown User',
               username: senderProfile.username || 'unknown',
-              avatar: senderProfile.avatar_url || undefined
+              avatar: normalizeImageUrl(senderProfile.avatar_url) || undefined
             },
             data: {
-              friendRequestId: friendRequestId || undefined,
               postId: postId || undefined,
-              commentId: commentId || undefined
+              commentId: commentId || undefined,
+              conversationId: conversationId || undefined,
+              messageId: messageId || undefined
             },
             createdAt: notification.created_at
           };

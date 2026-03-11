@@ -1,21 +1,14 @@
 import * as express from 'express';
 import { supabase } from '../config/supabase';
 import { supabaseAuth as auth, AuthRequest } from '../middleware/supabaseAuth';
-const multer = require('multer');
-import { getUploadPath, generateUniqueFilename } from '../config/storage';
+import multer from 'multer';
+import { normalizeImageUrl } from '../utils/url';
+import path from 'path';
 
 const router = express.Router();
 
-// Configure multer for file uploads
-const storage = multer.diskStorage({
-  destination: (req: any, file: any, cb: any) => {
-    cb(null, getUploadPath());
-  },
-  filename: (req: any, file: any, cb: any) => {
-    const uniqueFilename = generateUniqueFilename(file.originalname);
-    cb(null, uniqueFilename);
-  },
-});
+// Configure multer for memory storage (direct to Supabase)
+const storage = multer.memoryStorage();
 
 const upload = multer({
   storage,
@@ -67,10 +60,15 @@ router.get('/', auth, async (req: AuthRequest, res) => {
 
         return {
           ...group,
+          profile_image_url: normalizeImageUrl(group.profile_image_url),
+          cover_image_url: normalizeImageUrl(group.cover_image_url),
           member_count: count || 0,
           is_member: !!membership,
           user_role: membership?.role || null,
-          creator
+          creator: creator ? {
+            ...creator,
+            avatar_url: normalizeImageUrl(creator.avatar_url)
+          } : null
         };
       })
     );
@@ -127,7 +125,10 @@ router.get('/:id', auth, async (req: AuthRequest, res) => {
 
         return {
           ...member,
-          profile
+          profile: profile ? {
+            ...profile,
+            avatar_url: normalizeImageUrl(profile.avatar_url)
+          } : null
         };
       })
     );
@@ -149,11 +150,16 @@ router.get('/:id', auth, async (req: AuthRequest, res) => {
 
     res.json({
       ...group,
+      profile_image_url: normalizeImageUrl(group.profile_image_url),
+      cover_image_url: normalizeImageUrl(group.cover_image_url),
       member_count: count || 0,
       members: membersWithProfiles,
       is_member: !!membership,
       user_role: membership?.role || null,
-      creator
+      creator: creator ? {
+        ...creator,
+        avatar_url: normalizeImageUrl(creator.avatar_url)
+      } : null
     });
   } catch (error) {
     console.error('Error fetching group:', error);
@@ -366,11 +372,28 @@ router.put('/:id/profile-image', auth, upload.single('profileImage'), async (req
       return res.status(403).json({ error: 'Only admins can update images' });
     }
 
-    const publicUrl = `/uploads/${req.file.filename}`;
+    const fileExt = path.extname(req.file.originalname);
+    const filename = `group-${id}-profile-${Date.now()}${fileExt}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('avatars') // Using avatars bucket as it already exists and is configured
+      .upload(filename, req.file.buffer, {
+        contentType: req.file.mimetype,
+        cacheControl: '31536000',
+        upsert: false
+      });
+
+    if (uploadError) throw uploadError;
+
+    const { data: publicUrlData } = supabase.storage
+      .from('avatars')
+      .getPublicUrl(filename);
+
+    const publicUrl = publicUrlData.publicUrl;
 
     const { data: group, error } = await supabase
       .from('groups')
-      .update({ 
+      .update({
         profile_image_url: publicUrl,
         updated_at: new Date().toISOString()
       })
@@ -380,7 +403,7 @@ router.put('/:id/profile-image', auth, upload.single('profileImage'), async (req
 
     if (error) throw error;
 
-    res.json({ profile_image_url: publicUrl, group });
+    res.json({ profile_image_url: normalizeImageUrl(publicUrl), group });
   } catch (error) {
     console.error('Error uploading profile image:', error);
     res.status(500).json({ error: 'Failed to upload profile image' });
@@ -409,11 +432,28 @@ router.put('/:id/cover-image', auth, upload.single('coverImage'), async (req: Au
       return res.status(403).json({ error: 'Only admins can update images' });
     }
 
-    const publicUrl = `/uploads/${req.file.filename}`;
+    const fileExt = path.extname(req.file.originalname);
+    const filename = `group-${id}-cover-${Date.now()}${fileExt}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('avatars')
+      .upload(filename, req.file.buffer, {
+        contentType: req.file.mimetype,
+        cacheControl: '31536000',
+        upsert: false
+      });
+
+    if (uploadError) throw uploadError;
+
+    const { data: publicUrlData } = supabase.storage
+      .from('avatars')
+      .getPublicUrl(filename);
+
+    const publicUrl = publicUrlData.publicUrl;
 
     const { data: group, error } = await supabase
       .from('groups')
-      .update({ 
+      .update({
         cover_image_url: publicUrl,
         updated_at: new Date().toISOString()
       })
@@ -423,7 +463,7 @@ router.put('/:id/cover-image', auth, upload.single('coverImage'), async (req: Au
 
     if (error) throw error;
 
-    res.json({ cover_image_url: publicUrl, group });
+    res.json({ cover_image_url: normalizeImageUrl(publicUrl), group });
   } catch (error) {
     console.error('Error uploading cover image:', error);
     res.status(500).json({ error: 'Failed to upload cover image' });
@@ -475,7 +515,10 @@ router.get('/:id/messages', auth, async (req: AuthRequest, res) => {
 
         return {
           ...message,
-          sender
+          sender: sender ? {
+            ...sender,
+            avatar_url: normalizeImageUrl(sender.avatar_url)
+          } : null
         };
       })
     );
@@ -536,7 +579,10 @@ router.post('/:id/messages', auth, async (req: AuthRequest, res) => {
 
     res.status(201).json({
       ...message,
-      sender
+      sender: sender ? {
+        ...sender,
+        avatar_url: normalizeImageUrl(sender.avatar_url)
+      } : null
     });
   } catch (error) {
     console.error('Error sending message:', error);
@@ -565,10 +611,10 @@ router.post('/:id/members/:memberId/mute', auth, async (req: AuthRequest, res) =
 
     // Update member with mute timestamp
     const muteUntil = duration ? new Date(Date.now() + duration * 60000).toISOString() : null;
-    
+
     const { error } = await supabase
       .from('group_members')
-      .update({ 
+      .update({
         muted: true,
         muted_until: muteUntil
       })
@@ -604,7 +650,7 @@ router.post('/:id/members/:memberId/unmute', auth, async (req: AuthRequest, res)
 
     const { error } = await supabase
       .from('group_members')
-      .update({ 
+      .update({
         muted: false,
         muted_until: null
       })

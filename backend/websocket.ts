@@ -63,6 +63,8 @@ interface WebSocketMessage {
   payload: NewMessagePayload | MessageReadPayload | TypingPayload | NotificationPayload | OnlineStatusPayload;
 }
 
+const JWT_SECRET = process.env.JWT_SECRET;
+
 class WebSocketManager {
   private wss: WebSocketServer;
   private clients: Map<string, WebSocketClient[]> = new Map();
@@ -86,7 +88,7 @@ class WebSocketManager {
         }
 
         // Verify token
-        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key') as { id: string };
+        const decoded = jwt.verify(token, JWT_SECRET!) as { id: string };
         const userId = decoded.id;
 
         // Store client connection

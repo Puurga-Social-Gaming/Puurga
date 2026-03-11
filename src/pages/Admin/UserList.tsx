@@ -20,7 +20,7 @@ const UserList: React.FC = () => {
 
   const fetchUsers = async () => {
     try {
-      const response = await api.get('/api/admin/users');
+      const response = await api.get('/admin/users');
       setUsers(response.data);
     } catch (err) {
       setError('Failed to load users');
@@ -37,7 +37,7 @@ const UserList: React.FC = () => {
   const handleResetAllPasswords = async () => {
     try {
       setIsResetting(true);
-      await api.post('/api/admin/users/reset-passwords');
+      await api.post('/admin/users/reset-passwords');
       toast.success('All passwords have been reset to "Password@123"');
       await fetchUsers();
     } catch (err) {
@@ -55,7 +55,7 @@ const UserList: React.FC = () => {
 
     try {
       setActionInProgress(userId);
-      await api.delete(`/api/admin/users/${userId}`);
+      await api.delete(`/admin/users/${userId}`);
       toast.success('User deleted successfully');
       await fetchUsers();
     } catch (err) {
@@ -70,7 +70,7 @@ const UserList: React.FC = () => {
   const handleToggleBlock = async (userId: string, isCurrentlyBlocked: boolean) => {
     try {
       setActionInProgress(userId);
-      await api.put(`/api/admin/users/${userId}/toggle-block`);
+      await api.put(`/admin/users/${userId}/toggle-block`);
       toast.success(`User ${isCurrentlyBlocked ? 'unblocked' : 'blocked'} successfully`);
       await fetchUsers();
     } catch (err) {
@@ -115,17 +115,16 @@ const UserList: React.FC = () => {
         <button
           onClick={handleResetAllPasswords}
           disabled={isResetting}
-          className={`px-4 py-2 rounded-lg bg-orange-500 text-white hover:bg-orange-600 transition-colors ${
-            isResetting ? 'opacity-50 cursor-not-allowed' : ''
-          }`}
+          className={`px-4 py-2 rounded-lg bg-orange-500 text-white hover:bg-orange-600 transition-colors ${isResetting ? 'opacity-50 cursor-not-allowed' : ''
+            }`}
         >
           {isResetting ? 'Resetting Passwords...' : 'Reset All Passwords'}
         </button>
       </div>
       <div className="grid gap-4">
         {users.map(user => (
-          <div 
-            key={user.id} 
+          <div
+            key={user.id}
             className={`bg-[#1a1a1a] p-4 rounded-lg ${user.isBlocked ? 'opacity-75' : ''}`}
           >
             <div className="flex items-center gap-4">

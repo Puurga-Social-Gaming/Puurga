@@ -1,6 +1,8 @@
 import express from 'express';
 import { supabase } from '../config/supabase';
 import { supabaseAuth as auth, AuthRequest } from '../middleware/supabaseAuth';
+import { normalizeImageUrl } from '../utils/url';
+import { logSuperAdminAction } from '../utils/auditLogger';
 
 const router = express.Router();
 
@@ -48,7 +50,7 @@ router.get('/posts/:postId/comments', async (req, res) => {
         id: comment.user_id,
         name: profileMap.get(comment.user_id)?.full_name || 'Unknown User',
         username: profileMap.get(comment.user_id)?.username || 'unknown',
-        avatar: profileMap.get(comment.user_id)?.avatar_url || '',
+        avatar: normalizeImageUrl(profileMap.get(comment.user_id)?.avatar_url) || '',
       },
     }));
 
@@ -133,7 +135,7 @@ router.post('/posts/:postId/comments', auth, async (req: AuthRequest, res) => {
         id: userId,
         name: profile?.full_name || 'Unknown User',
         username: profile?.username || 'unknown',
-        avatar: profile?.avatar_url || '',
+        avatar: normalizeImageUrl(profile?.avatar_url) || '',
       },
     });
   } catch (error) {
@@ -165,7 +167,7 @@ router.put('/comments/:id', auth, async (req: AuthRequest, res) => {
     console.log('Fetching comment:', id);
     const { data: comment, error: fetchError } = await supabase
       .from('comments')
-      .select('user_id')
+      .select('user_id, post_id')
       .eq('id', id)
       .single();
 
@@ -181,9 +183,23 @@ router.put('/comments/:id', auth, async (req: AuthRequest, res) => {
       return res.status(404).json({ error: 'Comment not found' });
     }
 
-    if (comment.user_id !== userId) {
-      console.log('User ID mismatch:', { commentUserId: comment.user_id, userId });
+    const isSuperAdmin = req.user.role === 'super_admin' || req.user.role === 'superadmin';
+
+    if (comment.user_id !== userId && !isSuperAdmin) {
+      console.log('User ID mismatch:', { commentUserId: comment.user_id, userId, role: req.user.role });
       return res.status(403).json({ error: 'Not authorized to edit this comment' });
+    }
+
+    if (comment.user_id !== userId && isSuperAdmin) {
+      await logSuperAdminAction({
+        superadminId: userId,
+        action: 'EDIT_COMMENT_BYPASS',
+        targetId: id,
+        targetType: 'comment',
+        details: { original_author: comment.user_id, post_id: comment.post_id },
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent']
+      });
     }
 
     // Update the comment
@@ -207,7 +223,7 @@ router.put('/comments/:id', auth, async (req: AuthRequest, res) => {
     res.json(updatedComment);
   } catch (error: any) {
     console.error('Error updating comment:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Failed to update comment',
       details: error?.message || 'Unknown error'
     });
@@ -245,8 +261,22 @@ router.delete('/comments/:id', auth, async (req: AuthRequest, res) => {
     const isCommentOwner = comment.user_id === userId;
     const isPostOwner = post?.user_id === userId;
 
-    if (!isCommentOwner && !isPostOwner) {
+    const isSuperAdmin = req.user.role === 'super_admin' || req.user.role === 'superadmin';
+
+    if (!isCommentOwner && !isPostOwner && !isSuperAdmin) {
       return res.status(403).json({ error: 'Not authorized to delete this comment' });
+    }
+
+    if (!isCommentOwner && !isPostOwner && isSuperAdmin) {
+      await logSuperAdminAction({
+        superadminId: userId,
+        action: 'DELETE_COMMENT_BYPASS',
+        targetId: id,
+        targetType: 'comment',
+        details: { original_author: comment.user_id, post_id: comment.post_id },
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent']
+      });
     }
 
     // Delete the comment

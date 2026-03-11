@@ -5,7 +5,7 @@ import api from '../lib/axios';
 
 export interface Notification {
   id: string;
-  type: 'friend_request' | 'friend_request_accepted' | 'like' | 'comment' | 'message';
+  type: 'friend_request' | 'friend_request_accepted' | 'like' | 'comment' | 'message' | 'redemption' | 'redemption_contribution' | 'friend_ghosted' | 'purge';
   read: boolean;
   createdAt: string;
   fromUser: {
@@ -20,6 +20,9 @@ export interface Notification {
     commentId?: string;
     conversationId?: string;
     messageId?: string;
+    redemptionDetails?: {
+      contributors?: Array<{ id: string; name: string; credits: number }>;
+    };
   };
 }
 

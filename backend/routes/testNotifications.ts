@@ -15,12 +15,11 @@ router.post('/demo', auth, async (req, res) => {
 
     // Create a demo notification
     const notification = await createNotification({
-      type: type as 'friend_request' | 'friend_request_accepted' | 'like' | 'comment',
+      type: type as any,
       senderId: req.user.id,
       receiverId: receiverId,
-      postId: type === 'like' || type === 'comment' ? 'demo-post-id' : undefined,
-      commentId: type === 'comment' ? 'demo-comment-id' : undefined,
-      friendRequestId: type === 'friend_request' || type === 'friend_request_accepted' ? 'demo-friend-request-id' : undefined
+      postId: (type === 'like' || type === 'comment') ? 'demo-post-id' : undefined,
+      commentId: type === 'comment' ? 'demo-comment-id' : undefined
     });
 
     if (notification) {

@@ -1,6 +1,9 @@
 import express from 'express';
 import { supabase } from '../config/supabase';
 import { supabaseAuth as auth, AuthRequest } from '../middleware/supabaseAuth';
+import { normalizeImageUrl } from '../utils/url';
+import { wsManager } from '../websocketManager';
+import { createNotification } from './createNotification';
 
 const router = express.Router();
 
@@ -34,19 +37,19 @@ router.post('/:userId', auth, async (req: AuthRequest, res) => {
       return res.status(400).json({ error: 'User is not in ghost mode' });
     }
 
-    // Check if redeemer has enough credits (need at least 100 credits to redeem)
-    const { data: redeemerUser, error: redeemerError } = await supabase
-      .from('users')
-      .select('perga_points')
+    // Check if redeemer has enough credits
+    const { data: redeemerProfile, error: redeemerError } = await supabase
+      .from('profiles')
+      .select('purga_points')
       .eq('id', redeemerUserId)
       .single();
 
-    if (redeemerError || !redeemerUser) {
-      return res.status(404).json({ error: 'Redeemer not found' });
+    if (redeemerError || !redeemerProfile) {
+      return res.status(404).json({ error: 'Redeemer profile not found' });
     }
 
     const redemptionCost = 100;
-    const currentCredits = redeemerUser.perga_points || 0;
+    const currentCredits = Number(redeemerProfile.purga_points || 0);
 
     if (currentCredits < redemptionCost) {
       return res.status(400).json({
@@ -58,9 +61,9 @@ router.post('/:userId', auth, async (req: AuthRequest, res) => {
 
     // Deduct credits from redeemer
     const { error: deductError } = await supabase
-      .from('users')
+      .from('profiles')
       .update({
-        perga_points: currentCredits - redemptionCost,
+        purga_points: currentCredits - redemptionCost,
         updated_at: new Date().toISOString()
       })
       .eq('id', redeemerUserId);
@@ -68,6 +71,12 @@ router.post('/:userId', auth, async (req: AuthRequest, res) => {
     if (deductError) {
       throw deductError;
     }
+
+    // Emit credit update via WebSocket
+    wsManager.sendToUser(redeemerUserId, {
+      type: 'credit_update',
+      payload: { userId: redeemerUserId, credits: currentCredits - redemptionCost }
+    });
 
     // Remove ghost mode from target user
     const { error: restoreError } = await supabase
@@ -83,10 +92,57 @@ router.post('/:userId', auth, async (req: AuthRequest, res) => {
     if (restoreError) {
       // Rollback credit deduction
       await supabase
-        .from('users')
-        .update({ perga_points: currentCredits })
+        .from('profiles')
+        .update({ purga_points: currentCredits })
         .eq('id', redeemerUserId);
+
+      // Emit rollback credit update
+      wsManager.sendToUser(redeemerUserId, {
+        type: 'credit_update',
+        payload: { userId: redeemerUserId, credits: currentCredits }
+      });
       throw restoreError;
+    }
+
+    // Emit profile update via WebSocket for the redeemed user
+    wsManager.sendToUser(targetUserId, {
+      type: 'profile_update',
+      payload: { userId: targetUserId, isGhost: false, purgeCount: 0 }
+    });
+
+    // Also notify friends that this user is now redeemed (so their dashboards update)
+    try {
+      const [friendsRes, requestsRes] = await Promise.all([
+        supabase
+          .from('friends')
+          .select('user_id_1, user_id_2')
+          .or(`user_id_1.eq.${targetUserId},user_id_2.eq.${targetUserId}`),
+        supabase
+          .from('friend_requests')
+          .select('sender_id, receiver_id')
+          .eq('status', 'accepted')
+          .or(`sender_id.eq.${targetUserId},receiver_id.eq.${targetUserId}`)
+      ]);
+
+      const friendIdsFromTable = (friendsRes.data || [])
+        .map((f: any) => f.user_id_1 === targetUserId ? f.user_id_2 : f.user_id_1);
+
+      const friendIdsFromRequests = (requestsRes.data || [])
+        .map((r: any) => r.sender_id === targetUserId ? r.receiver_id : r.sender_id);
+
+      const friendIds = Array.from(new Set([...friendIdsFromTable, ...friendIdsFromRequests]))
+        .filter((id: string) => id !== targetUserId);
+
+      if (friendIds.length > 0) {
+        for (const friendId of friendIds) {
+          wsManager.sendToUser(friendId, {
+            type: 'profile_update',
+            payload: { userId: targetUserId, isGhost: false, purgeCount: 0 }
+          });
+        }
+      }
+    } catch (notifError) {
+      console.error('Error broadcasting redemption update to friends:', notifError);
     }
 
     // Clear all purges for the target user
@@ -104,6 +160,13 @@ router.post('/:userId', auth, async (req: AuthRequest, res) => {
         credits_spent: redemptionCost,
         created_at: new Date().toISOString()
       });
+
+    // Create notification for the redeemed user
+    await createNotification({
+      type: 'redemption',
+      senderId: redeemerUserId,
+      receiverId: targetUserId
+    });
 
     res.json({
       success: true,
@@ -127,25 +190,27 @@ router.get('/ghosted-friends', auth, async (req: AuthRequest, res) => {
       return res.status(401).json({ error: 'User not authenticated' });
     }
 
-    // Get user's friends who are in ghost mode
-    const { data: friendships, error: friendsError } = await supabase
-      .from('friends')
-      .select('user_id_1, user_id_2')
-      .or(`user_id_1.eq.${userId},user_id_2.eq.${userId}`);
+    // Get user's friends from both friends table and accepted friend requests
+    const [friendsRes, requestsRes] = await Promise.all([
+      supabase
+        .from('friends')
+        .select('user_id_1, user_id_2')
+        .or(`user_id_1.eq.${userId},user_id_2.eq.${userId}`),
+      supabase
+        .from('friend_requests')
+        .select('sender_id, receiver_id')
+        .eq('status', 'accepted')
+        .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
+    ]);
 
-    if (friendsError) {
-      console.error('Error fetching friendships:', friendsError);
-      return res.json([]); // Return empty array instead of error
-    }
+    const friendIdsFromTable = (friendsRes.data || [])
+      .map((f: any) => f.user_id_1 === userId ? f.user_id_2 : f.user_id_1);
 
-    if (!friendships || friendships.length === 0) {
-      return res.json([]);
-    }
+    const friendIdsFromRequests = (requestsRes.data || [])
+      .map((r: any) => r.sender_id === userId ? r.receiver_id : r.sender_id);
 
-    // Extract friend IDs (the ID that isn't the current user)
-    const friendIds = friendships.map(f =>
-      f.user_id_1 === userId ? f.user_id_2 : f.user_id_1
-    );
+    const friendIds = Array.from(new Set([...friendIdsFromTable, ...friendIdsFromRequests]))
+      .filter((id: string) => id !== userId);
 
     if (friendIds.length === 0) {
       return res.json([]);
@@ -163,11 +228,15 @@ router.get('/ghosted-friends', auth, async (req: AuthRequest, res) => {
       return res.json([]);
     }
 
-    const formattedFriends = (ghostedFriends || []).map(friend => ({
+    // Filter in memory to be extra safe
+    const validGhosts = (ghostedFriends || []).filter(f => f.is_ghost === true);
+    console.log(`[Ghosted Friends] Found ${validGhosts.length} valid ghosts for user ${userId}`);
+
+    const formattedFriends = validGhosts.map(friend => ({
       id: friend.id,
       fullName: friend.full_name,
       username: friend.username,
-      avatarUrl: friend.avatar_url,
+      avatarUrl: normalizeImageUrl(friend.avatar_url),
       isGhost: friend.is_ghost,
       purgeCount: friend.purge_count || 0,
       ghostedAt: friend.ghosted_at,
@@ -208,6 +277,67 @@ router.get('/status/:userId', auth, async (req: AuthRequest, res) => {
   } catch (error) {
     console.error('Error checking ghost status:', error);
     res.status(500).json({ error: 'Failed to check ghost status' });
+  }
+});
+
+// GET /api/redeem/contributors/:userId - Get list of users who helped redeem this user
+router.get('/contributors/:userId', auth, async (req: AuthRequest, res) => {
+  try {
+    const { userId } = req.params;
+
+    // Fetch from redemptions (direct full redemption)
+    const { data: directRedemptions } = await supabase
+      .from('redemptions')
+      .select('redeemer_id, credits_spent, created_at')
+      .eq('redeemed_user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    // Fetch from redemption_activities (partial contributions)
+    const { data: partialActivities } = await supabase
+      .from('redemption_activities')
+      .select('helper_user_id, points_earned')
+      .eq('ghost_user_id', userId);
+
+    // Collect all contributors
+    const contributorsMap = new Map<string, number>();
+
+    // Add direct redeemer
+    if (directRedemptions && directRedemptions.length > 0) {
+      const red = directRedemptions[0];
+      contributorsMap.set(red.redeemer_id, (contributorsMap.get(red.redeemer_id) || 0) + Number(red.credits_spent));
+    }
+
+    // Add partial contributors
+    if (partialActivities) {
+      partialActivities.forEach((act: any) => {
+        contributorsMap.set(act.helper_user_id, (contributorsMap.get(act.helper_user_id) || 0) + Number(act.points_earned));
+      });
+    }
+
+    const contributorIds = Array.from(contributorsMap.keys());
+    if (contributorIds.length === 0) {
+      return res.json([]);
+    }
+
+    // Get profiles for all contributors
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('id, full_name, username, avatar_url')
+      .in('id', contributorIds);
+
+    const result = (profiles || []).map((p: any) => ({
+      userId: p.id,
+      name: p.full_name || p.username,
+      username: p.username,
+      avatar: normalizeImageUrl(p.avatar_url),
+      contribution: contributorsMap.get(p.id) || 0
+    })).sort((a, b) => b.contribution - a.contribution);
+
+    res.json(result);
+  } catch (error) {
+    console.error('Error fetching contributors:', error);
+    res.status(500).json({ error: 'Failed to fetch contributors' });
   }
 });
 

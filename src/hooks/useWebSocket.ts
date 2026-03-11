@@ -6,6 +6,8 @@ interface UseWebSocketOptions {
   onMessage?: (message: any) => void;
   onTyping?: (payload: { conversationId: string; userId: string; isTyping: boolean }) => void;
   onUserStatusChange?: (status: { userId: string; isOnline: boolean }) => void;
+  onCreditUpdate?: (payload: { userId: string; credits: number }) => void;
+  onProfileUpdate?: (payload: { userId: string; isGhost: boolean; purgeCount?: number }) => void;
   onConnectionChange?: (connected: boolean) => void;
 }
 
@@ -38,6 +40,16 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
 
     if (options.onUserStatusChange) {
       const unsubscribe = websocketService.on('user_status_change', options.onUserStatusChange);
+      unsubscribers.push(unsubscribe);
+    }
+
+    if (options.onCreditUpdate) {
+      const unsubscribe = websocketService.on('credit_update', options.onCreditUpdate);
+      unsubscribers.push(unsubscribe);
+    }
+
+    if (options.onProfileUpdate) {
+      const unsubscribe = websocketService.on('profile_update', options.onProfileUpdate);
       unsubscribers.push(unsubscribe);
     }
 

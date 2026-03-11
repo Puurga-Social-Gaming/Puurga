@@ -16,7 +16,7 @@ const SuggestedUsers: React.FC = () => {
     const fetchUsers = async () => {
       try {
         setIsLoading(true);
-        const response = await api.get('/api/users/suggestions');
+        const response = await api.get('/friends/suggestions');
         // Filter out current user and limit to 5 suggestions
         const filteredUsers = response.data
           .filter((u: User) => u.id !== currentUser?.id)

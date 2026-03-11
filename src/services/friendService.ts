@@ -11,18 +11,42 @@ export const rejectFriendRequest = async (friendRequestId: string) => {
 };
 
 export const getFriendRequests = async () => {
-  const response = await api.get('/friends/requests');
-  return response.data;
+  console.log('friendService: Fetching friend requests...');
+  try {
+    const response = await api.get('/friends/requests');
+    console.log('friendService: Friend requests response:', response.data);
+    console.log('friendService: Friend requests response status:', response.status);
+    return response.data;
+  } catch (error) {
+    console.error('friendService: Error fetching friend requests:', error);
+    throw error;
+  }
 };
 
 export const getFriendSuggestions = async () => {
-  const response = await api.get('/friends/suggestions');
-  return response.data;
+  console.log('friendService: Fetching friend suggestions...');
+  try {
+    const response = await api.get('/friends/suggestions');
+    console.log('friendService: Friend suggestions response:', response.data);
+    console.log('friendService: Friend suggestions response status:', response.status);
+    return response.data;
+  } catch (error) {
+    console.error('friendService: Error fetching friend suggestions:', error);
+    throw error;
+  }
 };
 
 export const getAcceptedFriends = async () => {
-  const response = await api.get('/friends/accepted');
-  return response.data;
+  console.log('friendService: Fetching accepted friends...');
+  try {
+    const response = await api.get('/friends/accepted');
+    console.log('friendService: Accepted friends response:', response.data);
+    console.log('friendService: Accepted friends response status:', response.status);
+    return response.data;
+  } catch (error) {
+    console.error('friendService: Error fetching accepted friends:', error);
+    throw error;
+  }
 };
 
 export const sendFriendRequest = async (receiverId: string) => {

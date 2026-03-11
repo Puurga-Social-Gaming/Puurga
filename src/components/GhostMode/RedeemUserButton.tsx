@@ -11,11 +11,11 @@ interface RedeemUserButtonProps {
   onRedeemed?: () => void;
 }
 
-const RedeemUserButton: React.FC<RedeemUserButtonProps> = ({ 
-  userId, 
-  userName, 
+const RedeemUserButton: React.FC<RedeemUserButtonProps> = ({
+  userId,
+  userName,
   isGhost,
-  onRedeemed 
+  onRedeemed
 }) => {
   const [isRedeeming, setIsRedeeming] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
@@ -23,7 +23,7 @@ const RedeemUserButton: React.FC<RedeemUserButtonProps> = ({
   const handleRedeem = async () => {
     setIsRedeeming(true);
     try {
-      const response = await api.post(`/api/redeem/${userId}`);
+      const response = await api.post(`/redeem/${userId}`);
       toast.success(response.data.message);
       setShowConfirm(false);
       if (onRedeemed) {
@@ -32,7 +32,7 @@ const RedeemUserButton: React.FC<RedeemUserButtonProps> = ({
     } catch (error: any) {
       const errorMsg = error.response?.data?.error || 'Failed to redeem user';
       toast.error(errorMsg);
-      
+
       if (error.response?.data?.required && error.response?.data?.current !== undefined) {
         toast.error(`You need ${error.response.data.required} credits but only have ${error.response.data.current}`);
       }

@@ -35,7 +35,7 @@ const Comment: React.FC<CommentProps> = ({ comment, onUpdate, onDelete }) => {
   const handleEdit = async () => {
     try {
       console.log('Updating comment:', comment.id, 'with content:', editedContent);
-      const response = await api.put(`/api/comments/${comment.id}`, {
+      const response = await api.put(`/comments/${comment.id}`, {
         content: editedContent
       });
       console.log('Update response:', response);
@@ -53,10 +53,10 @@ const Comment: React.FC<CommentProps> = ({ comment, onUpdate, onDelete }) => {
 
   const handleDelete = async () => {
     if (!window.confirm('Are you sure you want to delete this comment?')) return;
-    
+
     try {
       setIsDeleting(true);
-      await api.delete(`/api/comments/${comment.id}`);
+      await api.delete(`/comments/${comment.id}`);
       onDelete();
       toast.success('Comment deleted successfully');
     } catch (error) {
@@ -81,7 +81,7 @@ const Comment: React.FC<CommentProps> = ({ comment, onUpdate, onDelete }) => {
         alt={comment.user.name}
         size="sm"
       />
-      
+
       <div className="flex-1 min-w-0">
         {isEditing ? (
           <div className="space-y-2">
@@ -116,14 +116,14 @@ const Comment: React.FC<CommentProps> = ({ comment, onUpdate, onDelete }) => {
               <div className="font-semibold text-white text-sm">{comment.user.name}</div>
               <p className="text-gray-200 text-sm mt-0.5">{comment.content}</p>
             </div>
-            
+
             {/* Comment Actions */}
             <div className="flex items-center gap-3 mt-1 ml-3">
               <span className="text-xs text-gray-500">
                 {formatDistanceToNow(new Date(comment.createdAt), { addSuffix: true })}
                 {comment.updatedAt !== comment.createdAt && ' (edited)'}
               </span>
-              
+
               {(showActions || isCommentOwner) && isCommentOwner && (
                 <>
                   <button

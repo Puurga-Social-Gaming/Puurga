@@ -3,14 +3,18 @@ import { supabase } from '../config/supabase';
 import { supabaseAuth as auth, AuthRequest } from '../middleware/supabaseAuth';
 import { checkGhostMode } from '../middleware/ghostMode';
 import { normalizeImageUrl } from '../utils/url';
+import { logSuperAdminAction } from '../utils/auditLogger';
+import { wsManager } from '../websocketManager';
+import { createNotification } from './createNotification';
 
 const router = express.Router();
 
 // --- GET /api/posts/feed ---
-router.get('/feed', async (req, res) => {
+router.get('/feed', auth, async (req: AuthRequest, res) => {
   try {
     const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 10;
+    const requestedLimit = parseInt(req.query.limit as string) || 10;
+    const limit = Math.min(requestedLimit, 50);
     const from = (page - 1) * limit;
     const to = from + limit - 1;
 
@@ -189,7 +193,7 @@ router.get('/purges/my-activity', auth, async (req: AuthRequest, res) => {
           id: profile.id,
           name: profile.full_name,
           username: profile.username,
-          avatar: profile.avatar_url
+          avatar: normalizeImageUrl(profile.avatar_url)
         });
       });
     }
@@ -261,13 +265,27 @@ router.post('/:id/purge', auth, async (req, res) => {
       stringComparison: String(userId) === String(targetUserId)
     });
 
-    // Prevent users from purging their own posts
+    const isSuperAdmin = req.user.role === 'super_admin' || req.user.role === 'superadmin';
+
+    // Prevent users from purging their own posts (Super Admins can override for moderation/testing)
     // Use String() comparison to handle potential type mismatches
-    if (String(userId) === String(targetUserId)) {
+    if (String(userId) === String(targetUserId) && !isSuperAdmin) {
       return res.status(403).json({
         error: 'Cannot purge your own post',
         message: 'You cannot purge your own posts. Purges are meant for content from other users.',
         code: 'OWN_POST'
+      });
+    }
+
+    if (String(userId) === String(targetUserId) && isSuperAdmin) {
+      await logSuperAdminAction({
+        superadminId: userId,
+        action: 'PURGE_OWN_POST_OVERRIDE',
+        targetId: postId,
+        targetType: 'post',
+        details: { note: 'Super Admin purged their own post' },
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent']
       });
     }
 
@@ -307,51 +325,6 @@ router.post('/:id/purge', auth, async (req, res) => {
 
       if (insertError) throw insertError;
       purged = true;
-
-      // Award credits to the user who performed the purge
-      const { data: actorProfile, error: actorError } = await supabase
-        .from('profiles')
-        .select('credits, purge_streak')
-        .eq('id', userId)
-        .single();
-
-      if (!actorError && actorProfile) {
-        const currentStreak = (actorProfile.purge_streak || 0) + 1;
-        let creditsToAdd = 1; // Base credit for purging
-        let bonusAwarded = false;
-
-        // Check if this is the 5th purge in streak - award bonus 6 credits
-        if (currentStreak === 5) {
-          creditsToAdd = 7; // 1 base + 6 bonus = 7 total
-          bonusAwarded = true;
-
-          // Reset streak after bonus
-          await supabase
-            .from('profiles')
-            .update({
-              credits: (actorProfile.credits || 0) + creditsToAdd,
-              purge_streak: 0,
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', userId);
-        } else {
-          // Normal purge - increment streak
-          await supabase
-            .from('profiles')
-            .update({
-              credits: (actorProfile.credits || 0) + creditsToAdd,
-              purge_streak: currentStreak,
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', userId);
-        }
-
-        // Store bonus info for response
-        if (bonusAwarded) {
-          res.locals.bonusAwarded = true;
-          res.locals.bonusCredits = 6;
-        }
-      }
     }
 
     // Get total purge count for this post
@@ -386,7 +359,14 @@ router.post('/:id/purge', auth, async (req, res) => {
     }
 
     // Check if user should go into ghost mode (5+ total purges)
-    if (userTotalPurges >= 5) {
+    // First check if they are already ghosted to avoid redundant updates/notifications
+    const { data: targetProfileStatus } = await supabase
+      .from('profiles')
+      .select('is_ghost')
+      .eq('id', targetUserId)
+      .single();
+
+    if (userTotalPurges >= 5 && !targetProfileStatus?.is_ghost) {
       const { error: ghostError } = await supabase
         .from('profiles')
         .update({
@@ -397,6 +377,44 @@ router.post('/:id/purge', auth, async (req, res) => {
 
       if (ghostError) {
         console.error('Error setting ghost mode:', ghostError);
+      } else {
+        // Emit profile update via WebSocket
+        wsManager.sendToUser(targetUserId, {
+          type: 'profile_update',
+          payload: { userId: targetUserId, isGhost: true, purgeCount: userTotalPurges }
+        });
+
+        // Notify friends that this user has been ghosted
+        try {
+          // Get all friends
+          const { data: friendships } = await supabase
+            .from('friends')
+            .select('user_id_1, user_id_2')
+            .or(`user_id_1.eq.${targetUserId},user_id_2.eq.${targetUserId}`);
+
+          if (friendships && friendships.length > 0) {
+            const friendIds = friendships.map(f =>
+              f.user_id_1 === targetUserId ? f.user_id_2 : f.user_id_1
+            );
+
+            // Send notification and broadcast WebSocket update to each friend
+            for (const friendId of friendIds) {
+              await createNotification({
+                type: 'friend_ghosted',
+                senderId: targetUserId, // The ghosted user is the "subject"
+                receiverId: friendId
+              });
+
+              // Also send WebSocket profile_update to friends so their UI (dashboard) updates
+              wsManager.sendToUser(friendId, {
+                type: 'profile_update',
+                payload: { userId: targetUserId, isGhost: true, purgeCount: userTotalPurges }
+              });
+            }
+          }
+        } catch (notifError) {
+          console.error('Error sending friend ghosted notifications:', notifError);
+        }
       }
     }
 
@@ -501,8 +519,22 @@ router.put('/:id', auth, async (req: AuthRequest, res) => {
       return res.status(404).json({ error: 'Post not found' });
     }
 
-    if (existingPost.user_id !== userId) {
+    const isSuperAdmin = req.user.role === 'super_admin' || req.user.role === 'superadmin';
+
+    if (existingPost.user_id !== userId && !isSuperAdmin) {
       return res.status(403).json({ error: 'Not authorized to edit this post' });
+    }
+
+    if (existingPost.user_id !== userId && isSuperAdmin) {
+      await logSuperAdminAction({
+        superadminId: userId,
+        action: 'EDIT_POST_BYPASS',
+        targetId: postId,
+        targetType: 'post',
+        details: { original_author: existingPost.user_id, content_length: content.length },
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent']
+      });
     }
 
     // Update the post
@@ -544,8 +576,22 @@ router.delete('/:id', auth, async (req: AuthRequest, res) => {
       return res.status(404).json({ error: 'Post not found' });
     }
 
-    if (existingPost.user_id !== userId) {
+    const isSuperAdmin = req.user.role === 'super_admin' || req.user.role === 'superadmin';
+
+    if (existingPost.user_id !== userId && !isSuperAdmin) {
       return res.status(403).json({ error: 'Not authorized to delete this post' });
+    }
+
+    if (existingPost.user_id !== userId && isSuperAdmin) {
+      await logSuperAdminAction({
+        superadminId: userId,
+        action: 'DELETE_POST_BYPASS',
+        targetId: postId,
+        targetType: 'post',
+        details: { original_author: existingPost.user_id },
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent']
+      });
     }
 
     // Delete related reactions first
@@ -590,6 +636,11 @@ router.post('/:postId/react', auth, async (req: AuthRequest, res) => {
 
     if (!type) {
       return res.status(400).json({ error: 'Reaction type is required' });
+    }
+
+    const allowedReactions = ['puurga', 'like', 'laugh', 'fire', 'heart', 'joy', 'party', 'wow', 'thumbsup'];
+    if (!allowedReactions.includes(type)) {
+      return res.status(400).json({ error: 'Invalid reaction type', allowed: allowedReactions });
     }
 
     // Check if user already has a reaction on this post
@@ -661,7 +712,7 @@ router.post('/:postId/react', auth, async (req: AuthRequest, res) => {
           id: profile.id,
           name: profile.full_name || 'Unknown User',
           username: profile.username || 'unknown',
-          avatar: profile.avatar_url || ''
+          avatar: normalizeImageUrl(profile.avatar_url) || ''
         });
       }
     });

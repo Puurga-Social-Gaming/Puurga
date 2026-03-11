@@ -42,8 +42,8 @@ router.get('/suggestions', auth, async (req: AuthRequest, res) => {
     // Queries existing relations to exclude them
     const { data: friends, error: friendsError } = await supabase
       .from('friends')
-      .select('user_id, friend_id')
-      .or(`user_id.eq.${user.id},friend_id.eq.${user.id}`);
+      .select('user_id_1, user_id_2')
+      .or(`user_id_1.eq.${user.id},user_id_2.eq.${user.id}`);
 
     const { data: requests, error: requestsError } = await supabase
       .from('friend_requests')
@@ -74,7 +74,7 @@ router.get('/suggestions', auth, async (req: AuthRequest, res) => {
     const safeFriends = friends || [];
     const safeRequests = requests || [];
 
-    const friendIds = new Set(safeFriends.map(f => (f.user_id === user.id ? f.friend_id : f.user_id)));
+    const friendIds = new Set(safeFriends.map(f => (f.user_id_1 === user.id ? f.user_id_2 : f.user_id_1)));
     const requestMap = new Map();
     safeRequests.forEach(r => {
       const otherUserId = r.sender_id === user.id ? r.receiver_id : r.sender_id;
@@ -85,7 +85,16 @@ router.get('/suggestions', auth, async (req: AuthRequest, res) => {
     });
 
     // Step 2: Fetch all profiles, excluding the user and their existing friends.
-    const excludedIds = [user.id, ...Array.from(friendIds)];
+    // Also exclude pending and accepted requests from the friend_requests table.
+    const friendRequestIds = safeRequests
+      .filter(r => r.status === 'pending' || r.status === 'accepted')
+      .map(r => (r.sender_id === user.id ? r.receiver_id : r.sender_id));
+
+    const excludedIds = Array.from(new Set([
+      user.id,
+      ...Array.from(friendIds),
+      ...friendRequestIds
+    ]));
 
     // Build filter to exclude IDs - Supabase doesn't support .not('id', 'in', ...) easily for large lists
     // So we fetch all and filter client-side.
@@ -178,21 +187,21 @@ router.get('/accepted', auth, async (req: AuthRequest, res) => {
     }
 
     // Get all friends where user is either user_id or friend_id
-    const { data: friends, error } = await supabase
+    const { data: friends, error: friendsError } = await supabase
       .from('friends')
-      .select('friend_id, user_id')
-      .or(`user_id.eq.${user.id},friend_id.eq.${user.id}`);
+      .select('user_id_1, user_id_2')
+      .or(`user_id_1.eq.${user.id},user_id_2.eq.${user.id}`);
 
-    if (error) {
-      if ((error as any).code === '42P01' || (error as any).code === '42703') {
+    if (friendsError) {
+      if ((friendsError as any).code === '42P01' || (friendsError as any).code === '42703') {
         return res.json([]);
       }
-      throw error;
+      throw friendsError;
     }
 
     // Get the IDs of the user's friends (exclude self)
     const friendIds = (friends || [])
-      .map((f: any) => f.user_id === user.id ? f.friend_id : f.user_id)
+      .map((f: any) => f.user_id_1 === user.id ? f.user_id_2 : f.user_id_1)
       .filter((id: string) => id !== user.id);
 
     if (friendIds.length === 0) return res.json([]);
@@ -221,6 +230,65 @@ router.get('/accepted', auth, async (req: AuthRequest, res) => {
   } catch (error) {
     console.error('Error fetching accepted friends:', error);
     res.status(500).json({ error: 'Failed to fetch accepted friends' });
+  }
+});
+
+// Get friends' public stats
+router.get('/stats', auth, async (req: AuthRequest, res) => {
+  try {
+    const { user } = req;
+    if (!user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    // 1. Get all friends
+    const { data: friends, error: friendsError } = await supabase
+      .from('friends')
+      .select('user_id_1, user_id_2')
+      .or(`user_id_1.eq.${user.id},user_id_2.eq.${user.id}`);
+
+    if (friendsError) {
+      if ((friendsError as any).code === '42P01' || (friendsError as any).code === '42703') {
+        return res.json([]);
+      }
+      throw friendsError;
+    }
+
+    const friendIds = (friends || [])
+      .map((f: any) => f.user_id_1 === user.id ? f.user_id_2 : f.user_id_1)
+      .filter((id: string) => id !== user.id);
+
+    if (friendIds.length === 0) return res.json([]);
+
+    // 2. Fetch profiles for these friends including their credits and purge streaks
+    const { data: profiles, error: userError } = await supabase
+      .from('profiles')
+      .select('id, full_name, username, avatar_url, credits, purga_points, purge_streak, stats_public')
+      .in('id', friendIds)
+      .limit(50);
+
+    if (userError) {
+      if ((userError as any).code === '42P01' || (userError as any).code === '42703') {
+        return res.json([]);
+      }
+      throw userError;
+    }
+
+    // Normalize and return
+    const result = (profiles || []).map((p: any) => ({
+      id: p.id,
+      full_name: p.full_name,
+      username: p.username,
+      avatar_url: p.avatar_url,
+      credits: Number(p.purga_points ?? p.credits ?? 0),
+      purge_streak: p.purge_streak || 0,
+      stats_public: p.stats_public !== false
+    }));
+
+    res.json(result);
+  } catch (error) {
+    console.error('Error fetching friends stats:', error);
+    res.status(500).json({ error: 'Failed to fetch friends stats' });
   }
 });
 

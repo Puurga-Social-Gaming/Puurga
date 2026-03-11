@@ -9,7 +9,7 @@ interface AuthUser {
   full_name: string;
   email: string;
   username: string;
-  role: 'user' | 'admin' | 'super_admin' | 'business';
+  role: 'user' | 'admin' | 'super_admin' | 'superadmin' | 'business';
   is_private: boolean;
   hide_from_suggestions: boolean;
   message_requests: 'everyone' | 'followers' | 'none';
@@ -31,6 +31,8 @@ declare module 'express' {
   }
 }
 
+const JWT_SECRET = process.env.JWT_SECRET;
+
 export const auth = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const token = req.headers.authorization?.replace('Bearer ', '');
@@ -39,7 +41,7 @@ export const auth = async (req: Request, res: Response, next: NextFunction) => {
       return res.status(401).json({ message: 'No token provided' });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key') as { userId: string };
+    const decoded = jwt.verify(token, JWT_SECRET!) as { userId: string };
     
     // Fetch user data from Supabase
     const { data: user, error } = await supabase

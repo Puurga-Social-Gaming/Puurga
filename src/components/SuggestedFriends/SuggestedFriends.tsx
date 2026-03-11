@@ -34,18 +34,18 @@ const SuggestedFriends: React.FC = () => {
   const loadSuggestions = async () => {
     try {
       setLoading(true);
-      
+
       // Check if we have a token
       const token = localStorage.getItem('token');
       console.log('Token exists:', !!token);
-      
+
       if (!token) {
         console.warn('No authentication token found');
         setError('Authentication required');
         return;
       }
-      
-      const response = await api.get('/friends/suggestions');
+
+      const response = await api.get('friends/suggestions');
       setSuggestions(response.data);
       setError(''); // Clear any previous errors
     } catch (err) {
@@ -56,7 +56,7 @@ const SuggestedFriends: React.FC = () => {
         data: axiosError.response?.data,
         message: axiosError.message
       });
-      
+
       if (axiosError.response?.status === 401) {
         setError('Authentication failed');
         // Optionally redirect to login or refresh token
@@ -73,10 +73,10 @@ const SuggestedFriends: React.FC = () => {
       await api.post('/friend-requests/send', {
         receiverId: userId
       });
-      
+
       // Update the local state to show pending status
-      setSuggestions(prev => prev.map(user => 
-        user.id === userId 
+      setSuggestions(prev => prev.map(user =>
+        user.id === userId
           ? { ...user, requestStatus: 'pending' }
           : user
       ));
@@ -89,14 +89,14 @@ const SuggestedFriends: React.FC = () => {
 
       // Update the UI state based on the error
       if (axiosError.response?.data?.message === 'Friend request already exists') {
-        setSuggestions(prev => prev.map(user => 
-          user.id === userId 
+        setSuggestions(prev => prev.map(user =>
+          user.id === userId
             ? { ...user, requestStatus: 'pending' }
             : user
         ));
       } else if (axiosError.response?.data?.message === 'You are already friends with this user') {
-        setSuggestions(prev => prev.map(user => 
-          user.id === userId 
+        setSuggestions(prev => prev.map(user =>
+          user.id === userId
             ? { ...user, requestStatus: 'accepted' }
             : user
         ));
@@ -144,7 +144,7 @@ const SuggestedFriends: React.FC = () => {
                 )}
               </div>
               <div className="min-w-0">
-                <span 
+                <span
                   className="text-[var(--fg)] font-medium cursor-pointer hover:underline block truncate"
                   onClick={() => navigate(`/profile/${user.username}`)}
                 >

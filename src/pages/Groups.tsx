@@ -27,7 +27,6 @@ interface Group {
   };
 }
 
-
 const Groups: React.FC = () => {
   const navigate = useNavigate();
   const [groups, setGroups] = useState<Group[]>([]);
@@ -60,9 +59,7 @@ const Groups: React.FC = () => {
     }
   };
 
-  const handleCreateGroup = () => {
-    setIsCreateModalOpen(true);
-  };
+  const handleCreateGroup = () => setIsCreateModalOpen(true);
 
   const handleGroupCreated = async () => {
     try {
@@ -82,9 +79,7 @@ const Groups: React.FC = () => {
   }, [groups, filter]);
 
   const trendingGroups = useMemo(() => {
-    return [...groups]
-      .sort((a, b) => b.member_count - a.member_count)
-      .slice(0, 2);
+    return [...groups].sort((a, b) => b.member_count - a.member_count).slice(0, 2);
   }, [groups]);
 
   return (
@@ -94,54 +89,88 @@ const Groups: React.FC = () => {
       transition={{ duration: 0.5 }}
       className="min-h-screen bg-background p-4 sm:p-6"
     >
-      <div className="max-w-7xl mx-auto space-y-8">
-        <div className="flex flex-col lg:flex-row items-start justify-between gap-4 mb-6">
-          <h1 className="text-3xl font-bold text-foreground">Groups</h1>
-          <div className="flex items-center gap-2">
-            <FilterButton label="All" isActive={filter === 'all'} onClick={() => setFilter('all')} />
-            <FilterButton label="My Groups" isActive={filter === 'my-groups'} onClick={() => setFilter('my-groups')} />
-            <FilterButton label="Public" isActive={filter === 'public'} onClick={() => setFilter('public')} />
-            <FilterButton label="Private" isActive={filter === 'private'} onClick={() => setFilter('private')} />
-            <button 
-              onClick={handleCreateGroup}
-              className="ml-4 px-4 py-2 bg-accent text-white rounded-lg hover:bg-accent-hover transition-colors flex items-center gap-2"
-            >
-              <Plus size={18} />
-              <span className="hidden sm:inline">Create Group</span>
-            </button>
-          </div>
+      <div className="max-w-7xl mx-auto space-y-6">
+
+        {/* Header */}
+        <div className="flex items-center justify-between gap-3">
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Groups</h1>
+          <button
+            onClick={handleCreateGroup}
+            className="px-3 py-2 bg-accent text-white rounded-lg hover:bg-accent-hover transition-colors flex items-center gap-2 text-sm font-medium flex-shrink-0"
+          >
+            <Plus size={16} />
+            <span className="hidden sm:inline">Create Group</span>
+            <span className="sm:hidden">New</span>
+          </button>
+        </div>
+
+        {/* Filter Pills — horizontally scrollable on mobile */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0">
+          {(['all', 'my-groups', 'public', 'private'] as const).map((f) => (
+            <FilterButton
+              key={f}
+              label={f === 'my-groups' ? 'My Groups' : f.charAt(0).toUpperCase() + f.slice(1)}
+              isActive={filter === f}
+              onClick={() => setFilter(f)}
+            />
+          ))}
         </div>
 
         {loading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[...Array(6)].map((_, i) => <GroupCardSkeleton key={i} />)}
-          </div>
+          <>
+            {/* Mobile skeleton */}
+            <div className="md:hidden space-y-2">
+              {[...Array(5)].map((_, i) => <GroupCardSkeletonCompact key={i} />)}
+            </div>
+            {/* Desktop skeleton */}
+            <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {[...Array(6)].map((_, i) => <GroupCardSkeleton key={i} />)}
+            </div>
+          </>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             <div className="lg:col-span-9">
               {filteredGroups.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                  {filteredGroups.map((group) => <GroupCard key={group.id} group={group} onJoin={handleJoinGroup} />)}
-                </div>
+                <>
+                  {/* ── MOBILE: compact list ── */}
+                  <div className="flex flex-col gap-2 md:hidden">
+                    {filteredGroups.map((group, i) => (
+                      <motion.div
+                        key={group.id}
+                        initial={{ opacity: 0, x: -8 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: i * 0.04, duration: 0.25 }}
+                      >
+                        <GroupCardCompact group={group} onJoin={handleJoinGroup} />
+                      </motion.div>
+                    ))}
+                  </div>
+
+                  {/* ── DESKTOP: original card grid ── */}
+                  <div className="hidden md:grid md:grid-cols-2 xl:grid-cols-3 gap-6">
+                    {filteredGroups.map((group) => (
+                      <GroupCard key={group.id} group={group} onJoin={handleJoinGroup} />
+                    ))}
+                  </div>
+                </>
               ) : (
                 <div className="text-center py-16 bg-card rounded-xl">
                   <Users size={56} className="mx-auto text-muted mb-4" />
                   <h3 className="text-xl font-semibold text-foreground mb-2">No groups found</h3>
                   <p className="text-muted text-sm max-w-md mx-auto">
-                    We couldn't find any groups matching your criteria. Try adjusting your search or filters.
+                    We couldn't find any groups matching your criteria.
                   </p>
                   {filter !== 'all' && (
-                    <button
-                      onClick={() => setFilter('all')}
-                      className="mt-6 text-accent hover:underline font-medium"
-                    >
+                    <button onClick={() => setFilter('all')} className="mt-6 text-accent hover:underline font-medium">
                       Clear all filters
                     </button>
                   )}
                 </div>
               )}
             </div>
-            <div className="lg:col-span-3 space-y-6">
+
+            {/* Sidebar — hidden on mobile, visible on desktop */}
+            <div className="hidden lg:block lg:col-span-3 space-y-6">
               <div className="bg-card rounded-xl p-4">
                 <div className="flex items-center gap-2 mb-4">
                   <TrendingUp className="text-accent" size={20} />
@@ -149,10 +178,18 @@ const Groups: React.FC = () => {
                 </div>
                 <div className="space-y-3">
                   {trendingGroups.map(group => (
-                    <div key={group.id} className="flex items-center gap-3 cursor-pointer" onClick={() => navigate(`/groups/${group.id}`)}>
-                      <img src={group.profile_image_url || '/default-avatar.png'} alt={group.name} className="w-10 h-10 rounded-lg object-cover bg-card-secondary" />
-                      <div>
-                        <p className="font-semibold text-foreground text-sm">{group.name}</p>
+                    <div
+                      key={group.id}
+                      className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity"
+                      onClick={() => navigate(`/groups/${group.id}`)}
+                    >
+                      <img
+                        src={group.profile_image_url || '/default-avatar.png'}
+                        alt={group.name}
+                        className="w-10 h-10 rounded-lg object-cover bg-card-secondary flex-shrink-0"
+                      />
+                      <div className="min-w-0">
+                        <p className="font-semibold text-foreground text-sm truncate">{group.name}</p>
                         <p className="text-xs text-muted">{group.member_count} members</p>
                       </div>
                     </div>
@@ -164,7 +201,6 @@ const Groups: React.FC = () => {
         )}
       </div>
 
-      {/* Create Group Modal */}
       <CreateGroupModal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
@@ -174,36 +210,97 @@ const Groups: React.FC = () => {
   );
 };
 
-// Helper Components
+// ─── Filter Button ───────────────────────────────────────────────────────────
 const FilterButton: React.FC<{ label: string; isActive: boolean; onClick: () => void }> = ({ label, isActive, onClick }) => (
   <button
     onClick={onClick}
-    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-      isActive
-        ? 'bg-accent text-white'
-        : 'bg-card text-foreground hover:bg-card-hover'
+    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap flex-shrink-0 ${
+      isActive ? 'bg-accent text-white' : 'bg-card text-foreground hover:bg-card-hover'
     }`}
   >
     {label}
   </button>
 );
 
-const GroupCard: React.FC<{ group: Group; onJoin: (id: string) => void; }> = ({ group, onJoin }) => {
+// ─── Compact Mobile Card ─────────────────────────────────────────────────────
+const GroupCardCompact: React.FC<{ group: Group; onJoin: (id: string) => void }> = ({ group, onJoin }) => {
   const navigate = useNavigate();
   return (
-    <div 
+    <div
+      className="bg-card rounded-xl flex items-center gap-3 px-3 py-2.5 cursor-pointer active:scale-[0.99] transition-all duration-150 hover:bg-card-hover"
+      onClick={() => navigate(`/groups/${group.id}`)}
+    >
+      {/* Avatar */}
+      <div className="relative flex-shrink-0">
+        <img
+          src={group.profile_image_url || '/default-avatar.png'}
+          alt={group.name}
+          className="w-11 h-11 rounded-xl object-cover bg-card-secondary"
+        />
+        {group.is_member && (
+          <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-accent border-2 border-card" />
+        )}
+      </div>
+
+      {/* Info */}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-1.5">
+          <p className="text-sm font-semibold text-foreground truncate">{group.name}</p>
+          {group.is_private
+            ? <Lock size={10} className="text-muted flex-shrink-0" />
+            : <Globe size={10} className="text-muted flex-shrink-0" />
+          }
+        </div>
+        <div className="flex items-center gap-2 mt-0.5">
+          <span className="text-xs text-muted flex items-center gap-1">
+            <Users size={10} />
+            {group.member_count.toLocaleString()}
+          </span>
+          {group.description && (
+            <span className="text-xs text-muted truncate hidden xs:block">· {group.description}</span>
+          )}
+        </div>
+      </div>
+
+      {/* Action */}
+      <div className="flex-shrink-0" onClick={e => e.stopPropagation()}>
+        {group.is_member ? (
+          <button
+            onClick={() => navigate(`/groups/${group.id}`)}
+            className="px-3 py-1.5 bg-accent/10 text-accent rounded-lg text-xs font-semibold hover:bg-accent hover:text-white transition-colors"
+          >
+            View
+          </button>
+        ) : (
+          <button
+            onClick={() => onJoin(group.id)}
+            className="px-3 py-1.5 bg-card-secondary text-foreground rounded-lg text-xs font-semibold hover:bg-accent hover:text-white transition-colors"
+          >
+            Join
+          </button>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ─── Desktop Card (unchanged) ────────────────────────────────────────────────
+const GroupCard: React.FC<{ group: Group; onJoin: (id: string) => void }> = ({ group, onJoin }) => {
+  const navigate = useNavigate();
+  return (
+    <div
       className="bg-card rounded-xl overflow-hidden cursor-pointer shadow-theme-sm hover:shadow-theme-md transition-all duration-300 group"
       onClick={() => navigate(`/groups/${group.id}`)}
     >
-      <div 
+      <div
         className="h-32 bg-cover bg-center relative"
         style={{ backgroundImage: group.cover_image_url ? `url(${group.cover_image_url})` : 'none', backgroundColor: 'var(--card-secondary)' }}
       >
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
         <div className="absolute bottom-[-28px] left-4">
-          <img 
+          <img
             src={group.profile_image_url || '/default-avatar.png'}
-            alt={group.name} 
+            alt={group.name}
             className="w-16 h-16 rounded-xl object-cover bg-card border-4 border-card transition-transform duration-300 group-hover:scale-110"
           />
         </div>
@@ -212,23 +309,21 @@ const GroupCard: React.FC<{ group: Group; onJoin: (id: string) => void; }> = ({ 
         <h3 className="font-bold text-foreground truncate">{group.name}</h3>
         <p className="text-xs text-muted mb-3">{group.member_count} members</p>
         <p className="text-sm text-muted-light h-10 overflow-hidden text-ellipsis">{group.description || 'No description.'}</p>
-        
         <div className="flex items-center justify-between mt-3 text-xs text-muted">
           <div className="flex items-center gap-1">
             {group.is_private ? <Lock size={12} /> : <Globe size={12} />}
             <span>{group.is_private ? 'Private' : 'Public'}</span>
           </div>
         </div>
-
         {group.is_member ? (
-          <button 
+          <button
             onClick={(e) => { e.stopPropagation(); navigate(`/groups/${group.id}`); }}
             className="w-full mt-4 py-2 bg-accent text-white rounded-lg hover:bg-accent-hover transition-colors text-sm font-semibold"
           >
             View
           </button>
         ) : (
-          <button 
+          <button
             onClick={(e) => { e.stopPropagation(); onJoin(group.id); }}
             className="w-full mt-4 py-2 bg-card-secondary text-foreground rounded-lg hover:bg-accent hover:text-white transition-colors text-sm font-semibold"
           >
@@ -240,15 +335,27 @@ const GroupCard: React.FC<{ group: Group; onJoin: (id: string) => void; }> = ({ 
   );
 };
 
+// ─── Skeletons ───────────────────────────────────────────────────────────────
+const GroupCardSkeletonCompact: React.FC = () => (
+  <div className="bg-card rounded-xl flex items-center gap-3 px-3 py-2.5 animate-pulse">
+    <div className="w-11 h-11 rounded-xl bg-card-secondary flex-shrink-0" />
+    <div className="flex-1 space-y-2">
+      <div className="h-3.5 w-2/3 bg-card-secondary rounded" />
+      <div className="h-2.5 w-1/3 bg-card-secondary rounded" />
+    </div>
+    <div className="w-14 h-7 rounded-lg bg-card-secondary flex-shrink-0" />
+  </div>
+);
+
 const GroupCardSkeleton: React.FC = () => (
   <div className="bg-card rounded-xl overflow-hidden animate-pulse">
-    <div className="h-32 bg-card-secondary"></div>
+    <div className="h-32 bg-card-secondary" />
     <div className="p-4 pt-10">
-      <div className="h-5 w-3/4 bg-card-secondary rounded mb-2"></div>
-      <div className="h-3 w-1/4 bg-card-secondary rounded mb-3"></div>
-      <div className="h-4 w-full bg-card-secondary rounded"></div>
-      <div className="h-4 w-5/6 bg-card-secondary rounded mt-1"></div>
-      <div className="h-9 w-full bg-card-secondary rounded mt-4"></div>
+      <div className="h-5 w-3/4 bg-card-secondary rounded mb-2" />
+      <div className="h-3 w-1/4 bg-card-secondary rounded mb-3" />
+      <div className="h-4 w-full bg-card-secondary rounded" />
+      <div className="h-4 w-5/6 bg-card-secondary rounded mt-1" />
+      <div className="h-9 w-full bg-card-secondary rounded mt-4" />
     </div>
   </div>
 );

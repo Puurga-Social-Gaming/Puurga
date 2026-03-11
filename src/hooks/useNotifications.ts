@@ -114,6 +114,23 @@ export const useNotifications = () => {
           duration: 4000,
           position: 'top-right',
         });
+      } else if (notification.type === 'redemption') {
+        toast.success(`🌟 ${notification.fromUser.name} fully redeemed you from ghost mode!`, {
+          duration: 10000,
+          position: 'top-right',
+          icon: '✨'
+        });
+      } else if (notification.type === 'redemption_contribution') {
+        toast.success(`🤝 ${notification.fromUser.name} contributed to your redemption!`, {
+          duration: 6000,
+          position: 'top-right'
+        });
+      } else if (notification.type === 'friend_ghosted') {
+        toast.error(`👻 Oh no! ${notification.fromUser.name} has been ghosted! Help them out?`, {
+          duration: 10000,
+          position: 'top-right',
+          icon: '💀'
+        });
       } else {
         // Default notification for other types
         toast.success(`${notification.fromUser.name}: ${notification.type.replace('_', ' ')}`, {
