@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Shield, Zap, Target, Play, RotateCcw, Award, Info, ArrowLeft, Coins } from 'lucide-react';
+import { Shield, Zap, Target, Play, RotateCcw, Award, ArrowLeft, Coins } from 'lucide-react';
 import { useCredits } from '../hooks/useCredits';
 import { toast } from 'react-hot-toast';
 
@@ -42,15 +42,21 @@ const PathOfTheWatchman = () => {
     const [cooldowns, setCooldowns] = useState({ shield: 0, focus: 0 });
     const [combo, setCombo] = useState(0);
     const [finalCredits, setFinalCredits] = useState(0);
+    const [elapsedMs, setElapsedMs] = useState(0);
     const awardedRef = useRef(false);
+    const healthRef = useRef(100);
+    const canvasContainerRef = useRef<HTMLDivElement>(null);
+    const shakeTimeoutRef = useRef<number | null>(null);
+    const pausedRef = useRef(false);
 
     // Canvas Refs
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const requestRef = useRef<number>();
+    const pointerDownRef = useRef(false);
 
     // Game Engine Refs (Mutable data to avoid React render cycles)
     const engine = useRef<any>({
-        player: { x: 100, y: 250, vx: 0, vy: 0, targetY: 250 },
+        player: { x: 100, y: 250, vx: 0, vy: 0, targetX: 100, targetY: 250 },
         enemies: [],
         projectiles: [],
         particles: [],
@@ -59,11 +65,12 @@ const PathOfTheWatchman = () => {
         spawnTimer: 0,
         difficulty: 1,
         comboTimer: 0,
+        startTime: 0,
     });
 
     const resetEngine = () => {
         engine.current = {
-            player: { x: 100, y: 250, vx: 0, vy: 0, targetY: 250 },
+            player: { x: 100, y: 250, vx: 0, vy: 0, targetX: 100, targetY: 250 },
             enemies: [],
             projectiles: [],
             particles: [],
@@ -72,35 +79,54 @@ const PathOfTheWatchman = () => {
             spawnTimer: 0,
             difficulty: 1,
             comboTimer: 0,
+            startTime: performance.now(),
         };
         setScore(0);
         setHealth(100);
+        healthRef.current = 100;
         setCombo(0);
         setCooldowns({ shield: 0, focus: 0 });
         setShieldActive(false);
         setFocusActive(false);
+        setElapsedMs(0);
         awardedRef.current = false;
     };
+
+    useEffect(() => {
+        healthRef.current = health;
+    }, [health]);
 
     // --- Core Game Logic ---
 
     const spawnEnemy = (diff: number) => {
-        const typeRoll = Math.random() * diff;
+        const roll = Math.random();
+        const t = Math.min(1, diff / 10);
+
         let type = 'Walker';
         let hp = 1;
-        let speed = 2 + Math.random() * 2;
+        let speed = 2.0 + Math.random() * 1.8 + t * 0.8;
         let size = 25;
 
-        if (typeRoll > 4) {
-            type = 'Sentinel';
-            hp = 3;
-            speed = 1.5;
-            size = 40;
-        } else if (typeRoll > 2) {
+        if (roll < 0.08 + t * 0.08) {
+            type = 'Bomber';
+            hp = 2;
+            speed = 2.2 + t * 1.2;
+            size = 32;
+        } else if (roll < 0.18 + t * 0.12) {
+            type = 'Zigzag';
+            hp = 1;
+            speed = 2.4 + t * 1.3;
+            size = 22;
+        } else if (roll < 0.38 + t * 0.1) {
             type = 'Deceiver';
             hp = 1;
-            speed = 5;
+            speed = 4.8 + t * 1.6;
             size = 20;
+        } else if (roll < 0.52 + t * 0.1) {
+            type = 'Sentinel';
+            hp = 3;
+            speed = 1.6 + t * 0.4;
+            size = 40;
         }
 
         return {
@@ -110,11 +136,28 @@ const PathOfTheWatchman = () => {
             type,
             hp,
             maxHp: hp,
-            speed: speed,
+            speed,
             size,
-            color: type === 'Sentinel' ? '#374151' : '#4b5563'
+            zigzagPhase: Math.random() * Math.PI * 2,
+            nearMissCounted: false,
+            color: type === 'Sentinel' ? '#374151' : type === 'Bomber' ? '#374151' : '#4b5563'
         };
     };
+
+    const shake = useCallback((strength = 3) => {
+        const el = canvasContainerRef.current;
+        if (!el) return;
+        const x = (Math.random() * 2 - 1) * strength;
+        const y = (Math.random() * 2 - 1) * strength;
+        el.style.transform = `translate(${x}px, ${y}px)`;
+        if (shakeTimeoutRef.current) {
+            window.clearTimeout(shakeTimeoutRef.current);
+        }
+        shakeTimeoutRef.current = window.setTimeout(() => {
+            el.style.transform = 'none';
+            shakeTimeoutRef.current = null;
+        }, 70);
+    }, []);
 
     const createParticles = (x: number, y: number, color: string, count = 5) => {
         for (let i = 0; i < count; i++) {
@@ -235,6 +278,14 @@ const PathOfTheWatchman = () => {
             return;
         }
 
+        if (pausedRef.current) {
+            // Keep rendering without advancing simulation while the tab is blurred/hidden
+            engine.current.lastTime = time;
+            draw();
+            requestRef.current = requestAnimationFrame(update);
+            return;
+        }
+
         const dt = time - engine.current.lastTime;
         engine.current.lastTime = time;
         engine.current.frame++;
@@ -243,34 +294,58 @@ const PathOfTheWatchman = () => {
         const timeScale = focusActive ? 0.3 : 1.0;
 
         // Movement
+        const dx = e.player.targetX - e.player.x;
+        e.player.x += dx * 0.15;
         const dy = e.player.targetY - e.player.y;
         e.player.y += dy * 0.15;
 
-        e.difficulty = 1 + (e.frame / 1500);
+        const runMs = Math.max(0, time - (e.startTime || time));
+        const clampedRunMs = Math.min(GAME_CONFIG.RUN_TIME_MAX, runMs);
+        setElapsedMs(clampedRunMs);
+        e.difficulty = 1 + runMs / 8000;
+
+        if (runMs >= GAME_CONFIG.RUN_TIME_MAX) {
+            setGameState('GAMEOVER');
+        }
 
         // Spawning
         e.spawnTimer -= dt;
         if (e.spawnTimer <= 0) {
-            e.enemies.push(spawnEnemy(e.difficulty));
-            e.spawnTimer = Math.max(400, 1500 - (e.difficulty * 50));
+            const spawnCount = 1 + Math.floor(e.difficulty / 4);
+            for (let k = 0; k < spawnCount; k++) {
+                e.enemies.push(spawnEnemy(e.difficulty));
+            }
+            e.spawnTimer = Math.max(250, 1200 - (e.difficulty * 85));
         }
 
         // Update Enemies
         for (let i = e.enemies.length - 1; i >= 0; i--) {
             const enemy = e.enemies[i];
+            enemy.speed += (e.difficulty * 0.0005) * dt;
             enemy.x -= enemy.speed * timeScale;
             if (enemy.type === 'Deceiver') enemy.y += Math.sin(e.frame * 0.1) * 3;
+            if (enemy.type === 'Zigzag') {
+                enemy.y += Math.sin((e.frame * 0.12) + (enemy.zigzagPhase || 0)) * (4 + e.difficulty * 0.4);
+            }
 
+            const nearMissDist = enemy.size / 2 + GAME_CONFIG.PLAYER_SIZE / 2 + 26;
             const dist = Math.hypot(enemy.x - e.player.x, enemy.y - e.player.y);
+            if (!enemy.nearMissCounted && dist < nearMissDist && dist >= (enemy.size / 2 + GAME_CONFIG.PLAYER_SIZE / 2)) {
+                enemy.nearMissCounted = true;
+                setScore(s => s + 5);
+                shake(2);
+            }
+
             if (dist < (enemy.size / 2 + GAME_CONFIG.PLAYER_SIZE / 2)) {
                 if (shieldActive) {
                     createParticles(enemy.x, enemy.y, COLORS.accent, 10);
                     e.enemies.splice(i, 1);
                     setScore(s => s + 50);
                 } else {
+                    const damage = enemy.type === 'Sentinel' ? 20 : 10;
                     setHealth(h => {
-                        const next = h - (enemy.type === 'Sentinel' ? 20 : 10);
-                        if (next <= 0) {
+                        const next = Math.max(0, h - damage);
+                        if (next === 0) {
                             setGameState('GAMEOVER');
                         }
                         return next;
@@ -279,9 +354,31 @@ const PathOfTheWatchman = () => {
                     e.enemies.splice(i, 1);
                     setCombo(0);
                 }
-            } else if (enemy.x < -100) {
-                e.enemies.splice(i, 1);
+            } else {
+                const passedShooterX = e.player.x - (GAME_CONFIG.PLAYER_SIZE / 2) - (enemy.size / 2);
+                if (enemy.x < passedShooterX) {
+                    if (!shieldActive) {
+                        const damage = enemy.type === 'Sentinel' ? 12 : 6;
+                        setHealth(h => {
+                            const next = Math.max(0, h - damage);
+                            if (next === 0) {
+                                setGameState('GAMEOVER');
+                            }
+                            return next;
+                        });
+                        createParticles(e.player.x, e.player.y, '#ff4444', 8);
+                        shake(2);
+                        setCombo(0);
+                    }
+                    e.enemies.splice(i, 1);
+                } else if (enemy.x < -100) {
+                    e.enemies.splice(i, 1);
+                }
             }
+        }
+
+        if (e.enemies.length > 180) {
+            e.enemies.splice(0, e.enemies.length - 180);
         }
 
         // Update Projectiles
@@ -296,6 +393,21 @@ const PathOfTheWatchman = () => {
                     createParticles(p.x, p.y, COLORS.accent, 5);
                     hit = true;
                     if (enemy.hp <= 0) {
+                        if (enemy.type === 'Bomber') {
+                            for (let s = 0; s < 2; s++) {
+                                e.enemies.push({
+                                    ...spawnEnemy(Math.max(1, e.difficulty * 0.8)),
+                                    type: 'Deceiver',
+                                    hp: 1,
+                                    maxHp: 1,
+                                    size: 18,
+                                    speed: (enemy.speed || 3) + 1.5 + Math.random() * 1.5,
+                                    x: enemy.x + (Math.random() * 20 - 10),
+                                    y: enemy.y + (Math.random() * 20 - 10),
+                                });
+                            }
+                            shake(3);
+                        }
                         e.enemies.splice(j, 1);
                         setScore(s => s + (enemy.type === 'Sentinel' ? 300 : 100));
                         setCombo(c => c + 1);
@@ -370,16 +482,81 @@ const PathOfTheWatchman = () => {
         setGameState('PLAYING');
     };
 
-    const handleCanvasMove = (e: any) => {
+    const updatePointerTarget = useCallback((clientX: number, clientY: number) => {
         if (gameState !== 'PLAYING') return;
         const rect = canvasRef.current?.getBoundingClientRect();
         if (!rect) return;
-        const clientY = e.clientY || e.touches?.[0]?.clientY;
-        if (clientY !== undefined) {
-            const y = clientY - rect.top;
-            engine.current.player.targetY = Math.max(50, Math.min(GAME_CONFIG.HEIGHT - 50, y));
+
+        const x = clientX - rect.left;
+        const y = clientY - rect.top;
+
+        const half = GAME_CONFIG.PLAYER_SIZE / 2;
+        engine.current.player.targetX = Math.max(half, Math.min(GAME_CONFIG.WIDTH - half, x));
+        engine.current.player.targetY = Math.max(half, Math.min(GAME_CONFIG.HEIGHT - half, y));
+    }, [gameState]);
+
+    const handleCanvasMove = (e: any) => {
+        const clientX = e.clientX ?? e.touches?.[0]?.clientX;
+        const clientY = e.clientY ?? e.touches?.[0]?.clientY;
+        if (clientX === undefined || clientY === undefined) return;
+        updatePointerTarget(clientX, clientY);
+    };
+
+    const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
+        if (gameState !== 'PLAYING') return;
+        pointerDownRef.current = true;
+
+        // Prevent scroll/zoom gestures while interacting with the canvas
+        e.preventDefault();
+
+        // Capture pointer so dragging stays responsive even if finger leaves the canvas
+        try {
+            e.currentTarget.setPointerCapture(e.pointerId);
+        } catch {
+            // ignore
+        }
+
+        updatePointerTarget(e.clientX, e.clientY);
+    };
+
+    const handlePointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
+        if (gameState !== 'PLAYING') return;
+        if (e.pointerType === 'touch' && !pointerDownRef.current) return;
+        updatePointerTarget(e.clientX, e.clientY);
+    };
+
+    const handlePointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
+        if (gameState !== 'PLAYING') return;
+        pointerDownRef.current = false;
+
+        try {
+            e.currentTarget.releasePointerCapture(e.pointerId);
+        } catch {
+            // ignore
         }
     };
+
+    useEffect(() => {
+        if (gameState !== 'PLAYING') return;
+
+        const onMouseMove = (e: MouseEvent) => {
+            updatePointerTarget(e.clientX, e.clientY);
+        };
+
+        const onTouchMove = (e: TouchEvent) => {
+            const t = e.touches?.[0];
+            if (!t) return;
+            updatePointerTarget(t.clientX, t.clientY);
+        };
+
+        window.addEventListener('mousemove', onMouseMove);
+        window.addEventListener('touchmove', onTouchMove, { passive: true });
+
+        return () => {
+            window.removeEventListener('mousemove', onMouseMove);
+            window.removeEventListener('touchmove', onTouchMove);
+        };
+    }, [gameState, updatePointerTarget]);
 
     useEffect(() => {
         requestRef.current = requestAnimationFrame(update);
@@ -387,6 +564,43 @@ const PathOfTheWatchman = () => {
             if (requestRef.current) cancelAnimationFrame(requestRef.current);
         };
     }, [update]);
+
+    useEffect(() => {
+        const pause = () => {
+            if (gameState !== 'PLAYING') return;
+            pausedRef.current = true;
+        };
+
+        const resume = () => {
+            if (gameState !== 'PLAYING') return;
+            pausedRef.current = false;
+            engine.current.lastTime = performance.now();
+        };
+
+        const onVisibilityChange = () => {
+            if (document.hidden) pause();
+            else resume();
+        };
+
+        window.addEventListener('blur', pause);
+        window.addEventListener('focus', resume);
+        document.addEventListener('visibilitychange', onVisibilityChange);
+
+        return () => {
+            window.removeEventListener('blur', pause);
+            window.removeEventListener('focus', resume);
+            document.removeEventListener('visibilitychange', onVisibilityChange);
+        };
+    }, [gameState]);
+
+    useEffect(() => {
+        return () => {
+            if (shakeTimeoutRef.current) {
+                window.clearTimeout(shakeTimeoutRef.current);
+                shakeTimeoutRef.current = null;
+            }
+        };
+    }, []);
 
     // Award Credits Integration
     useEffect(() => {
@@ -454,6 +668,18 @@ const PathOfTheWatchman = () => {
                             <span className="text-[10px] text-gray-500 uppercase font-bold">Combo</span>
                             <span className="text-lg font-black leading-none" style={{ color: combo > 5 ? COLORS.accent : 'white' }}>x{combo}</span>
                         </div>
+                        <div className="flex flex-col">
+                            <span className="text-[10px] text-gray-500 uppercase font-bold">Time</span>
+                            <span className="text-sm font-black leading-none text-white">
+                                {String(Math.floor(elapsedMs / 60000)).padStart(2, '0')}:{String(Math.floor((elapsedMs % 60000) / 1000)).padStart(2, '0')}
+                            </span>
+                        </div>
+                        <div className="flex flex-col">
+                            <span className="text-[10px] text-gray-500 uppercase font-bold">Threat</span>
+                            <span className="text-sm font-black leading-none" style={{ color: COLORS.accent }}>
+                                {Math.min(99, Math.max(1, Math.floor(engine.current?.difficulty || 1)))}
+                            </span>
+                        </div>
                     </div>
                 </div>
                 <div className="text-right">
@@ -462,7 +688,16 @@ const PathOfTheWatchman = () => {
                 </div>
             </div>
 
-            <div className="relative group cursor-crosshair overflow-hidden rounded-2xl border border-gray-800 shadow-2xl">
+            <div
+                ref={canvasContainerRef}
+                className={`relative group overflow-hidden rounded-2xl border border-gray-800 shadow-2xl ${gameState === 'PLAYING' ? 'cursor-none' : 'cursor-crosshair'}`}
+                style={{
+                    touchAction: 'none',
+                    overscrollBehavior: 'contain',
+                    WebkitUserSelect: 'none',
+                    userSelect: 'none'
+                }}
+            >
                 <canvas
                     ref={canvasRef}
                     width={GAME_CONFIG.WIDTH}
@@ -470,7 +705,11 @@ const PathOfTheWatchman = () => {
                     onMouseMove={handleCanvasMove}
                     onTouchMove={handleCanvasMove}
                     onClick={handleAttack}
-                    className="max-w-full h-auto block bg-black"
+                    onPointerDown={handlePointerDown}
+                    onPointerMove={handlePointerMove}
+                    onPointerUp={handlePointerUp}
+                    onPointerCancel={handlePointerUp}
+                    className="max-w-full h-auto block bg-black touch-none"
                 />
 
                 {gameState === 'START' && (
@@ -510,10 +749,18 @@ const PathOfTheWatchman = () => {
             <div className="w-full max-w-[800px] mt-6 grid grid-cols-3 gap-4">
                 <CooldownButton icon={Shield} label="Shield Burst" progress={cooldowns.shield} onClick={triggerShield} />
                 <CooldownButton icon={Zap} label="Focus Mode" progress={cooldowns.focus} onClick={triggerFocus} />
-                <div className="p-4 rounded-xl border border-gray-800 bg-gray-900/50 flex flex-col justify-center items-center opacity-60">
-                    <Info size={20} className="text-gray-500 mb-1" />
-                    <span className="text-[10px] uppercase font-bold tracking-widest text-gray-500 text-center leading-none">Tap Canvas<br />to Attack</span>
-                </div>
+                <button
+                    onClick={handleAttack}
+                    disabled={gameState !== 'PLAYING'}
+                    className={`p-4 rounded-xl border flex flex-col justify-center items-center transition-all active:scale-95
+                    ${gameState !== 'PLAYING' ? 'border-gray-800 bg-gray-900 opacity-50' : 'border-orange-500/30 bg-orange-500/10 hover:bg-orange-500/20'}`}
+                    aria-label="Attack"
+                >
+                    <Target size={20} className={gameState !== 'PLAYING' ? 'text-gray-500 mb-1' : 'text-orange-400 mb-1'} />
+                    <span className={`text-[10px] uppercase font-bold tracking-widest text-center leading-none ${gameState !== 'PLAYING' ? 'text-gray-500' : 'text-orange-300'}`}>
+                        Attack
+                    </span>
+                </button>
             </div>
 
             <div className="mt-8 flex gap-6 items-center text-gray-600">

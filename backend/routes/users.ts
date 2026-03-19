@@ -752,7 +752,7 @@ router.post('/upload', auth, uploadHandler.array('images', 4), async (req: AuthR
 });
 
 // --- GET /api/proxy/image ---
-router.get('/proxy/image', async (req, res) => {
+router.get('/proxy/image', auth, async (req: AuthRequest, res) => {
   try {
     const { url } = req.query;
 
@@ -792,11 +792,13 @@ router.get('/proxy/image', async (req, res) => {
 });
 
 // --- POST /api/posts ---
-router.post('/posts', async (req, res) => {
+router.post('/posts', auth, async (req: AuthRequest, res) => {
   try {
-    const { user_id, content, images, media_layout } = req.body;
-    if (!user_id || !content) {
-      return res.status(400).json({ error: 'user_id and content are required' });
+    const { content, images, media_layout } = req.body;
+    const user_id = req.user.id; // Secure extraction
+
+    if (!content) {
+      return res.status(400).json({ error: 'content is required' });
     }
     // images is an array of URLs; store as comma-separated string
     const media_url = Array.isArray(images) ? images.join(',') : images || null;
@@ -813,7 +815,7 @@ router.post('/posts', async (req, res) => {
 });
 
 // --- GET /api/posts/feed ---
-router.get('/posts/feed', async (req, res) => {
+router.get('/posts/feed', auth, async (req: AuthRequest, res) => {
   try {
     // 1) Fetch posts
     const { data: posts, error: postsError } = await supabase

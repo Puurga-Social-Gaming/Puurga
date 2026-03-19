@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 
 interface FlyingGhostProps {
@@ -16,85 +16,14 @@ const FlyingGhost: React.FC<FlyingGhostProps> = ({
   initialX,
   initialY
 }) => {
-  const ghostRef = useRef<HTMLDivElement>(null);
-  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
-  const [targetPos, setTargetPos] = useState({ 
-    x: initialX || Math.random() * window.innerWidth, 
-    y: initialY || Math.random() * window.innerHeight 
-  });
-  const [isActive, setIsActive] = useState(false);
+  const [viewport, setViewport] = useState<{ w: number; h: number } | null>(null);
 
-  // Initialize ghost position
-  const ghostPos = { 
-    x: initialX || Math.random() * window.innerWidth, 
-    y: initialY || Math.random() * window.innerHeight 
-  };
-
-  // Mouse tracking
   useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      setMousePos({ x: e.clientX, y: e.clientY });
-    };
-
-    window.addEventListener('mousemove', handleMouseMove);
-    return () => window.removeEventListener('mousemove', handleMouseMove);
+    const readViewport = () => setViewport({ w: window.innerWidth, h: window.innerHeight });
+    readViewport();
+    window.addEventListener('resize', readViewport);
+    return () => window.removeEventListener('resize', readViewport);
   }, []);
-
-  // Ghost activation and movement logic
-  useEffect(() => {
-    if (!isActive) {
-      // Delay activation for random timing
-      const delay = Math.random() * 3000 + 500; // 0.5-3.5 seconds
-      const timer = setTimeout(() => setIsActive(true), delay);
-      return () => clearTimeout(timer);
-    }
-
-    // Movement interval
-    const moveInterval = setInterval(() => {
-      const rect = ghostRef.current?.getBoundingClientRect();
-      if (!rect) return;
-
-      const ghostCenter = {
-        x: rect.left + rect.width / 2,
-        y: rect.top + rect.height / 2
-      };
-
-      // Calculate distance to mouse
-      const distanceToMouse = Math.sqrt(
-        Math.pow(mousePos.x - ghostCenter.x, 2) +
-        Math.pow(mousePos.y - ghostCenter.y, 2)
-      );
-
-      // Mouse avoidance radius
-      const avoidanceRadius = 150;
-
-      let newTargetX = targetPos.x;
-      let newTargetY = targetPos.y;
-
-      if (distanceToMouse < avoidanceRadius) {
-        // Move away from mouse
-        const angle = Math.atan2(ghostCenter.y - mousePos.y, ghostCenter.x - mousePos.x);
-        const avoidanceDistance = (avoidanceRadius - distanceToMouse) * 0.5;
-        newTargetX = ghostCenter.x + Math.cos(angle) * avoidanceDistance;
-        newTargetY = ghostCenter.y + Math.sin(angle) * avoidanceDistance;
-      } else {
-        // Random movement when not avoiding mouse
-        if (Math.random() < 0.3) { // 30% chance to change direction
-          const randomAngle = Math.random() * Math.PI * 2;
-          const randomDistance = Math.random() * 200 + 50;
-          newTargetX = ghostCenter.x + Math.cos(randomAngle) * randomDistance;
-          newTargetY = ghostCenter.y + Math.sin(randomAngle) * randomDistance;
-        }
-      }
-
-      // Allow ghosts to float off screen - no constraints
-      // newTargetX and newTargetY can be anywhere
-
-      setTargetPos({ x: newTargetX, y: newTargetY });
-    }, 200 + Math.random() * 300); // Random interval 200-500ms (was 100-300ms)
-
-    return () => clearInterval(moveInterval);
-  }, [isActive, mousePos, targetPos]);
 
   const getSizeClasses = () => {
     switch (size) {
@@ -113,23 +42,48 @@ const FlyingGhost: React.FC<FlyingGhostProps> = ({
 
   const sizeClasses = getSizeClasses();
 
+  const seed = useMemo(() => {
+    return {
+      direction: Math.random() < 0.5 ? 'ltr' as const : 'rtl' as const,
+      duration: 14 + Math.random() * 12,
+      delay: Math.random() * 1.5,
+      y1: (initialY ?? 0) + (Math.random() * 160 - 80),
+      y2: (initialY ?? 0) + (Math.random() * 240 - 120),
+      y3: (initialY ?? 0) + (Math.random() * 200 - 100),
+      rotateA: 4 + Math.random() * 5,
+      rotateB: 6 + Math.random() * 7,
+    };
+  }, [initialY]);
+
+  if (!viewport) return null;
+
+  const baseY = typeof initialY === 'number'
+    ? initialY
+    : Math.max(40, Math.min(viewport.h - 40, Math.random() * viewport.h));
+
+  const startX = typeof initialX === 'number'
+    ? initialX
+    : (seed.direction === 'ltr' ? -220 : viewport.w + 220);
+
+  const endX = seed.direction === 'ltr'
+    ? viewport.w + 240
+    : -240;
+
   return (
     <motion.div
-      ref={ghostRef}
-      initial={{ x: ghostPos.x, y: ghostPos.y, opacity: 0, scale: 0.1 }}
+      initial={{ x: startX, y: baseY, opacity: 0, scale: 0.85 }}
       animate={{
-        x: targetPos.x,
-        y: targetPos.y,
-        opacity: isActive ? [0.3, 0.8, 0.6, 0.9] : 0,
-        scale: isActive ? [0.1, 0.8, 1.2, 1.0] : 0.1
+        x: endX,
+        y: [baseY, baseY + seed.y1, baseY + seed.y2, baseY + seed.y3, baseY],
+        opacity: [0, 0.95, 0.95, 0.95, 0],
+        scale: [0.9, 1, 0.98, 1.02, 0.95]
       }}
       transition={{
-        type: "spring",
-        stiffness: 50,
-        damping: 20,
-        mass: 1,
-        opacity: { duration: 2, ease: "easeInOut" },
-        scale: { duration: 1.5, ease: "easeOut" }
+        duration: seed.duration,
+        delay: seed.delay,
+        repeat: Infinity,
+        repeatDelay: 0,
+        ease: "linear"
       }}
       className="absolute pointer-events-none will-change-transform"
       style={{
@@ -142,19 +96,21 @@ const FlyingGhost: React.FC<FlyingGhostProps> = ({
       <motion.img
         src={ghostImage}
         alt="Floating ghost"
-        className={`${sizeClasses} object-contain opacity-95`}
+        className={`${sizeClasses} object-contain`}
         animate={{
-          rotate: [0, 5, -5, 0],
-          scale: [1, 1.05, 1, 1.02, 1]
+          rotate: [0, seed.rotateA, -seed.rotateB, 0],
+          y: [0, -10, 6, -4, 0]
         }}
         transition={{
-          rotate: { duration: 8 + Math.random() * 4, repeat: Infinity, ease: "easeInOut" },
-          scale: { duration: 6 + Math.random() * 3, repeat: Infinity, ease: "easeInOut" }
+          rotate: { duration: 10 + Math.random() * 6, repeat: Infinity, ease: "easeInOut" },
+          y: { duration: 6 + Math.random() * 4, repeat: Infinity, ease: "easeInOut" }
         }}
         style={{
-          filter: `drop-shadow(0 0 ${10 + id * 2}px rgba(255, 255, 255, 0.8))
-                  drop-shadow(0 0 ${20 + id * 3}px rgba(150, 150, 255, 0.4))`,
-          mixBlendMode: 'screen'
+          opacity: 0.98,
+          filter: `drop-shadow(0 0 ${14 + id * 2}px rgba(255, 255, 255, 0.95))
+                  drop-shadow(0 0 ${28 + id * 3}px rgba(180, 180, 255, 0.55))
+                  contrast(1.15) saturate(1.05)`,
+          mixBlendMode: 'normal'
         }}
         onError={(e) => {
           e.currentTarget.style.display = 'none';

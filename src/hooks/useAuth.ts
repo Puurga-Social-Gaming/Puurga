@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import { useUser } from '../context/UserContext';
 import { supabase } from '../lib/supabaseClient';
+import { websocketService } from '../services/websocketService';
 
 export const useAuth = () => {
   const [loading, setLoading] = useState(false);
@@ -300,6 +301,7 @@ export const useAuth = () => {
   const logout = useCallback(async () => {
     try {
       setLoading(true);
+      websocketService.disconnect();
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
 

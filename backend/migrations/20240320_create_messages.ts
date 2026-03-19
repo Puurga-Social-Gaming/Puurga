@@ -7,15 +7,15 @@ export async function up(queryInterface: QueryInterface) {
       defaultValue: DataTypes.UUIDV4,
       primaryKey: true
     },
-    sender_id: {
+    conversation_id: {
       type: DataTypes.UUID,
       allowNull: false,
       references: {
-        model: 'users',
+        model: 'conversations',
         key: 'id'
       }
     },
-    receiver_id: {
+    from_user_id: {
       type: DataTypes.UUID,
       allowNull: false,
       references: {
@@ -33,8 +33,8 @@ export async function up(queryInterface: QueryInterface) {
     }
   });
 
-  await queryInterface.addIndex('messages', ['sender_id']);
-  await queryInterface.addIndex('messages', ['receiver_id']);
+  await queryInterface.addIndex('messages', ['conversation_id']);
+  await queryInterface.addIndex('messages', ['from_user_id']);
 }
 
 export async function down(queryInterface: QueryInterface) {

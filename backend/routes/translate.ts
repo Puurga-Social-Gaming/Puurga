@@ -2,9 +2,11 @@ import express from 'express';
 import { TranslationService } from '../services/translationService';
 import { supabase } from '../config/supabase';
 
+import { supabaseAuth as auth, AuthRequest } from '../middleware/supabaseAuth';
+
 const router = express.Router();
 
-router.post('/', async (req, res) => {
+router.post('/', auth, async (req: AuthRequest, res) => {
     try {
         const { sourceType, sourceId, targetLanguage } = req.body;
 

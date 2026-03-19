@@ -1,4 +1,5 @@
 import api from './api';
+import { websocketService } from './websocketService';
 import type { User } from '../types';
 
 interface LoginCredentials {
@@ -29,6 +30,7 @@ export const authService = {
   },
 
   async logout(): Promise<void> {
+    websocketService.disconnect();
     localStorage.removeItem('token');
   },
 

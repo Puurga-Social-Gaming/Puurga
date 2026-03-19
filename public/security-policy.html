@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Security Notice</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0a0a0a;
+            color: #fff;
+            margin: 0;
+            padding: 40px 20px;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .container {
+            max-width: 600px;
+            background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+            border: 1px solid #333;
+            border-radius: 12px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.8);
+        }
+        h1 {
+            color: #ff4444;
+            margin-bottom: 20px;
+            font-size: 28px;
+            text-align: center;
+        }
+        .warning {
+            background: rgba(255, 68, 68, 0.1);
+            border: 1px solid #ff4444;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .warning h2 {
+            color: #ff6666;
+            margin-top: 0;
+        }
+        .info {
+            background: rgba(68, 136, 255, 0.1);
+            border: 1px solid #4488ff;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .info h2 {
+            color: #66aaff;
+            margin-top: 0;
+        }
+        code {
+            background: #000;
+            color: #0f0;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 30px;
+            color: #888;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>⚠️ Security Notice</h1>
+        
+        <div class="warning">
+            <h2>Stop!</h2>
+            <p>This is a browser feature intended for developers. If someone told you to copy and paste something here to enable a Puurga feature or "hack" someone's account, it is a scam and will give them access to your Puurga account.</p>
+            <p>See <a href="/security" style="color: #66aaff;">https://puurga.com/security</a> for more information.</p>
+        </div>
+
+        <div class="info">
+            <h2>For Developers</h2>
+            <p>If you're a legitimate developer trying to debug Puurga:</p>
+            <ul>
+                <li>Use the browser's DevTools Elements panel instead of console</li>
+                <li>Set <code>NODE_ENV=development</code> to disable console restrictions</li>
+                <li>Check the Network panel for API calls</li>
+                <li>Use React DevTools for component inspection</li>
+            </ul>
+        </div>
+
+        <div class="footer">
+            <p>This protection helps keep our users safe from malicious attacks.</p>
+            <p>© 2026 Puurga - Security First</p>
+        </div>
+    </div>
+</body>
+</html>

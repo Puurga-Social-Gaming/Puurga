@@ -242,7 +242,7 @@ const Messages: React.FC = () => {
           alt={conversation.participants[0]?.full_name || 'User'}
           size="md"
           userId={conversation.participants[0]?.id || ''}
-          showOnlineStatus={true}
+          showOnlineStatus={conversation.participants[0]?.show_online_status !== false}
         />
         {conversation.unread_count > 0 && (
           <div className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center">
@@ -396,28 +396,19 @@ const Messages: React.FC = () => {
                         className="flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all hover:bg-card-hover border border-transparent hover:border-border"
                       >
                         <div className="relative flex-shrink-0">
-                          <div className="w-12 h-12 rounded-full bg-background-secondary flex items-center justify-center overflow-hidden">
-                            {onlineUser.avatar_url ? (
-                              <img
-                                src={onlineUser.avatar_url}
-                                alt={onlineUser.full_name}
-                                className="w-full h-full object-cover"
-                              />
-                            ) : (
-                              <span className="text-foreground font-semibold">
-                                {onlineUser.full_name.charAt(0)}
-                              </span>
-                            )}
-                          </div>
-                          {onlineUser.isOnline && (
-                            <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-background"></div>
-                          )}
+                          <Avatar
+                            src={onlineUser.avatar_url || ''}
+                            alt={onlineUser.full_name}
+                            size="md"
+                            userId={onlineUser.id}
+                            showOnlineStatus={onlineUser.show_online_status !== false}
+                          />
                         </div>
-                        <div className="flex-1">
-                          <div className="font-semibold text-foreground text-sm">
+                        <div className="flex-1 min-w-0">
+                          <div className="font-semibold text-foreground text-sm truncate">
                             {onlineUser.full_name}
                           </div>
-                          <div className="text-xs text-muted">
+                          <div className="text-xs text-muted truncate">
                             @{onlineUser.username}
                           </div>
                         </div>
@@ -447,7 +438,7 @@ const Messages: React.FC = () => {
                   alt={currentConversation.participants[0]?.full_name || 'User'}
                   size="md"
                   userId={currentConversation.participants[0]?.id || ''}
-                  showOnlineStatus={true}
+                  showOnlineStatus={currentConversation.participants[0]?.show_online_status !== false}
                 />
                 <div>
                   <h3 className="font-semibold text-foreground text-sm">
@@ -495,7 +486,9 @@ const Messages: React.FC = () => {
               ) : (
                 messages.map((message, index) => {
                   // Use String() comparison to handle potential type mismatches
-                  const isFromCurrentUser = String(message.from_user_id) === String(user?.id);
+                  const isFromCurrentUser = typeof message.is_from_current_user === 'boolean'
+                    ? message.is_from_current_user
+                    : String(message.from_user_id) === String(user?.id);
                   const showAvatar = index === 0 || messages[index - 1]?.from_user_id !== message.from_user_id;
 
                   return (

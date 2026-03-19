@@ -39,6 +39,7 @@ import creditsRoutes from './routes/credits';
 import gamesRoutes from './routes/games';
 import purgingRoutes from './routes/purging';
 import superadminRoutes from './routes/superadmin';
+import securityRoutes from './routes/security';
 import { errorHandler } from './middleware/errorHandler';
 
 
@@ -55,7 +56,8 @@ app.use(helmet({
       styleSrc: ["'self'", "'unsafe-inline'"],
       imgSrc: ["'self'", 'data:', 'blob:', 'https://*.supabase.co', '*'],
       connectSrc: ["'self'", 'https://*.supabase.co', 'wss://*.supabase.co', 'ws://www.puurga.com', 'wss://www.puurga.com'],
-      fontSrc: ["'self'", 'data:', 'https://fonts.gstatic.com']
+      fontSrc: ["'self'", 'data:', 'https://fonts.gstatic.com'],
+      reportUri: '/api/security/csp-report'
     }
   },
   crossOriginEmbedderPolicy: false
@@ -197,6 +199,9 @@ app.use('/api/groups', groupsRoutes);
 
 // Use comments routes
 app.use('/api', commentsRoutes);
+
+// Use security routes
+app.use('/api/security', securityRoutes);
 
 // Use redemption routes
 app.use('/api/redeem', redemptionRoutes);

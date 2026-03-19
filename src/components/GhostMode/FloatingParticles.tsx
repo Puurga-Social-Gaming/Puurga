@@ -1,45 +1,44 @@
-import React, { useState, useEffect } from 'react';
+import React, { useMemo } from 'react';
 import { motion } from 'framer-motion';
 
 interface FloatingParticleProps {
+  id: number;
+  seed: {
+    duration: number;
+    delay: number;
+    startX: number;
+    startY: number;
+    endX: number;
+    endY: number;
+    size: number;
+  };
 }
 
-const FloatingParticle: React.FC<FloatingParticleProps> = () => {
-  const [position, setPosition] = useState({
-    x: Math.random() * window.innerWidth,
-    y: Math.random() * window.innerHeight
-  });
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setPosition(prev => ({
-        x: prev.x + (Math.random() - 0.5) * 20,
-        y: prev.y + (Math.random() - 0.5) * 20
-      }));
-    }, 2000 + Math.random() * 3000);
-
-    return () => clearInterval(interval);
-  }, []);
-
+const FloatingParticle: React.FC<FloatingParticleProps> = ({ seed }) => {
   return (
     <motion.div
-      className="absolute w-1 h-1 bg-white rounded-full opacity-60"
+      className="absolute rounded-full bg-white"
+      initial={{ x: seed.startX, y: seed.startY, opacity: 0, scale: 0.5 }}
       animate={{
-        x: position.x,
-        y: position.y,
-        opacity: [0.3, 0.8, 0.3],
-        scale: [0.5, 1, 0.5]
+        x: seed.endX,
+        y: seed.endY,
+        opacity: [0, 0.7, 0.7, 0.3, 0],
+        scale: [0.6, 1, 0.9, 0.7, 0.5]
       }}
       transition={{
-        duration: 4 + Math.random() * 2,
+        duration: seed.duration,
+        delay: seed.delay,
         repeat: Infinity,
-        ease: "easeInOut"
+        repeatDelay: 0,
+        ease: 'linear'
       }}
       style={{
         left: 0,
         top: 0,
-        filter: 'blur(0.5px)',
-        zIndex: 50
+        width: seed.size,
+        height: seed.size,
+        filter: 'blur(0.8px) brightness(1.6)',
+        zIndex: 12
       }}
     />
   );
@@ -49,11 +48,30 @@ interface FloatingParticlesProps {
   count?: number;
 }
 
-const FloatingParticles: React.FC<FloatingParticlesProps> = ({ count = 30 }) => {
+const FloatingParticles: React.FC<FloatingParticlesProps> = ({ count = 60 }) => {
+  const viewport = useMemo(() => ({ w: window.innerWidth, h: window.innerHeight }), []);
+
+  const seeds = useMemo(() => {
+    return Array.from({ length: count }, () => {
+      const dir = Math.random() < 0.5 ? 'ltr' : 'rtl';
+      const startX = dir === 'ltr' ? -10 : viewport.w + 10;
+      const endX = dir === 'ltr' ? viewport.w + 10 : -10;
+      return {
+        duration: 18 + Math.random() * 14,
+        delay: Math.random() * 4,
+        startX,
+        startY: Math.random() * viewport.h,
+        endX,
+        endY: Math.random() * viewport.h,
+        size: 1.5 + Math.random() * 2.5,
+      };
+    });
+  }, [count, viewport]);
+
   return (
-    <div className="absolute top-0 left-0 w-full h-full pointer-events-none overflow-hidden">
-      {Array.from({ length: count }, (_, i) => (
-        <FloatingParticle key={i} />
+    <div className="absolute inset-0 pointer-events-none overflow-hidden z-12">
+      {seeds.map((seed, index) => (
+        <FloatingParticle key={index} id={index} seed={seed} />
       ))}
     </div>
   );

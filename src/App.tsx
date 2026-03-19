@@ -19,8 +19,11 @@ import Messages from './pages/Messages';
 import PuurgaDashboard from './pages/PuurgaDashboard';
 import PurgaGames from './pages/PurgaGames/PurgaGames';
 import ErrorBoundary from './components/ErrorBoundary';
+import ConsoleGuard from './components/ConsoleGuard';
+import DevDetector from './components/DevDetector';
 import Settings from './pages/Settings/Settings';
 import Groups from './pages/Groups';
+import Security from './pages/Security';
 import GroupDetail from './pages/GroupDetail';
 import Help from './pages/Help';
 import NewGameCode from './pages/NewGameCode';
@@ -138,6 +141,7 @@ const router = createBrowserRouter(
         <Route path="/puurga-dashboard" element={<PuurgaDashboard />} />
         <Route path="/help" element={<Help />} />
         <Route path="/settings" element={<Settings />} />
+        <Route path="/security" element={<Security />} />
         <Route path="/profile/:username" element={<UserProfile />} />
         <Route path="/admin/users" element={<UserList />} />
         <Route path="/super-admin" element={
@@ -163,6 +167,8 @@ const App: React.FC = () => {
   return (
     <div className="min-h-screen bg-[var(--bg)] text-[var(--fg)]">
       <ErrorBoundary>
+        <ConsoleGuard />
+        <DevDetector />
         <UserProvider>
           <NotificationProvider>
             <NotificationsProvider>

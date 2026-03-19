@@ -54,10 +54,11 @@ router.get('/', auth, async (req, res) => {
     // Map notifications with fromUser object
     const mapped = safeNotifications.map(n => {
       const sender = profileMap.get(n.sender_id as string);
+      const read = (n.read ?? n.is_read ?? false) as boolean;
       return {
         id: n.id,
         type: n.type,
-        read: n.read,
+        read,
         createdAt: n.created_at,
         fromUser: {
           id: n.sender_id || '',
@@ -93,7 +94,7 @@ router.put('/read', auth, async (req, res) => {
 
     const { error } = await supabase
       .from('notifications')
-      .update({ read: true })
+      .update({ read: true, is_read: true })
       .in('id', notificationIds)
       .eq('receiver_id', req.user.id);
 
@@ -113,7 +114,7 @@ router.get('/unread/count', auth, async (req, res) => {
       .from('notifications')
       .select('*', { count: 'exact', head: true })
       .eq('receiver_id', req.user.id)
-      .eq('read', false);
+      .or('read.eq.false,is_read.eq.false');
 
     if (error) throw error;
 

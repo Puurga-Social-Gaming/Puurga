@@ -52,7 +52,22 @@ router.get('/feed', auth, async (req: AuthRequest, res) => {
     for (const u of usersTbl) usersMap.set(u.id, u);
 
 
-    // 4) Map posts with images and merged user object
+    // 4) Fetch comment counts for these posts
+    const postIds = safePosts.map(p => p.id).filter(Boolean);
+    const commentCounts = await Promise.all(
+      postIds.map(async (postId) => {
+        const { count } = await supabase
+          .from('comments')
+          .select('*', { count: 'exact', head: true })
+          .eq('post_id', postId);
+        return { postId, count: count || 0 };
+      })
+    );
+    const commentCountMap = new Map<string, number>();
+    for (const cc of commentCounts) commentCountMap.set(cc.postId, cc.count);
+
+
+    // 5) Map posts with images and merged user object
     const mapped = safePosts.map(post => {
       const prof = profileMap.get(post.user_id as string);
       const urow = usersMap.get(post.user_id as string);
@@ -94,8 +109,12 @@ router.get('/feed', auth, async (req: AuthRequest, res) => {
         }
       }
 
+      const commentCount = commentCountMap.get(post.id) ?? 0;
+
       return {
         ...post,
+        comments: commentCount,
+        comment_count: commentCount,
         images,
         user: {
           id: post.user_id,

@@ -64,7 +64,7 @@ router.get('/conversations', auth, async (req: AuthRequest, res) => {
     if (participantUserIds.length > 0) {
       const { data: profiles } = await supabase
         .from('profiles')
-        .select('id, full_name, username, avatar_url')
+        .select('id, full_name, username, avatar_url, show_online_status')
         .in('id', participantUserIds);
 
       if (profiles) {
@@ -84,10 +84,33 @@ router.get('/conversations', auth, async (req: AuthRequest, res) => {
           id: profile.id,
           full_name: profile.full_name || 'Unknown User',
           username: profile.username || 'unknown',
-          avatar_url: normalizeImageUrl(profile.avatar_url) || null
+          avatar_url: normalizeImageUrl(profile.avatar_url) || null,
+          show_online_status: Boolean((profile as any).show_online_status ?? true)
         });
       }
     });
+
+    // Bulk fetch unread counts for these conversations (to avoid N+1 problem)
+    const unreadCountsMap = new Map();
+    if (targetIds.length > 0) {
+      try {
+        const { data: unreadCounts, error: unreadError } = await supabase
+          .from('messages')
+          .select('conversation_id')
+          .in('conversation_id', targetIds)
+          .neq('from_user_id', user.id)
+          .eq('read', false);
+
+        if (!unreadError && unreadCounts) {
+          unreadCounts.forEach((msg: any) => {
+            unreadCountsMap.set(msg.conversation_id, (unreadCountsMap.get(msg.conversation_id) || 0) + 1);
+          });
+        }
+        // If unreadError (e.g. 'read' column doesn't exist), just leave counts at 0
+      } catch {
+        // Gracefully ignore - unread counts will be 0
+      }
+    }
 
     // Fetch latest messages for ALL conversations in one query (to avoid N+1 problem)
     const latestMessagesMap = new Map();
@@ -126,6 +149,7 @@ router.get('/conversations', auth, async (req: AuthRequest, res) => {
         latest_message = {
           content: latestMsg.content,
           created_at: latestMsg.created_at,
+          is_from_current_user: latestMsg.from_user_id === user.id,
           from_user: senderProfile ? {
             id: senderProfile.id,
             full_name: senderProfile.full_name || 'Unknown User',
@@ -139,7 +163,7 @@ router.get('/conversations', auth, async (req: AuthRequest, res) => {
         id: conv.id,
         participants,
         latest_message,
-        unread_count: 0,
+        unread_count: unreadCountsMap.get(conv.id) || 0,
         updated_at: conv.updated_at
       };
     });
@@ -198,6 +222,7 @@ router.get('/conversations/:conversationId/messages', auth, async (req: AuthRequ
       content: msg.content,
       created_at: msg.created_at,
       from_user_id: msg.from_user_id,
+      is_from_current_user: msg.from_user_id === user.id,
       from_user: {
         id: msg.profiles?.id || msg.from_user_id,
         full_name: msg.profiles?.full_name || 'Unknown User',
@@ -218,14 +243,17 @@ router.post('/conversations/:conversationId/messages', auth, async (req: AuthReq
   try {
     const { user } = req;
     const { conversationId } = req.params;
-    const { content } = req.body;
+    const { content, images } = req.body;
 
     if (!user) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    if (!content || typeof content !== 'string' || content.trim().length === 0) {
-      return res.status(400).json({ error: 'Message content is required' });
+    const hasContent = content && typeof content === 'string' && content.trim().length > 0;
+    const hasImages = Array.isArray(images) && images.length > 0;
+
+    if (!hasContent && !hasImages) {
+      return res.status(400).json({ error: 'Message content or images required' });
     }
 
     // Verify user is participant in this conversation
@@ -241,14 +269,21 @@ router.post('/conversations/:conversationId/messages', auth, async (req: AuthReq
     }
 
     // Insert the message
+    const insertData: any = {
+      conversation_id: conversationId,
+      from_user_id: user.id,
+      content: hasContent ? content.trim() : '',
+      created_at: new Date().toISOString()
+    };
+
+    // Only add images if the column exists and images are provided
+    if (hasImages) {
+      insertData.images = images;
+    }
+
     const { data: message, error } = await supabase
       .from('messages')
-      .insert({
-        conversation_id: conversationId,
-        from_user_id: user.id,
-        content: content.trim(),
-        created_at: new Date().toISOString()
-      })
+      .insert(insertData)
       .select(`
         id,
         content,
@@ -320,11 +355,13 @@ router.post('/conversations/:conversationId/messages', auth, async (req: AuthReq
       }
     }
 
-    const formattedMessage = {
+    const formattedMessage: any = {
       id: message.id,
       content: message.content,
       created_at: message.created_at,
       from_user_id: message.from_user_id,
+      is_from_current_user: message.from_user_id === user.id,
+      images: (message as any).images || [],
       from_user: {
         id: (message as any).profiles?.id || message.from_user_id,
         full_name: (message as any).profiles?.full_name || 'Unknown User',
@@ -535,7 +572,7 @@ router.get('/users/online', auth, async (req: AuthRequest, res) => {
     // Fetch profiles for these users
     const { data: users, error } = await supabase
       .from('profiles')
-      .select('id, full_name, username, avatar_url')
+      .select('id, full_name, username, avatar_url, show_online_status')
       .in('id', allUserIds)
       .limit(100);
 
@@ -551,7 +588,8 @@ router.get('/users/online', auth, async (req: AuthRequest, res) => {
       full_name: u.full_name || 'Unknown User',
       username: u.username || 'unknown',
       avatar_url: normalizeImageUrl(u.avatar_url),
-      isOnline: onlineUserIds.has(u.id)
+      show_online_status: Boolean(u.show_online_status ?? true),
+      isOnline: Boolean(u.show_online_status ?? true) ? onlineUserIds.has(u.id) : false
     }));
 
     // Sort: online -> friends -> others -> alphabetical
@@ -574,6 +612,115 @@ router.get('/users/online', auth, async (req: AuthRequest, res) => {
   } catch (error) {
     console.error('Error fetching users:', error);
     res.status(500).json({ error: 'Failed to fetch users' });
+  }
+});
+
+// Mark messages as read in a conversation
+router.put('/conversations/:conversationId/read', auth, async (req: AuthRequest, res) => {
+  try {
+    const { user } = req;
+    const { conversationId } = req.params;
+
+    if (!user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    // Verify user is participant in this conversation
+    const { data: participant, error: participantError } = await supabase
+      .from('conversation_participants')
+      .select('id')
+      .eq('conversation_id', conversationId)
+      .eq('user_id', user.id)
+      .single();
+
+    if (participantError || !participant) {
+      return res.status(403).json({ error: 'Not authorized to mark messages as read in this conversation' });
+    }
+
+    // Mark all unread messages from other users as read
+    // Gracefully handle missing 'read' column (table may not have it yet)
+    try {
+      const { error } = await supabase
+        .from('messages')
+        .update({ read: true })
+        .eq('conversation_id', conversationId)
+        .neq('from_user_id', user.id)
+        .eq('read', false);
+
+      if (error) {
+        // If the 'read' column doesn't exist, log and return success anyway
+        // PGRST204 = PostgREST "column not found in schema cache"
+        // 42703 = PostgreSQL "undefined column"
+        if (error.code === 'PGRST204' || error.code === '42703' || error.message?.includes('column') || error.message?.includes('schema cache')) {
+          console.warn('Mark-as-read: "read" column not available. Skipping silently.');
+          return res.json({ success: true, warning: 'read column not available' });
+        }
+        throw error;
+      }
+    } catch (dbError: any) {
+      // Gracefully handle column-not-found errors
+      if (dbError?.code === 'PGRST204' || dbError?.code === '42703' || dbError?.message?.includes('column') || dbError?.message?.includes('schema cache')) {
+        console.warn('Mark-as-read: "read" column not found. Skipping silently.');
+        return res.json({ success: true, warning: 'read column not available' });
+      }
+      throw dbError;
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error marking messages as read:', error);
+    res.status(500).json({ error: 'Failed to mark messages as read' });
+  }
+});
+
+// Typing indicator - also available under /api/messages/ prefix
+router.post('/conversations/:conversationId/typing', auth, async (req: AuthRequest, res) => {
+  try {
+    const { user } = req;
+    const { conversationId } = req.params;
+    const { isTyping } = req.body;
+
+    if (!user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    // Verify user is participant in this conversation
+    const { data: participant, error: participantError } = await supabase
+      .from('conversation_participants')
+      .select('user_id')
+      .eq('conversation_id', conversationId)
+      .eq('user_id', user.id)
+      .single();
+
+    if (participantError || !participant) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    // Get other participants to send typing indicator
+    const { data: otherParticipants } = await supabase
+      .from('conversation_participants')
+      .select('user_id')
+      .eq('conversation_id', conversationId)
+      .neq('user_id', user.id);
+
+    if (otherParticipants && otherParticipants.length > 0) {
+      const recipientIds = otherParticipants.map(p => p.user_id);
+      const typingMessage = {
+        type: 'typing' as const,
+        payload: {
+          conversationId,
+          userId: user.id,
+          isTyping: !!isTyping
+        }
+      };
+
+      wsManager.broadcastToUsers(recipientIds, typingMessage);
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error handling typing indicator:', error);
+    res.status(500).json({ error: 'Failed to send typing indicator' });
   }
 });
 

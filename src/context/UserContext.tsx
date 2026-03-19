@@ -1,6 +1,7 @@
-import React, { createContext, useContext, useState, ReactNode, useCallback } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useCallback, useEffect } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { useWebSocket } from '../hooks/useWebSocket';
+import { websocketService } from '../services/websocketService';
 
 // Types
 export interface User {
@@ -248,14 +249,16 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
     },
     onProfileUpdate: (payload) => {
       if (user && payload.userId === user.id) {
-        console.log('Global profile sync:', payload);
-        updateUser({
-          isGhost: payload.isGhost,
-          purgeCount: payload.purgeCount
-        });
+        console.log('Global profile update (ghost mode):', payload);
+        updateUser({ isGhost: payload.isGhost, purgeCount: payload.purgeCount });
       }
     }
   });
+
+  // Update websocketService when user changes (for message filtering)
+  useEffect(() => {
+    websocketService.setCurrentUserId(user?.id || null);
+  }, [user?.id]);
 
   const updateUser = useCallback((data: Partial<User>) => {
     setUser(prevUser => {

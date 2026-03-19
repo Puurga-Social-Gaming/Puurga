@@ -36,6 +36,7 @@ export async function createNotification(params: CreateNotificationParams) {
       sender_id: senderId,
       receiver_id: receiverId,
       read: false,
+      is_read: false,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     };

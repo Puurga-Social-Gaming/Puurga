@@ -300,7 +300,7 @@ router.post('/reset-password', async (req, res) => {
 });
 
 // Update password (after reset)
-router.post('/update-password', async (req, res) => {
+router.post('/update-password', supabaseAuth, async (req, res) => {
   try {
     const { password } = req.body;
 

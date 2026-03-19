@@ -1,12 +1,33 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 import api from '../../lib/axios';
-import { UserCheck, UserX, Heart, MessageCircle } from 'lucide-react';
+import { UserCheck, UserX, Heart, MessageCircle, Bell, Users, Gamepad2, Settings } from 'lucide-react';
 import Avatar from '../../components/Avatar';
 import { DEFAULT_IMAGES } from '../../constants/defaultImages';
 import { useNotifications } from '../../context/NotificationsContext';
+
+type FilterCategory = 'all' | 'messages' | 'social' | 'games' | 'system';
+
+const FILTER_CATEGORIES: { id: FilterCategory; label: string; icon: React.ReactNode }[] = [
+  { id: 'all', label: 'All', icon: <Bell size={16} /> },
+  { id: 'messages', label: 'Messages', icon: <MessageCircle size={16} /> },
+  { id: 'social', label: 'Social', icon: <Users size={16} /> },
+  { id: 'games', label: 'Games', icon: <Gamepad2 size={16} /> },
+  { id: 'system', label: 'System', icon: <Settings size={16} /> },
+];
+
+const getNotificationCategory = (type: string): FilterCategory => {
+  const messageTypes = ['message'];
+  const socialTypes = ['friend_request', 'friend_request_accepted', 'like', 'comment'];
+  const gameTypes = ['redemption', 'redemption_contribution', 'friend_ghosted', 'purge'];
+
+  if (messageTypes.includes(type)) return 'messages';
+  if (socialTypes.includes(type)) return 'social';
+  if (gameTypes.includes(type)) return 'games';
+  return 'system';
+};
 
 interface NotificationUser {
   id: string;
@@ -23,6 +44,12 @@ const Notifications: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { notifications, dismissNotifications } = useNotifications();
+  const [activeFilter, setActiveFilter] = useState<FilterCategory>('all');
+
+  const filteredNotifications = useMemo(() => {
+    if (activeFilter === 'all') return notifications;
+    return notifications.filter(n => getNotificationCategory(n.type) === activeFilter);
+  }, [notifications, activeFilter]);
 
   // Safe accessor for fromUser with defaults
   const getFromUser = (notification: Notification): NotificationUser => {
@@ -107,7 +134,7 @@ const Notifications: React.FC = () => {
     switch (notification.type) {
       case 'friend_request':
         return (
-          <div key={notification.id} className={`p-4 rounded-lg card-gradient border border-border ${notification.read ? '' : 'border-l-4 border-l-blue-500'}`}>
+          <div key={notification.id} className={`p-4 sm:p-5 rounded-lg card-gradient border border-border min-h-[56px] ${notification.read ? '' : 'border-l-4 border-l-blue-500'}`}>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <Avatar src={fromUser.avatar || DEFAULT_IMAGES.avatar} alt={fromUser.name} size="md" />
@@ -141,7 +168,7 @@ const Notifications: React.FC = () => {
                 {fromUser.username && (
                   <button
                     onClick={() => handleViewProfile(fromUser.username)}
-                    className="px-3 py-1 bg-background-secondary hover:bg-background-tertiary text-foreground rounded-lg text-sm"
+                    className="px-3 py-1 bg-background-secondary hover:bg-background-tertiary text-foreground rounded-lg text-sm min-w-[44px] min-h-[44px] flex items-center justify-center"
                   >
                     {t('notifications.viewProfile')}
                   </button>
@@ -153,7 +180,7 @@ const Notifications: React.FC = () => {
 
       case 'friend_request_accepted':
         return (
-          <div key={notification.id} onClick={() => handleNotificationClick(notification)} className={`p-4 rounded-lg cursor-pointer card-gradient border border-border ${notification.read ? '' : 'border-l-4 border-l-green-500'}`}>
+          <div key={notification.id} onClick={() => handleNotificationClick(notification)} className={`p-4 sm:p-5 rounded-lg cursor-pointer card-gradient border border-border min-h-[56px] ${notification.read ? '' : 'border-l-4 border-l-green-500'}`}>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <Avatar src={fromUser.avatar || DEFAULT_IMAGES.avatar} alt={fromUser.name} size="md" />
@@ -168,7 +195,7 @@ const Notifications: React.FC = () => {
               {fromUser.username && (
                 <button
                   onClick={(e) => { e.stopPropagation(); handleViewProfile(fromUser.username); }}
-                  className="px-3 py-1 bg-background-secondary hover:bg-background-tertiary text-foreground rounded-lg text-sm"
+                  className="px-3 py-1 bg-background-secondary hover:bg-background-tertiary text-foreground rounded-lg text-sm min-w-[44px] min-h-[44px] flex items-center justify-center"
                 >
                   View Profile
                 </button>
@@ -179,7 +206,7 @@ const Notifications: React.FC = () => {
 
       case 'like':
         return (
-          <div key={notification.id} onClick={() => handleNotificationClick(notification)} className={`p-4 rounded-lg cursor-pointer card-gradient border border-border ${notification.read ? '' : 'border-l-4 border-l-pink-500'}`}>
+          <div key={notification.id} onClick={() => handleNotificationClick(notification)} className={`p-4 sm:p-5 rounded-lg cursor-pointer card-gradient border border-border min-h-[56px] ${notification.read ? '' : 'border-l-4 border-l-pink-500'}`}>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="relative">
@@ -199,7 +226,7 @@ const Notifications: React.FC = () => {
               {fromUser.username && (
                 <button
                   onClick={(e) => { e.stopPropagation(); handleViewProfile(fromUser.username); }}
-                  className="px-3 py-1 bg-background-secondary hover:bg-background-tertiary text-foreground rounded-lg text-sm"
+                  className="px-3 py-1 bg-background-secondary hover:bg-background-tertiary text-foreground rounded-lg text-sm min-w-[44px] min-h-[44px] flex items-center justify-center"
                 >
                   View Profile
                 </button>
@@ -210,7 +237,7 @@ const Notifications: React.FC = () => {
 
       case 'comment':
         return (
-          <div key={notification.id} onClick={() => handleNotificationClick(notification)} className={`p-4 rounded-lg cursor-pointer card-gradient border border-border ${notification.read ? '' : 'border-l-4 border-l-orange-500'}`}>
+          <div key={notification.id} onClick={() => handleNotificationClick(notification)} className={`p-4 sm:p-5 rounded-lg cursor-pointer card-gradient border border-border min-h-[56px] ${notification.read ? '' : 'border-l-4 border-l-orange-500'}`}>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="relative">
@@ -230,7 +257,7 @@ const Notifications: React.FC = () => {
               {fromUser.username && (
                 <button
                   onClick={(e) => { e.stopPropagation(); handleViewProfile(fromUser.username); }}
-                  className="px-3 py-1 bg-background-secondary hover:bg-background-tertiary text-foreground rounded-lg text-sm"
+                  className="px-3 py-1 bg-background-secondary hover:bg-background-tertiary text-foreground rounded-lg text-sm min-w-[44px] min-h-[44px] flex items-center justify-center"
                 >
                   View Profile
                 </button>
@@ -241,7 +268,7 @@ const Notifications: React.FC = () => {
 
       case 'message':
         return (
-          <div key={notification.id} onClick={() => handleNotificationClick(notification)} className={`p-4 rounded-lg cursor-pointer card-gradient border border-border ${notification.read ? '' : 'border-l-4 border-l-purple-500'}`}>
+          <div key={notification.id} onClick={() => handleNotificationClick(notification)} className={`p-4 sm:p-5 rounded-lg cursor-pointer card-gradient border border-border min-h-[56px] ${notification.read ? '' : 'border-l-4 border-l-purple-500'}`}>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="relative">
@@ -261,7 +288,7 @@ const Notifications: React.FC = () => {
               {fromUser.username && (
                 <button
                   onClick={(e) => { e.stopPropagation(); handleViewProfile(fromUser.username); }}
-                  className="px-3 py-1 bg-background-secondary hover:bg-background-tertiary text-foreground rounded-lg text-sm"
+                  className="px-3 py-1 bg-background-secondary hover:bg-background-tertiary text-foreground rounded-lg text-sm min-w-[44px] min-h-[44px] flex items-center justify-center"
                 >
                   View Profile
                 </button>
@@ -286,11 +313,31 @@ const Notifications: React.FC = () => {
             <div className="flex items-center gap-3">
               <div>
                 <h1 className="text-xl sm:text-2xl font-bold text-foreground">{t('notifications.notifications')}</h1>
-                {notifications.filter(n => !n.read).length > 0 && (
-                  <p className="text-sm text-muted">{notifications.filter(n => !n.read).length} {t('notifications.unread')}</p>
+                {filteredNotifications.filter(n => !n.read).length > 0 && (
+                  <p className="text-sm text-muted">{filteredNotifications.filter(n => !n.read).length} {t('notifications.unread')}</p>
                 )}
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* Filter Bar - Horizontal Scroll */}
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 pb-3">
+          <div className="flex overflow-x-auto gap-2 scrollbar-hide -mx-4 px-4 sm:-mx-6 sm:px-6">
+            {FILTER_CATEGORIES.map((filter) => (
+              <button
+                key={filter.id}
+                onClick={() => setActiveFilter(filter.id)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all duration-200 min-h-[44px] ${
+                  activeFilter === filter.id
+                    ? 'bg-accent text-white'
+                    : 'bg-background-secondary text-muted hover:bg-background-tertiary'
+                }`}
+              >
+                {filter.icon}
+                <span>{filter.label}</span>
+              </button>
+            ))}
           </div>
         </div>
       </div>
@@ -299,13 +346,13 @@ const Notifications: React.FC = () => {
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-4xl mx-auto p-4 sm:p-6">
           <div className="space-y-3">
-            {notifications.length === 0 ? (
+            {filteredNotifications.length === 0 ? (
               <div className="text-center text-muted py-16 bg-card rounded-xl shadow-theme-sm">
                 <p className="text-lg">{t('notifications.noNotificationsYet')}</p>
                 <p className="text-sm text-muted-light mt-1">{t('notifications.interactionPrompt')}</p>
               </div>
             ) : (
-              notifications.map(notification => renderNotification(notification))
+              filteredNotifications.map(notification => renderNotification(notification))
             )}
           </div>
         </div>

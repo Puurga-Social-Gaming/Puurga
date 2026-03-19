@@ -34,9 +34,31 @@ class WebSocketService {
   private reconnectDelay = 1000;
   private listeners: Map<string, Set<(data: any) => void>> = new Map();
   private onlineUsers: Set<string> = new Set();
+  private currentUserId: string | null = null;
+  private lastToken: string | null = null;
 
   constructor() {
     this.connect();
+  }
+
+  public setCurrentUserId(userId: string | null) {
+    this.currentUserId = userId;
+    this.ensureConnected();
+  }
+
+  public ensureConnected() {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    // If token changed (account switch) reset connection state
+    if (this.lastToken && this.lastToken !== token) {
+      this.disconnect();
+    }
+
+    // Connect if not connected
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      this.connect();
+    }
   }
 
   private connect() {
@@ -45,6 +67,8 @@ class WebSocketService {
       console.warn('No token found, cannot connect to WebSocket');
       return;
     }
+
+    this.lastToken = token;
 
     try {
       // In development, connect directly to backend (Vite proxy doesn't handle WebSocket upgrades well)
@@ -95,6 +119,15 @@ class WebSocketService {
   }
 
   private handleMessage(message: WebSocketMessage) {
+    // For new_message type, validate that the message is not from the current user
+    if (message.type === 'new_message' && message.payload) {
+      const payload = message.payload as { conversationId: string; message: { fromUserId: string } };
+      // Skip messages from self - they were already added optimistically
+      if (this.currentUserId && payload.message?.fromUserId === this.currentUserId) {
+        return; // Don't emit to listeners - prevents duplicate/echo
+      }
+    }
+
     switch (message.type) {
       case 'notification':
         this.emit('notification', message.payload as NotificationPayload);
@@ -190,6 +223,7 @@ class WebSocketService {
     }
     this.listeners.clear();
     this.onlineUsers.clear();
+    this.lastToken = null;
   }
 
   public isConnected(): boolean {

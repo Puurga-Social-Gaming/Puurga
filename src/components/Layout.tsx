@@ -19,7 +19,10 @@ const Layout: React.FC = () => {
       )}
       {/* Left Sidebar - Hidden on mobile, visible on large screens */}
       <div className="hidden lg:flex lg:flex-shrink-0 lg:w-[220px] xl:w-[240px]">
-        <div className="fixed left-0 top-0 bottom-0 w-[220px] xl:w-[240px] bg-background overflow-y-auto z-40">
+        <div
+          className="fixed left-0 top-0 bottom-0 w-[220px] xl:w-[240px] bg-background overflow-y-auto z-40"
+          data-ghost-allow="true"
+        >
           <MainNav />
         </div>
       </div>
@@ -46,6 +49,7 @@ const Layout: React.FC = () => {
       {/* Mobile Bottom Navigation - Fixed to viewport, outside main flex container */}
       <div
         className="lg:hidden fixed bottom-0 left-0 right-0 bg-background border-t border-border z-[9999]"
+        data-ghost-allow="true"
         style={{
           position: 'fixed',
           transform: 'none',

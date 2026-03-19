@@ -1,6 +1,10 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Ghost, AlertTriangle, Coins, X } from 'lucide-react';
+import FlyingGhost from './FlyingGhost';
+import SpiderWebOverlay from './SpiderWebOverlay';
+import FloatingParticles from './FloatingParticles';
+import ExtraGhosts from './ExtraGhosts';
 
 interface GhostModeOverlayProps {
   purgeCount: number;
@@ -8,60 +12,75 @@ interface GhostModeOverlayProps {
   onRedeemed?: () => void;
 }
 
-const FlyingGhost: React.FC<{ delay: number; duration: number; startX: string; startY: string }> = ({ delay, duration, startX, startY }) => (
-  <motion.div
-    initial={{ x: startX, y: startY, opacity: 0, scale: 0.5 }}
-    animate={{
-      x: ["-10vw", "110vw"],
-      y: [startY, `calc(${startY} - 20vh)`, `calc(${startY} + 20vh)`],
-      opacity: [0, 0.8, 0],
-      scale: [0.5, 1.2, 0.5],
-      rotate: [0, 45, -45, 0]
-    }}
-    transition={{
-      duration: duration,
-      delay: delay,
-      repeat: Infinity,
-      ease: "easeInOut"
-    }}
-    className="absolute pointer-events-none z-0"
-  >
-    <Ghost size={48} className="text-gray-500/30 blur-sm" />
-  </motion.div>
-);
-
 const GhostModeOverlay: React.FC<GhostModeOverlayProps> = ({ purgeCount, ghostedAt }) => {
   const [dismissed, setDismissed] = useState(false);
+
+  const ghostSvgs = [
+    '/images/ghosts/ghost1.svg',
+    '/images/ghosts/ghost2.svg',
+    '/images/ghosts/ghost3.svg',
+    '/images/ghosts/ghost4.svg',
+    '/images/ghosts/ghost5.svg'
+  ];
 
   return (
     <>
       <div className={`fixed inset-0 z-[9999] transition-all duration-500 pointer-events-none`}>
         {/* Background Visuals - Always present but transparent when dismissed */}
-        <div className={`absolute inset-0 bg-black/95 backdrop-blur-sm transition-opacity duration-500 ${dismissed ? 'opacity-0 pointer-events-none' : 'opacity-100 pointer-events-auto'}`} />
-
-        {/* Flying Ghosts - Always visible, flying around */}
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <FlyingGhost delay={0} duration={15} startX="-10vw" startY="20vh" />
-          <FlyingGhost delay={5} duration={18} startX="-10vw" startY="50vh" />
-          <FlyingGhost delay={2} duration={20} startX="-10vw" startY="80vh" />
-          <FlyingGhost delay={8} duration={12} startX="-10vw" startY="30vh" />
-          <FlyingGhost delay={12} duration={25} startX="-10vw" startY="60vh" />
+        <div className="absolute inset-0 transition-opacity duration-500 opacity-100">
+          <div className={`absolute inset-0 bg-black/${dismissed ? '45' : '70'}`} />
+          <div className={`absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.08),transparent_55%),radial-gradient(circle_at_80%_70%,rgba(255,255,255,0.06),transparent_55%)] ${dismissed ? 'opacity-45' : 'opacity-65'}`} />
+          <div
+            className="absolute inset-0"
+            style={{
+              backdropFilter: dismissed ? 'grayscale(0.95) brightness(0.9) contrast(1.08)' : 'grayscale(1) brightness(0.82) contrast(1.12)'
+            }}
+          />
+          <div className={`ghost-grain absolute inset-0 mix-blend-overlay ${dismissed ? 'opacity-18' : 'opacity-28'}`} />
+          <div className={`ghost-vignette absolute inset-0 ${dismissed ? 'opacity-55' : 'opacity-8'}`} />
+          <div className={`ghost-flicker absolute inset-0 bg-black/10 ${dismissed ? 'opacity-40' : 'opacity-100'}`} />
         </div>
+
+        {/* Spiderwebs - gothic overlay */}
+        <SpiderWebOverlay />
+
+        {/* Flying Ghosts - Always visible throughout ghost mode */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none z-20">
+          <FlyingGhost id={1} ghostImage={ghostSvgs[0]} size="xlarge" initialY={90} />
+          <FlyingGhost id={2} ghostImage={ghostSvgs[1]} size="large" initialY={180} />
+          <FlyingGhost id={3} ghostImage={ghostSvgs[2]} size="large" initialY={320} />
+          <FlyingGhost id={4} ghostImage={ghostSvgs[3]} size="medium" initialY={420} />
+          <FlyingGhost id={5} ghostImage={ghostSvgs[4]} size="medium" initialY={540} />
+
+          <FlyingGhost id={6} ghostImage={ghostSvgs[0]} size="small" initialY={140} />
+          <FlyingGhost id={7} ghostImage={ghostSvgs[1]} size="small" initialY={260} />
+          <FlyingGhost id={8} ghostImage={ghostSvgs[2]} size="small" initialY={380} />
+          <FlyingGhost id={9} ghostImage={ghostSvgs[3]} size="small" initialY={480} />
+
+          <FlyingGhost id={10} ghostImage={ghostSvgs[Math.floor(Math.random() * ghostSvgs.length)]} size="medium" initialY={220} />
+          <FlyingGhost id={11} ghostImage={ghostSvgs[Math.floor(Math.random() * ghostSvgs.length)]} size="large" initialY={460} />
+        </div>
+
+        {/* Extra Ghosts (emoji fallbacks) - add more variety */}
+        <ExtraGhosts count={12} />
+
+        {/* Floating Particles (dust motes) */}
+        <FloatingParticles count={60} />
 
         {/* Modal Content - Only visible when NOT dismissed */}
         <AnimatePresence>
           {!dismissed && (
-            <div className="relative h-full w-full flex items-center justify-center p-4 pointer-events-auto">
+            <div className="relative h-full w-full flex items-center justify-center p-4 pointer-events-auto z-30">
               <motion.div
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.2 } }}
-                className="max-w-md w-full bg-gradient-to-br from-gray-900 to-black border-2 border-gray-700 rounded-2xl p-8 shadow-2xl relative"
+                className="max-w-md w-full bg-gradient-to-br from-[#0b0b0b] to-black border border-white/10 rounded-2xl p-8 shadow-2xl shadow-black/60 relative"
               >
                 {/* Close/Dismiss Button */}
                 <button
                   onClick={() => setDismissed(true)}
-                  className="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors"
+                  className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors"
                   aria-label="Dismiss Instructions"
                 >
                   <X size={24} />
@@ -79,57 +98,57 @@ const GhostModeOverlay: React.FC<GhostModeOverlayProps> = ({ purgeCount, ghosted
                       repeat: Infinity,
                       ease: "easeInOut"
                     }}
-                    className="bg-gray-800 p-6 rounded-full"
+                    className="bg-white/5 border border-white/10 p-6 rounded-full"
                   >
-                    <Ghost size={64} className="text-gray-400" />
+                    <Ghost size={64} className="text-gray-200" />
                   </motion.div>
                 </div>
 
                 {/* Title */}
-                <h1 className="text-3xl font-bold text-center text-gray-300 mb-2">
+                <h1 className="text-3xl font-black tracking-tighter uppercase italic text-center text-white mb-2">
                   Ghost Mode
                 </h1>
 
                 {/* Warning */}
                 <div className="flex items-center justify-center gap-2 mb-6">
-                  <AlertTriangle size={20} className="text-gray-500" />
-                  <p className="text-gray-500 text-sm">Account Frozen</p>
+                  <AlertTriangle size={20} className="text-gray-400" />
+                  <p className="text-gray-400 text-sm">Account Frozen</p>
                 </div>
 
                 {/* Message */}
-                <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-4 mb-6">
-                  <p className="text-gray-400 text-center text-sm leading-relaxed">
-                    Your account has been <span className="text-gray-300 font-semibold">frozen</span> after receiving{' '}
-                    <span className="text-red-400 font-bold">{purgeCount} purges</span> from other users.
+                <div className="bg-white/5 border border-white/10 rounded-xl p-4 mb-6">
+                  <p className="text-gray-200/80 text-center text-sm leading-relaxed">
+                    Your account has been <span className="text-white font-semibold">frozen</span> after receiving{' '}
+                    <span className="text-red-300 font-bold">{purgeCount} purges</span> from other users.
                   </p>
                 </div>
 
                 {/* Stats */}
                 <div className="grid grid-cols-2 gap-4 mb-6">
-                  <div className="bg-gray-800/30 border border-gray-700 rounded-lg p-3">
-                    <p className="text-gray-500 text-xs mb-1">Purge Count</p>
-                    <p className="text-gray-300 text-xl font-bold">{purgeCount}</p>
+                  <div className="bg-white/5 border border-white/10 rounded-xl p-3">
+                    <p className="text-gray-400 text-xs mb-1">Purge Count</p>
+                    <p className="text-white text-xl font-black">{purgeCount}</p>
                   </div>
-                  <div className="bg-gray-800/30 border border-gray-700 rounded-lg p-3">
-                    <p className="text-gray-500 text-xs mb-1">Status</p>
-                    <p className="text-gray-300 text-xl font-bold">Ghosted</p>
+                  <div className="bg-white/5 border border-white/10 rounded-xl p-3">
+                    <p className="text-gray-400 text-xs mb-1">Status</p>
+                    <p className="text-white text-xl font-black">Ghosted</p>
                   </div>
                 </div>
 
                 {/* Restrictions */}
-                <div className="bg-red-900/20 border border-red-800/50 rounded-lg p-4 mb-6">
-                  <h3 className="text-gray-300 font-semibold mb-2 text-sm">Restrictions:</h3>
-                  <ul className="text-gray-400 text-xs space-y-1">
-                    <li>• Cannot create posts</li>
-                    <li>• Cannot comment or react</li>
-                    <li>• Cannot send messages</li>
-                    <li>• Cannot interact with content</li>
-                    <li>• Navigation only mode</li>
+                <div className="bg-white/5 border border-white/10 rounded-xl p-4 mb-6">
+                  <h3 className="text-white font-semibold mb-2 text-sm">Restrictions:</h3>
+                  <ul className="text-gray-200/80 text-xs space-y-1">
+                    <li>Cannot create posts</li>
+                    <li>Cannot comment or react</li>
+                    <li>Cannot send messages</li>
+                    <li>Cannot interact with content</li>
+                    <li>Navigation only mode</li>
                   </ul>
                 </div>
 
                 {/* Redemption Info */}
-                <div className="bg-gradient-to-r from-orange-900/20 to-yellow-900/20 border border-orange-800/50 rounded-lg p-4 mb-6">
+                <div className="bg-gradient-to-r from-orange-900/20 to-yellow-900/20 border border-orange-500/20 rounded-xl p-4 mb-6">
                   <div className="flex items-center gap-2 mb-2">
                     <Coins size={20} className="text-orange-400" />
                     <h3 className="text-gray-300 font-semibold text-sm">How to Get Redeemed:</h3>
@@ -143,7 +162,7 @@ const GhostModeOverlay: React.FC<GhostModeOverlayProps> = ({ purgeCount, ghosted
                 {/* Enter Ghost World Button */}
                 <button
                   onClick={() => setDismissed(true)}
-                  className="w-full bg-gray-800 hover:bg-gray-700 text-gray-300 py-3 rounded-lg font-semibold transition-colors mb-4"
+                  className="w-full bg-white/10 hover:bg-white/15 text-white py-3 rounded-xl font-black uppercase tracking-widest transition-colors mb-4"
                 >
                   Enter Ghost World (View Only)
                 </button>
@@ -157,11 +176,34 @@ const GhostModeOverlay: React.FC<GhostModeOverlayProps> = ({ purgeCount, ghosted
           )}
         </AnimatePresence>
 
-        {/* Dark gloomy filter - Always Active */}
         <style>{`
-          body {
-            filter: grayscale(100%) brightness(0.75) contrast(1.05);
-            background: #0a0a0f !important;
+          .ghost-grain {
+            background-image:
+              repeating-linear-gradient(0deg, rgba(255,255,255,0.05) 0, rgba(255,255,255,0.05) 1px, transparent 1px, transparent 2px),
+              repeating-linear-gradient(90deg, rgba(0,0,0,0.05) 0, rgba(0,0,0,0.05) 1px, transparent 1px, transparent 3px);
+            animation: ghostGrain 8s steps(10) infinite;
+          }
+          .ghost-vignette {
+            background: radial-gradient(circle at 50% 40%, transparent 42%, rgba(0,0,0,0.55) 78%, rgba(0,0,0,0.80) 100%);
+          }
+          .ghost-flicker { animation: ghostFlicker 6.5s infinite; }
+          @keyframes ghostFlicker {
+            0%, 100% { opacity: 0.18; }
+            10% { opacity: 0.08; }
+            20% { opacity: 0.22; }
+            33% { opacity: 0.12; }
+            45% { opacity: 0.28; }
+            60% { opacity: 0.10; }
+            75% { opacity: 0.24; }
+            88% { opacity: 0.14; }
+          }
+          @keyframes ghostGrain {
+            0% { transform: translate3d(0,0,0); }
+            20% { transform: translate3d(-1%, 1%, 0); }
+            40% { transform: translate3d(1%, -1%, 0); }
+            60% { transform: translate3d(-1%, -1%, 0); }
+            80% { transform: translate3d(1%, 1%, 0); }
+            100% { transform: translate3d(0,0,0); }
           }
         `}</style>
       </div>

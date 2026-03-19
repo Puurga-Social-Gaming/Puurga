@@ -7,7 +7,7 @@ import { logSuperAdminAction } from '../utils/auditLogger';
 const router = express.Router();
 
 // GET /api/posts/:postId/comments - Get all comments for a post
-router.get('/posts/:postId/comments', async (req, res) => {
+router.get('/posts/:postId/comments', auth, async (req: AuthRequest, res) => {
   try {
     const { postId } = req.params;
 

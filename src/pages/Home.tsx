@@ -10,6 +10,8 @@ import { toast } from 'react-hot-toast';
 import { supabase } from '../lib/supabaseClient';
 import FloatingCreateButton from '../components/Post/FloatingCreateButton';
 import { useWebSocket } from '../hooks/useWebSocket';
+import { AnimatePresence, motion } from 'framer-motion';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import '../styles/neo-home.css';
 import RedeemUserButton from '../components/GhostMode/RedeemUserButton';
 
@@ -143,6 +145,7 @@ export default function Home() {
   const [expandedGame, setExpandedGame] = useState<string | null>(null);
   const [currentTipIndex, setCurrentTipIndex] = useState(0);
   const [userPoints, setUserPoints] = useState(0);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Games data
   const games = [
@@ -395,7 +398,10 @@ export default function Home() {
           {/* Mobile Two-Column Layout with Independent Scrolling */}
           <div className="lg:hidden flex h-[calc(100vh-6rem-env(safe-area-inset-top,0))]">
             {/* Left Column - Posts Feed (Wider) */}
-            <div className="flex-1 min-w-0 pr-2 overflow-y-auto scrollbar-hide">
+            <div 
+              className="flex-1 min-w-0 pr-2 overflow-y-auto scrollbar-hide"
+              style={{ overscrollBehavior: 'contain' }}
+            >
               <div className="neo-feed-mask">
                 {loading ? (
                   <div className="py-20 flex justify-center">
@@ -433,137 +439,171 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Separator Line */}
-            <div className="w-px bg-border/50" />
-
-            {/* Right Column - Games & Ghosted Friends (Responsive, Completely Sticky) */}
-            <div className="flex-shrink-0 pl-2 w-32 lg:w-1/3 xl:w-1/4">
-              <div className="sticky top-0 h-[calc(100vh-6rem-env(safe-area-inset-top,0))] space-y-4 pb-20 overflow-hidden pt-12">
-                {/* PUURGA GAMES Section - Enhanced with Professional Gradients */}
-                <div className="relative">
-                  {/* Subtle Gradient Background */}
-                  <div className="absolute inset-0 bg-gradient-to-br from-slate-700/20 via-gray-600/15 to-slate-800/20 dark:from-slate-800/30 dark:via-gray-700/25 dark:to-slate-900/30 rounded-xl blur-sm" />
-                  <div className="relative space-y-2 p-2 rounded-xl">
-                    {/* Creative Games Title with Points */}
-                    <div className="text-center mb-3">
-                      <h3 className="bg-gradient-to-r from-gray-600 via-gray-700 to-gray-800 dark:from-orange-400/90 dark:via-purple-500/90 dark:to-blue-500/90 bg-clip-text text-transparent font-bold text-xs tracking-wider uppercase">
-                        ARENA
-                      </h3>
-                      <div className="flex items-center justify-center gap-1 mt-1">
-                        <span className="text-yellow-600 dark:text-yellow-400 text-xs">⭐</span>
-                        <span className="text-yellow-700 dark:text-yellow-300 text-xs font-bold">{userPoints}</span>
-                        <span className="text-yellow-600 dark:text-yellow-400 text-xs">PTS</span>
-                      </div>
-                    </div>
-
-                    {games.map((game) => (
-                      <div key={game.id} className="space-y-1">
-                        <div
-                          onClick={() => setExpandedGame(expandedGame === game.id ? null : game.id)}
-                          className="relative group cursor-pointer transition-all duration-300"
-                        >
-                          {/* Subtle Glow Effect */}
-                          <div className="absolute inset-0 bg-gradient-to-r from-gray-500/20 dark:from-orange-500/30 to-purple-500/30 dark:to-purple-500/30 rounded-lg blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-
-                          {/* Game Card */}
-                          <div className="relative bg-gradient-to-br from-background/80 to-background/60 dark:from-background/80 dark:to-background/60 backdrop-blur-sm border border-gray-200/20 dark:border-transparent rounded-lg p-2 group-hover:border-gray-300/30 dark:group-hover:border-transparent transition-all duration-300">
-                            <div className={`aspect-square w-full mb-1 rounded overflow-hidden shadow-sm relative group-hover:scale-105 transition-transform duration-300`}>
-                              <img src={game.image} alt={game.name} className="w-full h-full object-cover" />
-                              <div className="absolute inset-0 bg-black/10 group-hover:bg-transparent transition-colors" />
-                            </div>
-                            <h4 className="font-bold text-gray-800 dark:text-foreground text-[10px] leading-tight text-center bg-gradient-to-r from-gray-700 to-gray-900 dark:from-white dark:to-gray-300 bg-clip-text text-transparent truncate">
-                              {game.name}
-                            </h4>
+            {/* Mobile Sidebar Drawer */}
+            <AnimatePresence>
+              {sidebarOpen && (
+                <>
+                  {/* Backdrop */}
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="fixed inset-0 bg-black/30 z-[54] lg:hidden"
+                    onClick={() => setSidebarOpen(false)}
+                  />
+                  {/* Sidebar Drawer */}
+                  <motion.div
+                    initial={{ x: '100%' }}
+                    animate={{ x: 0 }}
+                    exit={{ x: '100%' }}
+                    transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+                    className="fixed right-0 top-0 bottom-0 w-48 z-[55] lg:hidden overflow-hidden bg-background"
+                  >
+                    <div 
+                      className="h-full overflow-y-auto scrollbar-hide pt-20 pb-4"
+                      style={{ overscrollBehavior: 'contain' }}
+                    >
+                      {/* PUURGA GAMES Section - Enhanced with Professional Gradients */}
+                      <div className="relative">
+                        {/* Subtle Gradient Background */}
+                        <div className="absolute inset-0 bg-gradient-to-br from-slate-700/20 via-gray-600/15 to-slate-800/20 dark:from-slate-800/30 dark:via-gray-700/25 dark:to-slate-900/30 rounded-xl blur-sm" />
+                        <div className="relative space-y-2 p-2 rounded-xl">
+                          {/* Creative Games Title with Points */}
+                          <div className="text-center mb-3">
+                            <h3 className="bg-gradient-to-r from-gray-600 via-gray-700 to-gray-800 dark:from-orange-400/90 dark:via-purple-500/90 dark:to-blue-500/90 bg-clip-text text-transparent font-bold text-xs tracking-wider uppercase">
+                              ARENA
+                            </h3>
                             <div className="flex items-center justify-center gap-1 mt-1">
-                              <span className="text-yellow-600 dark:text-yellow-400 text-[8px]">⚡</span>
-                              <span className="text-yellow-700 dark:text-yellow-300 text-[8px]">{game.rating}</span>
+                              <span className="text-yellow-600 dark:text-yellow-400 text-xs">⭐</span>
+                              <span className="text-yellow-700 dark:text-yellow-300 text-xs font-bold">{userPoints}</span>
+                              <span className="text-yellow-600 dark:text-yellow-400 text-xs">PTS</span>
                             </div>
+                          </div>
+
+                          {games.map((game) => (
+                            <div key={game.id} className="space-y-1">
+                              <div
+                                onClick={() => setExpandedGame(expandedGame === game.id ? null : game.id)}
+                                className="relative group cursor-pointer transition-all duration-300"
+                              >
+                                {/* Subtle Glow Effect */}
+                                <div className="absolute inset-0 bg-gradient-to-r from-gray-500/20 dark:from-orange-500/30 to-purple-500/30 dark:to-purple-500/30 rounded-lg blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+
+                                {/* Game Card */}
+                                <div className="relative bg-gradient-to-br from-background/80 to-background/60 dark:from-background/80 dark:to-background/60 backdrop-blur-sm border border-gray-200/20 dark:border-transparent rounded-lg p-2 group-hover:border-gray-300/30 dark:group-hover:border-transparent transition-all duration-300">
+                                  <div className={`aspect-square w-full mb-1 rounded overflow-hidden shadow-sm relative group-hover:scale-105 transition-transform duration-300`}>
+                                    <img src={game.image} alt={game.name} className="w-full h-full object-cover" />
+                                    <div className="absolute inset-0 bg-black/10 group-hover:bg-transparent transition-colors" />
+                                  </div>
+                                  <h4 className="font-bold text-gray-800 dark:text-foreground text-[10px] leading-tight text-center bg-gradient-to-r from-gray-700 to-gray-900 dark:from-white dark:to-gray-300 bg-clip-text text-transparent truncate">
+                                    {game.name}
+                                  </h4>
+                                  <div className="flex items-center justify-center gap-1 mt-1">
+                                    <span className="text-yellow-600 dark:text-yellow-400 text-[8px]">⚡</span>
+                                    <span className="text-yellow-700 dark:text-yellow-300 text-[8px]">{game.rating}</span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {expandedGame === game.id && (
+                                <div className="px-1 pb-2 space-y-2 animate-in slide-in-from-top-2 duration-300">
+                                  <p className="text-xs text-gray-600 dark:text-muted/80 text-center italic">{game.description}</p>
+                                  <button
+                                    onClick={() => handleGameSelect(game.id)}
+                                    className="w-full px-2 py-1 bg-gradient-to-r from-orange-500 to-orange-600 text-white text-xs rounded-full font-medium hover:from-orange-600 hover:to-orange-700 transition-all duration-300 shadow-lg hover:shadow-orange-500/25"
+                                  >
+                                    PLAY NOW
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Game Tips Section - Rotating */}
+                      <div className="relative">
+                        <div className="absolute inset-0 bg-gradient-to-br from-gray-600/20 via-gray-500/15 to-slate-700/20 dark:from-green-600/20 dark:to-blue-600/20 rounded-xl blur-sm" />
+                        <div className="relative p-2 rounded-xl">
+                          <div className="text-center mb-2">
+                            <h3 className="bg-gradient-to-r from-gray-600 via-gray-700 to-gray-800 dark:from-green-400/90 dark:to-blue-500/90 bg-clip-text text-transparent font-bold text-xs tracking-wider uppercase">
+                              TIPS
+                            </h3>
+                          </div>
+                          <div className="bg-gradient-to-r from-background/60 to-background/40 dark:from-background/60 dark:to-background/40 backdrop-blur-sm border border-gray-200/10 dark:border-white/10 rounded-lg p-2">
+                            <p className="text-xs text-center text-gray-700 dark:text-muted/90 animate-in fade-in duration-1000">
+                              {gameTips[currentTipIndex]}
+                            </p>
                           </div>
                         </div>
+                      </div>
 
-                        {expandedGame === game.id && (
-                          <div className="px-1 pb-2 space-y-2 animate-in slide-in-from-top-2 duration-300">
-                            <p className="text-xs text-gray-600 dark:text-muted/80 text-center italic">{game.description}</p>
-                            <button
-                              onClick={() => handleGameSelect(game.id)}
-                              className="w-full px-2 py-1 bg-gradient-to-r from-orange-500 to-orange-600 text-white text-xs rounded-full font-medium hover:from-orange-600 hover:to-orange-700 transition-all duration-300 shadow-lg hover:shadow-orange-500/25"
-                            >
-                              PLAY NOW
-                            </button>
+                      {/* GHOSTED Section - Enhanced */}
+                      <div className="relative">
+                        <div className="absolute inset-0 bg-gradient-to-br from-gray-600/20 via-gray-500/15 to-slate-700/20 dark:from-red-600/20 dark:to-orange-600/20 rounded-xl blur-sm" />
+                        <div className="relative space-y-2 p-2 rounded-xl">
+                          <div className="text-center mb-2">
+                            <h3 className="bg-gradient-to-r from-gray-600 via-gray-700 to-gray-800 dark:from-red-400/90 dark:to-orange-500/90 bg-clip-text text-transparent font-bold text-xs tracking-wider uppercase">
+                              GHOSTED
+                            </h3>
                           </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
 
-                {/* Game Tips Section - Rotating */}
-                <div className="relative">
-                  <div className="absolute inset-0 bg-gradient-to-br from-gray-600/20 via-gray-500/15 to-slate-700/20 dark:from-green-600/20 dark:to-blue-600/20 rounded-xl blur-sm" />
-                  <div className="relative p-2 rounded-xl">
-                    <div className="text-center mb-2">
-                      <h3 className="bg-gradient-to-r from-gray-600 via-gray-700 to-gray-800 dark:from-green-400/90 dark:to-blue-500/90 bg-clip-text text-transparent font-bold text-xs tracking-wider uppercase">
-                        TIPS
-                      </h3>
-                    </div>
-                    <div className="bg-gradient-to-r from-background/60 to-background/40 dark:from-background/60 dark:to-background/40 backdrop-blur-sm border border-gray-200/10 dark:border-white/10 rounded-lg p-2">
-                      <p className="text-xs text-center text-gray-700 dark:text-muted/90 animate-in fade-in duration-1000">
-                        {gameTips[currentTipIndex]}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* GHOSTED Section - Enhanced */}
-                <div className="relative">
-                  <div className="absolute inset-0 bg-gradient-to-br from-gray-600/20 via-gray-500/15 to-slate-700/20 dark:from-red-600/20 dark:to-orange-600/20 rounded-xl blur-sm" />
-                  <div className="relative space-y-2 p-2 rounded-xl">
-                    <div className="text-center mb-2">
-                      <h3 className="bg-gradient-to-r from-gray-600 via-gray-700 to-gray-800 dark:from-red-400/90 dark:to-orange-500/90 bg-clip-text text-transparent font-bold text-xs tracking-wider uppercase">
-                        GHOSTED
-                      </h3>
-                    </div>
-
-                    {ghostedFriendsLoading ? (
-                      <div className="text-gray-600 dark:text-muted text-xs text-center py-2 animate-pulse">
-                        Loading...
-                      </div>
-                    ) : ghostedFriends.length === 0 ? (
-                      <div className="text-gray-600 dark:text-muted text-xs text-center py-2">
-                        None
-                      </div>
-                    ) : (
-                      <div className="space-y-1">
-                        {ghostedFriends.map((friend) => (
-                          <div key={friend.id} className="flex flex-col items-center p-2 hover:bg-gray-100/10 dark:hover:bg-white/5 rounded-lg transition-colors border border-transparent hover:border-red-500/20">
-                            <div className="relative">
-                              <img
-                                src={friend.avatarUrl || friend.avatar || '/default-avatar.png'}
-                                alt={friend.name || friend.fullName}
-                                className="w-10 h-10 rounded-full object-cover ring-2 ring-red-500/30"
-                              />
-                              <div className="absolute -top-1 -right-1 bg-gradient-to-r from-red-500 to-orange-500 text-white text-[8px] rounded-full w-4 h-4 flex items-center justify-center font-bold shadow-lg border border-background">
-                                {friend.purgeCount || 0}
-                              </div>
+                          {ghostedFriendsLoading ? (
+                            <div className="text-gray-600 dark:text-muted text-xs text-center py-2 animate-pulse">
+                              Loading...
                             </div>
-                            <p className="text-[10px] font-bold text-foreground mt-1 text-center truncate w-full">{friend.name || friend.fullName}</p>
-                            <p className="text-[9px] text-muted text-center truncate w-full">@{friend.username}</p>
-                            <div className="mt-2 w-full">
-                              <RedeemUserButton
-                                userId={friend.id}
-                                userName={friend.name || friend.fullName}
-                                isGhost={friend.isGhost ?? friend.is_ghost ?? true}
-                                onRedeemed={fetchGhostedFriends}
-                              />
+                          ) : ghostedFriends.length === 0 ? (
+                            <div className="text-gray-600 dark:text-muted text-xs text-center py-2">
+                              None
                             </div>
-                          </div>
-                        ))}
+                          ) : (
+                            <div className="space-y-1">
+                              {ghostedFriends.map((friend) => (
+                                <div key={friend.id} className="flex flex-col items-center p-2 hover:bg-gray-100/10 dark:hover:bg-white/5 rounded-lg transition-colors border border-transparent hover:border-red-500/20">
+                                  <div className="relative">
+                                    <img
+                                      src={friend.avatarUrl || friend.avatar || '/default-avatar.png'}
+                                      alt={friend.name || friend.fullName}
+                                      className="w-10 h-10 rounded-full object-cover ring-2 ring-red-500/30"
+                                    />
+                                    <div className="absolute -top-1 -right-1 bg-gradient-to-r from-red-500 to-orange-500 text-white text-[8px] rounded-full w-4 h-4 flex items-center justify-center font-bold shadow-lg border border-background">
+                                      {friend.purgeCount || 0}
+                                    </div>
+                                  </div>
+                                  <p className="text-[10px] font-bold text-foreground mt-1 text-center truncate w-full">{friend.name || friend.fullName}</p>
+                                  <p className="text-[9px] text-muted text-center truncate w-full">@{friend.username}</p>
+                                  <div className="mt-2 w-full">
+                                    <RedeemUserButton
+                                      userId={friend.id}
+                                      userName={friend.name || friend.fullName}
+                                      isGhost={friend.isGhost ?? friend.is_ghost ?? true}
+                                      onRedeemed={fetchGhostedFriends}
+                                    />
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
+                    </div>
+                  </motion.div>
+                </>
+              )}
+            </AnimatePresence>
+
+            {/* Floating Toggle Button - Always visible on mobile */}
+            <button
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              className="fixed right-3 top-1/2 -translate-y-1/2 z-[60] lg:hidden w-10 h-10 rounded-full bg-gradient-to-r from-orange-500 to-orange-600 flex items-center justify-center shadow-lg hover:shadow-orange-500/25 transition-all duration-300 hover:scale-110"
+            >
+              {sidebarOpen ? (
+                <ChevronLeft className="w-5 h-5 text-white" />
+              ) : (
+                <ChevronRight className="w-5 h-5 text-white" />
+              )}
+            </button>
           </div>
 
           {/* Desktop Layout - Original Single Column */}

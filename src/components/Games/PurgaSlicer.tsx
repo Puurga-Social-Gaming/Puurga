@@ -12,6 +12,11 @@ interface GameObject {
   velocity: THREE.Vector3;
   angularVelocity: number;
   isCorruption: boolean;
+  isCursed?: boolean;
+  baseScale: number;
+  pulseAmp: number;
+  pulseFreq: number;
+  pulsePhase: number;
   id: string;
   sliced: boolean;
 }
@@ -44,10 +49,24 @@ const PurgaSlicer: React.FC<PurgaSlicerProps> = ({ className }) => {
   const [timeLeft, setTimeLeft] = useState(30);
   const [showSettings, setShowSettings] = useState(false);
   const [creditsEarned, setCreditsEarned] = useState(0);
-  const [selectedBackground, setSelectedBackground] = useState('obsidian_ember');
+  const [selectedBackground, setSelectedBackground] = useState('sheol_embers');
   const [customBgUrl, setCustomBgUrl] = useState<string | null>(null);
-  const [selectedBlade, setSelectedBlade] = useState('ember');
+  const [selectedBlade, setSelectedBlade] = useState('blade_of_valor');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const normalizeBackgroundId = (bgId: string) => {
+    if (bgId === 'molten_gate') return 'gates_of_zion';
+    if (bgId === 'ashen_temple') return 'temple_ruins';
+    if (bgId === 'obsidian_ember') return 'sheol_embers';
+    return bgId;
+  };
+
+  const normalizeBladeId = (bladeId: string) => {
+    if (bladeId === 'ember') return 'blade_of_valor';
+    if (bladeId === 'obsidian') return 'goliaths_edge';
+    if (bladeId === 'seraph') return 'seraphs_song';
+    return bladeId;
+  };
 
   useEffect(() => {
     livesRef.current = lives;
@@ -58,10 +77,19 @@ const PurgaSlicer: React.FC<PurgaSlicerProps> = ({ className }) => {
   }, [combo]);
 
   useEffect(() => {
-    const storedBg = localStorage.getItem('perga_bg') || 'obsidian_ember';
-    const storedBlade = localStorage.getItem('perga_blade') || 'ember';
-    const storedOwned = localStorage.getItem('perga_owned_backgrounds') || 'obsidian_ember';
+    const storedBg = normalizeBackgroundId(localStorage.getItem('perga_bg') || 'sheol_embers');
+    const storedBlade = normalizeBladeId(localStorage.getItem('perga_blade') || 'blade_of_valor');
+    const storedOwned = (localStorage.getItem('perga_owned_backgrounds') || 'sheol_embers')
+      .split(',')
+      .map(normalizeBackgroundId)
+      .filter(Boolean)
+      .join(',');
     const storedCustomBg = localStorage.getItem('perga_custom_bg');
+
+    const storedOwnedBlades = (localStorage.getItem('perga_owned_blades') || 'blade_of_valor')
+      .split(',')
+      .map(normalizeBladeId)
+      .filter(Boolean);
 
     if (storedCustomBg) {
       setCustomBgUrl(storedCustomBg);
@@ -70,6 +98,11 @@ const PurgaSlicer: React.FC<PurgaSlicerProps> = ({ className }) => {
     ownedBackgroundsRef.current = new Set(storedOwned.split(',').filter(Boolean));
     setSelectedBackground(storedBg);
     setSelectedBlade(storedBlade);
+
+    localStorage.setItem('perga_bg', storedBg);
+    localStorage.setItem('perga_blade', storedBlade);
+    localStorage.setItem('perga_owned_backgrounds', Array.from(ownedBackgroundsRef.current).join(','));
+    localStorage.setItem('perga_owned_blades', Array.from(new Set(storedOwnedBlades)).join(','));
   }, []);
 
   useEffect(() => {
@@ -126,9 +159,10 @@ const PurgaSlicer: React.FC<PurgaSlicerProps> = ({ className }) => {
     };
 
     const getBgPalette = (bgId: string) => {
-      if (bgId === 'molten_gate') return { top: '#140a00', bottom: '#000000' };
-      if (bgId === 'ashen_temple') return { top: '#0b0b0b', bottom: '#000000' };
-      return { top: '#0a0a0a', bottom: '#000000' };
+      if (bgId === 'gates_of_zion') return { top: '#140a00', bottom: '#000000' };
+      if (bgId === 'temple_ruins') return { top: '#0b0b0b', bottom: '#000000' };
+      if (bgId === 'sheol_embers') return { top: '#090909', bottom: '#000000' };
+      return { top: '#090909', bottom: '#000000' };
     };
 
     let bgMaterial;
@@ -150,10 +184,30 @@ const PurgaSlicer: React.FC<PurgaSlicerProps> = ({ className }) => {
     scene.add(bgPlane);
 
     const bladeTrailColor = (bladeId: string) => {
-      if (bladeId === 'ember') return 'rgba(255, 122, 24, 0.9)';
-      if (bladeId === 'obsidian') return 'rgba(200, 200, 200, 0.85)';
-      if (bladeId === 'seraph') return 'rgba(255, 180, 80, 0.95)';
+      if (bladeId === 'blade_of_valor') return 'rgba(255, 122, 24, 0.9)';
+      if (bladeId === 'goliaths_edge') return 'rgba(220, 220, 220, 0.9)';
+      if (bladeId === 'seraphs_song') return 'rgba(255, 180, 80, 0.95)';
       return 'rgba(255, 122, 24, 0.9)';
+    };
+
+    const bladeConfig = (bladeId: string) => {
+      if (bladeId === 'goliaths_edge') {
+        return { scoreMult: 1.25, cursePenaltyMult: 1.1, corruptionDamage: 1 };
+      }
+      if (bladeId === 'seraphs_song') {
+        return { scoreMult: 1.1, cursePenaltyMult: 0.9, corruptionDamage: 0.75 };
+      }
+      return { scoreMult: 1.0, cursePenaltyMult: 1.0, corruptionDamage: 1 };
+    };
+
+    const backgroundConfig = (bgId: string) => {
+      if (bgId === 'gates_of_zion') {
+        return { corruptionChance: 0.14, cursedChance: 0.12, basePoints: 16 };
+      }
+      if (bgId === 'temple_ruins') {
+        return { corruptionChance: 0.22, cursedChance: 0.18, basePoints: 18 };
+      }
+      return { corruptionChance: 0.18, cursedChance: 0.14, basePoints: 15 };
     };
 
     const createEmojiTexture = (emoji: string) => {
@@ -174,12 +228,17 @@ const PurgaSlicer: React.FC<PurgaSlicerProps> = ({ className }) => {
 
     const goodIcons = ['🍊', '🍎', '🍇', '🍉', '🍒', '🔥', '❤️', '✨', '📸', '💬', '🎵', '🎮', '⚡'];
     const badIcons = ['💣', '☠️', '🚫', '🧨'];
+    const cursedIcons = ['🕳️', '🧿', '🪦', '⛓️', '🩸', '🕯️'];
 
     const createLaunchObject = (forceCorruption?: boolean) => {
-      const isCorruption = typeof forceCorruption === 'boolean' ? forceCorruption : Math.random() < 0.18;
+      const bgCfg = backgroundConfig(selectedBackground);
+      const isCorruption = typeof forceCorruption === 'boolean' ? forceCorruption : Math.random() < bgCfg.corruptionChance;
+      const isCursed = !isCorruption && Math.random() < bgCfg.cursedChance;
       const emoji = isCorruption
         ? badIcons[Math.floor(Math.random() * badIcons.length)]
-        : goodIcons[Math.floor(Math.random() * goodIcons.length)];
+        : isCursed
+          ? cursedIcons[Math.floor(Math.random() * cursedIcons.length)]
+          : goodIcons[Math.floor(Math.random() * goodIcons.length)];
 
       const texture = createEmojiTexture(emoji);
       const spriteMaterial = new THREE.SpriteMaterial({ map: texture, transparent: true });
@@ -187,8 +246,12 @@ const PurgaSlicer: React.FC<PurgaSlicerProps> = ({ className }) => {
 
       const startX = (Math.random() - 0.5) * (aspect * viewSize * 1.7);
       sprite.position.set(startX, -viewSize - 0.8, 0);
-      const scale = (isCorruption ? 1.4 : 1.5) + Math.random() * 0.4;
-      sprite.scale.set(scale, scale, 1);
+      const baseScale = (isCorruption ? 1.35 : 1.45) + Math.random() * 0.55;
+      sprite.scale.set(baseScale, baseScale, 1);
+
+      const pulseAmp = 0.05 + Math.random() * 0.13;
+      const pulseFreq = 2.0 + Math.random() * 4.5;
+      const pulsePhase = Math.random() * Math.PI * 2;
 
       const vx = (Math.random() - 0.5) * 4;
       const vy = 16 + Math.random() * 6; // Increased from 12.5 to reach higher
@@ -198,6 +261,11 @@ const PurgaSlicer: React.FC<PurgaSlicerProps> = ({ className }) => {
         velocity: new THREE.Vector3(vx, vy, 0),
         angularVelocity: (Math.random() - 0.5) * 2.5,
         isCorruption,
+        isCursed,
+        baseScale,
+        pulseAmp,
+        pulseFreq,
+        pulsePhase,
         id: Math.random().toString(36).substr(2, 9),
         sliced: false,
       };
@@ -297,13 +365,22 @@ const PurgaSlicer: React.FC<PurgaSlicerProps> = ({ className }) => {
       scene.remove(hitObj.sprite);
       gameObjectsRef.current = gameObjectsRef.current.filter(o => o !== hitObj);
 
+      const bladeCfg = bladeConfig(selectedBlade);
+      const bgCfg = backgroundConfig(selectedBackground);
+
       if (hitObj.isCorruption) {
-        setLives(prev => prev - 1);
-        livesRef.current -= 1; // Immediate update for game loop logic
+        const dmg = bladeCfg.corruptionDamage;
+        setLives(prev => Math.max(0, prev - dmg));
+        livesRef.current = Math.max(0, livesRef.current - dmg);
         setCombo(0);
         corruptionHitsRef.current += 1;
+      } else if (hitObj.isCursed) {
+        const penalty = Math.round(40 * bladeCfg.cursePenaltyMult);
+        setScore(prev => Math.max(0, prev - penalty));
+        setCombo(0);
       } else {
-        setScore(prev => prev + (15 * (comboRef.current + 1)));
+        const add = Math.round(bgCfg.basePoints * (comboRef.current + 1) * bladeCfg.scoreMult);
+        setScore(prev => prev + add);
         setCombo(prev => prev + 1);
       }
     };
@@ -336,6 +413,7 @@ const PurgaSlicer: React.FC<PurgaSlicerProps> = ({ className }) => {
     const animate = () => {
       animationIdRef.current = requestAnimationFrame(animate);
       const dt = Math.min(0.033, clock.getDelta());
+      const t = clock.elapsedTime;
 
       fadeTrail(0.12);
 
@@ -367,6 +445,9 @@ const PurgaSlicer: React.FC<PurgaSlicerProps> = ({ className }) => {
           obj.sprite.position.x += obj.velocity.x * dt;
           obj.sprite.position.y += obj.velocity.y * dt;
           obj.sprite.material.rotation += obj.angularVelocity * dt;
+
+          const s = obj.baseScale * (1 + obj.pulseAmp * Math.sin((t * obj.pulseFreq) + obj.pulsePhase));
+          obj.sprite.scale.set(s, s, 1);
         });
 
         const remaining: GameObject[] = [];
@@ -374,9 +455,10 @@ const PurgaSlicer: React.FC<PurgaSlicerProps> = ({ className }) => {
           if (obj.sprite.position.y < bottomOut) {
             scene.remove(obj.sprite);
             if (!obj.isCorruption && !obj.sliced) {
-              setLives(prev => prev - 1);
-              livesRef.current -= 1; // Immediate update for game loop logic
+              setLives(prev => Math.max(0, prev - 1));
+              livesRef.current = Math.max(0, livesRef.current - 1);
               setCombo(0);
+              missedTargetsRef.current += 1;
             }
           } else {
             remaining.push(obj);
@@ -399,6 +481,7 @@ const PurgaSlicer: React.FC<PurgaSlicerProps> = ({ className }) => {
       if (!mountRef.current || !camera || !renderer) return;
       const nw = mountRef.current.clientWidth;
       const nh = mountRef.current.clientHeight;
+      if (nw <= 0 || nh <= 0) return;
       const naspect = nw / nh;
       camera.left = -naspect * viewSize;
       camera.right = naspect * viewSize;
@@ -410,9 +493,12 @@ const PurgaSlicer: React.FC<PurgaSlicerProps> = ({ className }) => {
     };
 
     window.addEventListener('resize', handleResize);
+    const ro = new ResizeObserver(() => handleResize());
+    if (mountRef.current) ro.observe(mountRef.current);
 
     return () => {
       window.removeEventListener('resize', handleResize);
+      ro.disconnect();
       if (mountRef.current) {
         mountRef.current.removeEventListener('pointermove', handlePointerMove);
         mountRef.current.removeEventListener('pointerdown', handlePointerDown);
@@ -559,7 +645,7 @@ const PurgaSlicer: React.FC<PurgaSlicerProps> = ({ className }) => {
 
   const buyBlade = async (id: string, cost: number) => {
     const key = 'perga_owned_blades';
-    const owned = new Set((localStorage.getItem(key) || 'ember').split(',').filter(Boolean));
+    const owned = new Set((localStorage.getItem(key) || 'blade_of_valor').split(',').map(normalizeBladeId).filter(Boolean));
     if (owned.has(id)) {
       setSelectedBlade(id);
       return;
@@ -598,25 +684,42 @@ const PurgaSlicer: React.FC<PurgaSlicerProps> = ({ className }) => {
   };
 
   return (
-    <div className={`relative w-full h-full bg-black ${className}`}>
+    <div
+      className={`relative w-full min-h-screen ${className}`}
+      style={{
+        backgroundColor: '#0b0b0b',
+        touchAction: 'none',
+        overscrollBehavior: 'contain',
+        WebkitUserSelect: 'none',
+        userSelect: 'none'
+      }}
+    >
       <div className="absolute inset-0">
-        <div ref={mountRef} className="absolute inset-0" />
-        <canvas ref={trailCanvasRef} className="absolute inset-0 pointer-events-none" />
+        <div className="absolute inset-0 bg-gradient-to-b from-black via-[#0b0b0b] to-black" />
+        <div className="absolute inset-0 opacity-[0.08] bg-[radial-gradient(circle_at_20%_20%,rgba(249,115,22,0.55),transparent_40%),radial-gradient(circle_at_80%_30%,rgba(249,115,22,0.25),transparent_45%),radial-gradient(circle_at_50%_80%,rgba(255,255,255,0.12),transparent_45%)]" />
+
+        <div className="absolute inset-0 px-2 sm:px-4 py-2 sm:py-4">
+          <div className="relative w-full h-full max-w-[1100px] mx-auto">
+            <div ref={mountRef} className="absolute inset-0 rounded-2xl overflow-hidden border border-orange-500/10 shadow-2xl" />
+            <canvas ref={trailCanvasRef} className="absolute inset-0 pointer-events-none rounded-2xl" />
 
         {/* Game UI Overlay */}
-        <div className="absolute top-0 left-0 right-0 p-2 sm:p-4 flex justify-between items-start text-white pointer-events-none">
-          <div className="bg-black/60 rounded-lg p-2 sm:p-3 border border-orange-500/20 pointer-events-auto">
-            <div className="text-xs sm:text-sm">Score: {score}</div>
-            <div className="text-xs sm:text-sm">Lives: {lives}</div>
-            <div className="text-xs sm:text-sm">Combo: x{combo}</div>
-            <div className="text-xs sm:text-sm">Time: {timeLeft}s</div>
-            <div className="text-xs sm:text-sm">Credits: {balance}</div>
+        <div className="absolute top-3 left-3 right-3 sm:top-4 sm:left-4 sm:right-4 flex justify-between items-start text-white pointer-events-none">
+          <div className="pointer-events-auto rounded-2xl px-3 py-2 sm:px-4 sm:py-3 bg-black/55 backdrop-blur-md border border-orange-500/20 shadow-lg shadow-black/40">
+            <div className="text-[10px] uppercase font-bold tracking-widest text-gray-400">Sword of Judgment</div>
+            <div className="mt-1 grid grid-cols-3 gap-x-4 gap-y-1">
+              <div className="text-xs sm:text-sm"><span className="text-gray-400">Score</span> <span className="font-bold">{score}</span></div>
+              <div className="text-xs sm:text-sm"><span className="text-gray-400">Lives</span> <span className="font-bold">{lives}</span></div>
+              <div className="text-xs sm:text-sm"><span className="text-gray-400">Combo</span> <span className="font-bold">x{combo}</span></div>
+              <div className="text-xs sm:text-sm"><span className="text-gray-400">Time</span> <span className="font-bold">{timeLeft}s</span></div>
+              <div className="text-xs sm:text-sm"><span className="text-gray-400">Credits</span> <span className="font-bold">{balance}</span></div>
+            </div>
           </div>
-          <div className="flex gap-1 sm:gap-2 pointer-events-auto">
+          <div className="flex gap-2 pointer-events-auto">
             {gameState === 'playing' && (
               <button
                 onClick={pauseGame}
-                className="bg-black/60 hover:bg-black/80 border border-orange-500/20 px-2 sm:px-3 py-1 sm:py-2 rounded-lg text-xs sm:text-sm"
+                className="bg-black/55 hover:bg-black/75 backdrop-blur-md border border-orange-500/20 px-3 py-2 rounded-xl text-xs sm:text-sm font-bold uppercase tracking-widest"
               >
                 <span className="hidden sm:inline">Pause</span>
                 <span className="sm:hidden">⏸️</span>
@@ -624,14 +727,14 @@ const PurgaSlicer: React.FC<PurgaSlicerProps> = ({ className }) => {
             )}
             <button
               onClick={() => setShowSettings(true)}
-              className="bg-black/60 hover:bg-black/80 border border-orange-500/20 px-2 sm:px-3 py-1 sm:py-2 rounded-lg text-xs sm:text-sm"
+              className="bg-black/55 hover:bg-black/75 backdrop-blur-md border border-orange-500/20 px-3 py-2 rounded-xl text-xs sm:text-sm font-bold uppercase tracking-widest"
             >
               ⚙️
             </button>
             {gameState === 'playing' && (
               <button
                 onClick={resetGame}
-                className="bg-black/60 hover:bg-black/80 border border-orange-500/20 px-2 sm:px-3 py-1 sm:py-2 rounded-lg text-xs sm:text-sm"
+                className="bg-black/55 hover:bg-black/75 backdrop-blur-md border border-orange-500/20 px-3 py-2 rounded-xl text-xs sm:text-sm font-bold uppercase tracking-widest"
               >
                 <span className="hidden sm:inline">Reset</span>
                 <span className="sm:hidden">🔄</span>
@@ -701,7 +804,7 @@ const PurgaSlicer: React.FC<PurgaSlicerProps> = ({ className }) => {
                   <div className="font-semibold mb-3">Righteous Blades</div>
                   <div className="space-y-2">
                     {blades.map(b => {
-                      const owned = new Set((localStorage.getItem('perga_owned_blades') || 'ember').split(',').filter(Boolean)).has(b.id);
+                      const owned = new Set((localStorage.getItem('perga_owned_blades') || 'blade_of_valor').split(',').map(normalizeBladeId).filter(Boolean)).has(b.id);
                       const active = selectedBlade === b.id;
                       return (
                         <button
@@ -724,22 +827,26 @@ const PurgaSlicer: React.FC<PurgaSlicerProps> = ({ className }) => {
         )}
 
         {gameState === 'menu' && (
-          <div className="absolute inset-0 bg-black/70 flex items-center justify-center">
-            <div className="text-center text-white px-4 sm:px-6">
-              <div className="text-3xl sm:text-4xl lg:text-5xl mb-2 sm:mb-3">⚔️</div>
-              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold mb-2 sm:mb-3 text-orange-500">Sword of Judgment</h1>
-              <p className="text-sm sm:text-base lg:text-lg mb-3 sm:mb-4 text-gray-300">Slice the signs. Avoid corruption.</p>
-              <div className="text-xs sm:text-sm text-gray-400 mb-4 sm:mb-6">Hold and drag to slice. Points earn cosmetics.</div>
+          <div className="absolute inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center">
+            <div className="text-center text-white px-4 sm:px-6 max-w-xl">
+              <div className="mb-5 sm:mb-6 inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-orange-500/10 border border-orange-500/20">
+                <div className="text-3xl">⚔️</div>
+              </div>
+              <h1 className="text-3xl sm:text-4xl font-black tracking-tighter uppercase italic mb-2">
+                Sword of <span className="text-orange-500">Judgment</span>
+              </h1>
+              <p className="text-sm sm:text-base text-gray-300 mb-2">Slice the signs. Avoid corruption.</p>
+              <div className="text-xs sm:text-sm text-gray-400 mb-6">Hold and drag to slice. Precision builds combo.</div>
               <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center">
                 <button
                   onClick={startGame}
-                  className="bg-orange-600 hover:bg-orange-700 px-6 sm:px-8 py-3 sm:py-4 rounded-lg text-lg sm:text-xl font-bold transition-colors"
+                  className="px-8 py-4 rounded-full bg-orange-600 hover:bg-orange-500 font-black uppercase tracking-widest"
                 >
-                  Start Game
+                  Initialize Run
                 </button>
                 <button
                   onClick={() => setShowSettings(true)}
-                  className="bg-gray-700 hover:bg-gray-600 px-4 sm:px-6 py-3 sm:py-4 rounded-lg text-base sm:text-lg font-medium transition-colors"
+                  className="px-6 py-4 rounded-full bg-white/10 hover:bg-white/15 border border-white/10 font-black uppercase tracking-widest"
                 >
                   The Tabernacle
                 </button>
@@ -749,12 +856,13 @@ const PurgaSlicer: React.FC<PurgaSlicerProps> = ({ className }) => {
         )}
 
         {gameState === 'paused' && (
-          <div className="absolute inset-0 bg-black/75 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center">
             <div className="text-center text-white px-4">
-              <h2 className="text-2xl sm:text-3xl font-bold mb-3 sm:mb-4">Game Paused</h2>
+              <div className="text-xs uppercase font-bold tracking-widest text-gray-400 mb-2">Run Paused</div>
+              <h2 className="text-3xl sm:text-4xl font-black tracking-tighter uppercase italic mb-5">Stand By</h2>
               <button
                 onClick={pauseGame}
-                className="bg-orange-600 hover:bg-orange-700 px-4 sm:px-6 py-2 sm:py-3 rounded-lg text-base sm:text-lg font-medium transition-colors"
+                className="px-8 py-4 rounded-full bg-orange-600 hover:bg-orange-500 font-black uppercase tracking-widest"
               >
                 Resume
               </button>
@@ -763,25 +871,38 @@ const PurgaSlicer: React.FC<PurgaSlicerProps> = ({ className }) => {
         )}
 
         {gameState === 'gameOver' && (
-          <div className="absolute inset-0 bg-black/80 flex items-center justify-center">
-            <div className="text-center text-white px-4">
-              <div className="text-3xl sm:text-4xl mb-2">🕯️</div>
-              <h2 className="text-2xl sm:text-3xl font-bold mb-1 sm:mb-2 text-orange-500">Judgment Rendered</h2>
-              <p className="text-red-400 font-semibold mb-3">
+          <div className="absolute inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center">
+            <div className="text-center text-white px-4 max-w-md">
+              <div className="mb-4 inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-orange-500/10 border border-orange-500/20">
+                <div className="text-3xl">🕯️</div>
+              </div>
+              <div className="text-xs uppercase font-bold tracking-widest text-gray-400 mb-2">Run Concluded</div>
+              <h2 className="text-4xl font-black tracking-tighter uppercase italic mb-2">
+                Judgment <span className="text-orange-500">Rendered</span>
+              </h2>
+              <div className="text-sm font-bold mb-5" style={{ color: lives <= 0 ? '#fb7185' : '#f97316' }}>
                 {lives <= 0 ? 'Lives Depleted' : 'Time Expired'}
-              </p>
-              <p className="text-lg sm:text-xl mb-2">Final Score: {score}</p>
-              <p className="text-xs sm:text-sm text-gray-400 mb-4 sm:mb-6">Credits Earned: +{creditsEarned}</p>
-              <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center">
+              </div>
+              <div className="grid grid-cols-2 gap-3 w-full mb-6">
+                <div className="bg-white/5 p-4 rounded-2xl border border-white/10">
+                  <div className="text-[10px] uppercase font-bold tracking-widest text-gray-400">Score</div>
+                  <div className="text-2xl font-black">{score}</div>
+                </div>
+                <div className="bg-orange-500/10 p-4 rounded-2xl border border-orange-500/20">
+                  <div className="text-[10px] uppercase font-bold tracking-widest text-orange-300">Credits</div>
+                  <div className="text-2xl font-black text-orange-500">+{creditsEarned}</div>
+                </div>
+              </div>
+              <div className="flex flex-col sm:flex-row gap-3 justify-center">
                 <button
                   onClick={startGame}
-                  className="bg-orange-600 hover:bg-orange-700 px-4 sm:px-6 py-2 sm:py-3 rounded-lg text-base sm:text-lg font-medium transition-colors"
+                  className="px-8 py-4 rounded-full bg-orange-600 hover:bg-orange-500 font-black uppercase tracking-widest"
                 >
-                  Play Again
+                  Retry Run
                 </button>
                 <button
                   onClick={resetGame}
-                  className="bg-gray-600 hover:bg-gray-700 px-4 sm:px-6 py-2 sm:py-3 rounded-lg text-base sm:text-lg font-medium transition-colors"
+                  className="px-8 py-4 rounded-full bg-white/10 hover:bg-white/15 border border-white/10 font-black uppercase tracking-widest"
                 >
                   Main Menu
                 </button>
@@ -789,6 +910,8 @@ const PurgaSlicer: React.FC<PurgaSlicerProps> = ({ className }) => {
             </div>
           </div>
         )}
+          </div>
+        </div>
       </div>
     </div>
   );

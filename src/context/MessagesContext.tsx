@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import { useUser } from '../context/UserContext';
 import api from '../lib/axios';
 import { useWebSocket } from '../hooks/useWebSocket';
@@ -8,6 +8,7 @@ export interface Message {
   id: string;
   content: string;
   from_user_id: string;
+  is_from_current_user?: boolean;
   created_at: string;
   conversation_id?: string;
   images?: string[];
@@ -26,6 +27,7 @@ export interface Conversation {
     full_name: string;
     username: string;
     avatar_url: string | null;
+    show_online_status?: boolean;
   }[];
   latest_message?: {
     content: string;
@@ -42,6 +44,7 @@ export interface OnlineUser {
   username: string;
   avatar_url: string | null;
   isOnline: boolean;
+  show_online_status?: boolean;
 }
 
 interface MessagesContextType {
@@ -53,6 +56,7 @@ interface MessagesContextType {
   typingUsers: Record<string, string[]>; // conversationId -> userIds
   loadConversations: () => Promise<void>;
   loadMessages: (conversationId: string) => Promise<void>;
+  markAsRead: (conversationId: string) => Promise<void>;
   sendMessage: (conversationId: string, content: string, imageUrls?: string[]) => Promise<void>;
   sendTypingStatus: (conversationId: string, isTyping: boolean) => Promise<void>;
   setCurrentConversation: (conversation: Conversation | null) => void;
@@ -64,12 +68,23 @@ const MessagesContext = createContext<MessagesContextType | undefined>(undefined
 
 export const MessagesProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useUser();
+  const userRef = useRef(user);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [currentConversation, setCurrentConversation] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [onlineUsers, setOnlineUsers] = useState<OnlineUser[]>([]);
   const [loading, setLoading] = useState(false);
   const [typingUsers, setTypingUsers] = useState<Record<string, string[]>>({});
+
+  // Keep ref updated with latest user
+  useEffect(() => {
+    userRef.current = user;
+  }, [user]);
+
+  const currentConversationRef = useRef(currentConversation);
+  useEffect(() => {
+    currentConversationRef.current = currentConversation;
+  }, [currentConversation]);
 
   const loadConversations = useCallback(async (retryCount = 0) => {
     if (!user) return;
@@ -107,11 +122,25 @@ export const MessagesProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       const response = await api.get(`/messages/conversations/${conversationId}/messages`);
       console.log('Loaded messages:', response.data);
       setMessages(response.data || []);
+      
+      // Mark messages as read after loading them
+      await markAsRead(conversationId);
     } catch (error) {
       console.error('Error loading messages:', error);
       setMessages([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const markAsRead = async (conversationId: string) => {
+    if (!user) return;
+
+    try {
+      await api.put(`/messages/conversations/${conversationId}/read`);
+      console.log('Marked messages as read for conversation:', conversationId);
+    } catch (error) {
+      console.error('Error marking messages as read:', error);
     }
   };
 
@@ -180,12 +209,18 @@ export const MessagesProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   // WebSocket Handlers
   const handleNewMessage = useCallback((payload: any) => {
-    if (!user) return;
+    const currentUser = userRef.current;
+    if (!currentUser) return;
 
     const { conversationId, message } = payload;
 
-    // 1. Update messages if we are in this conversation
-    if (currentConversation?.id === conversationId) {
+    // Validate: ignore messages from self (prevents echo/duplicate)
+    if (message.fromUserId === currentUser.id) {
+      return;
+    }
+
+    // 1. Update messages if we are in this conversation (use ref for latest value)
+    if (currentConversationRef.current?.id === conversationId) {
       setMessages(prev => {
         // Prevent duplicate messages
         if (prev.some(m => m.id === message.id)) return prev;
@@ -207,9 +242,9 @@ export const MessagesProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
 
     // 2. Show toast notification if we are NOT in this conversation
-    const isChattingInThisConvo = currentConversation?.id === conversationId;
+    const isChattingInThisConvo = currentConversationRef.current?.id === conversationId;
 
-    if (!isChattingInThisConvo && message.fromUserId !== user.id) {
+    if (!isChattingInThisConvo) {
       toast.success(
         <div className="flex flex-col">
           <span className="font-bold">{message.fromUser.name}</span>
@@ -229,7 +264,7 @@ export const MessagesProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     // 3. Reload conversations list to update latest message/unread count
     loadConversations();
-  }, [currentConversation, user]);
+  }, [loadConversations]);
 
   const handleTyping = useCallback((payload: { conversationId: string; userId: string; isTyping: boolean }) => {
     const { conversationId, userId, isTyping } = payload;
@@ -305,6 +340,7 @@ export const MessagesProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         typingUsers,
         loadConversations,
         loadMessages,
+        markAsRead,
         sendMessage,
         sendTypingStatus,
         setCurrentConversation,
