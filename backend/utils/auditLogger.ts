@@ -38,9 +38,15 @@ export const logSuperAdminAction = async (options: AuditLogOptions) => {
       });
 
     if (error) {
-      console.error('Failed to log Super Admin action:', error);
+      // If table doesn't exist, just log to console and don't fail
+      if (error.code === 'PGRST116' || error.message.includes('does not exist')) {
+        console.warn('⚠️ Audit log table does not exist, skipping audit logging');
+        return;
+      }
+      throw error;
     }
-  } catch (error) {
-    console.error('Unexpected error in logSuperAdminAction:', error);
+  } catch (error: any) {
+    // Don't fail the main operation if audit logging fails
+    console.warn('⚠️ Audit logging failed:', error.message);
   }
 };
