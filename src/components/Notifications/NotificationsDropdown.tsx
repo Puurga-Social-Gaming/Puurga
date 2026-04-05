@@ -19,7 +19,7 @@ const NotificationsDropdown: React.FC = () => {
       case 'like':
         return <Heart className="w-5 h-5 text-red-500" />;
       case 'comment':
-        return <MessageCircle className="w-5 h-5 text-orange-500" />;
+        return <MessageCircle className="w-5 h-5 text-white" />;
       case 'message':
         return <MessageCircle className="w-5 h-5 text-purple-500" />;
       case 'redemption':
@@ -102,7 +102,7 @@ const NotificationsDropdown: React.FC = () => {
       >
         <Bell size={20} />
         {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 bg-orange-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+          <span className="absolute -top-1 -right-1 bg-white text-black text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
             {unreadCount > 9 ? '9+' : unreadCount}
           </span>
         )}
@@ -131,7 +131,7 @@ const NotificationsDropdown: React.FC = () => {
                 {unreadCount > 0 && (
                   <button
                     onClick={markAllAsRead}
-                    className="text-sm text-orange-500 hover:text-orange-400 flex items-center gap-1"
+                    className="text-sm text-white hover:text-gray-300 flex items-center gap-1"
                   >
                     <CheckCheck size={16} />
                     Mark all read
@@ -143,7 +143,7 @@ const NotificationsDropdown: React.FC = () => {
               <div className="flex-1 overflow-y-auto">
                 {loading ? (
                   <div className="flex items-center justify-center py-12">
-                    <Loader2 className="w-6 h-6 animate-spin text-orange-500" />
+                    <Loader2 className="w-6 h-6 animate-spin text-white" />
                   </div>
                 ) : notifications.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
@@ -162,7 +162,7 @@ const NotificationsDropdown: React.FC = () => {
                         className={`p-4 cursor-pointer transition-colors ${
                           notification.read
                             ? 'hover:bg-gray-900/50'
-                            : 'bg-orange-500/5 hover:bg-orange-500/10'
+                            : 'bg-white/5 hover:bg-white/10'
                         }`}
                       >
                         <div className="flex items-start gap-3">
@@ -211,8 +211,8 @@ const NotificationsDropdown: React.FC = () => {
                             {/* Unread indicator */}
                             {!notification.read && (
                               <div className="mt-2">
-                                <span className="inline-flex items-center gap-1 text-xs text-orange-500">
-                                  <div className="w-2 h-2 bg-orange-500 rounded-full" />
+                                <span className="inline-flex items-center gap-1 text-xs text-white">
+                                  <div className="w-2 h-2 bg-white rounded-full" />
                                   New
                                 </span>
                               </div>
@@ -233,7 +233,7 @@ const NotificationsDropdown: React.FC = () => {
                       setIsOpen(false);
                       window.location.href = '/notifications';
                     }}
-                    className="text-sm text-orange-500 hover:text-orange-400"
+                    className="text-sm text-white hover:text-gray-300"
                   >
                     View all notifications
                   </button>

@@ -109,14 +109,21 @@ router.post('/users/:id/reset-password', async (req: any, res) => {
       return res.status(400).json({ error: 'Password must be at least 6 characters' });
     }
 
-    // Use admin client to update user password in auth.users
-    const { error } = await supabaseAdmin.auth.admin.updateUserById(id, {
+    const { data: userData, error: fetchError } = await supabaseAdmin.auth.admin.getUserById(id);
+    if (fetchError || !userData?.user) {
+      console.error('User not found in auth:', fetchError);
+      return res.status(404).json({ error: 'User not found in authentication system. The user may have been created outside of the normal auth flow.' });
+    }
+
+    const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(id, {
       password: password
     });
 
-    if (error) throw error;
+    if (updateError) {
+      console.error('Password update error:', updateError);
+      throw updateError;
+    }
 
-    // Log the action
     await logSuperAdminAction({
       superadminId: req.user.id,
       action: 'RESET_PASSWORD',
@@ -135,17 +142,150 @@ router.post('/users/:id/reset-password', async (req: any, res) => {
 });
 
 /**
+ * POST /api/admin/users
+ * Creates a new user account directly via Admin API.
+ */
+router.post('/users', async (req: any, res) => {
+  try {
+    const { email, password, full_name, username, role = 'user' } = req.body;
+
+    if (!email?.trim() || !password || !full_name?.trim() || !username?.trim()) {
+      return res.status(400).json({ error: 'All fields are required' });
+    }
+
+    if (password.length < 8) {
+      return res.status(400).json({ error: 'Password must be at least 8 characters' });
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim())) {
+      return res.status(400).json({ error: 'Invalid email format' });
+    }
+
+    const usernameRegex = /^[a-z0-9_]{3,20}$/;
+    if (!usernameRegex.test(username.trim())) {
+      return res.status(400).json({ error: 'Username must be 3-20 characters, lowercase letters, numbers, and underscores only' });
+    }
+
+    const validRoles = ['user', 'admin', 'super_admin', 'moderator', 'business'];
+    if (!validRoles.includes(role)) {
+      return res.status(400).json({ error: 'Invalid role' });
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+    const normalizedUsername = username.trim().toLowerCase();
+
+    const { data: existing } = await supabase
+      .from('profiles')
+      .select('id')
+      .or(`username.eq.${normalizedEmail},email.eq.${normalizedEmail}`)
+      .limit(1);
+
+    if (existing && existing.length > 0) {
+      return res.status(409).json({ error: 'Username or email already exists' });
+    }
+
+    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+      email: normalizedEmail,
+      password,
+      email_confirm: true,
+      user_metadata: { full_name: full_name.trim(), username: normalizedUsername }
+    });
+
+    if (authError) {
+      if (authError.message.includes('already been registered')) {
+        return res.status(409).json({ error: 'Email already registered' });
+      }
+      console.error('Auth creation error:', authError);
+      throw authError;
+    }
+
+    if (!authData.user) {
+      return res.status(500).json({ error: 'Failed to create auth user' });
+    }
+
+    const userPayload = {
+      id: authData.user.id,
+      email: normalizedEmail,
+      full_name: full_name.trim(),
+      username: normalizedUsername,
+      role: role,
+      is_private: false,
+      hide_from_suggestions: false,
+      message_requests: 'everyone',
+      show_read_receipts: true,
+      show_online_status: true,
+      comment_privacy: 'everyone',
+      story_privacy: 'everyone',
+      is_blocked: false
+    };
+
+    // Use upsert because the database trigger may have already created a profile row
+    const { error: profileError } = await supabase
+      .from('profiles')
+      .upsert(userPayload, { 
+        onConflict: 'id',
+        ignoreDuplicates: false 
+      });
+
+    if (profileError) {
+      console.error('Profile upsert error:', profileError);
+      // Don't delete auth user - the profile might have been created by a trigger
+      return res.status(500).json({ error: 'Failed to update user profile: ' + profileError.message });
+    }
+
+    await logSuperAdminAction({
+      superadminId: req.user.id,
+      action: 'CREATE_USER',
+      targetId: authData.user.id,
+      targetType: 'user',
+      details: { email: normalizedEmail, username: normalizedUsername, role },
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent')
+    });
+
+    res.json({ success: true, message: 'User created successfully', user: { id: authData.user.id, email: userPayload.email, username: userPayload.username, role: userPayload.role } });
+  } catch (error: any) {
+    console.error('Error creating user:', error);
+    res.status(500).json({ error: error.message || 'Failed to create user' });
+  }
+});
+
+/**
  * PUT /api/admin/users/:id
  * Update user info (status, role, profile data).
  */
 router.put('/users/:id', async (req: any, res) => {
   try {
     const { id } = req.params;
-    const { username, full_name, role, is_ghost, bio } = req.body;
+    const { email, username, full_name, role, is_ghost, bio } = req.body;
 
     const updateData: any = {};
-    if (username !== undefined) updateData.username = username;
-    if (full_name !== undefined) updateData.full_name = full_name;
+    let authUpdateNeeded = false;
+    let authUpdateData: any = {};
+
+    if (email !== undefined) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email.trim())) {
+        return res.status(400).json({ error: 'Invalid email format' });
+      }
+      updateData.email = email.trim().toLowerCase();
+      authUpdateData.email = email.trim().toLowerCase();
+      authUpdateNeeded = true;
+    }
+
+    if (username !== undefined) {
+      updateData.username = username;
+      authUpdateData.user_metadata = { ...authUpdateData.user_metadata, username: username };
+      authUpdateNeeded = true;
+    }
+
+    if (full_name !== undefined) {
+      updateData.full_name = full_name;
+      authUpdateData.user_metadata = { ...authUpdateData.user_metadata, full_name: full_name };
+      authUpdateNeeded = true;
+    }
+
     if (role !== undefined) updateData.role = role;
     if (is_ghost !== undefined) {
       updateData.is_ghost = is_ghost;
@@ -159,23 +299,34 @@ router.put('/users/:id', async (req: any, res) => {
     
     updateData.updated_at = new Date().toISOString();
 
+    // Update auth if needed
+    if (authUpdateNeeded) {
+      try {
+        const { data: authUser, error: fetchError } = await supabaseAdmin.auth.admin.getUserById(id);
+        if (fetchError || !authUser?.user) {
+          console.warn('User not found in auth.users, skipping auth update:', id);
+        } else {
+          const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(id, authUpdateData);
+          if (authError) {
+            console.error('Error updating auth:', authError);
+            return res.status(500).json({ error: 'Failed to update authentication record: ' + authError.message });
+          }
+        }
+      } catch (e) {
+        console.warn('Could not update auth:', e);
+      }
+    }
+
+    // Update profiles table
     const { error: profileError } = await supabase
       .from('profiles')
       .update(updateData)
       .eq('id', id);
 
-    if (profileError) throw profileError;
-
-    // Also update 'users' table for consistency
-    const { error: usersError } = await supabase
-      .from('users')
-      .update(updateData)
-      .eq('id', id);
-
-    if (usersError) {
-      console.warn('⚠️ Could not update users table (might not exist), but profiles table updated.');
+    if (profileError) {
+      console.error('Profile update error:', profileError);
+      throw profileError;
     }
-
 
     // Log the action
     await logSuperAdminAction({

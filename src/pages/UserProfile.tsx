@@ -206,7 +206,7 @@ const UserProfile: React.FC = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-background">
-        <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
+        <Loader2 className="w-8 h-8 animate-spin text-white" />
       </div>
     );
   }
@@ -235,7 +235,7 @@ const UserProfile: React.FC = () => {
       className="min-h-screen bg-background"
     >
       {/* Cover Photo */}
-      <div className="relative h-48 sm:h-64 bg-gradient-to-br from-orange-500/20 via-background-secondary to-purple-500/20">
+      <div className="relative h-48 sm:h-64 bg-gradient-to-br from-gray-500/20 via-background-secondary to-gray-600/20">
         {profile.coverPhoto && (
           <img
             src={profile.coverPhoto}
@@ -286,7 +286,7 @@ const UserProfile: React.FC = () => {
                   <>
                     <button
                       onClick={handleMessage}
-                      className="flex items-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition-colors shadow-lg shadow-orange-500/20"
+                      className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
                     >
                       <MessageCircle size={18} />
                       Message
@@ -328,7 +328,7 @@ const UserProfile: React.FC = () => {
                 href={profile.website.startsWith('http') ? profile.website : `https://${profile.website}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-1 text-orange-400 hover:underline"
+                className="flex items-center gap-1 text-gray-300 hover:underline"
               >
                 <Link2 size={16} />
                 <span>{profile.website}</span>
@@ -423,7 +423,7 @@ const UserProfile: React.FC = () => {
                       <Heart size={18} className={post.liked ? 'fill-pink-500 text-pink-500' : ''} />
                       <span>{post.likes}</span>
                     </button>
-                    <button className="flex items-center gap-2 hover:text-orange-500 transition-colors">
+                    <button className="flex items-center gap-2 hover:text-white transition-colors">
                       <MessageCircle size={18} />
                       <span>{post.comments}</span>
                     </button>

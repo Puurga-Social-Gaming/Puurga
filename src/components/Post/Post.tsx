@@ -200,7 +200,7 @@ const Post: React.FC<PostProps> = ({ post, onUpdate }) => {
               size="md"
               userId={post.user.id}
               showOnlineStatus={true}
-              className="ring-2 ring-orange-500/20 hover:ring-orange-500 transition-all duration-200"
+              className="ring-2 ring-white/20 hover:ring-white transition-all duration-200"
             />
           </Link>
           <div className="flex-1 min-w-0">
@@ -237,7 +237,7 @@ const Post: React.FC<PostProps> = ({ post, onUpdate }) => {
                       <motion.button
                         whileHover={{ backgroundColor: "rgba(255,255,255,0.1)" }}
                         onClick={handleEdit}
-                        className="w-full px-4 py-2 text-left text-white flex items-center gap-2 transition-colors hover:text-orange-500"
+                        className="w-full px-4 py-2 text-left text-white flex items-center gap-2 transition-colors hover:text-gray-300"
                         type="button"
                       >
                         <Pencil size={16} />
@@ -269,7 +269,7 @@ const Post: React.FC<PostProps> = ({ post, onUpdate }) => {
                   <textarea
                     value={editedContent}
                     onChange={(e) => setEditedContent(e.target.value)}
-                    className="w-full bg-white/5 rounded-lg px-4 py-2 text-white placeholder-gray-400 resize-none focus:outline-none focus:ring-2 focus:ring-orange-500 transition-shadow duration-200"
+                    className="w-full bg-white/5 rounded-lg px-4 py-2 text-white placeholder-gray-400 resize-none focus:outline-none focus:ring-2 focus:ring-white transition-shadow duration-200"
                     rows={3}
                   />
                   <div className="mt-2 flex justify-end gap-2">
@@ -286,7 +286,7 @@ const Post: React.FC<PostProps> = ({ post, onUpdate }) => {
                       whileHover={{ scale: 1.05 }}
                       whileTap={{ scale: 0.95 }}
                       onClick={handleSaveEdit}
-                      className="px-3 py-1 text-sm bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition-colors"
+                      className="px-3 py-1 text-sm bg-white hover:bg-gray-200 text-black rounded-lg transition-colors"
                       type="button"
                     >
                       {t('post.save')}
@@ -305,7 +305,7 @@ const Post: React.FC<PostProps> = ({ post, onUpdate }) => {
                   {shouldTruncate && (
                     <button
                       onClick={() => setIsExpanded(!isExpanded)}
-                      className="mt-1 text-orange-500 hover:text-orange-400 text-xs sm:text-sm font-medium transition-colors"
+                      className="mt-1 text-white hover:text-gray-300 text-xs sm:text-sm font-medium transition-colors"
                     >
                       {isExpanded ? t('post.readLess') : t('post.readMore')}
                     </button>
@@ -438,7 +438,7 @@ const Post: React.FC<PostProps> = ({ post, onUpdate }) => {
                 whileTap={{ scale: 0.9 }}
                 onClick={handlePurgeClick}
                 disabled={isPurging}
-                className={`flex items-center gap-1 transition-colors ${isPurged ? 'text-orange-500' : 'text-gray-400 hover:text-orange-500'
+                className={`flex items-center gap-1 transition-colors ${isPurged ? 'text-white' : 'text-gray-400 hover:text-white'
                   } ${isPurging ? 'opacity-50 cursor-not-allowed' : ''}`}
                 title="Purge post"
               >

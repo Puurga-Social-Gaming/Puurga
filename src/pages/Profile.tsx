@@ -341,7 +341,7 @@ const Profile: React.FC = () => {
               {(profileData.location || profileData.website || profileData.occupation || profileData.education || profileData.relationship) && (
                 <button
                   onClick={() => setShowMoreDetails(!showMoreDetails)}
-                  className="mt-2 flex items-center gap-1 text-orange-500 hover:text-orange-400 text-xs sm:text-sm font-medium transition-colors"
+                  className="mt-2 flex items-center gap-1 text-white hover:text-gray-300 text-xs sm:text-sm font-medium transition-colors"
                 >
                   {showMoreDetails ? (
                     <>
@@ -424,8 +424,8 @@ const Profile: React.FC = () => {
                   className="bg-card p-4 rounded-lg border border-border hover:border-accent transition-colors cursor-pointer text-left group shadow-theme-sm"
                 >
                   <div className="flex items-center gap-3 mb-2">
-                    <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-red-600 rounded-lg flex items-center justify-center">
-                      <span className="text-white font-bold text-lg">⚔️</span>
+                    <div className="w-12 h-12 bg-gradient-to-br from-white to-gray-300 rounded-lg flex items-center justify-center">
+                      <span className="text-black font-bold text-lg">⚔️</span>
                     </div>
                     <div>
                       <h4 className="font-medium text-foreground group-hover:text-accent transition-colors">Sword of Judgment</h4>
@@ -601,7 +601,7 @@ const TabButton: React.FC<TabButtonProps> = ({ label, icon, isActive, onClick })
   <button
     className={`flex items-center justify-center gap-1 sm:gap-2 px-2 sm:px-4 md:px-6 py-2 sm:py-3 text-xs sm:text-sm font-medium focus:outline-none transition-colors duration-200 whitespace-nowrap flex-shrink-0
       ${isActive
-        ? 'text-accent border-b-2 border-accent'
+        ? 'bg-gray-700 text-white border-b-2 border-gray-600'
         : 'text-muted hover:text-foreground hover:border-muted border-b-2 border-transparent'
       }`}
     onClick={onClick}

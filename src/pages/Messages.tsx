@@ -289,11 +289,11 @@ const Messages: React.FC = () => {
               <h2 className="text-xl font-bold text-foreground">{t('messages.title')}</h2>
               <button
                 onClick={() => setShowUserList(true)}
-                className="p-2 sm:p-2.5 bg-accent hover:bg-accent-hover rounded-full transition-colors touch-manipulation"
+                className="p-2 sm:p-2.5 bg-accent hover:bg-accent-hover text-black rounded-full transition-colors touch-manipulation flex items-center justify-center"
                 title={t('messages.newConversation')}
                 aria-label={t('messages.newConversation')}
               >
-                <Plus size={20} className="sm:w-5 sm:h-5" />
+                <Plus size={20} className="sm:w-5 sm:h-5 text-black" />
               </button>
             </div>
 
@@ -522,7 +522,7 @@ const Messages: React.FC = () => {
                           </div>
                         )}
                         <div className={`inline-block max-w-[70%] px-4 py-2 rounded-2xl ${isFromCurrentUser
-                          ? 'bg-accent text-white'
+                          ? 'bg-accent text-black'
                           : 'bg-card text-foreground'
                           }`}>
                           <p className="text-sm leading-relaxed break-words">
@@ -624,10 +624,10 @@ const Messages: React.FC = () => {
                 {(newMessage.trim() || selectedImages.length > 0) && (
                   <button
                     type="submit"
-                    className="bg-accent text-white p-2.5 sm:p-2 rounded-full hover:bg-accent-hover transition-colors flex-shrink-0 touch-manipulation"
+                    className="bg-accent text-black p-2.5 sm:p-2 rounded-full hover:bg-accent-hover transition-colors flex-shrink-0 touch-manipulation focus:ring-2 focus:ring-offset-2 focus:ring-accent"
                     aria-label={t('messages.sendMessage')}
                   >
-                    <Send size={18} className="sm:w-5 sm:h-5" />
+                    <Send size={18} className="sm:w-5 sm:h-5 text-black" />
                   </button>
                 )}
               </form>
@@ -645,7 +645,7 @@ const Messages: React.FC = () => {
             </p>
             <button
               onClick={() => setShowUserList(true)}
-              className="bg-accent text-white px-6 py-3 rounded-lg hover:bg-accent-hover transition-colors font-medium touch-manipulation"
+              className="bg-accent text-black px-6 py-3 rounded-lg hover:bg-accent-hover transition-colors font-medium touch-manipulation shadow-theme-button"
             >
               {t('messages.startNewConversation')}
             </button>

@@ -7,7 +7,12 @@
     "dev": "npx nodemon",
     "build": "tsc",
     "seed": "ts-node scripts/seedUsers.ts",
-    "setup-admin": "ts-node scripts/setupAdmin.ts"
+    "setup-admin": "ts-node scripts/setupAdmin.ts",
+    "sync-users": "ts-node scripts/syncUsersToAuth.ts",
+    "sync-users:cleanup-profiles": "ts-node scripts/syncUsersToAuth.ts --cleanup-profiles",
+    "sync-users:cleanup-auth": "ts-node scripts/syncUsersToAuth.ts --cleanup-auth",
+    "sync-users:cleanup-all": "ts-node scripts/syncUsersToAuth.ts --cleanup-all",
+    "sync-users:sync-emails": "ts-node scripts/syncUsersToAuth.ts --sync-emails"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.50.0",

@@ -18,7 +18,7 @@ const ConsoleGuard: React.FC = () => {
       ];
 
       const isAllowedMessage = (...args: any[]) => {
-        const message = args.join(' ').toLowerCase();
+        const message = (args || []).map(a => String(a)).join(' ').toLowerCase();
         return allowedPatterns.some(pattern => pattern.test(message));
       };
 

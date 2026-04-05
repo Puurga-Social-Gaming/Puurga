@@ -11,6 +11,8 @@ import { motion } from 'framer-motion';
 import { DEFAULT_IMAGES } from '../../constants/defaultImages';
 import { supabase } from '../../lib/supabaseClient';
 import QuickActions from './QuickActions';
+import GamingDashboard from './GamingDashboard';
+import PurgeDashboard from './PurgeDashboard';
 
 interface UserStats {
   posts: number;
@@ -220,37 +222,36 @@ const RightSidebar: React.FC = () => {
       initial={{ opacity: 0, x: 10 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ duration: 0.5 }}
-      className="space-y-6"
+      className="flex flex-col overflow-hidden"
     >
-      {/* Quick Actions Header */}
-      <div className="flex items-center justify-between px-4 pt-4">
-        <h2 className="text-lg font-bold text-foreground">{t('rightSidebar.quickActions')}</h2>
-        <QuickActions />
-      </div>
-
-      {/* Quick Action Buttons */}
-      <div className="px-4 -mt-2">
-        <div className="grid grid-cols-2 gap-2">
-          <Link to="/home" className="px-2 py-2 rounded-lg bg-accent/10 text-foreground hover:opacity-90 transition-all shadow-theme-sm hover:shadow-theme-md text-xs font-medium text-center truncate">
+      {/* Quick Actions Section */}
+      <div className="mb-3">
+        <div className="flex items-center justify-between mb-2 px-1">
+          <h2 className="text-sm font-bold text-foreground">{t('rightSidebar.quickActions')}</h2>
+          <QuickActions />
+        </div>
+        <div className="grid grid-cols-2 gap-1.5">
+          <Link to="/home" className="px-3 py-2.5 rounded-lg bg-accent/10 text-foreground hover:bg-accent/20 transition-all text-xs font-medium text-center truncate">
             {t('rightSidebar.createPost')}
           </Link>
-          <Link to="/groups" className="px-2 py-2 rounded-lg bg-background-secondary text-foreground/90 hover:opacity-90 transition-all shadow-theme-sm hover:shadow-theme-md text-xs font-medium text-center truncate">
+          <Link to="/groups" className="px-3 py-2.5 rounded-lg hover:bg-card-hover text-foreground/90 transition-all text-xs font-medium text-center truncate">
             {t('rightSidebar.exploreGroups')}
           </Link>
-          <Link to="/notifications" className="px-2 py-2 rounded-lg bg-background-secondary text-foreground/90 hover:opacity-90 transition-all shadow-theme-sm hover:shadow-theme-md text-xs font-medium text-center truncate">
+          <Link to="/notifications" className="px-3 py-2.5 rounded-lg hover:bg-card-hover text-foreground/90 transition-all text-xs font-medium text-center truncate">
             {t('rightSidebar.notifications')}
           </Link>
-          <Link to="/settings" className="px-2 py-2 rounded-lg bg-background-secondary text-foreground/90 hover:opacity-90 transition-all shadow-theme-sm hover:shadow-theme-md text-xs font-medium text-center truncate">
+          <Link to="/settings" className="px-3 py-2.5 rounded-lg hover:bg-card-hover text-foreground/90 transition-all text-xs font-medium text-center truncate">
             {t('rightSidebar.settings')}
           </Link>
         </div>
       </div>
+
       {/* User Profile Summary */}
-      <div className="card-gradient p-4">
-        <h2 className="text-lg font-bold text-foreground mb-3">{t('rightSidebar.myProfile')}</h2>
+      <div className="mb-3">
+        <h2 className="text-sm font-bold text-foreground mb-3 px-1">{t('rightSidebar.myProfile')}</h2>
         <Link
           to="/profile"
-          className="flex items-center space-x-3 hover:bg-background-secondary p-2 rounded-lg transition-colors group"
+          className="flex items-center space-x-3 hover:bg-card-hover p-2 rounded-lg transition-colors group"
         >
           <img
             src={user.avatar || DEFAULT_IMAGES.avatar}
@@ -267,38 +268,38 @@ const RightSidebar: React.FC = () => {
         {/* Stats Section */}
         {loading ? (
           <div className="flex justify-between text-sm text-muted animate-pulse mt-4">
-            <div className="h-4 w-16 bg-background-secondary rounded"></div>
-            <div className="h-4 w-16 bg-background-secondary rounded"></div>
-            <div className="h-4 w-16 bg-background-secondary rounded"></div>
+            <div className="h-4 w-16 bg-card-hover rounded"></div>
+            <div className="h-4 w-16 bg-card-hover rounded"></div>
+            <div className="h-4 w-16 bg-card-hover rounded"></div>
           </div>
         ) : (
-          <div className="grid grid-cols-3 gap-1 text-xs mt-3">
-            <div className="text-center p-1.5 bg-background-secondary rounded-lg">
+          <div className="grid grid-cols-3 gap-2 text-xs mt-3">
+            <div className="text-center p-2 bg-card-hover rounded-lg">
               <p className="text-muted text-[10px] uppercase tracking-wide">{t('rightSidebar.stats.posts')}</p>
               <p className="text-foreground font-bold">{stats.posts}</p>
             </div>
-            <div className="text-center p-1.5 bg-background-secondary rounded-lg">
+            <div className="text-center p-2 bg-card-hover rounded-lg">
               <p className="text-muted text-[10px] uppercase tracking-wide">{t('rightSidebar.stats.following')}</p>
               <p className="text-foreground font-bold">{stats.following}</p>
             </div>
-            <div className="text-center p-1.5 bg-background-secondary rounded-lg">
+            <div className="text-center p-2 bg-card-hover rounded-lg">
               <p className="text-muted text-[10px] uppercase tracking-wide">{t('rightSidebar.stats.followers')}</p>
               <p className="text-foreground font-bold">{stats.followers}</p>
             </div>
           </div>
         )}
 
-        <div className="mt-3 space-y-2">
+        <div className="mt-3 space-y-1">
           <Link
             to="/profile"
-            className="flex items-center gap-2 px-3 py-1.5 text-foreground/80 hover:text-foreground hover:bg-background-secondary rounded-lg transition-colors text-sm"
+            className="flex items-center gap-2 px-3 py-2 text-foreground/80 hover:text-foreground hover:bg-card-hover rounded-lg transition-colors text-sm"
           >
             <User size={16} />
             <span>{t('rightSidebar.viewFullProfile')}</span>
           </Link>
           <Link
             to="/connections"
-            className="flex items-center gap-2 px-3 py-1.5 text-foreground/80 hover:text-foreground hover:bg-background-secondary rounded-lg transition-colors text-sm"
+            className="flex items-center gap-2 px-3 py-2 text-foreground/80 hover:text-foreground hover:bg-card-hover rounded-lg transition-colors text-sm"
           >
             <Users size={16} />
             <span>{t('rightSidebar.myConnections')}</span>
@@ -306,9 +307,15 @@ const RightSidebar: React.FC = () => {
         </div>
       </div>
 
+      {/* Gaming Dashboard */}
+      <GamingDashboard />
+
+      {/* Purge Dashboard */}
+      <PurgeDashboard />
+
       {/* Friend Requests */}
-      <div className="card-gradient p-4">
-        <h2 className="text-lg font-bold text-foreground mb-3">{t('rightSidebar.friendRequests')}</h2>
+      <div className="mb-3">
+        <h2 className="text-sm font-bold text-foreground mb-3 px-1">{t('rightSidebar.friendRequests')}</h2>
         {friendRequestsLoading ? (
           <div className="flex justify-center p-4">
             <div className="h-5 w-5 border-2 border-accent border-t-transparent rounded-full animate-spin"></div>
@@ -316,9 +323,9 @@ const RightSidebar: React.FC = () => {
         ) : friendRequests.length === 0 ? (
           <div className="text-muted text-sm text-center py-2">{t('rightSidebar.noFriendRequests')}</div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-2">
             {friendRequests.map(request => (
-              <div key={request.id} className="flex items-center justify-between gap-2">
+              <div key={request.id} className="flex items-center justify-between gap-2 hover:bg-card-hover p-2 rounded-lg transition-colors">
                 <div className="flex items-center gap-2 min-w-0 flex-1">
                   <img src={request.sender_avatar || DEFAULT_IMAGES.avatar} alt={request.sender_name} className="w-8 h-8 rounded-full object-cover flex-shrink-0" onError={(e) => { e.currentTarget.src = DEFAULT_IMAGES.avatar; }} />
                   <Link to={`/profile/${request.sender_username}`} className="text-foreground text-sm font-medium hover:text-accent truncate block">
@@ -336,7 +343,7 @@ const RightSidebar: React.FC = () => {
                         toast.error('Failed');
                       }
                     }}
-                    className="bg-accent/10 text-accent rounded-full p-1.5 hover:bg-accent hover:text-white transition-colors"
+                    className="bg-accent/10 text-accent rounded-full p-1.5 hover:bg-accent hover:text-[#111] transition-colors"
                     title={t('rightSidebar.accept')}
                   >
                     <UserPlus size={14} />
@@ -364,25 +371,25 @@ const RightSidebar: React.FC = () => {
       </div>
 
       {/* Online Friends */}
-      <div className="card-gradient p-4">
-        <h2 className="text-lg font-bold text-foreground mb-3">{t('rightSidebar.onlineFriends')}</h2>
-        <div className="space-y-2">
+      <div className="mb-3">
+        <h2 className="text-sm font-bold text-foreground mb-3 px-1">{t('rightSidebar.onlineFriends')}</h2>
+        <div className="space-y-1">
           {onlineFriendsLoading ? (
             <div className="space-y-2">
               {[1, 2].map(i => (
                 <div key={i} className="flex items-center gap-2 animate-pulse">
-                  <div className="w-8 h-8 bg-background-secondary rounded-full"></div>
-                  <div className="h-3 w-20 bg-background-secondary rounded"></div>
+                  <div className="w-8 h-8 bg-card-hover rounded-full"></div>
+                  <div className="h-3 w-20 bg-card-hover rounded"></div>
                 </div>
               ))}
             </div>
           ) : onlineFriends.length > 0 ? (
             onlineFriends.map(onlineUser => (
-              <div key={onlineUser.id} className="flex items-center justify-between gap-2 group hover:bg-background-secondary/50 p-1.5 rounded-lg transition-colors -mx-1.5">
+              <div key={onlineUser.id} className="flex items-center justify-between gap-2 group hover:bg-card-hover p-2 rounded-lg transition-colors -mx-1">
                 <div className="flex items-center gap-2 min-w-0 flex-1">
                   <div className="relative flex-shrink-0">
                     <img src={onlineUser.avatar || DEFAULT_IMAGES.avatar} alt={onlineUser.username} className="w-8 h-8 rounded-full object-cover" onError={(e) => { e.currentTarget.src = DEFAULT_IMAGES.avatar; }} />
-                    <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-card" title="Online" />
+                    <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-background" title="Online" />
                   </div>
                   <Link to={`/profile/${onlineUser.username}`} className="text-foreground text-sm font-medium hover:text-accent truncate block">
                     {onlineUser.name || onlineUser.username}
@@ -400,16 +407,16 @@ const RightSidebar: React.FC = () => {
       </div>
 
       {/* Friend Suggestions */}
-      <div className="card-gradient p-4">
-        <h2 className="text-lg font-bold text-foreground mb-3">{t('rightSidebar.peopleYouMayKnow')}</h2>
+      <div className="mb-3">
+        <h2 className="text-sm font-bold text-foreground mb-3 px-1">{t('rightSidebar.peopleYouMayKnow')}</h2>
         {friendSuggestionsLoading ? (
           <div className="flex justify-center p-4">
             <div className="h-5 w-5 border-2 border-accent border-t-transparent rounded-full animate-spin"></div>
           </div>
         ) : friendSuggestions.length > 0 ? (
-          <div className="space-y-3">
+          <div className="space-y-2">
             {friendSuggestions.map(suggestion => (
-              <div key={suggestion.id} className="flex items-center justify-between gap-2">
+              <div key={suggestion.id} className="flex items-center justify-between gap-2 hover:bg-card-hover p-2 rounded-lg transition-colors">
                 <Link to={`/profile/${suggestion.username}`} className="flex items-center gap-2 group min-w-0 flex-1">
                   <img src={suggestion.avatar || DEFAULT_IMAGES.avatar} alt={suggestion.name} className="w-8 h-8 rounded-full object-cover flex-shrink-0" onError={(e) => { e.currentTarget.src = DEFAULT_IMAGES.avatar; }} />
                   <div className="min-w-0">
@@ -436,7 +443,7 @@ const RightSidebar: React.FC = () => {
                           toast.error('Failed');
                         }
                       }}
-                      className="bg-accent/10 text-accent rounded-full p-1.5 hover:bg-accent hover:text-white transition-colors"
+                      className="bg-accent/10 text-accent rounded-full p-1.5 hover:bg-accent hover:text-[#111] transition-colors"
                       title="Add Friend"
                     >
                       <UserPlus size={16} />

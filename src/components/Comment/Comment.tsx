@@ -104,7 +104,7 @@ const Comment: React.FC<CommentProps> = ({ comment, onUpdate, onDelete }) => {
               </button>
               <button
                 onClick={handleEdit}
-                className="px-3 py-1 text-xs bg-orange-500 text-white rounded-md hover:bg-orange-600 transition-colors"
+                className="px-3 py-1 text-xs bg-white text-black rounded-md hover:bg-gray-200 transition-colors"
               >
                 Save
               </button>

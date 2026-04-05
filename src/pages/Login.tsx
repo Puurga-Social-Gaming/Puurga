@@ -173,11 +173,11 @@ const Login: React.FC = () => {
       initial={{ x: 0 }}
       animate={{ x: 0 }}
       transition={{ type: "spring", duration: 0.5 }}
-      className="min-h-screen bg-[#0a0a0a] flex items-center justify-center px-4"
+      className="min-h-screen bg-[#0a0a0a] flex items-center justify-center px-4 dark"
     >
       <div className="login-container w-full max-w-md space-y-8 transition-transform duration-300">
         <div className="text-center">
-          <PuurgaLogo size={48} className="mx-auto text-orange-500" />
+          <PuurgaLogo size={48} className="mx-auto text-white" />
           <h2 className="mt-6 text-3xl font-bold text-white">Welcome back</h2>
           <p className="mt-2 text-gray-400">Sign in to your account</p>
         </div>
@@ -205,7 +205,7 @@ const Login: React.FC = () => {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="mt-1 block w-full rounded-lg bg-[#1a1a1a] border border-[#2d2d2d] px-4 py-2 text-white focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200"
+                  className="mt-1 block w-full rounded-lg bg-[#1a1a1a] border border-[#2d2d2d] px-4 py-2 text-white focus:ring-2 focus:ring-white focus:border-transparent transition-all duration-200"
                 placeholder="Enter your email"
               />
             </div>
@@ -221,7 +221,7 @@ const Login: React.FC = () => {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="mt-1 block w-full rounded-lg bg-[#1a1a1a] border border-[#2d2d2d] px-4 py-2 text-white focus:ring-2 focus:ring-orange-500 focus:border-transparent pr-10 transition-all duration-200"
+                  className="mt-1 block w-full rounded-lg bg-[#1a1a1a] border border-[#2d2d2d] px-4 py-2 text-white focus:ring-2 focus:ring-white focus:border-transparent pr-10 transition-all duration-200"
                   placeholder="Enter your password"
                 />
                 <button
@@ -241,13 +241,13 @@ const Login: React.FC = () => {
                   type="checkbox"
                   checked={rememberMe}
                   onChange={(e) => setRememberMe(e.target.checked)}
-                  className="h-4 w-4 rounded border-gray-300 text-orange-600 focus:ring-orange-500 bg-[#1a1a1a]"
+                  className="h-4 w-4 rounded border-gray-300 text-white focus:ring-white bg-[#1a1a1a]"
                 />
                 <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-300">
                   Remember me
                 </label>
               </div>
-              <Link to="/forgot-password" className="text-sm text-orange-500 hover:text-orange-400">
+              <Link to="/forgot-password" className="text-sm text-white hover:text-gray-300">
                 Forgot password?
               </Link>
             </div>
@@ -256,7 +256,7 @@ const Login: React.FC = () => {
           <button
             type="submit"
             disabled={loading}
-            className={`w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white transition-colors ${loading ? 'bg-orange-400 cursor-not-allowed' : 'bg-orange-600 hover:bg-orange-700'
+            className={`w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white transition-colors ${loading ? 'bg-gray-600 cursor-not-allowed' : 'bg-gray-700 hover:bg-gray-600'
               }`}
           >
             {loading ? (
@@ -277,7 +277,7 @@ const Login: React.FC = () => {
             <Link
               to="/register"
               onClick={handleRegisterClick}
-              className="font-medium text-orange-500 hover:text-orange-400"
+              className="font-medium text-white hover:text-gray-300"
             >
               Sign up
             </Link>

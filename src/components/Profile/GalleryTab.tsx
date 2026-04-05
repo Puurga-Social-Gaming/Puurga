@@ -72,7 +72,7 @@ const GalleryTab: React.FC = () => {
         <button
           onClick={() => setSelectedCategory('all')}
           className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${selectedCategory === 'all'
-              ? 'bg-accent text-white'
+              ? 'bg-gray-700 text-white'
               : 'bg-card text-muted hover:bg-card-hover hover:text-foreground'
             }`}
         >
@@ -82,7 +82,7 @@ const GalleryTab: React.FC = () => {
         <button
           onClick={() => setSelectedCategory('profile')}
           className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${selectedCategory === 'profile'
-              ? 'bg-accent text-white'
+              ? 'bg-gray-700 text-white'
               : 'bg-card text-muted hover:bg-card-hover hover:text-foreground'
             }`}
         >
@@ -92,7 +92,7 @@ const GalleryTab: React.FC = () => {
         <button
           onClick={() => setSelectedCategory('cover')}
           className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${selectedCategory === 'cover'
-              ? 'bg-accent text-white'
+              ? 'bg-gray-700 text-white'
               : 'bg-card text-muted hover:bg-card-hover hover:text-foreground'
             }`}
         >
@@ -102,7 +102,7 @@ const GalleryTab: React.FC = () => {
         <button
           onClick={() => setSelectedCategory('post')}
           className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${selectedCategory === 'post'
-              ? 'bg-accent text-white'
+              ? 'bg-gray-700 text-white'
               : 'bg-card text-muted hover:bg-card-hover hover:text-foreground'
             }`}
         >
