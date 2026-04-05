@@ -511,7 +511,7 @@ export default function Home() {
                                   <p className="text-xs text-gray-600 dark:text-muted/80 text-center italic">{game.description}</p>
                                   <button
                                     onClick={() => handleGameSelect(game.id)}
-                                    className="w-full px-2 py-1 bg-gradient-to-r from-orange-500 to-orange-600 text-white text-xs rounded-full font-medium hover:from-orange-600 hover:to-orange-700 transition-all duration-300 shadow-lg hover:shadow-orange-500/25"
+                                    className="w-full px-2 py-1 bg-gradient-to-r from-white to-gray-200 text-black text-xs rounded-full font-medium hover:from-gray-200 hover:to-gray-300 transition-all duration-300 shadow-lg hover:shadow-white/25 dark:from-gray-200 dark:to-gray-300 dark:text-black"
                                   >
                                     PLAY NOW
                                   </button>
@@ -596,7 +596,7 @@ export default function Home() {
             {/* Floating Toggle Button - Always visible on mobile */}
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="fixed right-3 top-1/2 -translate-y-1/2 z-[60] lg:hidden w-10 h-10 rounded-full bg-gradient-to-r from-orange-500 to-orange-600 flex items-center justify-center shadow-lg hover:shadow-orange-500/25 transition-all duration-300 hover:scale-110"
+              className="fixed right-3 top-1/2 -translate-y-1/2 z-[60] lg:hidden w-10 h-10 rounded-full bg-gradient-to-r from-white to-gray-200 flex items-center justify-center shadow-lg hover:shadow-white/25 transition-all duration-300 hover:scale-110 dark:from-gray-200 dark:to-gray-300 dark:text-black"
             >
               {sidebarOpen ? (
                 <ChevronLeft className="w-5 h-5 text-white" />

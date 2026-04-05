@@ -50,7 +50,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
       {/* Animated background orbs */}
       <div className="absolute inset-0 overflow-hidden">
         <motion.div
-          className="absolute top-1/4 left-1/4 w-64 h-64 bg-orange-500/10 rounded-full blur-3xl"
+          className="absolute top-1/4 left-1/4 w-64 h-64 bg-white/10 rounded-full blur-3xl"
           animate={{
             scale: [1, 1.2, 1],
             opacity: [0.3, 0.5, 0.3],
@@ -82,8 +82,8 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
           transition={{ duration: 0.5 }}
           className="relative flex items-center justify-center"
         >
-          <PuurgaLogo size={56} className="text-orange-500 animate-pulse" />
-          <div className="absolute -inset-4 bg-orange-500/20 rounded-full blur-2xl animate-pulse"></div>
+          <PuurgaLogo size={56} className="animate-pulse" />
+          <div className="absolute -inset-4 bg-white/10 rounded-full blur-2xl animate-pulse"></div>
         </motion.div>
         
         <motion.div
@@ -95,7 +95,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
           <p className="text-gray-400 text-lg font-medium">
             Welcome back
           </p>
-          <p className="text-orange-500 text-3xl font-bold tracking-wider">
+          <p className="text-white text-3xl font-bold tracking-wider">
             {username}
           </p>
         </motion.div>
@@ -109,7 +109,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
         >
           <div className="h-1 bg-gray-800 rounded-full overflow-hidden">
             <motion.div
-              className="h-full bg-gradient-to-r from-orange-500 to-orange-400"
+              className="h-full bg-gradient-to-r from-white to-gray-500"
               style={{ width: `${progress}%` }}
               transition={{ duration: 0.1 }}
             />

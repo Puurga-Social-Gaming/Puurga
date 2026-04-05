@@ -7,13 +7,13 @@
 
   /* ===== LIGHT MODE ===== */
   :root {
-    /* Brand Colors - Orange Primary */
-    --accent: 255 107 0;
-    /* Vibrant Orange #FF6B00 */
-    --accent-hover: 230 96 0;
-    /* Darker Orange */
-    --accent-light: 255 237 213;
-    /* Orange-100 tint */
+    /* Brand Colors - Off-White Primary */
+    --accent: 245 245 245;
+    /* Off-White #F5F5F5 */
+    --accent-hover: 229 229 229;
+    /* Darker Off-White */
+    --accent-light: 255 255 255;
+    /* Pure White tint */
 
     /* Backgrounds - Light Theme */
     --bg: 255 255 255;
@@ -47,16 +47,18 @@
     --input: 255 255 255;
     --input-border: 209 213 219;
     /* #D1D5DB */
-    --ring: 255 107 0;
-    /* Orange Ring */
+    --ring: 245 245 245;
+    /* Off-White Ring */
 
-    /* Shadows - Softer for light mode */
-    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
-    --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
-    --shadow-float: 0 20px 25px -5px rgb(0 0 0 / 0.15), 0 10px 10px -5px rgb(0 0 0 / 0.1);
-    --shadow-button: 0 4px 14px 0 rgb(255 107 0 / 0.3);
+    /* Shadows - Stronger for light mode - more depth */
+    --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+    --shadow-md: 0 6px 12px -2px rgb(0 0 0 / 0.15), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+    --shadow-lg: 0 15px 25px -4px rgb(0 0 0 / 0.15), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+    --shadow-xl: 0 25px 35px -6px rgb(0 0 0 / 0.15), 0 12px 12px -8px rgb(0 0 0 / 0.1);
+    --shadow-float: 0 25px 35px -8px rgb(0 0 0 / 0.2), 0 12px 12px -8px rgb(0 0 0 / 0.15);
+    --shadow-button: 0 4px 14px 0 rgb(245 245 245 / 0.3);
+    --shadow-text: 0 2px 8px rgba(0, 0, 0, 0.15);
+    --shadow-image: 0 10px 30px rgba(0, 0, 0, 0.18);
 
     /* Radius */
     --radius: 0.75rem;
@@ -64,15 +66,15 @@
 
   /* ===== DARK MODE ===== */
   /* Matches reference images: very dark black background, dark grey cards, 
-     subtle dark borders (no white lines), vibrant orange accents */
+     subtle dark borders (no white lines), off-white accents */
   .dark {
-    /* Brand Colors - Orange Primary */
-    --accent: 255 107 0;
-    /* Vibrant Orange #FF6B00 */
-    --accent-hover: 234 88 12;
-    /* Darker Orange */
-    --accent-light: 67 20 7;
-    /* Dark orange tint for dark mode */
+    /* Brand Colors - Off-White Primary */
+    --accent: 245 245 245;
+    /* Off-White #F5F5F5 */
+    --accent-hover: 255 255 255;
+    /* Pure White on hover */
+    --accent-light: 255 255 255 / 0.1;
+    /* White tint for dark mode */
 
     /* Backgrounds - Very Dark (per reference images) */
     --bg: 13 13 13;
@@ -107,8 +109,8 @@
     /* Dark input background */
     --input-border: 38 38 38;
     /* Match card borders */
-    --ring: 255 107 0;
-    /* Orange Ring */
+    --ring: 245 245 245;
+    /* Off-White Ring */
 
     /* Shadows - Deeper for dark mode */
     --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.6);
@@ -116,7 +118,7 @@
     --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.6), 0 4px 6px -4px rgb(0 0 0 / 0.6);
     --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.6), 0 8px 10px -6px rgb(0 0 0 / 0.6);
     --shadow-float: 0 20px 25px -5px rgb(0 0 0 / 0.8), 0 10px 10px -5px rgb(0 0 0 / 0.6);
-    --shadow-button: 0 4px 14px 0 rgb(255 107 0 / 0.25);
+    --shadow-button: 0 4px 14px 0 rgb(245 245 245 / 0.2);
   }
 }
 

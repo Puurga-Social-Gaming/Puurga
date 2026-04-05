@@ -47,7 +47,7 @@ const StoryBar: React.FC = () => {
         {/* User Stories */}
         {MOCK_USERS.map((user) => (
           <div key={user.id} className="flex flex-col items-center gap-1 min-w-[72px]">
-            <div className="w-14 h-14 rounded-full p-[2px] bg-gradient-to-br from-orange-500 to-pink-500 cursor-pointer">
+            <div className="w-14 h-14 rounded-full p-[2px] bg-gradient-to-br from-white to-gray-300 cursor-pointer">
               <Avatar
                 src={user.avatar}
                 alt={user.name}

@@ -41,27 +41,27 @@ const Dashboard: React.FC = () => {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Bebas+Neue&display=swap');
 
-        .glow-orange { box-shadow: 0 0 40px rgba(249,115,22,0.18), 0 0 0 1px rgba(249,115,22,0.15); }
+        .glow-white { box-shadow: 0 0 40px rgba(245,245,245,0.1), 0 0 0 1px rgba(245,245,245,0.08); }
         .stat-card { background: linear-gradient(135deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.01) 100%); border: 1px solid rgba(255,255,255,0.07); backdrop-filter: blur(12px); }
-        .stat-card:hover { border-color: rgba(249,115,22,0.3); background: linear-gradient(135deg, rgba(249,115,22,0.06) 0%, rgba(234,179,8,0.03) 100%); }
+        .stat-card:hover { border-color: rgba(245,245,245,0.2); background: linear-gradient(135deg, rgba(245,245,245,0.04) 0%, rgba(200,200,200,0.02) 100%); }
         .action-card { background: linear-gradient(135deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.01) 100%); border: 1px solid rgba(255,255,255,0.07); }
-        .action-card:hover { border-color: rgba(249,115,22,0.4); background: linear-gradient(135deg, rgba(249,115,22,0.08) 0%, rgba(0,0,0,0) 100%); transform: translateY(-2px); }
-        .hero-card { background: linear-gradient(135deg, #1c1200 0%, #0d0d0d 50%, #120800 100%); border: 1px solid rgba(249,115,22,0.2); }
+        .action-card:hover { border-color: rgba(245,245,245,0.25); background: linear-gradient(135deg, rgba(245,245,245,0.05) 0%, rgba(0,0,0,0) 100%); transform: translateY(-2px); }
+        .hero-card { background: linear-gradient(135deg, #1a1a1a 0%, #0d0d0d 50%, #141414 100%); border: 1px solid rgba(245,245,245,0.1); }
         .section-card { background: linear-gradient(135deg, rgba(255,255,255,0.035) 0%, rgba(0,0,0,0) 100%); border: 1px solid rgba(255,255,255,0.06); }
-        .earn-btn { background: linear-gradient(135deg, #f97316, #ea580c); box-shadow: 0 4px 20px rgba(249,115,22,0.4); }
-        .earn-btn:hover { box-shadow: 0 6px 28px rgba(249,115,22,0.55); transform: translateY(-1px); }
+        .earn-btn { background: linear-gradient(135deg, #f5f5f5, #e5e5e5); box-shadow: 0 4px 20px rgba(245,245,245,0.2); color: #111; }
+        .earn-btn:hover { box-shadow: 0 6px 28px rgba(245,245,245,0.3); transform: translateY(-1px); }
         .puurga-title { font-family: 'Bebas Neue', sans-serif; letter-spacing: 0.08em; }
         .dot-grid { background-image: radial-gradient(rgba(255,255,255,0.04) 1px, transparent 1px); background-size: 24px 24px; }
-        .badge { background: rgba(249,115,22,0.15); border: 1px solid rgba(249,115,22,0.3); }
+        .badge { background: rgba(245,245,245,0.15); border: 1px solid rgba(245,245,245,0.3); }
       `}</style>
 
       {/* Welcome Hero */}
       <motion.div variants={itemVariants} className="hero-card rounded-2xl p-7 relative overflow-hidden dot-grid">
-        <div className="absolute top-0 right-0 w-64 h-64 rounded-full" style={{ background: 'radial-gradient(circle, rgba(249,115,22,0.12) 0%, transparent 70%)', transform: 'translate(30%, -30%)' }} />
+        <div className="absolute top-0 right-0 w-64 h-64 rounded-full" style={{ background: 'radial-gradient(circle, rgba(245,245,245,0.08) 0%, transparent 70%)', transform: 'translate(30%, -30%)' }} />
         <div className="relative z-10 flex items-center justify-between">
           <div>
             <div className="flex items-center gap-2 mb-2">
-              <span className="badge text-orange-400 text-xs font-semibold px-2.5 py-1 rounded-full flex items-center gap-1.5">
+              <span className="badge text-white text-xs font-semibold px-2.5 py-1 rounded-full flex items-center gap-1.5">
                 <Zap className="w-3 h-3" /> LIVE
               </span>
             </div>
@@ -72,20 +72,20 @@ const Dashboard: React.FC = () => {
       </motion.div>
 
       {/* Credits Hero Card */}
-      <motion.div variants={itemVariants} className="glow-orange rounded-2xl p-7 relative overflow-hidden" style={{ background: 'linear-gradient(135deg, rgba(249,115,22,0.15) 0%, rgba(234,179,8,0.08) 60%, rgba(249,115,22,0.05) 100%)', border: '1px solid rgba(249,115,22,0.25)' }}>
+      <motion.div variants={itemVariants} className="glow-white rounded-2xl p-7 relative overflow-hidden" style={{ background: 'linear-gradient(135deg, rgba(245,245,245,0.08) 0%, rgba(200,200,200,0.05) 60%, rgba(245,245,245,0.03) 100%)', border: '1px solid rgba(245,245,245,0.15)' }}>
         <div className="absolute inset-0 dot-grid opacity-30" />
-        <div className="absolute -right-8 -bottom-8 w-48 h-48 rounded-full" style={{ background: 'radial-gradient(circle, rgba(249,115,22,0.2) 0%, transparent 70%)' }} />
+        <div className="absolute -right-8 -bottom-8 w-48 h-48 rounded-full" style={{ background: 'radial-gradient(circle, rgba(245,245,245,0.1) 0%, transparent 70%)' }} />
         <div className="relative z-10 flex items-center justify-between">
           <div className="flex items-center gap-5">
             <div className="relative">
-              <div className="absolute inset-0 rounded-xl blur-md" style={{ background: 'rgba(249,115,22,0.4)' }} />
-              <div className="relative p-4 rounded-xl" style={{ background: 'linear-gradient(135deg, rgba(249,115,22,0.3), rgba(234,88,12,0.2))', border: '1px solid rgba(249,115,22,0.4)' }}>
-                <Coins className="w-7 h-7 text-orange-400" />
+              <div className="absolute inset-0 rounded-xl blur-md" style={{ background: 'rgba(245,245,245,0.3)' }} />
+              <div className="relative p-4 rounded-xl" style={{ background: 'linear-gradient(135deg, rgba(245,245,245,0.2), rgba(200,200,200,0.15))', border: '1px solid rgba(245,245,245,0.3)' }}>
+                <Coins className="w-7 h-7 text-white" />
               </div>
             </div>
             <div>
-              <p className="text-xs text-orange-400/70 font-semibold uppercase tracking-widest mb-0.5">Your Perga Credits</p>
-              <p className="puurga-title text-5xl text-orange-400">{balance.toLocaleString()}</p>
+              <p className="text-xs text-white/70 font-semibold uppercase tracking-widest mb-0.5">Your Perga Credits</p>
+              <p className="puurga-title text-5xl text-white">{balance.toLocaleString()}</p>
             </div>
           </div>
           <Link
@@ -106,14 +106,14 @@ const Dashboard: React.FC = () => {
             key={index}
             whileHover={{ scale: 1.02 }}
             transition={{ duration: 0.2 }}
-            className={`stat-card rounded-xl p-5 transition-all duration-300 cursor-default ${stat.highlight ? 'border-orange-500/20' : ''}`}
+            className={`stat-card rounded-xl p-5 transition-all duration-300 cursor-default ${stat.highlight ? 'border-white/20' : ''}`}
           >
             <div className="flex flex-col gap-3">
-              <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${stat.highlight ? 'bg-orange-500/20 text-orange-400' : 'bg-white/5 text-gray-400'}`}>
+              <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${stat.highlight ? 'bg-white/20 text-white' : 'bg-white/5 text-gray-400'}`}>
                 {stat.icon}
               </div>
               <div>
-                <p className={`text-2xl font-bold leading-none ${stat.highlight ? 'text-orange-400' : 'text-white'}`}>
+                <p className={`text-2xl font-bold leading-none ${stat.highlight ? 'text-white' : 'text-white'}`}>
                   {stat.value}
                 </p>
                 <p className="text-xs text-gray-500 mt-1.5 font-medium">{stat.label}</p>
@@ -137,7 +137,7 @@ const Dashboard: React.FC = () => {
               className="action-card rounded-xl p-4 transition-all duration-250 flex items-center justify-between group"
             >
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-lg bg-orange-500/10 text-orange-400 flex items-center justify-center flex-shrink-0">
+                <div className="w-9 h-9 rounded-lg bg-white/10 text-white flex items-center justify-center flex-shrink-0">
                   {action.icon}
                 </div>
                 <div>
@@ -145,7 +145,7 @@ const Dashboard: React.FC = () => {
                   <p className="text-xs text-gray-500">{action.desc}</p>
                 </div>
               </div>
-              <ArrowUpRight className="w-4 h-4 text-gray-600 group-hover:text-orange-400 transition-colors" />
+              <ArrowUpRight className="w-4 h-4 text-gray-600 group-hover:text-white transition-colors" />
             </Link>
           ))}
         </div>

@@ -34,7 +34,7 @@ const FloatingCreateButton: React.FC<FloatingCreateButtonProps> = ({ onPostCreat
         whileHover={{ scale: 1.05, opacity: 1 }}
         whileTap={{ scale: 0.95 }}
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-24 right-4 lg:bottom-6 lg:right-6 z-50 w-24 h-24 flex items-center justify-center transition-all opacity-30 hover:opacity-100 cursor-move"
+        className="fixed bottom-24 right-4 lg:bottom-6 lg:right-6 z-50 w-24 h-24 flex items-center justify-center transition-all opacity-70 hover:opacity-100 cursor-move"
         aria-label="Create post"
         style={{ touchAction: 'none' }}
       >

@@ -28,7 +28,10 @@ import {
   Download,
   ArrowUpDown,
   ArrowUp,
-  ArrowDown
+  ArrowDown,
+  Plus,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -83,6 +86,99 @@ const StatCard = ({ title, value, icon: Icon, trend, description, color = 'accen
   </motion.div>
 );
 
+const AddUserModal = ({ onClose, onCreate }: { onClose: () => void, onCreate: (data: any) => Promise<void> }) => {
+  const [formData, setFormData] = useState({
+    username: '',
+    full_name: '',
+    email: '',
+    password: '',
+    role: 'user'
+  });
+  const [isSaving, setIsSaving] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+
+  const handleSave = async () => {
+    if (!formData.username || !formData.email || !formData.password || !formData.full_name) {
+      toast.error('All fields are required');
+      return;
+    }
+    if (formData.password.length < 8) {
+      toast.error('Password must be at least 8 characters');
+      return;
+    }
+    setIsSaving(true);
+    try {
+      await onCreate(formData);
+      onClose();
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <motion.div 
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+    >
+      <motion.div 
+        initial={{ scale: 0.9, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }}
+        className="bg-card border border-border w-full max-w-md rounded-3xl overflow-hidden shadow-2xl flex flex-col"
+      >
+        <div className="p-6 border-b border-border flex justify-between items-center bg-accent/5 shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-accent/10 rounded-xl text-accent"><Plus size={24} /></div>
+            <div>
+              <h2 className="text-xl font-bold text-foreground">Add User</h2>
+              <p className="text-sm text-muted-light">Create a new user account</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-border/50 rounded-full transition-colors"><X size={24} /></button>
+        </div>
+        <div className="p-6 space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-muted-light mb-1.5">Full Name</label>
+            <input type="text" value={formData.full_name} onChange={e => setFormData({...formData, full_name: e.target.value})} className="w-full bg-input/50 border border-input-border rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-accent outline-none" placeholder="E.g. John Doe" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-muted-light mb-1.5">Username</label>
+            <input type="text" value={formData.username} onChange={e => setFormData({...formData, username: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '')})} className="w-full bg-input/50 border border-input-border rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-accent outline-none" placeholder="john_doe" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-muted-light mb-1.5">Email</label>
+            <input type="email" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} className="w-full bg-input/50 border border-input-border rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-accent outline-none" placeholder="john@example.com" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-muted-light mb-1.5">Secure Password</label>
+            <div className="relative">
+              <input type={showPassword ? "text" : "password"} value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} className="w-full bg-input/50 border border-input-border rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-accent outline-none pr-10" placeholder="min 8 chars" />
+              <button
+                 type="button"
+                 onClick={() => setShowPassword(!showPassword)}
+                 className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted hover:text-foreground"
+              >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-muted-light mb-1.5">Role</label>
+            <select value={formData.role} onChange={e => setFormData({...formData, role: e.target.value})} className="w-full bg-input/50 border border-input-border rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-accent outline-none appearance-none">
+              <option value="user">User</option>
+              <option value="admin">Admin</option>
+              <option value="super_admin">Super Admin</option>
+              <option value="moderator">Moderator</option>
+              <option value="business">Business</option>
+            </select>
+          </div>
+          <button onClick={handleSave} disabled={isSaving} className="w-full bg-accent hover:bg-accent-hover text-white py-3 rounded-2xl font-bold flex items-center justify-center gap-2 transition-all shadow-theme-button mt-4 disabled:opacity-50">
+            {isSaving ? <RefreshCcw className="animate-spin" size={20} /> : <Save size={20} />} Create User
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+};
+
 const UserDetailsModal = ({ user, onClose, onUpdate, onResetPassword, onDelete }: { 
   user: UserAdminInfo, 
   onClose: () => void, 
@@ -91,6 +187,7 @@ const UserDetailsModal = ({ user, onClose, onUpdate, onResetPassword, onDelete }
   onDelete: () => Promise<void>
 }) => {
   const [formData, setFormData] = useState({
+    email: user.email || '',
     username: user.username,
     full_name: user.full_name,
     role: user.role,
@@ -174,6 +271,15 @@ const UserDetailsModal = ({ user, onClose, onUpdate, onResetPassword, onDelete }
               <h3 className="text-sm font-bold text-muted uppercase tracking-widest">Profile Information</h3>
             
             <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-muted-light mb-1.5">Email</label>
+                <input 
+                  type="email" 
+                  value={formData.email}
+                  onChange={e => setFormData({...formData, email: e.target.value})}
+                  className="w-full bg-input/50 border border-input-border rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-accent outline-none"
+                />
+              </div>
               <div>
                 <label className="block text-sm font-medium text-muted-light mb-1.5">Username</label>
                 <input 
@@ -332,6 +438,7 @@ const SuperAdmin: React.FC = () => {
   const [sortBy, setSortBy] = useState('created_at');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [selectedUser, setSelectedUser] = useState<UserAdminInfo | null>(null);
+  const [showAddModal, setShowAddModal] = useState(false);
   const [activeTab, setActiveTab] = useState<'users' | 'logs' | 'system'>('users');
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [systemLogs, setSystemLogs] = useState<any[]>([]);
@@ -442,6 +549,16 @@ const SuperAdmin: React.FC = () => {
       fetchData();
     } catch (error: any) {
       toast.error(error.message || 'Failed to update user');
+    }
+  };
+
+  const handleCreateUser = async (data: any) => {
+    try {
+      await api.post('/admin/users', data);
+      toast.success('User created successfully');
+      fetchData();
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to create user');
     }
   };
 
@@ -622,6 +739,14 @@ const SuperAdmin: React.FC = () => {
           </div>
           
           <div className="flex items-center gap-3">
+            <motion.button 
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setShowAddModal(true)}
+              className="p-4 bg-green-500/10 border border-green-500/20 text-green-500 rounded-2xl hover:bg-green-500 hover:text-white transition-all flex items-center gap-2 shadow-theme-md"
+            >
+              <Plus size={20} />
+              <span className="hidden sm:inline font-bold uppercase text-xs">Add User</span>
+            </motion.button>
             <motion.button 
               whileTap={{ scale: 0.95 }}
               onClick={handleRefresh}
@@ -1353,6 +1478,15 @@ const SuperAdmin: React.FC = () => {
             onUpdate={handleUpdateUser}
             onResetPassword={handleResetPassword}
             onDelete={handleDeleteUser}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showAddModal && (
+          <AddUserModal 
+            onClose={() => setShowAddModal(false)}
+            onCreate={handleCreateUser}
           />
         )}
       </AnimatePresence>

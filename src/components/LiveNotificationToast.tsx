@@ -38,7 +38,7 @@ export const LiveNotificationToast: React.FC<LiveNotificationToastProps> = ({
       case 'like':
         return <Heart className="w-5 h-5 text-red-500" />;
       case 'comment':
-        return <MessageCircle className="w-5 h-5 text-orange-500" />;
+        return <MessageCircle className="w-5 h-5 text-white" />;
       default:
         return <Bell className="w-5 h-5 text-gray-500" />;
     }
@@ -108,7 +108,7 @@ export const LiveNotificationToast: React.FC<LiveNotificationToastProps> = ({
           {(notification.type === 'like' || notification.type === 'comment') && onAction && (
             <button
               onClick={() => onAction('view')}
-              className="px-3 py-1 bg-orange-500 hover:bg-orange-600 text-white text-xs rounded-md transition-colors"
+              className="px-3 py-1 bg-white hover:bg-gray-200 text-black text-xs rounded-md transition-colors"
             >
               View Post
             </button>

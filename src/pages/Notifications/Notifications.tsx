@@ -237,13 +237,13 @@ const Notifications: React.FC = () => {
 
       case 'comment':
         return (
-          <div key={notification.id} onClick={() => handleNotificationClick(notification)} className={`p-4 sm:p-5 rounded-lg cursor-pointer card-gradient border border-border min-h-[56px] ${notification.read ? '' : 'border-l-4 border-l-orange-500'}`}>
+          <div key={notification.id} onClick={() => handleNotificationClick(notification)} className={`p-4 sm:p-5 rounded-lg cursor-pointer card-gradient border border-border min-h-[56px] ${notification.read ? '' : 'border-l-4 border-l-white'}`}>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="relative">
                   <Avatar src={fromUser.avatar || DEFAULT_IMAGES.avatar} alt={fromUser.name} size="md" />
-                  <div className="absolute -bottom-1 -right-1 bg-orange-500 rounded-full p-1">
-                    <MessageCircle size={12} className="text-white" />
+                  <div className="absolute -bottom-1 -right-1 bg-white rounded-full p-1">
+                    <MessageCircle size={12} className="text-black" />
                   </div>
                 </div>
                 <div className="min-w-0">
@@ -330,7 +330,7 @@ const Notifications: React.FC = () => {
                 onClick={() => setActiveFilter(filter.id)}
                 className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all duration-200 min-h-[44px] ${
                   activeFilter === filter.id
-                    ? 'bg-accent text-white'
+                    ? 'bg-gray-700 text-white'
                     : 'bg-background-secondary text-muted hover:bg-background-tertiary'
                 }`}
               >

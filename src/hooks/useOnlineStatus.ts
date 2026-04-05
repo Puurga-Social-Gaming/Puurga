@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useWebSocket } from './useWebSocket';
 
 export const useOnlineStatus = () => {
   const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
 
-  const { isUserOnline, getOnlineUsers } = useWebSocket({
+  const { isUserOnline: wsIsUserOnline, getOnlineUsers } = useWebSocket({
     onUserStatusChange: (status) => {
       setOnlineUsers(prev => {
         const newSet = new Set(prev);
@@ -18,15 +18,20 @@ export const useOnlineStatus = () => {
     }
   });
 
-  // Initialize online users when WebSocket connects
   useEffect(() => {
     const currentOnlineUsers = getOnlineUsers();
-    setOnlineUsers(new Set(currentOnlineUsers));
-  }, [getOnlineUsers]);
+    if (currentOnlineUsers.length > 0) {
+      setOnlineUsers(new Set(currentOnlineUsers));
+    }
+  }, []);
+
+  const isUserOnline = useCallback((userId: string) => {
+    return onlineUsers.has(userId) || wsIsUserOnline(userId);
+  }, [onlineUsers, wsIsUserOnline]);
 
   return {
-    isUserOnline: (userId: string) => onlineUsers.has(userId) || isUserOnline(userId),
-    onlineUsers: Array.from(onlineUsers),
+    isUserOnline,
+    onlineUsers: useMemo(() => Array.from(onlineUsers), [onlineUsers]),
     onlineCount: onlineUsers.size
   };
 };

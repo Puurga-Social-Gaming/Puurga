@@ -96,7 +96,7 @@ const Groups: React.FC = () => {
           <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Groups</h1>
           <button
             onClick={handleCreateGroup}
-            className="px-3 py-2 bg-accent text-white rounded-lg hover:bg-accent-hover transition-colors flex items-center gap-2 text-sm font-medium flex-shrink-0"
+            className="px-3 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors flex items-center gap-2 text-sm font-medium flex-shrink-0"
           >
             <Plus size={16} />
             <span className="hidden sm:inline">Create Group</span>
@@ -215,7 +215,7 @@ const FilterButton: React.FC<{ label: string; isActive: boolean; onClick: () => 
   <button
     onClick={onClick}
     className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap flex-shrink-0 ${
-      isActive ? 'bg-accent text-white' : 'bg-card text-foreground hover:bg-card-hover'
+      isActive ? 'bg-gray-700 text-white' : 'bg-card text-foreground hover:bg-card-hover'
     }`}
   >
     {label}

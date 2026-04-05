@@ -739,7 +739,7 @@ const PathOfTheWatchman = () => {
                                 <span className="text-2xl font-black text-orange-500">+{finalCredits}</span>
                             </div>
                         </div>
-                        <button onClick={startGame} className="w-full max-w-xs py-4 bg-white text-black font-black uppercase tracking-widest rounded-xl hover:scale-105 transition-all flex items-center justify-center gap-2">
+                        <button onClick={startGame} className="w-full max-w-xs py-4 bg-gray-700 text-white font-black uppercase tracking-widest rounded-xl hover:scale-105 hover:bg-gray-600 transition-all flex items-center justify-center gap-2">
                             <RotateCcw size={18} /> Retry Run
                         </button>
                     </div>

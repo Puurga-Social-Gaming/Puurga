@@ -37,10 +37,8 @@ const Layout: React.FC = () => {
 
       {/* Right Sidebar - Hidden on mobile and tablet, visible on large screens */}
       <div className="hidden lg:flex lg:flex-shrink-0 lg:w-[260px] xl:w-[300px] relative">
-        {/* Subtle gradient overlay */}
-        <div className="absolute left-0 top-0 bottom-0 w-4 bg-gradient-to-r from-transparent to-black/5 dark:to-white/5 z-50 pointer-events-none"></div>
-        <div className="fixed right-0 top-0 bottom-0 w-[260px] xl:w-[300px] sidebar overflow-y-auto z-40 scrollbar-hide">
-          <div className="p-4">
+        <div className="fixed right-0 top-0 bottom-0 w-[260px] xl:w-[300px] bg-background overflow-y-auto z-40 scrollbar-hide">
+          <div className="pt-4 pb-4 px-3">
             <RightSidebar />
           </div>
         </div>

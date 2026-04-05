@@ -89,7 +89,7 @@ const ProfilePictureUpload: React.FC<ProfilePictureUploadProps> = ({ onUploadSuc
           src={previewUrl || user?.avatar || DEFAULT_IMAGES.avatar}
           alt={user?.name || 'Profile picture'}
           size="xl"
-          className="w-32 h-32 border-4 border-orange-500"
+          className="w-32 h-32 border-4 border-white"
         />
         {(user?.avatar || previewUrl) && (
           <button
@@ -103,7 +103,7 @@ const ProfilePictureUpload: React.FC<ProfilePictureUploadProps> = ({ onUploadSuc
         <button
           onClick={() => fileInputRef.current?.click()}
           disabled={isUploading}
-          className="absolute bottom-0 right-0 p-2 bg-orange-500 text-white rounded-full hover:bg-orange-600 transition-colors"
+          className="absolute bottom-0 right-0 p-2 bg-gray-700 text-white rounded-full hover:bg-gray-600 transition-colors"
           title="Upload new profile picture"
         >
           <Camera size={20} />

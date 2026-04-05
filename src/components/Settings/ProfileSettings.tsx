@@ -224,7 +224,7 @@ const ProfileSettings: React.FC = () => {
           <button
             type="button"
             onClick={handleCoverPhotoClick}
-            className="absolute bottom-4 right-4 p-2 bg-orange-500 rounded-full text-white hover:bg-orange-600"
+            className="absolute bottom-4 right-4 p-2 bg-gray-700 rounded-full text-white hover:bg-gray-600"
           >
             <Camera size={16} />
           </button>
@@ -248,7 +248,7 @@ const ProfileSettings: React.FC = () => {
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="absolute bottom-0 right-0 p-2 bg-orange-500 rounded-full text-white hover:bg-orange-600"
+              className="absolute bottom-0 right-0 p-2 bg-gray-700 rounded-full text-white hover:bg-gray-600"
             >
               <Camera size={16} />
             </button>
@@ -275,7 +275,7 @@ const ProfileSettings: React.FC = () => {
               name="name"
               value={formData.name}
               onChange={handleInputChange}
-              className="w-full bg-[#2d2d2d] text-white rounded-lg px-4 py-2 focus:ring-2 focus:ring-orange-500"
+              className="w-full bg-[#2d2d2d] text-white rounded-lg px-4 py-2 focus:ring-2 focus:ring-white"
             />
           </div>
 
@@ -286,7 +286,7 @@ const ProfileSettings: React.FC = () => {
               name="username"
               value={formData.username}
               onChange={handleInputChange}
-              className="w-full bg-[#2d2d2d] text-white rounded-lg px-4 py-2 focus:ring-2 focus:ring-orange-500"
+              className="w-full bg-[#2d2d2d] text-white rounded-lg px-4 py-2 focus:ring-2 focus:ring-white"
             />
           </div>
 
@@ -297,7 +297,7 @@ const ProfileSettings: React.FC = () => {
               name="email"
               value={formData.email}
               onChange={handleInputChange}
-              className="w-full bg-[#2d2d2d] text-white rounded-lg px-4 py-2 focus:ring-2 focus:ring-orange-500"
+              className="w-full bg-[#2d2d2d] text-white rounded-lg px-4 py-2 focus:ring-2 focus:ring-white"
             />
           </div>
 
@@ -308,7 +308,7 @@ const ProfileSettings: React.FC = () => {
               name="location"
               value={formData.location}
               onChange={handleInputChange}
-              className="w-full bg-[#2d2d2d] text-white rounded-lg px-4 py-2 focus:ring-2 focus:ring-orange-500"
+              className="w-full bg-[#2d2d2d] text-white rounded-lg px-4 py-2 focus:ring-2 focus:ring-white"
             />
           </div>
         </div>
@@ -357,7 +357,7 @@ const ProfileSettings: React.FC = () => {
                 name="currentPassword"
                 value={formData.currentPassword}
                 onChange={handleInputChange}
-                className="w-full bg-[#2d2d2d] text-white rounded-lg px-4 py-2 focus:ring-2 focus:ring-orange-500"
+                className="w-full bg-[#2d2d2d] text-white rounded-lg px-4 py-2 focus:ring-2 focus:ring-white"
                 placeholder="Enter your current password"
               />
             </div>
@@ -370,7 +370,7 @@ const ProfileSettings: React.FC = () => {
                 name="newPassword"
                 value={formData.newPassword}
                 onChange={handleInputChange}
-                className="w-full bg-[#2d2d2d] text-white rounded-lg px-4 py-2 focus:ring-2 focus:ring-orange-500"
+                className="w-full bg-[#2d2d2d] text-white rounded-lg px-4 py-2 focus:ring-2 focus:ring-white"
                 placeholder="Enter new password"
               />
             </div>
@@ -386,7 +386,7 @@ const ProfileSettings: React.FC = () => {
                 className={`w-full bg-[#2d2d2d] text-white rounded-lg px-4 py-2 focus:ring-2 ${formData.newPassword && formData.confirmPassword &&
                     formData.newPassword !== formData.confirmPassword
                     ? 'ring-2 ring-red-500'
-                    : 'focus:ring-orange-500'
+                    : 'focus:ring-white'
                   }`}
                 placeholder="Confirm new password"
               />
@@ -403,7 +403,7 @@ const ProfileSettings: React.FC = () => {
           type="submit"
           disabled={!hasChanges || saveStatus === 'saving'}
           className={`w-full py-2 rounded-lg flex items-center justify-center space-x-2 ${hasChanges
-              ? 'bg-orange-500 hover:bg-orange-600 text-white'
+              ? 'bg-gray-700 hover:bg-gray-600 text-white'
               : 'bg-gray-600 text-gray-400 cursor-not-allowed'
             } transition-colors`}
         >

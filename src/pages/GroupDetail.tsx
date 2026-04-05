@@ -264,7 +264,7 @@ const GroupDetail: React.FC = () => {
             {(group.user_role === 'admin' || group.user_role === 'moderator') && (
               <button
                 onClick={() => setShowSettings(!showSettings)}
-                className={`p-2 rounded-full text-white transition-colors ${showSettings ? 'bg-orange-500' : 'bg-black/50 hover:bg-black/70'}`}
+                className={`p-2 rounded-full text-white transition-colors ${showSettings ? 'bg-white text-black' : 'bg-black/50 hover:bg-black/70'}`}
               >
                 <Settings size={20} />
               </button>
@@ -277,7 +277,7 @@ const GroupDetail: React.FC = () => {
             {group.profile_image_url ? (
               <img src={group.profile_image_url} alt={group.name} className="w-full h-full object-cover" />
             ) : (
-              <Users size={32} className="text-orange-500" />
+              <Users size={32} className="text-white" />
             )}
           </div>
           <div>
@@ -300,7 +300,7 @@ const GroupDetail: React.FC = () => {
               </p>
               <button
                 onClick={handleJoinGroup}
-                className="px-6 py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors flex items-center gap-2"
+                className="px-6 py-3 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors flex items-center gap-2"
               >
                 <UserPlus size={20} />
                 Join Group
@@ -349,7 +349,7 @@ const GroupDetail: React.FC = () => {
                                 {message.sender?.avatar_url ? (
                                   <img src={message.sender.avatar_url} alt="" className="w-full h-full object-cover" />
                                 ) : (
-                                  <div className="w-full h-full flex items-center justify-center text-orange-500 text-sm font-bold">
+                                  <div className="w-full h-full flex items-center justify-center text-white text-sm font-bold">
                                     {message.sender?.username?.[0]?.toUpperCase() || '?'}
                                   </div>
                                 )}
@@ -363,7 +363,7 @@ const GroupDetail: React.FC = () => {
                               )}
                               <div
                                 className={`px-4 py-2 rounded-2xl ${isOwnMessage
-                                    ? 'bg-orange-500 text-white rounded-br-md'
+                                    ? 'bg-white text-black rounded-br-md'
                                     : 'bg-[#1a1a1a] text-white rounded-bl-md'
                                   }`}
                               >
@@ -390,12 +390,12 @@ const GroupDetail: React.FC = () => {
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
                     placeholder="Type a message..."
-                    className="flex-1 bg-[#1a1a1a] border border-gray-700 rounded-full px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    className="flex-1 bg-[#1a1a1a] border border-gray-700 rounded-full px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-white"
                   />
                   <button
                     type="submit"
                     disabled={!newMessage.trim() || sendingMessage}
-                    className="p-3 bg-orange-500 text-white rounded-full hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    className="p-3 bg-gray-700 text-white rounded-full hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
                     <Send size={20} />
                   </button>
@@ -427,7 +427,7 @@ const GroupDetail: React.FC = () => {
                         {member.profile?.avatar_url ? (
                           <img src={member.profile.avatar_url} alt="" className="w-full h-full object-cover" />
                         ) : (
-                          <div className="w-full h-full flex items-center justify-center text-orange-500 font-bold">
+                              <div className="w-full h-full flex items-center justify-center text-white font-bold">
                             {member.profile?.username?.[0]?.toUpperCase() || '?'}
                           </div>
                         )}
@@ -441,7 +441,7 @@ const GroupDetail: React.FC = () => {
                         </p>
                       </div>
                       {member.role === 'admin' && (
-                        <Crown size={16} className="text-orange-500 flex-shrink-0" />
+                        <Crown size={16} className="text-white flex-shrink-0" />
                       )}
                       {member.role === 'moderator' && (
                         <Shield size={16} className="text-blue-400 flex-shrink-0" />
@@ -476,7 +476,7 @@ const GroupDetail: React.FC = () => {
               <div className="p-4">
                 <div className="flex items-center justify-between mb-6">
                   <div className="flex items-center gap-2">
-                    <Settings size={20} className="text-orange-500" />
+                    <Settings size={20} className="text-white" />
                     <h3 className="text-lg font-bold text-white">Group Settings</h3>
                   </div>
                   <button
@@ -509,7 +509,7 @@ const GroupDetail: React.FC = () => {
                             {member.profile?.avatar_url ? (
                               <img src={member.profile.avatar_url} alt="" className="w-full h-full object-cover" />
                             ) : (
-                              <div className="w-full h-full flex items-center justify-center text-orange-500 font-bold">
+                          <div className="w-full h-full flex items-center justify-center text-white font-bold">
                                 {member.profile?.username?.[0]?.toUpperCase() || '?'}
                               </div>
                             )}
@@ -519,7 +519,7 @@ const GroupDetail: React.FC = () => {
                               {member.profile?.full_name || member.profile?.username || 'Unknown'}
                             </p>
                             <div className="flex items-center gap-2">
-                              <span className={`text-xs px-2 py-0.5 rounded ${member.role === 'admin' ? 'bg-orange-500/20 text-orange-400' :
+                              <span className={`text-xs px-2 py-0.5 rounded ${member.role === 'admin' ? 'bg-white/20 text-white' :
                                   member.role === 'moderator' ? 'bg-blue-500/20 text-blue-400' :
                                     'bg-gray-500/20 text-gray-400'
                                 }`}>
@@ -535,7 +535,7 @@ const GroupDetail: React.FC = () => {
                             <select
                               value={member.role}
                               onChange={(e) => handleChangeRole(member.user_id, e.target.value)}
-                              className="text-xs bg-[#2d2d2d] text-white rounded px-2 py-1 border border-gray-700 focus:outline-none focus:border-orange-500"
+                              className="text-xs bg-[#2d2d2d] text-white rounded px-2 py-1 border border-gray-700 focus:outline-none focus:border-white"
                             >
                               <option value="member">Member</option>
                               <option value="moderator">Moderator</option>
