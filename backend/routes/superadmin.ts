@@ -262,7 +262,7 @@ router.put('/users/:id', async (req: any, res) => {
 
     const updateData: any = {};
     let authUpdateNeeded = false;
-    let authUpdateData: any = {};
+    const authUpdateData: any = {};
 
     if (email !== undefined) {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

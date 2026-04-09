@@ -132,16 +132,16 @@ const Groups: React.FC = () => {
             <div className="lg:col-span-9">
               {filteredGroups.length > 0 ? (
                 <>
-                  {/* ── MOBILE: compact list ── */}
-                  <div className="flex flex-col gap-2 md:hidden">
+                  {/* ── MOBILE: 2-column card grid ── */}
+                  <div className="grid grid-cols-2 gap-3 md:hidden">
                     {filteredGroups.map((group, i) => (
                       <motion.div
                         key={group.id}
-                        initial={{ opacity: 0, x: -8 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: i * 0.04, duration: 0.25 }}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: i * 0.03, duration: 0.2 }}
                       >
-                        <GroupCardCompact group={group} onJoin={handleJoinGroup} />
+                        <GroupCardMobile group={group} onJoin={handleJoinGroup} />
                       </motion.div>
                     ))}
                   </div>
@@ -222,63 +222,69 @@ const FilterButton: React.FC<{ label: string; isActive: boolean; onClick: () => 
   </button>
 );
 
-// ─── Compact Mobile Card ─────────────────────────────────────────────────────
-const GroupCardCompact: React.FC<{ group: Group; onJoin: (id: string) => void }> = ({ group, onJoin }) => {
+// ─── Mobile Two-Column Card ───────────────────────────────────────────────────
+const GroupCardMobile: React.FC<{ group: Group; onJoin: (id: string) => void }> = ({ group, onJoin }) => {
   const navigate = useNavigate();
   return (
     <div
-      className="bg-card rounded-xl flex items-center gap-3 px-3 py-2.5 cursor-pointer active:scale-[0.99] transition-all duration-150 hover:bg-card-hover"
+      className="bg-gray-800 rounded-xl overflow-hidden cursor-pointer shadow-lg hover:shadow-xl transition-all duration-200 active:scale-[0.98] border border-gray-700"
       onClick={() => navigate(`/groups/${group.id}`)}
     >
-      {/* Avatar */}
-      <div className="relative flex-shrink-0">
-        <img
-          src={group.profile_image_url || '/default-avatar.png'}
-          alt={group.name}
-          className="w-11 h-11 rounded-xl object-cover bg-card-secondary"
-        />
-        {group.is_member && (
-          <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-accent border-2 border-card" />
-        )}
-      </div>
-
-      {/* Info */}
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-1.5">
-          <p className="text-sm font-semibold text-foreground truncate">{group.name}</p>
-          {group.is_private
-            ? <Lock size={10} className="text-muted flex-shrink-0" />
-            : <Globe size={10} className="text-muted flex-shrink-0" />
-          }
+      {/* Cover Image */}
+      <div 
+        className="h-20 bg-cover bg-center relative"
+        style={{ 
+          backgroundImage: group.cover_image_url ? `url(${group.cover_image_url})` : 'linear-gradient(135deg, var(--accent) 0%, var(--accent-hover) 100%)',
+        }}
+      >
+        <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
+        {/* Profile Avatar overlapping cover */}
+        <div className="absolute -bottom-5 left-3">
+          <img
+            src={group.profile_image_url || '/default-avatar.png'}
+            alt={group.name}
+            className="w-10 h-10 rounded-lg object-cover bg-gray-700 border-2 border-gray-800 shadow-md"
+          />
         </div>
-        <div className="flex items-center gap-2 mt-0.5">
-          <span className="text-xs text-muted flex items-center gap-1">
-            <Users size={10} />
-            {group.member_count.toLocaleString()}
-          </span>
-          {group.description && (
-            <span className="text-xs text-muted truncate hidden xs:block">· {group.description}</span>
+        {/* Private/Public badge */}
+        <div className="absolute top-2 right-2">
+          {group.is_private ? (
+            <Lock size={12} className="text-white/80" />
+          ) : (
+            <Globe size={12} className="text-white/80" />
           )}
         </div>
       </div>
 
-      {/* Action */}
-      <div className="flex-shrink-0" onClick={e => e.stopPropagation()}>
-        {group.is_member ? (
-          <button
-            onClick={() => navigate(`/groups/${group.id}`)}
-            className="px-3 py-1.5 bg-accent/10 text-accent rounded-lg text-xs font-semibold hover:bg-accent hover:text-white transition-colors"
-          >
-            View
-          </button>
-        ) : (
-          <button
-            onClick={() => onJoin(group.id)}
-            className="px-3 py-1.5 bg-card-secondary text-foreground rounded-lg text-xs font-semibold hover:bg-accent hover:text-white transition-colors"
-          >
-            Join
-          </button>
+      {/* Info */}
+      <div className="p-2.5 pt-6">
+        <h3 className="text-sm font-bold text-white truncate leading-tight">{group.name}</h3>
+        <div className="flex items-center gap-1 mt-1">
+          <Users size={10} className="text-gray-400" />
+          <span className="text-[10px] text-gray-400">{group.member_count.toLocaleString()} members</span>
+        </div>
+        {group.description && (
+          <p className="text-[10px] text-gray-400 mt-1 line-clamp-2 leading-tight">{group.description}</p>
         )}
+        
+        {/* Action Button */}
+        <div className="mt-2.5" onClick={e => e.stopPropagation()}>
+          {group.is_member ? (
+            <button
+              onClick={() => navigate(`/groups/${group.id}`)}
+              className="w-full py-1.5 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-lg text-xs font-semibold hover:opacity-90 transition-opacity"
+            >
+              View
+            </button>
+          ) : (
+            <button
+              onClick={() => onJoin(group.id)}
+              className="w-full py-1.5 bg-white/10 border border-white/20 text-white rounded-lg text-xs font-semibold hover:bg-white/20 transition-colors"
+            >
+              Join
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -337,13 +343,18 @@ const GroupCard: React.FC<{ group: Group; onJoin: (id: string) => void }> = ({ g
 
 // ─── Skeletons ───────────────────────────────────────────────────────────────
 const GroupCardSkeletonCompact: React.FC = () => (
-  <div className="bg-card rounded-xl flex items-center gap-3 px-3 py-2.5 animate-pulse">
-    <div className="w-11 h-11 rounded-xl bg-card-secondary flex-shrink-0" />
-    <div className="flex-1 space-y-2">
-      <div className="h-3.5 w-2/3 bg-card-secondary rounded" />
-      <div className="h-2.5 w-1/3 bg-card-secondary rounded" />
+  <div className="bg-card rounded-xl overflow-hidden animate-pulse border border-border">
+    <div className="h-20 bg-gradient-to-r from-gray-700 to-gray-600 relative">
+      <div className="absolute -bottom-5 left-3">
+        <div className="w-10 h-10 rounded-lg bg-gray-500 border-2 border-card" />
+      </div>
     </div>
-    <div className="w-14 h-7 rounded-lg bg-card-secondary flex-shrink-0" />
+    <div className="p-2.5 pt-6 space-y-2">
+      <div className="h-3.5 w-3/4 bg-gray-600 rounded" />
+      <div className="h-2.5 w-1/2 bg-gray-700 rounded" />
+      <div className="h-2 w-full bg-gray-700 rounded" />
+      <div className="h-6 w-full bg-gray-600 rounded mt-2" />
+    </div>
   </div>
 );
 

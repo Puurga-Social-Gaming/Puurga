@@ -99,7 +99,7 @@ router.get('/suggestions', auth, async (req: AuthRequest, res) => {
     // Build filter to exclude IDs - Supabase doesn't support .not('id', 'in', ...) easily for large lists
     // So we fetch all and filter client-side.
     // OPTIMIZATION: Get newest users first (most likely to be relevant/active) and limit 100
-    let query = supabase
+    const query = supabase
       .from('profiles')
       .select('id, full_name, username, avatar_url')
       .neq('id', user.id) // Always exclude self

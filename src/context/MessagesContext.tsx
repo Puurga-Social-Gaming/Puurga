@@ -228,6 +228,7 @@ export const MessagesProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         return [...prev, {
           id: message.id,
           content: message.content,
+          images: message.images || [],
           from_user_id: message.fromUserId,
           created_at: message.createdAt,
           conversation_id: conversationId,

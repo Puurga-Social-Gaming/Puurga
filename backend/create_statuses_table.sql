@@ -2,8 +2,10 @@
 CREATE TABLE IF NOT EXISTS statuses (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    content TEXT,
     media_url TEXT,
     type TEXT CHECK (type IN ('text', 'media')) NOT NULL DEFAULT 'text',
+    gradient_index INTEGER DEFAULT 0,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     expires_at TIMESTAMP WITH TIME ZONE NOT NULL
 );

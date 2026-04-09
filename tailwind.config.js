@@ -22,6 +22,9 @@ export default {
         'accent-hover': 'rgb(var(--accent-hover) / <alpha-value>)',
         'accent-light': 'rgb(var(--accent-light) / <alpha-value>)',
         ring: 'rgb(var(--ring) / <alpha-value>)',
+        highlight: 'rgb(var(--highlight) / <alpha-value>)',
+        'highlight-hover': 'rgb(var(--highlight-hover) / <alpha-value>)',
+        'highlight-light': 'rgb(var(--highlight-light) / <alpha-value>)',
       },
       boxShadow: {
         'theme-sm': 'var(--shadow-sm)',

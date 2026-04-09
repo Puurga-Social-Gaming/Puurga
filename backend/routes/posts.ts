@@ -183,7 +183,7 @@ router.get('/purges/my-activity', auth, async (req: AuthRequest, res) => {
 
     // Get post details for purges given
     const givenPostIds = Array.from(new Set((purgesGiven || []).map(p => p.post_id).filter(Boolean)));
-    let postsGivenMap = new Map();
+    const postsGivenMap = new Map();
     if (givenPostIds.length > 0) {
       const { data: postsData } = await supabase
         .from('posts')
@@ -200,7 +200,7 @@ router.get('/purges/my-activity', auth, async (req: AuthRequest, res) => {
     const allUserIds = Array.from(new Set([...givenUserIds, ...receivedUserIds]));
 
     // Fetch profile information for all users
-    let profileMap = new Map();
+    const profileMap = new Map();
     if (allUserIds.length > 0) {
       const { data: profiles } = await supabase
         .from('profiles')

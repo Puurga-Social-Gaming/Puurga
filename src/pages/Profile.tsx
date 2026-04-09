@@ -376,7 +376,7 @@ const Profile: React.FC = () => {
         </div>
 
         {/* Profile Tabs - Part of sticky header, more compact on mobile */}
-        <div className="bg-background w-full border-b border-gray-800">
+        <div className="bg-background w-full border-b border-border">
           <div className="flex justify-around px-1 sm:px-2 md:px-4 overflow-x-auto bg-background">
             <TabButton
               label={t('profile.gallery')}
@@ -599,10 +599,10 @@ interface TabButtonProps {
 
 const TabButton: React.FC<TabButtonProps> = ({ label, icon, isActive, onClick }) => (
   <button
-    className={`flex items-center justify-center gap-1 sm:gap-2 px-2 sm:px-4 md:px-6 py-2 sm:py-3 text-xs sm:text-sm font-medium focus:outline-none transition-colors duration-200 whitespace-nowrap flex-shrink-0
+    className={`flex items-center justify-center gap-1 sm:gap-2 px-2 sm:px-4 md:px-6 py-2 sm:py-3 text-xs sm:text-sm font-medium focus:outline-none transition-all duration-200 whitespace-nowrap flex-shrink-0 shadow-theme-sm
       ${isActive
-        ? 'bg-gray-700 text-white border-b-2 border-gray-600'
-        : 'text-muted hover:text-foreground hover:border-muted border-b-2 border-transparent'
+        ? 'bg-gray-700 text-white border-b-2 border-gray-700 rounded-t-md'
+        : 'text-muted hover:text-foreground hover:bg-gray-800 hover:text-white rounded-t-md border-b-2 border-transparent'
       }`}
     onClick={onClick}
     title={label}

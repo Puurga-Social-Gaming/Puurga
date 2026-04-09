@@ -6,8 +6,10 @@
   --neo-bg: rgb(var(--bg));
   --neo-card: rgb(var(--card));
   --neo-elev: rgb(var(--bg-secondary));
-  --neo-border: rgb(var(--border) / 0.5);
+  --neo-border: rgb(var(--border));
   --neo-accent: rgb(var(--accent));
+  --neo-highlight: rgb(var(--highlight));
+  --neo-highlight-light: rgb(var(--highlight-light));
 }
 
 /* Soft gradient background orbs */
@@ -40,20 +42,39 @@
   border: 1px solid var(--neo-border);
   border-radius: 16px;
   box-shadow: var(--shadow-md);
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
 }
 
-/* Gradient pill buttons */
+.neo-home .neo-card:hover {
+  box-shadow: var(--shadow-lg);
+  border-color: var(--neo-highlight);
+}
+
+/* Gradient pill buttons - Enhanced for light mode */
 .neo-home .neo-pill {
-  background: linear-gradient(90deg, var(--neo-accent), #fb923c);
+  background: linear-gradient(90deg, var(--neo-accent), #9CA3AF);
   color: white;
-  /* Always white text on orange pill */
+  /* Silver gradient for light mode */
   border-radius: 9999px;
+  box-shadow: var(--shadow-button);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.neo-home .neo-pill:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
 }
 
 .neo-home .neo-pill--ghost {
-  background: rgba(var(--accent) / 0.1);
-  color: rgb(var(--accent));
-  border: 1px solid rgba(var(--accent) / 0.3);
+  background: var(--neo-highlight-light);
+  color: rgb(var(--fg));
+  border: 1px solid var(--neo-highlight);
+  box-shadow: var(--shadow-sm);
+}
+
+.neo-home .neo-pill--ghost:hover {
+  background: var(--neo-highlight);
+  box-shadow: var(--shadow-md);
 }
 
 /* Hero block */
@@ -65,7 +86,7 @@
 
 /* Sticky composer panel shadow */
 .neo-home .neo-sticky {
-  background: transparent;
+  background: rgb(var(--bg) / 0.98);
   border-bottom: 1px solid var(--neo-border);
 }
 
@@ -76,12 +97,19 @@
   border-radius: 14px;
 }
 
-/* Reusable input surface to match post tone */
+/* Reusable input surface to match post tone - Enhanced for light mode */
 .neo-home .neo-input {
-  background: var(--neo-elev);
-  border: 1px solid var(--neo-border);
+  background: var(--neo-card);
+  border: 1px solid var(--neo-highlight);
   box-shadow: var(--shadow-sm);
   color: rgb(var(--fg));
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.neo-home .neo-input:focus {
+  border-color: var(--neo-accent);
+  box-shadow: var(--shadow-md), 0 0 0 3px rgba(156, 163, 175, 0.2);
+  outline: none;
 }
 
 /* Top fade below sticky to avoid text showing beneath icons */
@@ -146,7 +174,7 @@
   top: env(safe-area-inset-top, 0);
   left: 0;
   right: 0;
-  height: calc(80px + env(safe-area-inset-top, 0));
+  height: calc(60px + env(safe-area-inset-top, 0));
   pointer-events: none;
   z-index: 49;
   /* Just below fixed header */
@@ -157,6 +185,13 @@
       rgb(var(--bg) / 0.7) 60%,
       rgb(var(--bg) / 0) 100%);
   transform: translateZ(0);
+}
+
+/* Mobile-specific: smaller fade for mobile */
+@media (max-width: 1023px) {
+  .neo-home .neo-top-fade {
+    height: calc(50px + env(safe-area-inset-top, 0));
+  }
 }
 
 /* On desktop, position fade between sidebars */
@@ -182,11 +217,20 @@
 /* Enhanced mask fade at the very top of the feed */
 .neo-home .neo-feed-mask {
   /* Smoothly reveal from transparent to opaque over larger area */
-  -webkit-mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0) 0, rgba(0, 0, 0, 0.3) 20px, rgba(0, 0, 0, 1) 60px);
-  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0) 0, rgba(0, 0, 0, 0.3) 20px, rgba(0, 0, 0, 1) 60px);
+  -webkit-mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0) 0, rgba(0, 0, 0, 0.3) 15px, rgba(0, 0, 0, 1) 50px);
+  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0) 0, rgba(0, 0, 0, 0.3) 15px, rgba(0, 0, 0, 1) 50px);
   -webkit-mask-repeat: no-repeat;
   mask-repeat: no-repeat;
   -webkit-mask-size: 100% 100%;
   mask-size: 100% 100%;
-  padding-top: 2rem;
+  padding-top: 1rem;
+}
+
+/* Mobile-specific: tighter spacing */
+@media (max-width: 1023px) {
+  .neo-home .neo-feed-mask {
+    -webkit-mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0) 0, rgba(0, 0, 0, 0.3) 10px, rgba(0, 0, 0, 1) 40px);
+    mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0) 0, rgba(0, 0, 0, 0.3) 10px, rgba(0, 0, 0, 1) 40px);
+    padding-top: 0.5rem;
+  }
 }

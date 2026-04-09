@@ -107,8 +107,8 @@ const MainNav: React.FC = () => {
   const navLinkClasses = (isActive: boolean) => `
     relative flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200
     ${isActive
-      ? 'nav-active' // This class is defined in theme.css for both light and dark modes
-      : 'text-muted hover:text-foreground hover:bg-card-hover hover:shadow-theme-sm'
+      ? 'nav-active shadow-theme-sm' // This class is defined in theme.css for both light and dark modes
+      : 'text-muted hover:text-foreground hover:bg-highlight-light hover:shadow-theme-sm border border-transparent hover:border-highlight'
     }
   `;
 
@@ -218,7 +218,7 @@ const MainNav: React.FC = () => {
         <div className="mt-auto p-4">
           <button
             onClick={handleLogout}
-            className="w-full flex items-center gap-3 px-4 py-3 text-muted hover:text-foreground hover:bg-card-hover rounded-lg transition-colors"
+            className="w-full flex items-center gap-3 px-4 py-3 text-muted hover:text-foreground hover:bg-highlight-light hover:shadow-theme-sm rounded-lg transition-all border border-transparent hover:border-highlight"
           >
             <LogOut className="w-6 h-6" />
             <span>{t('navigation.logout')}</span>
@@ -252,21 +252,16 @@ const MainNav: React.FC = () => {
           <span className="text-[10px] leading-none">Profile</span>
         </NavLink>
 
-        {/* Notifications */}
+        {/* Games */}
         <NavLink
-          to="/notifications"
+          to="/puurga-games"
           className={({ isActive }) => `
             flex flex-col items-center justify-center gap-0.5 px-3 py-2 min-h-[44px] transition-colors relative
             ${isActive ? 'text-accent' : 'text-muted-foreground hover:text-foreground'}
           `}
         >
-          <Bell size={22} />
-          <span className="text-[10px] leading-none">Alerts</span>
-          {unreadCount > 0 && (
-            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] rounded-full h-5 w-5 flex items-center justify-center font-medium border border-background">
-              {unreadCount > 99 ? '99+' : unreadCount > 9 ? '9+' : unreadCount}
-            </span>
-          )}
+          <Gamepad2 size={22} />
+          <span className="text-[10px] leading-none">Games</span>
         </NavLink>
 
         {/* Messages */}

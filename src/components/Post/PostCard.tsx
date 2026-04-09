@@ -79,7 +79,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, onPostUpdated }) => {
 
   return (
     <>
-      <div className="bg-transparent p-4">
+      <div className="bg-card p-4 rounded-xl border border-border shadow-theme-sm hover:shadow-theme-md transition-shadow">
         <div className="flex justify-between">
           <div className="flex gap-3">
             <Avatar
@@ -99,19 +99,19 @@ const PostCard: React.FC<PostCardProps> = ({ post, onPostUpdated }) => {
             <div className="relative">
               <button
                 onClick={() => setShowOptions(!showOptions)}
-                className="p-2 text-muted hover:text-foreground rounded-full hover:bg-foreground/10 transition-colors"
+                className="p-2 text-muted hover:text-foreground hover:bg-highlight-light rounded-full transition-colors"
               >
                 <MoreVertical size={20} />
               </button>
 
               {showOptions && (
-                <div className="absolute right-0 mt-2 w-48 bg-card rounded-lg shadow-lg overflow-hidden z-10 border border-border">
+                <div className="absolute right-0 mt-2 w-48 bg-card rounded-lg shadow-theme-md overflow-hidden z-10 border border-border">
                   <button
                     onClick={() => {
                       setShowOptions(false);
                       setShowEditModal(true);
                     }}
-                    className="w-full flex items-center gap-2 px-4 py-2 text-foreground hover:bg-foreground/10 transition-colors"
+                    className="w-full flex items-center gap-2 px-4 py-2 text-foreground hover:bg-highlight-light transition-colors"
                   >
                     <Pencil size={16} />
                     Edit Post
@@ -122,7 +122,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, onPostUpdated }) => {
                       handleDelete();
                     }}
                     disabled={isDeleting}
-                    className="w-full flex items-center gap-2 px-4 py-2 text-red-500 hover:bg-foreground/10 transition-colors"
+                    className="w-full flex items-center gap-2 px-4 py-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
                   >
                     <Trash2 size={16} />
                     {isDeleting ? 'Deleting...' : 'Delete Post'}
@@ -149,7 +149,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, onPostUpdated }) => {
             <img
               src={post.images[currentImageIndex]}
               alt={`Post image ${currentImageIndex + 1}`}
-              className="w-full rounded-lg max-h-96 object-cover"
+              className="w-full rounded-lg max-h-48 md:max-h-96 object-cover"
             />
             {post.images.length > 1 && (
               <>
@@ -189,16 +189,16 @@ const PostCard: React.FC<PostCardProps> = ({ post, onPostUpdated }) => {
           </div>
         )}
 
-        <div className="flex items-center gap-6 mt-4">
-          <button className="flex items-center gap-2 text-muted hover:text-red-500 transition-colors">
+        <div className="flex items-center gap-6 mt-4 pt-3 border-t border-border">
+          <button className="flex items-center gap-2 text-muted hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 px-3 py-1.5 rounded-lg transition-colors">
             <Heart size={20} />
             <span className="text-sm">{post.likes}</span>
           </button>
-          <button className="flex items-center gap-2 text-muted hover:text-accent transition-colors">
+          <button className="flex items-center gap-2 text-muted hover:text-accent hover:bg-highlight-light px-3 py-1.5 rounded-lg transition-colors">
             <MessageCircle size={20} />
             <span className="text-sm">{post.comments}</span>
           </button>
-          <button className="flex items-center gap-2 text-muted hover:text-accent transition-colors">
+          <button className="flex items-center gap-2 text-muted hover:text-accent hover:bg-highlight-light px-3 py-1.5 rounded-lg transition-colors">
             <PuurgaLogo size={20} />
             <span className="text-sm">{post.puurgas}</span>
           </button>

@@ -29,7 +29,7 @@ router.get('/', auth, async (req, res) => {
     ));
 
     // Fetch sender profiles
-    let profileMap = new Map<string, { id: string; full_name?: string | null; username?: string | null; avatar_url?: string | null }>();
+    const profileMap = new Map<string, { id: string; full_name?: string | null; username?: string | null; avatar_url?: string | null }>();
     if (senderIds.length > 0) {
       const [profilesRes, usersRes] = await Promise.all([
         supabase.from('profiles').select('id, full_name, username, avatar_url').in('id', senderIds),

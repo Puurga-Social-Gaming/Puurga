@@ -1,14 +1,22 @@
 /* Theme tokens and color scheme */
 :root {
-  /* Brand accent - RGB Format */
-  --accent: 245 245 245;
-  /* #f5f5f5 - Off-White */
-  --accent-hover: 229 229 229;
-  /* Darker Off-White */
-  --accent-light: 255 255 255;
-  /* White tint for backgrounds */
+  /* Brand accent - Silver Gray */
+  --accent: 156 163 175;
+  /* #9CA3AF - Silver Gray */
+  --accent-hover: 107 114 128;
+  /* #6B7280 - Darker Gray */
+  --accent-light: 229 231 235;
+  /* Light Gray tint */
 
-  /* Light mode colors - Modern & Clean */
+  /* Highlight colors - Silver accents for depth */
+  --highlight: 203 213 225;
+  /* #CBD5E1 - Slate-300 */
+  --highlight-hover: 148 163 184;
+  /* #94A3B8 - Slate-400 */
+  --highlight-light: 241 245 249;
+  /* #F1F5F9 - Slate-100 */
+
+  /* Light mode colors - Modern & Clean with depth */
   --bg: 248 250 252;
   /* #f9fafb - Cool gray/off-white background */
   --bg-secondary: 241 245 249;
@@ -27,14 +35,14 @@
   /* Floating Cards */
   --card: 255 255 255;
   /* Pure white cards */
-  --card-hover: 255 255 255;
-  /* Keep white on hover, rely on shadow/transform */
+  --card-hover: 248 250 252;
+  /* #F8FAFC on hover */
   --card-foreground: 15 23 42;
   /* Black text on cards */
 
-  /* Borders - Soft & Subtle */
-  --border: 226 232 240;
-  /* #e2e8f0 */
+  /* Borders - Visible Silver for depth */
+  --border: 203 213 225;
+  /* #CBD5E1 - Visible silver border */
   --border-light: 241 245 249;
   /* #f1f5f9 */
 
@@ -43,28 +51,26 @@
   --input-border: 203 213 225;
   /* #cbd5e1 */
 
-  --ring: 245 245 245;
-  /* Off-White Ring */
+  --ring: 156 163 175;
+  /* Silver Ring */
   --radius: 0.75rem;
   /* 12px */
 
-  /* Modern Floating Shadows - Darker/Stronger as requested */
-  --shadow-sm: 0 2px 6px rgba(0, 0, 0, 0.15), 0 2px 4px rgba(0, 0, 0, 0.12);
-  --shadow-md: 0 8px 16px -4px rgba(0, 0, 0, 0.18), 0 6px 10px -4px rgba(0, 0, 0, 0.12);
-  --shadow-lg: 0 18px 30px -6px rgba(0, 0, 0, 0.2), 0 10px 14px -6px rgba(0, 0, 0, 0.12);
-  --shadow-xl: 0 28px 40px -8px rgba(0, 0, 0, 0.22), 0 14px 14px -8px rgba(0, 0, 0, 0.1);
-  --shadow-float: 0 15px 35px -8px rgba(0, 0, 0, 0.25);
-  --shadow-button: 0 6px 18px 0 rgba(0, 0, 0, 0.15);
+  /* Modern Floating Shadows - Enhanced for depth */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 4px 8px -2px rgba(0, 0, 0, 0.12), 0 2px 4px -2px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 10px 20px -4px rgba(0, 0, 0, 0.12), 0 4px 8px -4px rgba(0, 0, 0, 0.08);
+  --shadow-xl: 0 20px 30px -6px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.08);
+  --shadow-float: 0 20px 30px -8px rgba(0, 0, 0, 0.2);
+  --shadow-button: 0 4px 12px rgba(0, 0, 0, 0.15);
 
   /* Overlay */
   --overlay: rgba(0, 0, 0, 0.5);
 
-  /* Scrollbar - Blended/Invisible */
-  --scrollbar-track: var(--bg);
-  --scrollbar-thumb: var(--bg);
-  /* Invisible as requested */
-  --scrollbar-thumb-hover: var(--bg-secondary);
-  /* Hint on hover maybe */
+  /* Scrollbar - Visible silver */
+  --scrollbar-track: transparent;
+  --scrollbar-thumb: rgba(156, 163, 175, 0.5);
+  --scrollbar-thumb-hover: rgba(156, 163, 175, 0.8);
 }
 
 /* Dark theme overrides when .dark is on html element */
@@ -324,13 +330,13 @@ body {
    Modern, clean, floating aesthetic
    ======================================== */
 
-/* Card with 'floating' feel for light mode */
+/* Card with 'floating' feel for light mode - Silver accents */
 .card-gradient {
   background: white;
   border: 1px solid var(--border);
   box-shadow:
-    0 4px 6px -1px rgba(0, 0, 0, 0.05),
-    0 2px 4px -1px rgba(0, 0, 0, 0.03);
+    0 2px 4px rgba(0, 0, 0, 0.06),
+    0 4px 8px rgba(0, 0, 0, 0.04);
   border-radius: var(--radius);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
@@ -338,15 +344,18 @@ body {
 .card-gradient:hover {
   transform: translateY(-2px);
   box-shadow:
-    0 10px 15px -3px rgba(0, 0, 0, 0.08),
-    0 4px 6px -2px rgba(0, 0, 0, 0.04);
+    0 8px 16px rgba(0, 0, 0, 0.1),
+    0 4px 8px rgba(0, 0, 0, 0.06);
+  border-color: var(--highlight);
 }
 
 /* Card with inner glow (subtle border highlight in light mode) */
 .card-glow {
   background: white;
-  border: 1px solid rgba(245, 245, 245, 0.3);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+  border: 1px solid var(--border);
+  box-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.05),
+    0 4px 12px rgba(156, 163, 175, 0.15);
   border-radius: var(--radius);
 }
 
@@ -364,40 +373,42 @@ body {
   color: var(--fg);
 }
 
-/* Make images pop with more shadow for depth */
+/* Make images pop with shadow for depth */
 img.rounded-full,
 img.rounded-lg,
 img.rounded-xl {
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.18), 0 4px 10px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
-/* Text shadow for headings in light mode - adds depth */
+/* Text shadow for headings in light mode - subtle depth */
 h1, h2, h3, h4, h5, h6 {
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
-/* White accent button with glow (Light Mode) */
+/* Silver accent button with shadow (Light Mode) */
 .btn-accent {
-  background: linear-gradient(135deg, #f5f5f5 0%, #e5e5e5 100%);
-  color: #111111;
+  background: linear-gradient(135deg, #9CA3AF 0%, #6B7280 100%);
+  color: white;
   border: none;
-  box-shadow: 0 4px 14px rgba(245, 245, 245, 0.3);
+  box-shadow: 0 4px 12px rgba(156, 163, 175, 0.4);
   transition: all 0.2s ease;
 }
 
 .btn-accent:hover {
-  background: linear-gradient(135deg, #ffffff 0%, #f0f0f0 100%);
-  color: #111111;
+  background: linear-gradient(135deg, #B0B7C3 0%, #9CA3AF 100%);
+  color: white;
   transform: translateY(-1px);
-  box-shadow: 0 8px 20px rgba(245, 245, 245, 0.4);
+  box-shadow: 0 6px 16px rgba(156, 163, 175, 0.5);
 }
 
-/* Nav item active state (Light Mode) */
+/* Nav item active state (Light Mode) - Silver highlight */
 .nav-active {
-  background: #f5f5f5;
-  /* Off-white tint */
-  border-left: 3px solid #f5f5f5;
-  color: #111111;
+  background: var(--highlight-light);
+  /* Light silver tint */
+  border-left: 3px solid var(--accent);
+  /* Silver left border */
+  color: var(--fg);
+  box-shadow: inset 0 1px 3px rgba(156, 163, 175, 0.2);
 }
 
 

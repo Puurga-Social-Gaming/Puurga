@@ -148,6 +148,7 @@ export type Tables = {
   statuses: {
     id: string;
     user_id: string;
+    content?: string;
     media_url?: string;
     type: 'text' | 'media';
     created_at: string;

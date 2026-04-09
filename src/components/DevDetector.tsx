@@ -2,8 +2,8 @@ import React, { useEffect } from 'react';
 
 const DevDetector: React.FC = () => {
   useEffect(() => {
-    let devtools = { open: false, orientation: null };
-    let threshold = 160;
+    const devtools = { open: false, orientation: null };
+    const threshold = 160;
 
     const checkDevTools = () => {
       if (

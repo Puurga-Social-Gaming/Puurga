@@ -151,7 +151,7 @@ const authLimiter = rateLimit({
 
 const apiLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 100,
+  max: 1000,
   message: { error: 'Too many requests. Please slow down.' },
   standardHeaders: true,
   legacyHeaders: false
@@ -257,4 +257,4 @@ export const generateToken = (user: { id: string }): string => {
   );
 };
 
-startServer(); // touch
+startServer(); // touch 15:00:33

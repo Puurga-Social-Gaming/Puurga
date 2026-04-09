@@ -27,18 +27,18 @@ const QuickActions: React.FC = () => {
     <div className="relative" ref={dropdownRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center justify-center w-10 h-10 rounded-full bg-background-secondary hover:bg-accent/10 transition-colors"
+        className="flex items-center justify-center w-10 h-10 rounded-full bg-card border border-border hover:bg-highlight-light shadow-theme-sm hover:shadow-theme-md transition-all"
         aria-label="Quick actions"
         title="Options"
       >
-        <div className="w-1.5 h-1.5 rounded-full bg-foreground/70 relative">
-          <div className="absolute -top-2.5 left-0 w-1.5 h-1.5 rounded-full bg-foreground/70"></div>
-          <div className="absolute -bottom-2.5 left-0 w-1.5 h-1.5 rounded-full bg-foreground/70"></div>
+        <div className="w-1.5 h-1.5 rounded-full bg-foreground relative">
+          <div className="absolute -top-2.5 left-0 w-1.5 h-1.5 rounded-full bg-foreground"></div>
+          <div className="absolute -bottom-2.5 left-0 w-1.5 h-1.5 rounded-full bg-foreground"></div>
         </div>
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-56 bg-card border border-border rounded-lg shadow-lg overflow-hidden z-50">
+        <div className="absolute right-0 mt-2 w-56 bg-card border border-border rounded-lg shadow-theme-md overflow-hidden z-50">
           {/* Theme Toggle */}
           <div className="p-2">
             <button
@@ -46,7 +46,7 @@ const QuickActions: React.FC = () => {
                 toggleTheme();
                 setIsOpen(false);
               }}
-              className="w-full flex items-center justify-between px-4 py-2 text-left text-foreground hover:bg-card-hover rounded-md transition-colors"
+              className="w-full flex items-center justify-between px-4 py-2 text-left text-foreground hover:bg-highlight-light rounded-md transition-colors"
             >
               <div className="flex items-center gap-3">
                 {theme === 'dark' ? (
@@ -76,8 +76,8 @@ const QuickActions: React.FC = () => {
                     setIsOpen(false);
                   }}
                   className={`w-full flex items-center px-4 py-2 text-left text-sm rounded-md transition-colors ${i18n.language.startsWith(lang.code)
-                      ? 'bg-accent/10 text-accent font-medium'
-                      : 'text-foreground hover:bg-card-hover'
+                      ? 'bg-highlight-light text-accent font-medium'
+                      : 'text-foreground hover:bg-highlight-light'
                     }`}
                 >
                   <Globe size={16} className="mr-3 text-muted" />

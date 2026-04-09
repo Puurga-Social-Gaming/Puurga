@@ -208,7 +208,7 @@ const CreatePost: React.FC<CreatePostProps> = ({ onPostCreated, autoExpand = fal
             <img
               src={user.avatar || DEFAULT_IMAGES.avatar}
               alt={user.name}
-              className="w-12 h-12 rounded-full object-cover border-2 border-accent/20 hover:border-accent/40 transition-colors"
+              className="w-12 h-12 rounded-full object-cover border-2 border-highlight shadow-theme-sm hover:shadow-theme-md transition-shadow"
               title={`Posting as ${user.name} (@${user.username || 'user'})`}
             />
           </div>
@@ -219,7 +219,7 @@ const CreatePost: React.FC<CreatePostProps> = ({ onPostCreated, autoExpand = fal
               onChange={(e) => setContent(e.target.value)}
               onFocus={() => setIsExpanded(true)}
               placeholder={`${t('createPost.placeholder')}`}
-              className={`w-full ${isExpanded ? 'rounded-2xl py-3' : 'rounded-2xl py-2'} neo-input px-4 text-foreground placeholder-muted resize-none focus:outline-none focus:ring-2 focus:ring-accent/80 focus:border-accent/40`}
+              className={`w-full ${isExpanded ? 'rounded-2xl py-3' : 'rounded-2xl py-2'} bg-input border border-border px-4 text-foreground placeholder-muted resize-none focus:outline-none focus:ring-2 focus:ring-highlight focus:border-highlight shadow-theme-sm`}
               rows={isExpanded ? 3 : 1}
             />
 
@@ -228,9 +228,9 @@ const CreatePost: React.FC<CreatePostProps> = ({ onPostCreated, autoExpand = fal
               <div className="mt-3">
                 <div className="mb-2 flex items-center gap-2">
                   <span className="text-sm font-medium text-muted">Layout:</span>
-                  <button type="button" onClick={() => setImageLayout('grid')} className={`p-1.5 rounded-md ${imageLayout === 'grid' ? 'bg-accent text-white' : 'bg-card-hover'}`}><LayoutGrid size={16} /></button>
-                  <button type="button" onClick={() => setImageLayout('rows')} className={`p-1.5 rounded-md ${imageLayout === 'rows' ? 'bg-accent text-white' : 'bg-card-hover'}`}><Rows size={16} /></button>
-                  <button type="button" onClick={() => setImageLayout('columns')} className={`p-1.5 rounded-md ${imageLayout === 'columns' ? 'bg-accent text-white' : 'bg-card-hover'}`}><Columns size={16} /></button>
+                  <button type="button" onClick={() => setImageLayout('grid')} className={`p-1.5 rounded-md ${imageLayout === 'grid' ? 'bg-accent text-white shadow-theme-sm' : 'bg-highlight-light hover:bg-highlight text-muted'}`}><LayoutGrid size={16} /></button>
+                  <button type="button" onClick={() => setImageLayout('rows')} className={`p-1.5 rounded-md ${imageLayout === 'rows' ? 'bg-accent text-white shadow-theme-sm' : 'bg-highlight-light hover:bg-highlight text-muted'}`}><Rows size={16} /></button>
+                  <button type="button" onClick={() => setImageLayout('columns')} className={`p-1.5 rounded-md ${imageLayout === 'columns' ? 'bg-accent text-white shadow-theme-sm' : 'bg-highlight-light hover:bg-highlight text-muted'}`}><Columns size={16} /></button>
                 </div>
                 <div className={`grid gap-2 ${imageLayout === 'grid' ? 'grid-cols-2' : imageLayout === 'rows' ? 'grid-cols-1' : 'grid-cols-2'}`}>
                   {imagePreviewUrls.map((url, index) => (
@@ -259,7 +259,7 @@ const CreatePost: React.FC<CreatePostProps> = ({ onPostCreated, autoExpand = fal
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    className="p-2 text-muted hover:text-accent rounded-full hover:bg-accent/10"
+                    className="p-2 text-muted hover:text-accent hover:bg-highlight-light rounded-full transition-colors shadow-theme-sm"
                   >
                     <Image size={20} />
                   </button>
@@ -275,7 +275,7 @@ const CreatePost: React.FC<CreatePostProps> = ({ onPostCreated, autoExpand = fal
                     <button
                       type="button"
                       onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                      className="p-2 text-muted hover:text-accent rounded-full hover:bg-accent/10"
+                      className="p-2 text-muted hover:text-accent hover:bg-highlight-light rounded-full transition-colors shadow-theme-sm"
                     >
                       <Smile size={20} />
                     </button>
@@ -313,7 +313,7 @@ const CreatePost: React.FC<CreatePostProps> = ({ onPostCreated, autoExpand = fal
                   {isExpanded && !content && selectedImages.length === 0 && (
                     <button
                       type="button"
-                      className="px-3 py-2 text-muted hover:text-foreground"
+                      className="px-3 py-2 text-muted hover:text-foreground hover:bg-highlight-light rounded-lg transition-colors border border-border"
                       onClick={() => setIsExpanded(false)}
                     >
                       {t('common.cancel')}
@@ -322,9 +322,9 @@ const CreatePost: React.FC<CreatePostProps> = ({ onPostCreated, autoExpand = fal
                   <button
                     type="submit"
                     disabled={loading || (!content.trim() && selectedImages.length === 0)}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg ${loading || (!content.trim() && selectedImages.length === 0)
-                      ? 'bg-accent/50 cursor-not-allowed'
-                      : 'bg-accent hover:bg-accent-hover'
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg shadow-theme-button border border-border ${loading || (!content.trim() && selectedImages.length === 0)
+                      ? 'bg-muted/30 cursor-not-allowed text-muted'
+                      : 'bg-accent hover:bg-accent-hover text-white border-accent'
                       }`}
                   >
                     <Send size={18} />

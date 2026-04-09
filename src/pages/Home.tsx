@@ -393,7 +393,7 @@ export default function Home() {
       <div className="neo-top-fade" />
 
       {/* Main content with mobile two-column layout */}
-      <div className="pt-24 sm:pt-28" style={{ paddingTop: 'calc(6rem + env(safe-area-inset-top, 0))' }}>
+      <div className="pt-16 sm:pt-20 lg:pt-24" style={{ paddingTop: 'calc(4rem + env(safe-area-inset-top, 0))' }}>
         <div className="max-w-4xl mx-auto w-full px-3 sm:px-0 relative">
           {/* Mobile Two-Column Layout with Independent Scrolling */}
           <div className="lg:hidden flex h-[calc(100vh-6rem-env(safe-area-inset-top,0))]">
@@ -490,30 +490,30 @@ export default function Home() {
                                 {/* Subtle Glow Effect */}
                                 <div className="absolute inset-0 bg-gradient-to-r from-gray-500/20 dark:from-orange-500/30 to-purple-500/30 dark:to-purple-500/30 rounded-lg blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
 
-                                {/* Game Card */}
-                                <div className="relative bg-gradient-to-br from-background/80 to-background/60 dark:from-background/80 dark:to-background/60 backdrop-blur-sm border border-gray-200/20 dark:border-transparent rounded-lg p-2 group-hover:border-gray-300/30 dark:group-hover:border-transparent transition-all duration-300">
-                                  <div className={`aspect-square w-full mb-1 rounded overflow-hidden shadow-sm relative group-hover:scale-105 transition-transform duration-300`}>
+                                {/* Game Card - Compact for mobile */}
+                                <div className="relative bg-gradient-to-br from-background/80 to-background/60 dark:from-background/80 dark:to-background/60 backdrop-blur-sm border border-gray-200/20 dark:border-transparent rounded-lg p-1.5 group-hover:border-gray-300/30 dark:group-hover:border-transparent transition-all duration-300">
+                                  <div className={`w-full aspect-square mb-1 rounded overflow-hidden shadow-sm relative group-hover:scale-105 transition-transform duration-300`}>
                                     <img src={game.image} alt={game.name} className="w-full h-full object-cover" />
                                     <div className="absolute inset-0 bg-black/10 group-hover:bg-transparent transition-colors" />
                                   </div>
-                                  <h4 className="font-bold text-gray-800 dark:text-foreground text-[10px] leading-tight text-center bg-gradient-to-r from-gray-700 to-gray-900 dark:from-white dark:to-gray-300 bg-clip-text text-transparent truncate">
+                                  <h4 className="font-bold text-gray-800 dark:text-foreground text-[9px] leading-tight text-center bg-gradient-to-r from-gray-700 to-gray-900 dark:from-white dark:to-gray-300 bg-clip-text text-transparent truncate">
                                     {game.name}
                                   </h4>
-                                  <div className="flex items-center justify-center gap-1 mt-1">
-                                    <span className="text-yellow-600 dark:text-yellow-400 text-[8px]">⚡</span>
-                                    <span className="text-yellow-700 dark:text-yellow-300 text-[8px]">{game.rating}</span>
+                                  <div className="flex items-center justify-center gap-1 mt-0.5">
+                                    <span className="text-yellow-600 dark:text-yellow-400 text-[7px]">⚡</span>
+                                    <span className="text-yellow-700 dark:text-yellow-300 text-[7px]">{game.rating}</span>
                                   </div>
                                 </div>
                               </div>
 
                               {expandedGame === game.id && (
-                                <div className="px-1 pb-2 space-y-2 animate-in slide-in-from-top-2 duration-300">
-                                  <p className="text-xs text-gray-600 dark:text-muted/80 text-center italic">{game.description}</p>
+                                <div className="px-1 pb-2 space-y-1.5 animate-in slide-in-from-top-2 duration-300">
+                                  <p className="text-[10px] text-gray-600 dark:text-muted/80 text-center italic leading-tight">{game.description}</p>
                                   <button
                                     onClick={() => handleGameSelect(game.id)}
-                                    className="w-full px-2 py-1 bg-gradient-to-r from-white to-gray-200 text-black text-xs rounded-full font-medium hover:from-gray-200 hover:to-gray-300 transition-all duration-300 shadow-lg hover:shadow-white/25 dark:from-gray-200 dark:to-gray-300 dark:text-black"
+                                    className="w-full px-2 py-1 bg-gradient-to-r from-white to-gray-200 text-black text-[10px] rounded-full font-medium hover:from-gray-200 hover:to-gray-300 transition-all duration-300 shadow-md hover:shadow-white/25 dark:from-gray-200 dark:to-gray-300 dark:text-black"
                                   >
-                                    PLAY NOW
+                                    PLAY
                                   </button>
                                 </div>
                               )}
@@ -596,12 +596,12 @@ export default function Home() {
             {/* Floating Toggle Button - Always visible on mobile */}
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="fixed right-3 top-1/2 -translate-y-1/2 z-[60] lg:hidden w-10 h-10 rounded-full bg-gradient-to-r from-white to-gray-200 flex items-center justify-center shadow-lg hover:shadow-white/25 transition-all duration-300 hover:scale-110 dark:from-gray-200 dark:to-gray-300 dark:text-black"
+              className="fixed right-3 top-1/2 -translate-y-1/2 z-[60] lg:hidden w-10 h-10 rounded-full bg-card border border-border shadow-theme-md hover:shadow-theme-lg flex items-center justify-center transition-all duration-300 hover:scale-110"
             >
               {sidebarOpen ? (
-                <ChevronLeft className="w-5 h-5 text-white" />
+                <ChevronLeft className="w-5 h-5 text-foreground" />
               ) : (
-                <ChevronRight className="w-5 h-5 text-white" />
+                <ChevronRight className="w-5 h-5 text-foreground" />
               )}
             </button>
           </div>
@@ -629,11 +629,11 @@ export default function Home() {
                   <button
                     onClick={handleLoadMore}
                     disabled={loading}
-                    className="px-6 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full text-sm font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-[0_4px_12px_rgba(156,163,175,0.25),0_2px_6px_rgba(156,163,175,0.15)] dark:shadow-none"
+                    className="px-6 py-2 bg-card border border-border hover:bg-highlight-light rounded-full text-sm font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-theme-md hover:shadow-theme-lg"
                   >
                     {loading ? (
                       <>
-                        <div className="w-4 h-4 border-2 border-white/50 border-t-white rounded-full animate-spin" />
+                        <div className="w-4 h-4 border-2 border-accent border-t-transparent rounded-full animate-spin" />
                         {t('posts.loading')}
                       </>
                     ) : (

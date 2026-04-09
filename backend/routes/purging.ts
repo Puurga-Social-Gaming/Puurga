@@ -57,7 +57,7 @@ router.get('/activity', auth, async (req: AuthRequest, res) => {
 
     // Get post details to find the target user for purges
     const postIds = Array.from(new Set(safePurgeRows.map((p: any) => p.post_id).filter(Boolean)));
-    let postMap = new Map<string, any>();
+    const postMap = new Map<string, any>();
     if (postIds.length > 0) {
       const { data: posts } = await supabase
         .from('posts')
@@ -70,7 +70,7 @@ router.get('/activity', auth, async (req: AuthRequest, res) => {
     }
 
     const userIdArray = Array.from(allUserIds);
-    let profileMap = new Map<string, any>();
+    const profileMap = new Map<string, any>();
     if (userIdArray.length > 0) {
       const { data: profiles } = await supabase
         .from('profiles')

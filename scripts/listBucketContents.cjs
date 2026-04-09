@@ -36,7 +36,7 @@ async function listBucketContents() {
 
     // List all files in the logos bucket
     const { data: files, error } = await supabase.storage
-      .from('logos')
+      .from('Logos')
       .list();
 
     if (error) {

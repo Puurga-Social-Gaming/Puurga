@@ -42,7 +42,7 @@ const Avatar: React.FC<AvatarProps> = ({
         alt={alt}
         onError={handleError}
         onClick={onClick}
-        className={`rounded-full object-cover bg-[#2d2d2d] ${sizeClasses[size]} ${showBorder ? 'border-2 border-white dark:border-gray-600' : ''} ${onClick ? 'cursor-pointer hover:opacity-90' : ''} ${className}`}
+        className={`rounded-full object-cover bg-[#2d2d2d] shadow-theme-sm ${sizeClasses[size]} ${showBorder ? 'border-2 border-highlight' : ''} ${onClick ? 'cursor-pointer hover:opacity-90 hover:shadow-theme-md transition-shadow' : ''} ${className}`}
       />
       {showOnlineStatus && userId && (
         <OnlineStatusIndicator 

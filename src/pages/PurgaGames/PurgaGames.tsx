@@ -8,7 +8,6 @@ import {
   Star,
   Play,
   Clock,
-  Users,
   Zap,
   Crown,
   Flame,
@@ -237,8 +236,8 @@ const PurgaGames: React.FC = () => {
           <p className="text-muted text-sm mt-1">Choose your arena and prove your worth</p>
         </motion.div>
 
-        {/* Large Game Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
+        {/* Large Game Cards - Half size on mobile */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-6">
           {mainGames.map((game, index) => (
             <motion.div
               key={game.id}
@@ -249,9 +248,9 @@ const PurgaGames: React.FC = () => {
               className="group relative cursor-pointer"
               onClick={() => handleGameSelect(game)}
             >
-              <div className="relative overflow-hidden rounded-2xl bg-gradient-to-b from-card to-background-secondary border border-border hover:border-orange-500/50 transition-all duration-300 shadow-xl hover:shadow-orange-500/10">
-                {/* Game Image */}
-                <div className="relative aspect-square overflow-hidden">
+              <div className="relative overflow-hidden rounded-xl md:rounded-2xl bg-gradient-to-b from-card to-background-secondary border border-border hover:border-orange-500/50 transition-all duration-300 shadow-xl hover:shadow-orange-500/10 max-h-[180px] md:max-h-none">
+                {/* Game Image - Half height on mobile */}
+                <div className="relative h-[90px] md:h-auto md:aspect-video lg:aspect-square overflow-hidden">
                   <img
                     src={game.image}
                     alt={game.title}
@@ -260,46 +259,42 @@ const PurgaGames: React.FC = () => {
                   <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent opacity-80" />
 
                   {/* Featured Badge */}
-                  <div className="absolute top-3 left-3">
-                    <span className="flex items-center gap-1 bg-gradient-to-r from-orange-500 to-red-500 text-white text-xs px-2 py-1 rounded-full font-semibold shadow-lg">
-                      <Star className="w-3 h-3" />
-                      Featured
+                  <div className="absolute top-1.5 left-1.5 md:top-2 md:left-2">
+                    <span className="flex items-center gap-0.5 bg-gradient-to-r from-orange-500 to-red-500 text-white text-[8px] md:text-[10px] px-1 md:px-1.5 py-0.5 rounded-full font-medium shadow-lg">
+                      <Star className="w-2 md:w-2.5 h-2 md:h-2.5" />
+                      <span className="hidden md:inline">Featured</span>
                     </span>
                   </div>
 
                   {/* Difficulty Badge */}
-                  <div className="absolute top-3 right-3">
-                    <span className={`text-xs px-2 py-1 rounded-full font-medium border ${getDifficultyColor(game.difficulty)}`}>
+                  <div className="absolute top-1.5 right-1.5 md:top-2 md:right-2">
+                    <span className={`text-[8px] md:text-[10px] px-1 md:px-1.5 py-0.5 rounded-full font-medium border ${getDifficultyColor(game.difficulty)}`}>
                       {game.difficulty}
                     </span>
                   </div>
 
                   {/* Play Button Overlay */}
                   <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                    <div className="p-4 bg-orange-500 rounded-full shadow-xl shadow-orange-500/50 transform scale-75 group-hover:scale-100 transition-transform duration-300">
-                      <Play className="w-8 h-8 text-white" fill="white" />
+                    <div className="p-1.5 md:p-2 bg-orange-500 rounded-full shadow-xl shadow-orange-500/50 transform scale-75 group-hover:scale-100 transition-transform duration-300">
+                      <Play className="w-4 h-4 md:w-5 md:h-5 text-white" fill="white" />
                     </div>
                   </div>
 
                   {/* Game Info Overlay */}
-                  <div className="absolute bottom-0 left-0 right-0 p-4">
-                    <h3 className="text-xl md:text-2xl font-bold text-white mb-1">{game.title}</h3>
-                    <p className="text-gray-300 text-xs md:text-sm line-clamp-2 mb-3">{game.description}</p>
+                  <div className="absolute bottom-0 left-0 right-0 p-1.5 md:p-2">
+                    <h3 className="text-xs md:text-base lg:text-xl font-bold text-white mb-0.5 truncate">{game.title}</h3>
+                    <p className="text-gray-300 text-[9px] md:text-[10px] lg:text-sm line-clamp-1 md:line-clamp-2 mb-0.5 md:mb-1 hidden sm:block">{game.description}</p>
 
                     {/* Stats Row */}
-                    <div className="flex items-center justify-between text-xs text-gray-400">
-                      <div className="flex items-center gap-3">
-                        <span className="flex items-center gap-1">
-                          <Clock className="w-3 h-3" />
-                          {game.playTime}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Users className="w-3 h-3" />
-                          {game.players.toLocaleString()}
+                    <div className="flex items-center justify-between text-[9px] md:text-[10px] lg:text-xs text-gray-400">
+                      <div className="flex items-center gap-1">
+                        <span className="flex items-center gap-0.5">
+                          <Clock className="w-2 md:w-2.5 h-2 md:h-2.5" />
+                          <span className="hidden md:inline">{game.playTime}</span>
                         </span>
                       </div>
-                      <span className="flex items-center gap-1 text-orange-400 font-semibold">
-                        <Coins className="w-3 h-3" />
+                      <span className="flex items-center gap-0.5 text-orange-400 font-medium">
+                        <Coins className="w-2 md:w-2.5 h-2 md:h-2.5" />
                         {game.rewardCoins}
                       </span>
                     </div>
@@ -326,22 +321,22 @@ const PurgaGames: React.FC = () => {
               <div
                 key={game.id}
                 onClick={() => handleGameSelect(game)}
-                className="flex items-center gap-4 p-3 rounded-xl bg-card/50 border border-border hover:border-orange-500/30 transition-all cursor-pointer"
+                className="flex items-center gap-3 p-2 rounded-xl bg-card/50 border border-border hover:border-orange-500/30 transition-all cursor-pointer"
               >
                 <img
                   src={game.image}
                   alt={game.title}
-                  className="w-16 h-16 rounded-lg object-cover shadow-lg"
+                  className="w-8 h-8 rounded-lg object-cover shadow-sm"
                 />
                 <div className="flex-1 min-w-0">
-                  <h3 className="font-bold text-foreground truncate">{game.title}</h3>
-                  <p className="text-xs text-muted">{game.category} • {game.difficulty}</p>
-                  <div className="flex items-center gap-2 mt-1 text-xs text-orange-400">
+                  <h3 className="font-semibold text-foreground text-sm truncate">{game.title}</h3>
+                  <p className="text-[10px] text-muted">{game.category} • {game.difficulty}</p>
+                  <div className="flex items-center gap-1 mt-0.5 text-[10px] text-orange-400">
                     <Coins className="w-3 h-3" />
-                    <span>{game.rewardCoins} credits</span>
+                    <span>{game.rewardCoins}</span>
                   </div>
                 </div>
-                <Play className="w-5 h-5 text-orange-500" />
+                <Play className="w-4 h-4 text-orange-500 flex-shrink-0" />
               </div>
             ))}
           </div>

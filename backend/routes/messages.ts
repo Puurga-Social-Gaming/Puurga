@@ -60,7 +60,7 @@ router.get('/conversations', auth, async (req: AuthRequest, res) => {
     // Bulk fetch profiles for these participants
     const participantUserIds = [...new Set((allParticipants || []).map(p => p.user_id))];
 
-    let profilesMap = new Map();
+    const profilesMap = new Map();
     if (participantUserIds.length > 0) {
       const { data: profiles } = await supabase
         .from('profiles')
@@ -203,6 +203,7 @@ router.get('/conversations/:conversationId/messages', auth, async (req: AuthRequ
       .select(`
         id,
         content,
+        images,
         created_at,
         from_user_id,
         profiles!messages_from_user_id_fkey(id, full_name, username, avatar_url)
@@ -223,6 +224,7 @@ router.get('/conversations/:conversationId/messages', auth, async (req: AuthRequ
       created_at: msg.created_at,
       from_user_id: msg.from_user_id,
       is_from_current_user: msg.from_user_id === user.id,
+      images: msg.images || [],
       from_user: {
         id: msg.profiles?.id || msg.from_user_id,
         full_name: msg.profiles?.full_name || 'Unknown User',
@@ -287,6 +289,7 @@ router.post('/conversations/:conversationId/messages', auth, async (req: AuthReq
       .select(`
         id,
         content,
+        images,
         created_at,
         from_user_id,
         profiles!messages_from_user_id_fkey(id, full_name, username, avatar_url)
@@ -380,6 +383,7 @@ router.post('/conversations/:conversationId/messages', auth, async (req: AuthReq
           message: {
             id: formattedMessage.id,
             content: formattedMessage.content,
+            images: formattedMessage.images,
             fromUserId: formattedMessage.from_user_id,
             createdAt: new Date(formattedMessage.created_at),
             fromUser: {
@@ -589,7 +593,7 @@ router.get('/users/online', auth, async (req: AuthRequest, res) => {
       username: u.username || 'unknown',
       avatar_url: normalizeImageUrl(u.avatar_url),
       show_online_status: Boolean(u.show_online_status ?? true),
-      isOnline: Boolean(u.show_online_status ?? true) ? onlineUserIds.has(u.id) : false
+      isOnline: u.show_online_status ?? true ? onlineUserIds.has(u.id) : false
     }));
 
     // Sort: online -> friends -> others -> alphabetical

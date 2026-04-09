@@ -231,16 +231,16 @@ const RightSidebar: React.FC = () => {
           <QuickActions />
         </div>
         <div className="grid grid-cols-2 gap-1.5">
-          <Link to="/home" className="px-3 py-2.5 rounded-lg bg-accent/10 text-foreground hover:bg-accent/20 transition-all text-xs font-medium text-center truncate">
+          <Link to="/home" className="px-3 py-2.5 rounded-lg bg-card hover:bg-highlight-light text-foreground shadow-theme-sm hover:shadow-theme-md transition-all text-xs font-medium text-center truncate border border-border hover:border-highlight">
             {t('rightSidebar.createPost')}
           </Link>
-          <Link to="/groups" className="px-3 py-2.5 rounded-lg hover:bg-card-hover text-foreground/90 transition-all text-xs font-medium text-center truncate">
+          <Link to="/groups" className="px-3 py-2.5 rounded-lg bg-card hover:bg-highlight-light text-foreground transition-all text-xs font-medium text-center truncate border border-border hover:border-highlight shadow-theme-sm hover:shadow-theme-md">
             {t('rightSidebar.exploreGroups')}
           </Link>
-          <Link to="/notifications" className="px-3 py-2.5 rounded-lg hover:bg-card-hover text-foreground/90 transition-all text-xs font-medium text-center truncate">
+          <Link to="/notifications" className="px-3 py-2.5 rounded-lg bg-card hover:bg-highlight-light text-foreground transition-all text-xs font-medium text-center truncate border border-border hover:border-highlight shadow-theme-sm hover:shadow-theme-md">
             {t('rightSidebar.notifications')}
           </Link>
-          <Link to="/settings" className="px-3 py-2.5 rounded-lg hover:bg-card-hover text-foreground/90 transition-all text-xs font-medium text-center truncate">
+          <Link to="/settings" className="px-3 py-2.5 rounded-lg bg-card hover:bg-highlight-light text-foreground transition-all text-xs font-medium text-center truncate border border-border hover:border-highlight shadow-theme-sm hover:shadow-theme-md">
             {t('rightSidebar.settings')}
           </Link>
         </div>
@@ -251,12 +251,12 @@ const RightSidebar: React.FC = () => {
         <h2 className="text-sm font-bold text-foreground mb-3 px-1">{t('rightSidebar.myProfile')}</h2>
         <Link
           to="/profile"
-          className="flex items-center space-x-3 hover:bg-card-hover p-2 rounded-lg transition-colors group"
+          className="flex items-center space-x-3 hover:bg-highlight-light p-2 rounded-lg transition-colors group shadow-theme-sm hover:shadow-theme-md"
         >
           <img
             src={user.avatar || DEFAULT_IMAGES.avatar}
             alt={user.name}
-            className="w-10 h-10 rounded-full object-cover flex-shrink-0"
+            className="w-10 h-10 rounded-full object-cover flex-shrink-0 border-2 border-highlight"
             onError={(e) => { e.currentTarget.src = DEFAULT_IMAGES.avatar; }}
           />
           <div className="min-w-0 flex-1">
@@ -274,15 +274,15 @@ const RightSidebar: React.FC = () => {
           </div>
         ) : (
           <div className="grid grid-cols-3 gap-2 text-xs mt-3">
-            <div className="text-center p-2 bg-card-hover rounded-lg">
+            <div className="text-center p-2 bg-highlight-light rounded-lg shadow-theme-sm border border-highlight hover:shadow-theme-md transition-shadow">
               <p className="text-muted text-[10px] uppercase tracking-wide">{t('rightSidebar.stats.posts')}</p>
               <p className="text-foreground font-bold">{stats.posts}</p>
             </div>
-            <div className="text-center p-2 bg-card-hover rounded-lg">
+            <div className="text-center p-2 bg-highlight-light rounded-lg shadow-theme-sm border border-highlight hover:shadow-theme-md transition-shadow">
               <p className="text-muted text-[10px] uppercase tracking-wide">{t('rightSidebar.stats.following')}</p>
               <p className="text-foreground font-bold">{stats.following}</p>
             </div>
-            <div className="text-center p-2 bg-card-hover rounded-lg">
+            <div className="text-center p-2 bg-highlight-light rounded-lg shadow-theme-sm border border-highlight hover:shadow-theme-md transition-shadow">
               <p className="text-muted text-[10px] uppercase tracking-wide">{t('rightSidebar.stats.followers')}</p>
               <p className="text-foreground font-bold">{stats.followers}</p>
             </div>
@@ -292,14 +292,14 @@ const RightSidebar: React.FC = () => {
         <div className="mt-3 space-y-1">
           <Link
             to="/profile"
-            className="flex items-center gap-2 px-3 py-2 text-foreground/80 hover:text-foreground hover:bg-card-hover rounded-lg transition-colors text-sm"
+            className="flex items-center gap-2 px-3 py-2 text-foreground/80 hover:text-foreground hover:bg-highlight-light rounded-lg transition-colors text-sm shadow-theme-sm hover:shadow-theme-md border border-transparent hover:border-highlight"
           >
             <User size={16} />
             <span>{t('rightSidebar.viewFullProfile')}</span>
           </Link>
           <Link
             to="/connections"
-            className="flex items-center gap-2 px-3 py-2 text-foreground/80 hover:text-foreground hover:bg-card-hover rounded-lg transition-colors text-sm"
+            className="flex items-center gap-2 px-3 py-2 text-foreground/80 hover:text-foreground hover:bg-highlight-light rounded-lg transition-colors text-sm shadow-theme-sm hover:shadow-theme-md border border-transparent hover:border-highlight"
           >
             <Users size={16} />
             <span>{t('rightSidebar.myConnections')}</span>

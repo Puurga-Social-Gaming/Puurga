@@ -155,9 +155,13 @@ const Messages: React.FC = () => {
     conv.participants[0]?.full_name?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const [isSending, setIsSending] = useState(false);
+
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!currentConversation || (!newMessage.trim() && selectedImages.length === 0)) return;
+    if (!currentConversation || (!newMessage.trim() && selectedImages.length === 0) || isSending) return;
+    
+    setIsSending(true);
 
     try {
       // Stop typing indicator
@@ -201,6 +205,8 @@ const Messages: React.FC = () => {
     } catch (error) {
       console.error('Failed to send message:', error);
       toast.error(t('messages.failedToSend'));
+    } finally {
+      setIsSending(false);
     }
   };
 
@@ -288,7 +294,7 @@ const Messages: React.FC = () => {
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-bold text-foreground">{t('messages.title')}</h2>
               <button
-                onClick={() => setShowUserList(true)}
+                onClick={() => { setShowUserList(true); setShowMobileSidebar(false); }}
                 className="p-2 sm:p-2.5 bg-accent hover:bg-accent-hover text-black rounded-full transition-colors touch-manipulation flex items-center justify-center"
                 title={t('messages.newConversation')}
                 aria-label={t('messages.newConversation')}
@@ -322,7 +328,7 @@ const Messages: React.FC = () => {
               <MessageSquare className="w-12 h-12 text-muted mb-3" />
               <p className="text-muted text-sm">{t('messages.noConversationsYet')}</p>
               <button
-                onClick={() => setShowUserList(true)}
+                onClick={() => { setShowUserList(true); setShowMobileSidebar(false); }}
                 className="mt-4 text-accent hover:text-accent-hover text-sm font-medium px-4 py-2 rounded-lg touch-manipulation"
               >
                 {t('messages.startConversation')}
@@ -644,7 +650,7 @@ const Messages: React.FC = () => {
               {t('messages.welcomePrompt')}
             </p>
             <button
-              onClick={() => setShowUserList(true)}
+              onClick={() => { setShowUserList(true); setShowMobileSidebar(false); }}
               className="bg-accent text-black px-6 py-3 rounded-lg hover:bg-accent-hover transition-colors font-medium touch-manipulation shadow-theme-button"
             >
               {t('messages.startNewConversation')}
