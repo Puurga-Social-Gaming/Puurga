@@ -257,6 +257,11 @@ router.post('/users', async (req: any, res) => {
  */
 router.put('/users/:id', async (req: any, res) => {
   try {
+    console.log('🔧 PUT /users/:id called');
+    console.log('🔧 Params:', req.params);
+    console.log('🔧 Body:', req.body);
+    console.log('🔧 User:', req.user);
+    
     const { id } = req.params;
     const { email, username, full_name, role, is_ghost, bio } = req.body;
 
@@ -341,7 +346,14 @@ router.put('/users/:id', async (req: any, res) => {
 
     res.json({ success: true, message: 'User updated successfully' });
   } catch (error: any) {
-    console.error('Error updating user:', error);
+    console.error('❌ Error updating user:', error);
+    console.error('❌ Error stack:', error.stack);
+    console.error('❌ Error details:', {
+      message: error.message,
+      code: error.code,
+      details: error.details,
+      hint: error.hint
+    });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
