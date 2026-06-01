@@ -251,6 +251,82 @@ router.get('/ghosted-friends', auth, async (req: AuthRequest, res) => {
   }
 });
 
+// GET /api/redeem/friend-stats - Get all friends with purge counts and ghost status
+router.get('/friend-stats', auth, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: 'Not authenticated' });
+
+    // Get user's friends
+    const [friendsRes, requestsRes] = await Promise.all([
+      supabase.from('friends').select('user_id_1, user_id_2')
+        .or(`user_id_1.eq.${userId},user_id_2.eq.${userId}`),
+      supabase.from('friend_requests').select('sender_id, receiver_id')
+        .eq('status', 'accepted')
+        .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
+    ]);
+
+    const friendIdsFromTable = (friendsRes.data || [])
+      .map((f: any) => f.user_id_1 === userId ? f.user_id_2 : f.user_id_1);
+    const friendIdsFromRequests = (requestsRes.data || [])
+      .map((r: any) => r.sender_id === userId ? r.receiver_id : r.sender_id);
+
+    const friendIds = Array.from(new Set([...friendIdsFromTable, ...friendIdsFromRequests]))
+      .filter((id: string) => id !== userId);
+
+    if (friendIds.length === 0) return res.json({ friends: [], stats: { totalFriends: 0, ghosted: 0, atRisk: 0 } });
+
+    // Get profiles of all friends with purge data
+    const { data: friendProfiles, error: profilesError } = await supabase
+      .from('profiles')
+      .select('id, full_name, username, avatar_url, is_ghost, purge_count, ghosted_at')
+      .in('id', friendIds);
+
+    if (profilesError) {
+      console.error('Error fetching friend profiles:', profilesError);
+      return res.json({ friends: [], stats: { totalFriends: 0, ghosted: 0, atRisk: 0 } });
+    }
+
+    const ghosted: any[] = [];
+    const atRisk: any[] = [];
+    const safe: any[] = [];
+
+    (friendProfiles || []).forEach((f: any) => {
+      const friend = {
+        id: f.id,
+        fullName: f.full_name,
+        username: f.username,
+        avatarUrl: normalizeImageUrl(f.avatar_url),
+        isGhost: f.is_ghost || false,
+        purgeCount: f.purge_count || 0,
+        ghostedAt: f.ghosted_at,
+        dangerLevel: f.is_ghost ? 'ghosted' : (f.purge_count || 0) >= 15 ? 'critical' : (f.purge_count || 0) >= 10 ? 'high' : (f.purge_count || 0) >= 5 ? 'medium' : 'low',
+        redemptionCost: 100
+      };
+      if (f.is_ghost) ghosted.push(friend);
+      else if ((f.purge_count || 0) >= 10) atRisk.push(friend);
+      else safe.push(friend);
+    });
+
+    ghosted.sort((a, b) => b.purgeCount - a.purgeCount);
+    atRisk.sort((a, b) => b.purgeCount - a.purgeCount);
+
+    res.json({
+      friends: [...ghosted, ...atRisk, ...safe],
+      stats: {
+        totalFriends: friendIds.length,
+        ghosted: ghosted.length,
+        atRisk: atRisk.length,
+        safe: safe.length
+      }
+    });
+
+  } catch (error) {
+    console.error('Error fetching friend stats:', error);
+    res.json({ friends: [], stats: { totalFriends: 0, ghosted: 0, atRisk: 0, safe: 0 } });
+  }
+});
+
 // GET /api/redeem/status/:userId - Check if a user is in ghost mode
 router.get('/status/:userId', auth, async (req: AuthRequest, res) => {
   try {

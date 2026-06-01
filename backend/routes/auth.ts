@@ -4,6 +4,8 @@ import { supabase } from '../config/supabase';
 import { supabaseAuth } from '../middleware/supabaseAuth';
 import { normalizeImageUrl } from '../utils/url';
 import { logSuperAdminAction } from '../utils/auditLogger';
+import { CreditService } from '../services/creditService';
+import { NotificationService } from '../services/notificationService';
 
 const router = express.Router();
 
@@ -102,6 +104,9 @@ router.post('/register', async (req, res) => {
       await supabase.auth.admin.deleteUser(authData.user.id);
       return res.status(400).json({ message: 'Error creating user profile' });
     }
+
+    // Send welcome notification
+    await NotificationService.welcome(profile.id);
 
     res.status(201).json({
       message: 'User registered successfully',
@@ -210,6 +215,9 @@ router.post('/login', async (req, res) => {
         story_privacy: profile.story_privacy
       }
     });
+
+    // Award daily login bonus
+    await CreditService.checkAndAwardDailyLoginBonus(authData.user.id);
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).json({
@@ -428,6 +436,24 @@ router.delete('/delete-account', supabaseAuth, async (req, res) => {
 
     if (!isSuperAdmin && targetId && targetId !== req.user.id) {
       return res.status(403).json({ message: 'Forbidden: Only super admins can delete other accounts' });
+    }
+
+    // Check target user's role before deletion
+    const { data: targetUser, error: fetchError } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', userIdToDelete)
+      .single();
+
+    if (fetchError && fetchError.code !== 'PGRST116') {
+      throw fetchError;
+    }
+
+    // Prevent self-deletion of superadmin accounts
+    if (targetUser && (targetUser.role === 'super_admin' || targetUser.role === 'superadmin')) {
+      return res.status(403).json({ 
+        message: 'Cannot delete superadmin account for security reasons'
+      });
     }
 
     if (isSuperAdmin && targetId && targetId !== req.user.id) {

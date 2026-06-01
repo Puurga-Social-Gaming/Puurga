@@ -1,26 +1,40 @@
 import express from 'express';
 import { supabase } from '../config/supabase';
-import { supabaseAuth as auth } from '../middleware/supabaseAuth';
-import { wsManager } from '../websocketManager';
+import { supabaseAuth as auth, AuthRequest } from '../middleware/supabaseAuth';
+import { NotificationService } from '../services/notificationService';
 import { normalizeImageUrl } from '../utils/url';
 
 const router = express.Router();
 
-// Get all notifications for the current user
-router.get('/', auth, async (req, res) => {
+// Get all notifications for the current user (with pagination)
+router.get('/', auth, async (req: AuthRequest, res) => {
   try {
-    // Fetch notifications
-    const { data: notifications, error } = await supabase
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = Math.min(parseInt(req.query.limit as string) || 50, 100);
+    const offset = (page - 1) * limit;
+    const type = req.query.type as string | undefined;
+
+    let query = supabase
       .from('notifications')
-      .select('*')
+      .select('*', { count: 'exact' })
       .eq('receiver_id', req.user.id)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
+
+    if (type && type !== 'all') {
+      const categoryTypes = getTypesForCategory(type);
+      if (categoryTypes.length > 0) {
+        query = query.in('type', categoryTypes);
+      }
+    }
+
+    const { data: notifications, count, error } = await query;
 
     if (error) throw error;
 
     const safeNotifications = notifications || [];
     if (safeNotifications.length === 0) {
-      return res.json([]);
+      return res.json({ notifications: [], total: 0, page, limit });
     }
 
     // Collect unique sender_ids
@@ -29,18 +43,17 @@ router.get('/', auth, async (req, res) => {
     ));
 
     // Fetch sender profiles
-    const profileMap = new Map<string, { id: string; full_name?: string | null; username?: string | null; avatar_url?: string | null }>();
+    const profileMap = new Map<string, any>();
     if (senderIds.length > 0) {
       const [profilesRes, usersRes] = await Promise.all([
         supabase.from('profiles').select('id, full_name, username, avatar_url').in('id', senderIds),
         supabase.from('users').select('id, avatar_url').in('id', senderIds),
       ]);
 
-      const profiles = (profilesRes.data || []) as Array<{ id: string; full_name?: string | null; username?: string | null; avatar_url?: string | null }>;
-      const usersTbl = (usersRes.data || []) as Array<{ id: string; avatar_url?: string | null }>;
+      const profiles = (profilesRes.data || []) as any[];
+      const usersTbl = (usersRes.data || []) as any[];
 
       for (const p of profiles) profileMap.set(p.id, p);
-      // Merge avatar from users table if not in profiles
       for (const u of usersTbl) {
         const existing = profileMap.get(u.id);
         if (existing && !existing.avatar_url && u.avatar_url) {
@@ -59,6 +72,8 @@ router.get('/', auth, async (req, res) => {
         id: n.id,
         type: n.type,
         read,
+        title: n.title,
+        message: n.message,
         createdAt: n.created_at,
         fromUser: {
           id: n.sender_id || '',
@@ -72,11 +87,15 @@ router.get('/', auth, async (req, res) => {
           commentId: n.comment_id || undefined,
           conversationId: n.conversation_id || undefined,
           messageId: n.message_id || undefined,
+          shareId: n.share_id || undefined,
+          groupId: n.group_id || undefined,
+          gameId: n.game_id || undefined,
+          ...(n.metadata || {}),
         },
       };
     });
 
-    res.json(mapped);
+    res.json({ notifications: mapped, total: count || 0, page, limit });
   } catch (error) {
     console.error('Error fetching notifications:', error);
     res.status(500).json({ error: 'Failed to fetch notifications' });
@@ -84,7 +103,7 @@ router.get('/', auth, async (req, res) => {
 });
 
 // Mark notifications as read
-router.put('/read', auth, async (req, res) => {
+router.put('/read', auth, async (req: AuthRequest, res) => {
   try {
     const { notificationIds } = req.body;
 
@@ -92,14 +111,7 @@ router.put('/read', auth, async (req, res) => {
       return res.status(400).json({ error: 'notificationIds must be an array' });
     }
 
-    const { error } = await supabase
-      .from('notifications')
-      .update({ read: true, is_read: true })
-      .in('id', notificationIds)
-      .eq('receiver_id', req.user.id);
-
-    if (error) throw error;
-
+    await NotificationService.markAsRead(req.user.id, notificationIds);
     res.json({ message: 'Notifications marked as read' });
   } catch (error) {
     console.error('Error marking notifications as read:', error);
@@ -107,17 +119,21 @@ router.put('/read', auth, async (req, res) => {
   }
 });
 
-// Get unread notifications count
-router.get('/unread/count', auth, async (req, res) => {
+// Mark all notifications as read
+router.put('/read-all', auth, async (req: AuthRequest, res) => {
   try {
-    const { count, error } = await supabase
-      .from('notifications')
-      .select('*', { count: 'exact', head: true })
-      .eq('receiver_id', req.user.id)
-      .or('read.eq.false,is_read.eq.false');
+    await NotificationService.markAllAsRead(req.user.id);
+    res.json({ message: 'All notifications marked as read' });
+  } catch (error) {
+    console.error('Error marking all notifications as read:', error);
+    res.status(500).json({ error: 'Failed to mark all notifications as read' });
+  }
+});
 
-    if (error) throw error;
-
+// Get unread notifications count
+router.get('/unread/count', auth, async (req: AuthRequest, res) => {
+  try {
+    const count = await NotificationService.getUnreadCount(req.user.id);
     res.json({ count });
   } catch (error) {
     console.error('Error fetching unread count:', error);
@@ -125,19 +141,25 @@ router.get('/unread/count', auth, async (req, res) => {
   }
 });
 
-// Delete a single notification
-router.delete('/:id', auth, async (req, res) => {
+// Delete notifications in bulk
+router.delete('/batch', auth, async (req: AuthRequest, res) => {
   try {
-    const notificationId = req.params.id;
+    const { notificationIds } = req.body;
+    if (!Array.isArray(notificationIds)) {
+      return res.status(400).json({ error: 'notificationIds must be an array' });
+    }
+    await NotificationService.deleteNotifications(req.user.id, notificationIds);
+    res.json({ message: 'Notifications deleted' });
+  } catch (error) {
+    console.error('Error deleting notifications:', error);
+    res.status(500).json({ error: 'Failed to delete notifications' });
+  }
+});
 
-    const { error } = await supabase
-      .from('notifications')
-      .delete()
-      .eq('id', notificationId)
-      .eq('receiver_id', req.user.id);
-
-    if (error) throw error;
-
+// Delete a single notification
+router.delete('/:id', auth, async (req: AuthRequest, res) => {
+  try {
+    await NotificationService.deleteNotifications(req.user.id, [req.params.id]);
     res.json({ message: 'Notification deleted' });
   } catch (error) {
     console.error('Error deleting notification:', error);
@@ -145,4 +167,93 @@ router.delete('/:id', auth, async (req, res) => {
   }
 });
 
-export default router; 
+// ── Notification Preferences ──────────────────────────────
+
+// Get notification preferences
+router.get('/preferences', auth, async (req: AuthRequest, res) => {
+  try {
+    const prefs = await NotificationService.getPreferences(req.user.id);
+    res.json(prefs);
+  } catch (error) {
+    console.error('Error fetching notification preferences:', error);
+    res.status(500).json({ error: 'Failed to fetch notification preferences' });
+  }
+});
+
+// Update notification preferences
+router.put('/preferences', auth, async (req: AuthRequest, res) => {
+  try {
+    const { preferences } = req.body;
+    if (!preferences || typeof preferences !== 'object') {
+      return res.status(400).json({ error: 'preferences must be an object' });
+    }
+    const updated = await NotificationService.updatePreferences(req.user.id, preferences);
+    res.json(updated);
+  } catch (error) {
+    console.error('Error updating notification preferences:', error);
+    res.status(500).json({ error: 'Failed to update notification preferences' });
+  }
+});
+
+// ── Push Subscriptions (Web Push) ──────────────────────────
+
+// Save push subscription
+router.post('/push/subscribe', auth, async (req: AuthRequest, res) => {
+  try {
+    const { endpoint, p256dh, auth: authKey } = req.body;
+    if (!endpoint || !p256dh || !authKey) {
+      return res.status(400).json({ error: 'Missing subscription data' });
+    }
+    const { error } = await supabase
+      .from('push_subscriptions')
+      .upsert({
+        user_id: req.user.id,
+        endpoint,
+        p256dh,
+        auth: authKey,
+        user_agent: req.headers['user-agent'] || null,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'user_id,endpoint' });
+
+    if (error) throw error;
+    res.json({ message: 'Push subscription saved' });
+  } catch (error) {
+    console.error('Error saving push subscription:', error);
+    res.status(500).json({ error: 'Failed to save push subscription' });
+  }
+});
+
+// Remove push subscription
+router.post('/push/unsubscribe', auth, async (req: AuthRequest, res) => {
+  try {
+    const { endpoint } = req.body;
+    if (!endpoint) {
+      return res.status(400).json({ error: 'Missing endpoint' });
+    }
+    await supabase
+      .from('push_subscriptions')
+      .delete()
+      .eq('user_id', req.user.id)
+      .eq('endpoint', endpoint);
+
+    res.json({ message: 'Push subscription removed' });
+  } catch (error) {
+    console.error('Error removing push subscription:', error);
+    res.status(500).json({ error: 'Failed to remove push subscription' });
+  }
+});
+
+// ── Helper ──────────────────────────────────────────────────
+
+function getTypesForCategory(category: string): string[] {
+  const map: Record<string, string[]> = {
+    all: [],
+    social: ['like', 'dislike', 'comment', 'reply', 'mention', 'follow', 'follow_accepted', 'share', 'profile_visit'],
+    messaging: ['message', 'group_message', 'message_reaction', 'missed_call'],
+    gaming: ['resume_game', 'reward_reminder', 'tournament_reminder', 'challenge', 'redemption', 'redemption_contribution'],
+    system: ['welcome', 'verification', 'security_alert', 'maintenance', 'friend_ghosted', 'purge'],
+  };
+  return map[category] || [];
+}
+
+export default router;

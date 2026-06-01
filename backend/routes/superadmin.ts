@@ -489,6 +489,25 @@ router.delete('/users/:id', async (req: any, res) => {
   try {
     const { id } = req.params;
 
+    // Check target user's role before deletion
+    const { data: targetUser, error: fetchError } = await supabase
+      .from('profiles')
+      .select('role, full_name, username')
+      .eq('id', id)
+      .single();
+
+    if (fetchError && fetchError.code !== 'PGRST116') {
+      throw fetchError;
+    }
+
+    // Prevent deletion of superadmin accounts
+    if (targetUser && (targetUser.role === 'super_admin' || targetUser.role === 'superadmin')) {
+      return res.status(403).json({ 
+        error: 'Cannot delete superadmin account',
+        message: 'Superadmin accounts cannot be deleted for security reasons.'
+      });
+    }
+
     // First delete from Auth metadata (this cascade deletes in most standard Supabase setups, but we do explicit to be safe)
     const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(id);
     if (authError) {

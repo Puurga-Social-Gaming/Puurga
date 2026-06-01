@@ -3,10 +3,15 @@ import { supabase } from '../config/supabase';
 import { wsManager } from '../websocketManager';
 import { supabaseAuth as auth, AuthRequest } from '../middleware/supabaseAuth';
 import multer from 'multer';
-
 import { normalizeImageUrl } from '../utils/url';
+import { isProfileVisible } from '../services/settingsService';
 import { logSuperAdminAction } from '../utils/auditLogger';
+import { CreditService } from '../services/creditService';
 import { validate as uuidValidate } from 'uuid';
+import { PURGE_THRESHOLD } from '../constants/purgeConstants';
+import { createNotification } from './createNotification';
+import { validateNotGhosted } from '../middleware/restrictGhosted';
+import { NotificationService } from '../services/notificationService';
 
 const router = express.Router();
 
@@ -17,7 +22,7 @@ const storage = multer.memoryStorage();
 const upload = multer({
   storage,
   limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB limit
+    fileSize: 15 * 1024 * 1024, // 15MB limit to match nginx
   },
   fileFilter: (req, file, cb) => {
     if (!file.mimetype.startsWith('image/')) {
@@ -93,6 +98,9 @@ router.get('/profile', auth, async (req: AuthRequest, res) => {
       puurgas = count || 0;
     }
 
+    // Get credits from profile (prefer purga_points, fallback to credits)
+    const credits = Number(profile.purga_points ?? profile.credits ?? 0);
+
     // Return profile with both snake_case and camelCase for compatibility
     const responseData = {
       ...profile,
@@ -102,11 +110,17 @@ router.get('/profile', auth, async (req: AuthRequest, res) => {
       coverPhoto: normalizeImageUrl(profile.cover_photo),
       cover_photo: normalizeImageUrl(profile.cover_photo),
       email: user.email,
+      credits,
+      purga_points: credits,
+      account_status: profile.account_status || (profile.is_restricted ? 'restricted' : 'active'),
+      inactivity_level: profile.inactivity_level || 0,
+      last_active_at: profile.last_active_at || profile.last_seen,
       stats: {
         followers: followersCount || 0,
         following: followingCount || 0,
         posts: (posts || []).length,
-        puurgas
+        puurgas,
+        credits
       }
     };
 
@@ -711,15 +725,15 @@ router.put('/profile/cover-photo', auth, upload.single('coverPhoto'), async (req
 // --- POST /api/upload ---
 const uploadHandler = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB per file
+  limits: { fileSize: 100 * 1024 * 1024 }, // 100MB per file
 });
 
-router.post('/upload', auth, uploadHandler.array('images', 4), async (req: AuthRequest, res) => {
+router.post('/upload', auth, uploadHandler.array('media', 10), async (req: AuthRequest, res) => {
   try {
     if (!req.files || !(req.files instanceof Array) || req.files.length === 0) {
-      return res.status(400).json({ error: 'No images uploaded' });
+      return res.status(400).json({ error: 'No media uploaded' });
     }
-    const bucket = 'posts'; // Change to your actual bucket name if different
+    const bucket = 'Media'; // Use Media bucket for both images and videos
     const urls = [];
     for (const file of req.files) {
       const ext = file.originalname.split('.').pop();
@@ -731,23 +745,21 @@ router.post('/upload', auth, uploadHandler.array('images', 4), async (req: AuthR
       });
       if (uploadResult.error) {
         console.error('Supabase upload error:', uploadResult.error);
-        return res.status(500).json({ error: 'Failed to upload image(s)' });
+        return res.status(500).json({ error: 'Failed to upload media' });
       }
       // Get signed URL instead of public URL (more reliable for private buckets)
       const { data: signedUrlData, error: signedUrlError } = await supabase.storage.from(bucket).createSignedUrl(filename, 31536000); // 1 year expiry
-      if (signedUrlError || !signedUrlData) {
+
+      if (signedUrlError) {
         console.error('Error creating signed URL:', signedUrlError);
-        // Fallback to public URL
-        const { data: publicUrlData } = supabase.storage.from(bucket).getPublicUrl(filename);
-        urls.push(publicUrlData.publicUrl);
-      } else {
-        urls.push(signedUrlData.signedUrl);
+        return res.status(500).json({ error: 'Failed to create signed URL' });
       }
+      urls.push(signedUrlData.signedUrl);
     }
     res.json({ urls });
   } catch (error) {
-    console.error('Error uploading images:', error);
-    res.status(500).json({ error: 'Failed to upload images' });
+    console.error('Error uploading media:', error);
+    res.status(500).json({ error: 'Failed to upload media' });
   }
 });
 
@@ -792,31 +804,101 @@ router.get('/proxy/image', auth, async (req: AuthRequest, res) => {
 });
 
 // --- POST /api/posts ---
-router.post('/posts', auth, async (req: AuthRequest, res) => {
+router.post('/posts', auth, validateNotGhosted, async (req: AuthRequest, res) => {
   try {
-    const { content, images, media_layout } = req.body;
-    const user_id = req.user.id; // Secure extraction
+    const { content, images, media_layout, visibility, background_color, background_type, background_index } = req.body;
+    const user_id = req.user.id;
 
-    if (!content) {
-      return res.status(400).json({ error: 'content is required' });
+    console.log('Post creation request:', { user_id, content: content?.substring(0, 50), imagesCount: images?.length, media_layout, visibility, background_color, background_type, background_index });
+
+    const isRestricted = await CreditService.checkRestricted(user_id);
+    if (isRestricted) {
+      console.log('User is restricted:', user_id);
+      return res.status(403).json({ error: 'Account restricted. Cannot create posts.' });
     }
-    // images is an array of URLs; store as comma-separated string
+
+    const hasContent = content && content.trim().length > 0;
+    const hasMedia = Array.isArray(images) && images.length > 0;
+    if (!hasContent && !hasMedia) {
+      return res.status(400).json({ error: 'Post must have text or media' });
+    }
+
     const media_url = Array.isArray(images) ? images.join(',') : images || null;
-    const { data, error } = await supabase
+    
+    // SAFE INSERT: Only use columns guaranteed to exist in the posts table
+    const safePostData: any = {
+      user_id,
+      content: content || '',
+      media_url,
+    };
+
+    console.log('Inserting post (safe):', { user_id, media_url: media_url?.substring(0, 100) });
+
+    let { data, error } = await supabase
       .from('posts')
-      .insert([{ user_id, content, media_url, media_layout: media_layout }])
+      .insert([safePostData])
       .select();
-    if (error) throw error;
-    res.json(data[0]);
+
+    if (error) {
+      console.error('❌ Supabase insert error (safe insert):', error);
+      return res.status(500).json({ 
+        error: 'Failed to create post', 
+        details: error.message,
+        hint: error.hint,
+        code: error.code
+      });
+    }
+
+    const createdPost = data && data[0];
+    if (!createdPost) {
+      return res.status(500).json({ error: 'Post insert returned no data' });
+    }
+
+    console.log('Post inserted successfully:', createdPost.id);
+
+    // OPTIONAL UPDATE: Try to set extra columns (visibility, background, media_layout)
+    // These columns may not exist yet in the database — that's OK, we just skip them
+    const validVisibility = ['public', 'friends', 'private'];
+    const postVisibility = validVisibility.includes(visibility) ? visibility : 'public';
+    const extraFields: any = {};
+    if (media_layout) extraFields.media_layout = media_layout;
+    if (postVisibility !== 'public') extraFields.visibility = postVisibility;
+    if (background_color) extraFields.background_color = background_color;
+    if (background_type && background_type !== 'none') extraFields.background_type = background_type;
+    if (typeof background_index === 'number') extraFields.background_index = background_index;
+
+    if (Object.keys(extraFields).length > 0) {
+      const { error: updateError } = await supabase
+        .from('posts')
+        .update(extraFields)
+        .eq('id', createdPost.id);
+
+      if (updateError) {
+        // Non-fatal: columns may not exist yet, just log and continue
+        console.warn('⚠️  Could not set extra post fields (columns may not exist):', updateError.message);
+      } else {
+        // Merge extra fields into the response
+        Object.assign(createdPost, extraFields);
+      }
+    }
+
+    // Award credits
+    await CreditService.awardCredits(user_id, 5, 'post', 'Create post');
+    await CreditService.updateLastActiveAt(user_id);
+
+    console.log('Post created successfully:', createdPost.id);
+    res.json(createdPost);
   } catch (error) {
-    console.error('Error creating post:', error);
-    res.status(500).json({ error: 'Failed to create post' });
+    console.error('Unexpected error creating post:', error);
+    res.status(500).json({ error: 'Internal server error', details: error instanceof Error ? error.message : 'Unknown error' });
   }
 });
 
 // --- GET /api/posts/feed ---
 router.get('/posts/feed', auth, async (req: AuthRequest, res) => {
   try {
+    const currentUserId = req.user.id;
+
     // 1) Fetch posts
     const { data: posts, error: postsError } = await supabase
       .from('posts')
@@ -824,15 +906,52 @@ router.get('/posts/feed', auth, async (req: AuthRequest, res) => {
       .order('created_at', { ascending: false });
     if (postsError) throw postsError;
 
-    const safePosts = posts || [];
+    let safePosts = posts || [];
     if (safePosts.length === 0) {
       return res.json([]);
     }
 
-    // 2) Collect unique user_ids
+    // 2) Get current user's friends for visibility filtering
+    const { data: friendships } = await supabase
+      .from('friends')
+      .select('user_id_1, user_id_2')
+      .or(`user_id_1.eq.${currentUserId},user_id_2.eq.${currentUserId}`);
+
+    const friendIds = new Set(
+      (friendships || []).map(f =>
+        f.user_id_1 === currentUserId ? f.user_id_2 : f.user_id_1
+      )
+    );
+
+    // 3) Filter posts by visibility
+    // Default visibility to 'public' for posts that don't have the column set (backward compatibility)
+    safePosts = safePosts.filter(post => {
+      const visibility = post.visibility || 'public';
+
+      // Public posts are visible to everyone
+      if (visibility === 'public') return true;
+
+      // Private posts only visible to author
+      if (visibility === 'private') {
+        return post.user_id === currentUserId;
+      }
+
+      // Friends-only posts visible to author and their friends
+      if (visibility === 'friends') {
+        return post.user_id === currentUserId || friendIds.has(post.user_id);
+      }
+
+      return true; // Fallback: show if unknown visibility
+    });
+
+    if (safePosts.length === 0) {
+      return res.json([]);
+    }
+
+    // 4) Collect unique user_ids
     const userIds = Array.from(new Set(safePosts.map(p => p.user_id).filter(Boolean)));
 
-    // 3) Fetch profile data from profiles and avatar from users (if table exists)
+    // 5) Fetch profile data from profiles and avatar from users (if table exists)
     const [profilesRes, usersRes] = await Promise.all([
       supabase.from('profiles').select('id, full_name, username, avatar_url').in('id', userIds),
       supabase.from('users').select('id, avatar_url').in('id', userIds),
@@ -849,7 +968,7 @@ router.get('/posts/feed', auth, async (req: AuthRequest, res) => {
     // Use the shared normalizeImageUrl function
     // Note: This function returns relative paths for local files and keeps Supabase URLs as absolute
 
-    // 4) Map posts with images and merged user object
+    // 6) Map posts with images and merged user object
     const mapped = safePosts.map(post => {
       const prof = profileMap.get(post.user_id as string);
       const urow = usersMap.get(post.user_id as string);
@@ -991,6 +1110,112 @@ router.get('/:id/stats', auth, async (req: AuthRequest, res) => {
   }
 });
 
+// --- POST /api/users/:id/purge ---
+router.post('/:id/purge', auth, validateNotGhosted, async (req: AuthRequest, res) => {
+  try {
+    const targetUserId = req.params.id;
+    const purgerId = req.user.id;
+
+    if (String(targetUserId) === String(purgerId)) {
+      return res.status(403).json({ error: 'Cannot purge yourself' });
+    }
+
+    // Check if user already purged this person by checking notifications
+    const { data: existingPurge, error: checkError } = await supabase
+      .from('notifications')
+      .select('id')
+      .eq('type', 'purge')
+      .eq('sender_id', purgerId)
+      .eq('receiver_id', targetUserId)
+      .maybeSingle();
+
+    if (existingPurge) {
+      return res.status(400).json({ error: 'Already purged this user' });
+    }
+
+    // Get current purge count of target user
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('purge_count, is_ghost')
+      .eq('id', targetUserId)
+      .single();
+
+    if (profileError || !profile) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const newPurgeCount = (profile.purge_count || 0) + 1;
+    const becomesGhost = newPurgeCount >= PURGE_THRESHOLD && !profile.is_ghost;
+
+    // Update profile
+    const updatePayload: any = { purge_count: newPurgeCount };
+    if (becomesGhost) {
+      updatePayload.is_ghost = true;
+      updatePayload.ghosted_at = new Date().toISOString();
+    }
+
+    const { error: updateError } = await supabase
+      .from('profiles')
+      .update(updatePayload)
+      .eq('id', targetUserId);
+
+    if (updateError) throw updateError;
+
+    // Create a notification for the purge action (serves as ledger)
+    await createNotification({
+      type: 'purge',
+      senderId: purgerId,
+      receiverId: targetUserId
+    });
+
+    if (becomesGhost) {
+      // Send WebSocket profile update and notify friends
+      wsManager.sendToUser(targetUserId, {
+        type: 'profile_update',
+        payload: { userId: targetUserId, isGhost: true, purgeCount: newPurgeCount }
+      });
+
+      try {
+        const { data: friendships } = await supabase
+          .from('friends')
+          .select('user_id_1, user_id_2')
+          .or(`user_id_1.eq.${targetUserId},user_id_2.eq.${targetUserId}`);
+
+        if (friendships && friendships.length > 0) {
+          const friendIds = friendships.map(f =>
+            f.user_id_1 === targetUserId ? f.user_id_2 : f.user_id_1
+          );
+
+          for (const friendId of friendIds) {
+            await createNotification({
+              type: 'friend_ghosted',
+              senderId: targetUserId,
+              receiverId: friendId
+            });
+
+            wsManager.sendToUser(friendId, {
+              type: 'profile_update',
+              payload: { userId: targetUserId, isGhost: true, purgeCount: newPurgeCount }
+            });
+          }
+        }
+      } catch (notifError) {
+        console.error('Error sending friend ghosted notifications:', notifError);
+      }
+    }
+
+    res.json({
+      purged: true,
+      purges: newPurgeCount,
+      ghostModeTriggered: becomesGhost
+    });
+
+  } catch (error) {
+    console.error('Error purging user:', error);
+    res.status(500).json({ error: 'Failed to purge user' });
+  }
+});
+
 // GET /api/users/profile/:username - Get public profile by username or ID
 router.get('/profile/:username_or_id', auth, async (req: AuthRequest, res) => {
   try {
@@ -1014,6 +1239,29 @@ router.get('/profile/:username_or_id', auth, async (req: AuthRequest, res) => {
 
     if (profileError || !profile) {
       return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Check if profile is visible based on privacy settings
+    const visibility = await isProfileVisible(profile.id, currentUserId);
+    
+    if (!visibility.visible && profile.id !== currentUserId) {
+      // Return limited info for private profiles
+      return res.json({
+        id: profile.id,
+        username: profile.username,
+        full_name: profile.full_name,
+        name: profile.full_name,
+        avatar_url: normalizeImageUrl(profile.avatar_url),
+        avatar: normalizeImageUrl(profile.avatar_url),
+        is_private: true,
+        isPrivate: true,
+        is_friend: false,
+        isFriend: false,
+        has_pending_request: false,
+        hasPendingRequest: false,
+        message_requests: profile.message_requests,
+        show_online_status: false,
+      });
     }
 
     // Get friends count
@@ -1056,6 +1304,11 @@ router.get('/profile/:username_or_id', auth, async (req: AuthRequest, res) => {
       }
     }
 
+    // Notify profile owner of visit (fire-and-forget)
+    if (currentUserId && currentUserId !== profile.id) {
+      NotificationService.profileVisit(currentUserId, profile.id);
+    }
+
     // Return public profile data
     res.json({
       id: profile.id,
@@ -1079,6 +1332,8 @@ router.get('/profile/:username_or_id', auth, async (req: AuthRequest, res) => {
       isFriend: isFriend,
       has_pending_request: hasPendingRequest,
       hasPendingRequest: hasPendingRequest,
+      is_private: profile.is_private,
+      isPrivate: profile.is_private,
     });
   } catch (error) {
     console.error('Error fetching user profile:', error);
@@ -1219,7 +1474,7 @@ router.get('/groups', auth, async (req: AuthRequest, res) => {
 });
 
 // POST /api/users/groups/create - Create new group (temporary endpoint)
-router.post('/groups/create', auth, async (req: AuthRequest, res) => {
+router.post('/groups/create', auth, validateNotGhosted, async (req: AuthRequest, res) => {
   try {
     console.log('Creating group with body:', req.body);
     console.log('User ID:', req.user?.id);
@@ -1283,7 +1538,7 @@ router.post('/groups/create', auth, async (req: AuthRequest, res) => {
 });
 
 // POST /api/users/groups/:id/join - Join group (temporary endpoint)
-router.post('/groups/:id/join', auth, async (req: AuthRequest, res) => {
+router.post('/groups/:id/join', auth, validateNotGhosted, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
     const userId = req.user?.id;

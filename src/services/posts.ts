@@ -3,6 +3,10 @@ import type { Post } from '../types';
 
 interface CreatePostData {
   content: string;
+  visibility?: 'public' | 'friends' | 'private';
+  background_index?: number;
+  images?: string[];
+  media_layout?: string;
 }
 
 export const postService = {
@@ -12,7 +16,7 @@ export const postService = {
   },
 
   async createPost(postData: CreatePostData): Promise<Post> {
-    const { data } = await api.post('/posts', postData);
+    const { data } = await api.post('/users/posts', postData);
     return data;
   },
 

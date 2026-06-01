@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { Shield, Zap, Target, Play, RotateCcw, Award, ArrowLeft, Coins } from 'lucide-react';
 import { useCredits } from '../hooks/useCredits';
 import { toast } from 'react-hot-toast';
@@ -31,6 +32,7 @@ const GAME_CONFIG = {
 
 const PathOfTheWatchman = () => {
     const navigate = useNavigate();
+    const { t } = useTranslation();
     const { addCredits, balance: userBalance } = useCredits();
 
     // Game State
@@ -611,7 +613,7 @@ const PathOfTheWatchman = () => {
             // Award credits exactly once per game over
             if (calcCredits > 0 && !awardedRef.current) {
                 addCredits(calcCredits, 'Path of the Watchman Reward');
-                toast.success(`Earned ${calcCredits} credits!`);
+                toast.success(t('games.watchman.earnedCredits', { credits: calcCredits }));
                 awardedRef.current = true;
             }
         }
@@ -642,7 +644,7 @@ const PathOfTheWatchman = () => {
                     className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#1a1a1a] hover:bg-[#2a2a2a] border border-gray-800 transition-all hover:scale-105 text-white"
                 >
                     <ArrowLeft size={16} />
-                    <span className="font-bold text-xs uppercase tracking-widest">Back</span>
+                    <span className="font-bold text-xs uppercase tracking-widest">{t('games.watchman.back')}</span>
                 </button>
 
                 <div className="flex items-center gap-2 px-4 py-2 bg-[#1a1a1a] border border-gray-800 rounded-full">
@@ -655,27 +657,27 @@ const PathOfTheWatchman = () => {
             <div className="w-full max-w-[800px] flex justify-between items-end mb-4 px-2">
                 <div className="flex flex-col">
                     <h1 className="text-xl font-black tracking-tighter uppercase italic">
-                        Path of the <span style={{ color: COLORS.accent }}>Watchman</span>
+                        {t('games.watchman.title')} <span style={{ color: COLORS.accent }}></span>
                     </h1>
                     <div className="flex gap-4 mt-1">
                         <div className="flex flex-col">
-                            <span className="text-[10px] text-gray-500 uppercase font-bold">Health</span>
+                            <span className="text-[10px] text-gray-500 uppercase font-bold">{t('games.watchman.health')}</span>
                             <div className="w-32 h-2 bg-gray-900 rounded-full overflow-hidden border border-gray-800">
                                 <div className="h-full bg-orange-600 transition-all duration-300" style={{ width: `${health}%` }} />
                             </div>
                         </div>
                         <div className="flex flex-col">
-                            <span className="text-[10px] text-gray-500 uppercase font-bold">Combo</span>
+                            <span className="text-[10px] text-gray-500 uppercase font-bold">{t('games.watchman.combo')}</span>
                             <span className="text-lg font-black leading-none" style={{ color: combo > 5 ? COLORS.accent : 'white' }}>x{combo}</span>
                         </div>
                         <div className="flex flex-col">
-                            <span className="text-[10px] text-gray-500 uppercase font-bold">Time</span>
+                            <span className="text-[10px] text-gray-500 uppercase font-bold">{t('games.watchman.time')}</span>
                             <span className="text-sm font-black leading-none text-white">
                                 {String(Math.floor(elapsedMs / 60000)).padStart(2, '0')}:{String(Math.floor((elapsedMs % 60000) / 1000)).padStart(2, '0')}
                             </span>
                         </div>
                         <div className="flex flex-col">
-                            <span className="text-[10px] text-gray-500 uppercase font-bold">Threat</span>
+                            <span className="text-[10px] text-gray-500 uppercase font-bold">{t('games.watchman.threat')}</span>
                             <span className="text-sm font-black leading-none" style={{ color: COLORS.accent }}>
                                 {Math.min(99, Math.max(1, Math.floor(engine.current?.difficulty || 1)))}
                             </span>
@@ -683,7 +685,7 @@ const PathOfTheWatchman = () => {
                     </div>
                 </div>
                 <div className="text-right">
-                    <span className="text-[10px] text-gray-500 uppercase font-bold">Score</span>
+                    <span className="text-[10px] text-gray-500 uppercase font-bold">{t('games.watchman.score')}</span>
                     <div className="text-3xl font-black tracking-widest leading-none">{score.toLocaleString()}</div>
                 </div>
             </div>
@@ -717,38 +719,38 @@ const PathOfTheWatchman = () => {
                         <div className="mb-6 p-4 rounded-full bg-orange-500/10 border border-orange-500/20">
                             <Shield size={48} className="text-orange-500 animate-pulse" />
                         </div>
-                        <h2 className="text-4xl font-black uppercase tracking-tighter mb-2">The Path Awaits</h2>
-                        <p className="text-gray-400 max-w-md mb-8 text-sm leading-relaxed">Navigate the chaos. Use your light to strike down corruption.</p>
+                        <h2 className="text-4xl font-black uppercase tracking-tighter mb-2">{t('games.watchman.thePathAwaits')}</h2>
+                        <p className="text-gray-400 max-w-md mb-8 text-sm leading-relaxed">{t('games.watchman.navigateChaos')}</p>
                         <button onClick={startGame} className="px-10 py-4 bg-orange-600 hover:bg-orange-500 text-white font-black uppercase tracking-widest rounded-full transition-all flex items-center gap-2">
-                            <Play size={20} fill="currentColor" /> Initialize Run
+                            <Play size={20} fill="currentColor" /> {t('games.watchman.initializeRun')}
                         </button>
                     </div>
                 )}
 
                 {gameState === 'GAMEOVER' && (
                     <div className="absolute inset-0 bg-black/95 backdrop-blur-md flex flex-col items-center justify-center p-8">
-                        <h2 className="text-gray-500 uppercase tracking-widest font-bold text-sm mb-2">Run Concluded</h2>
-                        <div className="text-6xl font-black text-white mb-6 italic tracking-tighter">DISCONNECTED</div>
+                        <h2 className="text-gray-500 uppercase tracking-widest font-bold text-sm mb-2">{t('games.watchman.runConcluded')}</h2>
+                        <div className="text-6xl font-black text-white mb-6 italic tracking-tighter">{t('games.watchman.disconnected')}</div>
                         <div className="grid grid-cols-2 gap-4 w-full max-w-xs mb-8">
                             <div className="bg-white/5 p-4 rounded-xl border border-white/10 flex flex-col items-center">
-                                <span className="text-[10px] uppercase font-bold text-gray-400">Score</span>
+                                <span className="text-[10px] uppercase font-bold text-gray-400">{t('games.watchman.score')}</span>
                                 <span className="text-2xl font-black">{score}</span>
                             </div>
                             <div className="bg-orange-500/10 p-4 rounded-xl border border-orange-500/20 flex flex-col items-center">
-                                <span className="text-[10px] uppercase font-bold text-orange-400">Credits</span>
+                                <span className="text-[10px] uppercase font-bold text-orange-400">{t('games.credits')}</span>
                                 <span className="text-2xl font-black text-orange-500">+{finalCredits}</span>
                             </div>
                         </div>
-                        <button onClick={startGame} className="w-full max-w-xs py-4 bg-gray-700 text-white font-black uppercase tracking-widest rounded-xl hover:scale-105 hover:bg-gray-600 transition-all flex items-center justify-center gap-2">
-                            <RotateCcw size={18} /> Retry Run
+                        <button onClick={startGame} className="w-full max-w-xs py-4 bg-[var(--accent)] text-[var(--fg)] font-black uppercase tracking-widest rounded-xl hover:scale-105 hover:opacity-90 transition-all flex items-center justify-center gap-2">
+                            <RotateCcw size={18} /> {t('games.watchman.retryRun')}
                         </button>
                     </div>
                 )}
             </div>
 
             <div className="w-full max-w-[800px] mt-6 grid grid-cols-3 gap-4">
-                <CooldownButton icon={Shield} label="Shield Burst" progress={cooldowns.shield} onClick={triggerShield} />
-                <CooldownButton icon={Zap} label="Focus Mode" progress={cooldowns.focus} onClick={triggerFocus} />
+                <CooldownButton icon={Shield} label={t('games.watchman.shieldBurst')} progress={cooldowns.shield} onClick={triggerShield} />
+                <CooldownButton icon={Zap} label={t('games.watchman.focusMode')} progress={cooldowns.focus} onClick={triggerFocus} />
                 <button
                     onClick={handleAttack}
                     disabled={gameState !== 'PLAYING'}
@@ -758,7 +760,7 @@ const PathOfTheWatchman = () => {
                 >
                     <Target size={20} className={gameState !== 'PLAYING' ? 'text-gray-500 mb-1' : 'text-orange-400 mb-1'} />
                     <span className={`text-[10px] uppercase font-bold tracking-widest text-center leading-none ${gameState !== 'PLAYING' ? 'text-gray-500' : 'text-orange-300'}`}>
-                        Attack
+                        {t('games.watchman.attack')}
                     </span>
                 </button>
             </div>

@@ -1,92 +1,115 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, Loader2, UserPlus, Heart, MessageCircle, UserCheck, CheckCheck, Ghost, Star, Award } from 'lucide-react';
+import {
+  Bell, Loader2, UserPlus, Heart, MessageCircle, UserCheck,
+  CheckCheck, Ghost, Star, Award, Reply, AtSign, Share2,
+  Eye, ThumbsDown, MessageSquare, Trophy, AlertTriangle,
+  Mail, Shield, Wrench, Gamepad2, Flame
+} from 'lucide-react';
 import { useNotifications } from '../../context/NotificationsContext';
 import { formatDistanceToNow } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
+function PhoneCallIcon(props: any) {
+  return (
+    <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+    </svg>
+  );
+}
+
+const getNotificationIcon = (type: string) => {
+  const icons: Record<string, React.ReactNode> = {
+    like: <Heart className="w-5 h-5 text-red-500" />,
+    dislike: <ThumbsDown className="w-5 h-5 text-red-500" />,
+    comment: <MessageCircle className="w-5 h-5 text-white" />,
+    reply: <Reply className="w-5 h-5 text-blue-400" />,
+    mention: <AtSign className="w-5 h-5 text-blue-400" />,
+    follow: <UserPlus className="w-5 h-5 text-blue-500" />,
+    follow_accepted: <UserCheck className="w-5 h-5 text-green-500" />,
+    share: <Share2 className="w-5 h-5 text-green-400" />,
+    profile_visit: <Eye className="w-5 h-5 text-gray-400" />,
+    message: <MessageSquare className="w-5 h-5 text-purple-500" />,
+    group_message: <MessageSquare className="w-5 h-5 text-indigo-500" />,
+    message_reaction: <Heart className="w-5 h-5 text-pink-400" />,
+    missed_call: <PhoneCallIcon className="w-5 h-5 text-red-400" />,
+    resume_game: <Gamepad2 className="w-5 h-5 text-green-400" />,
+    reward_reminder: <Award className="w-5 h-5 text-yellow-400" />,
+    tournament_reminder: <Trophy className="w-5 h-5 text-yellow-500" />,
+    challenge: <Flame className="w-5 h-5 text-orange-500" />,
+    welcome: <Bell className="w-5 h-5 text-blue-400" />,
+    verification: <Mail className="w-5 h-5 text-yellow-400" />,
+    security_alert: <Shield className="w-5 h-5 text-red-500" />,
+    maintenance: <Wrench className="w-5 h-5 text-gray-500" />,
+    friend_request: <UserPlus className="w-5 h-5 text-blue-500" />,
+    friend_request_accepted: <UserCheck className="w-5 h-5 text-green-500" />,
+    redemption: <Award className="w-5 h-5 text-yellow-400" />,
+    redemption_contribution: <Star className="w-5 h-5 text-yellow-500" />,
+    friend_ghosted: <Ghost className="w-5 h-5 text-gray-400" />,
+    purge: <AlertTriangle className="w-5 h-5 text-red-500" />,
+  };
+  return icons[type] || <Bell className="w-5 h-5 text-gray-500" />;
+};
+
+const getNotificationText = (type: string): string => {
+  const texts: Record<string, string> = {
+    like: 'liked your post',
+    dislike: 'disliked your post',
+    comment: 'commented on your post',
+    reply: 'replied to your comment',
+    mention: 'mentioned you',
+    follow: 'started following you',
+    follow_accepted: 'accepted your request',
+    share: 'shared your post',
+    profile_visit: 'visited your profile',
+    message: 'sent you a message',
+    group_message: 'sent a group message',
+    message_reaction: 'reacted to your message',
+    missed_call: 'missed your call',
+    resume_game: 'Resume your game!',
+    reward_reminder: 'Rewards available!',
+    tournament_reminder: 'Tournament starting!',
+    challenge: 'challenged you!',
+    welcome: 'Welcome to Puurga!',
+    verification: 'Verify your email',
+    security_alert: 'Security alert',
+    maintenance: 'Maintenance notice',
+    friend_request: 'sent you a friend request',
+    friend_request_accepted: 'accepted your friend request',
+    redemption: 'redeemed you from ghost mode! 🎉',
+    redemption_contribution: 'contributed credits towards your redemption',
+    friend_ghosted: 'has been ghosted (purged)',
+    purge: 'purged your post',
+  };
+  return texts[type] || 'sent you a notification';
+};
+
+const getNotificationTarget = (notification: any) => {
+  const data = notification.data || {};
+
+  if (['message', 'group_message', 'message_reaction'].includes(notification.type) || data.conversationId) {
+    return '/messages';
+  }
+  if (['redemption', 'redemption_contribution', 'friend_ghosted'].includes(notification.type)) {
+    return '/puurga-dashboard';
+  }
+  if (notification.type === 'challenge') {
+    return '/games';
+  }
+  if (['like', 'dislike', 'comment', 'reply', 'mention', 'share'].includes(notification.type) && data.postId) {
+    return `/home#post-${data.postId}`;
+  }
+  if (notification.fromUser?.username) {
+    return `/profile/${notification.fromUser.username}`;
+  }
+  return '/notifications';
+};
 
 const NotificationsDropdown: React.FC = () => {
   const { notifications, unreadCount, loading, dismissNotifications, markAllAsRead } = useNotifications();
   const [isOpen, setIsOpen] = useState(false);
   const navigate = useNavigate();
 
-  const getNotificationIcon = (type: string) => {
-    switch (type) {
-      case 'friend_request':
-        return <UserPlus className="w-5 h-5 text-blue-500" />;
-      case 'friend_request_accepted':
-        return <UserCheck className="w-5 h-5 text-green-500" />;
-      case 'like':
-        return <Heart className="w-5 h-5 text-red-500" />;
-      case 'comment':
-        return <MessageCircle className="w-5 h-5 text-white" />;
-      case 'message':
-        return <MessageCircle className="w-5 h-5 text-purple-500" />;
-      case 'redemption':
-        return <Award className="w-5 h-5 text-yellow-400" />;
-      case 'redemption_contribution':
-        return <Star className="w-5 h-5 text-yellow-500" />;
-      case 'friend_ghosted':
-        return <Ghost className="w-5 h-5 text-gray-400" />;
-      case 'purge':
-        return <span className="text-lg">🔥</span>;
-      default:
-        return <Bell className="w-5 h-5 text-gray-500" />;
-    }
-  };
-
-  const getNotificationText = (notification: typeof notifications[0]) => {
-    switch (notification.type) {
-      case 'friend_request':
-        return 'sent you a friend request';
-      case 'friend_request_accepted':
-        return 'accepted your friend request';
-      case 'like':
-        return 'liked your post';
-      case 'comment':
-        return 'commented on your post';
-      case 'message':
-        return 'sent you a message';
-      case 'redemption':
-        return 'redeemed you from ghost mode! 🎉';
-      case 'redemption_contribution':
-        return 'contributed credits towards your redemption';
-      case 'friend_ghosted':
-        return 'has been ghosted (purged)';
-      case 'purge':
-        return 'purged your post';
-      default:
-        return 'sent you a notification';
-    }
-  };
-
-  const getNotificationTarget = (notification: typeof notifications[0]) => {
-    const data = notification.data || {};
-
-    if (notification.type === 'message' || data.messageId || data.conversationId) {
-      return '/messages';
-    }
-
-    if (notification.type === 'redemption' || notification.type === 'redemption_contribution') {
-      return '/puurga-dashboard';
-    }
-
-    if (notification.type === 'friend_ghosted') {
-      return '/puurga-dashboard';
-    }
-
-    if (data.postId) {
-      return `/home#post-${data.postId}`;
-    }
-
-    if (notification.fromUser?.username) {
-      return `/profile/${notification.fromUser.username}`;
-    }
-
-    return '/notifications';
-  };
-
-  const handleNotificationClick = async (notification: typeof notifications[0]) => {
+  const handleNotificationClick = async (notification: any) => {
     const target = getNotificationTarget(notification);
     await dismissNotifications([notification.id]);
     setIsOpen(false);
@@ -95,37 +118,31 @@ const NotificationsDropdown: React.FC = () => {
 
   return (
     <div className="relative">
-      {/* Bell Icon Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="relative p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
       >
         <Bell size={20} />
         {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 bg-white text-black text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+          <span className="absolute -top-1 -right-1 bg-accent text-foreground text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
             {unreadCount > 9 ? '9+' : unreadCount}
           </span>
         )}
       </button>
 
-      {/* Dropdown */}
       <AnimatePresence>
         {isOpen && (
           <>
-            {/* Backdrop */}
             <div
               className="fixed inset-0 z-40"
               onClick={() => setIsOpen(false)}
             />
-
-            {/* Dropdown Content */}
             <motion.div
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
               className="absolute right-0 mt-2 w-96 bg-black border border-gray-800 rounded-lg shadow-xl z-50 max-h-[600px] flex flex-col"
             >
-              {/* Header */}
               <div className="p-4 border-b border-gray-800 flex items-center justify-between">
                 <h3 className="text-lg font-semibold text-white">Notifications</h3>
                 {unreadCount > 0 && (
@@ -139,7 +156,6 @@ const NotificationsDropdown: React.FC = () => {
                 )}
               </div>
 
-              {/* Notifications List */}
               <div className="flex-1 overflow-y-auto">
                 {loading ? (
                   <div className="flex items-center justify-center py-12">
@@ -166,7 +182,6 @@ const NotificationsDropdown: React.FC = () => {
                         }`}
                       >
                         <div className="flex items-start gap-3">
-                          {/* Avatar */}
                           <div className="flex-shrink-0">
                             <div className="w-10 h-10 rounded-full bg-gray-700 flex items-center justify-center overflow-hidden">
                               {notification.fromUser.avatar ? (
@@ -177,22 +192,21 @@ const NotificationsDropdown: React.FC = () => {
                                 />
                               ) : (
                                 <span className="text-white font-semibold text-sm">
-                                  {notification.fromUser.name.charAt(0)}
+                                  {notification.fromUser.name?.charAt(0) || '?'}
                                 </span>
                               )}
                             </div>
                           </div>
 
-                          {/* Content */}
                           <div className="flex-1 min-w-0">
                             <div className="flex items-start gap-2">
                               <div className="flex-1">
                                 <p className="text-sm text-white">
                                   <span className="font-semibold">
-                                    {notification.fromUser.name}
+                                    {notification.fromUser.name || 'System'}
                                   </span>{' '}
                                   <span className="text-gray-400">
-                                    {getNotificationText(notification)}
+                                    {getNotificationText(notification.type)}
                                   </span>
                                 </p>
                                 <p className="text-xs text-gray-500 mt-1">
@@ -201,14 +215,11 @@ const NotificationsDropdown: React.FC = () => {
                                   })}
                                 </p>
                               </div>
-
-                              {/* Icon */}
                               <div className="flex-shrink-0">
                                 {getNotificationIcon(notification.type)}
                               </div>
                             </div>
 
-                            {/* Unread indicator */}
                             {!notification.read && (
                               <div className="mt-2">
                                 <span className="inline-flex items-center gap-1 text-xs text-white">
@@ -225,7 +236,6 @@ const NotificationsDropdown: React.FC = () => {
                 )}
               </div>
 
-              {/* Footer */}
               {notifications.length > 0 && (
                 <div className="p-3 border-t border-gray-800 text-center">
                   <button

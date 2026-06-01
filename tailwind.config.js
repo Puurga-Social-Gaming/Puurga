@@ -37,6 +37,14 @@ export default {
       borderRadius: {
         'theme': 'var(--radius)',
       },
+      zIndex: {
+        'base': '0',
+        'content': '10',
+        'sticky': '50',
+        'overlay': '100',
+        'modal': '200',
+        'toast': '300',
+      },
     },
   },
   plugins: [],

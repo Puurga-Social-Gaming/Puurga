@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
-import { X, Users, Upload, Image } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useState, useRef } from 'react';
+import { Users, Upload, Image } from 'lucide-react';
 import api from '../lib/axios';
 import toast from 'react-hot-toast';
+import Modal from './ui/Modal';
+import Button from './ui/Button';
+import imageCompression from 'browser-image-compression';
 
 interface CreateGroupModalProps {
   isOpen: boolean;
@@ -21,9 +23,10 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ isOpen, onClose, on
   const [profileImagePreview, setProfileImagePreview] = useState<string>('');
   const [coverImagePreview, setCoverImagePreview] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<string>('');
 
-  const coverImageInputRef = React.useRef<HTMLInputElement>(null);
-  const profileImageInputRef = React.useRef<HTMLInputElement>(null);
+  const coverImageInputRef = useRef<HTMLInputElement>(null);
+  const profileImageInputRef = useRef<HTMLInputElement>(null);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
@@ -33,32 +36,46 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ isOpen, onClose, on
     }));
   };
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>, type: 'profile' | 'cover') => {
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>, type: 'profile' | 'cover') => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validate file type
     const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
     if (!validTypes.includes(file.type)) {
       toast.error('Please select a valid image file (JPEG, PNG, or WebP)');
       return;
     }
 
-    // Validate file size (5MB limit)
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error('Image size must be less than 5MB');
-      return;
-    }
+    try {
+      const loadingToast = toast.loading('Compressing image...');
+      
+      const compressedFile = await imageCompression(file, {
+        maxSizeMB: 1.5,
+        maxWidthOrHeight: 1920,
+        useWebWorker: true,
+      });
 
-    // Create preview URL
-    const previewUrl = URL.createObjectURL(file);
+      toast.dismiss(loadingToast);
+      
+      if (compressedFile.size > 5 * 1024 * 1024) {
+        toast.error('Image is too large. Please use a smaller image.');
+        return;
+      }
 
-    if (type === 'profile') {
-      setProfileImage(file);
-      setProfileImagePreview(previewUrl);
-    } else {
-      setCoverImage(file);
-      setCoverImagePreview(previewUrl);
+      const previewUrl = URL.createObjectURL(compressedFile);
+
+      if (type === 'profile') {
+        setProfileImage(compressedFile as File);
+        setProfileImagePreview(previewUrl);
+      } else {
+        setCoverImage(compressedFile as File);
+        setCoverImagePreview(previewUrl);
+      }
+      
+      toast.success('Image compressed and ready');
+    } catch (error) {
+      console.error('Error compressing image:', error);
+      toast.error('Failed to process image');
     }
   };
 
@@ -71,9 +88,9 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ isOpen, onClose, on
     }
 
     setIsSubmitting(true);
+    setUploadProgress('Creating group...');
 
     try {
-      // Create the group first
       const groupResponse = await api.post('/groups', {
         name: formData.name.trim(),
         description: formData.description.trim() || null,
@@ -81,36 +98,61 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ isOpen, onClose, on
       });
 
       const groupId = groupResponse.data.id;
+      let uploadedProfile = false;
+      let uploadedCover = false;
 
-      // Upload profile image if provided
       if (profileImage) {
+        setUploadProgress('Uploading profile image...');
         const profileFormData = new FormData();
         profileFormData.append('profileImage', profileImage);
 
         try {
-          await api.put(`/groups/${groupId}/profile-image`, profileFormData, {
+          const profileResponse = await api.put(`/groups/${groupId}/profile-image`, profileFormData, {
             headers: { 'Content-Type': 'multipart/form-data' }
           });
-        } catch (error) {
-          console.warn('Profile image upload failed:', error);
+          
+          if (profileResponse.data?.profile_image_url) {
+            uploadedProfile = true;
+          }
+        } catch (uploadError: any) {
+          console.warn('Profile image upload failed:', uploadError);
+          if (uploadError.response?.status === 413) {
+            toast.error('Profile image is too large. Please use a smaller image.');
+          }
         }
       }
 
-      // Upload cover image if provided
       if (coverImage) {
+        setUploadProgress('Uploading cover image...');
         const coverFormData = new FormData();
         coverFormData.append('coverImage', coverImage);
 
         try {
-          await api.put(`/groups/${groupId}/cover-image`, coverFormData, {
+          const coverResponse = await api.put(`/groups/${groupId}/cover-image`, coverFormData, {
             headers: { 'Content-Type': 'multipart/form-data' }
           });
-        } catch (error) {
-          console.warn('Cover image upload failed:', error);
+          
+          if (coverResponse.data?.cover_image_url) {
+            uploadedCover = true;
+          }
+        } catch (uploadError: any) {
+          console.warn('Cover image upload failed:', uploadError);
+          if (uploadError.response?.status === 413) {
+            toast.error('Cover image is too large. Please use a smaller image.');
+          }
         }
       }
 
-      toast.success('Group created successfully!');
+      setUploadProgress('Finalizing...');
+      
+      if (uploadedProfile || uploadedCover) {
+        toast.success('Group created with images!');
+      } else if (profileImage || coverImage) {
+        toast.success('Group created! (Images failed to upload - try smaller images)');
+      } else {
+        toast.success('Group created successfully!');
+      }
+      
       onGroupCreated();
       handleClose();
     } catch (error: any) {
@@ -118,6 +160,7 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ isOpen, onClose, on
       toast.error(error.response?.data?.error || 'Failed to create group');
     } finally {
       setIsSubmitting(false);
+      setUploadProgress('');
     }
   };
 
@@ -130,185 +173,200 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ isOpen, onClose, on
     onClose();
   };
 
+  const handleBackdropClick = (e: React.MouseEvent) => {
+    // Dismiss keyboard on mobile when clicking outside input areas
+    if (e.target === e.currentTarget) {
+      const activeElement = document.activeElement as HTMLElement;
+      if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA')) {
+        activeElement.blur();
+      }
+    }
+  };
+
+  const footer = (
+    <div className="flex gap-3">
+      <Button
+        type="button"
+        variant="default"
+        onClick={handleClose}
+        className="flex-1"
+        disabled={isSubmitting}
+      >
+        Cancel
+      </Button>
+      <Button
+        type="submit"
+        variant="primary"
+        disabled={isSubmitting || !formData.name.trim()}
+        isLoading={isSubmitting}
+        className="flex-1"
+      >
+        {isSubmitting ? uploadProgress || 'Creating...' : 'Create Group'}
+      </Button>
+    </div>
+  );
+
   return (
-    <AnimatePresence>
-      {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm"
-            onClick={handleClose}
-          />
-
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            className="relative w-full max-w-2xl bg-[#1a1a1a] rounded-xl border border-gray-800 shadow-2xl max-h-[90vh] overflow-y-auto"
+    <Modal
+      isOpen={isOpen}
+      onClose={handleClose}
+      title="Create New Group"
+      description="Build your community"
+      icon={<Users size={20} className="text-white" />}
+      iconBgColor="bg-accent"
+      maxWidth="lg"
+      footer={footer}
+    >
+      <form onSubmit={handleSubmit} className="space-y-4" onClick={handleBackdropClick}>
+        {/* Cover Image Upload */}
+        <div>
+          <label className="block text-sm font-medium text-foreground mb-2">
+            Cover Image (Optional)
+          </label>
+          <div
+            onClick={() => !isSubmitting && coverImageInputRef.current?.click()}
+            className={`relative w-full h-32 bg-background-secondary rounded-xl border-2 border-dashed border-border hover:border-accent transition-colors cursor-pointer overflow-hidden ${
+              isSubmitting ? 'opacity-50 cursor-not-allowed' : ''
+            }`}
+            style={{
+              backgroundImage: coverImagePreview ? `url(${coverImagePreview})` : undefined,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center'
+            }}
           >
-            {/* Header */}
-            <div className="flex items-center justify-between p-6 border-b border-gray-800">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-orange-500 rounded-lg flex items-center justify-center">
-                  <Users size={20} className="text-white" />
-                </div>
-                <div>
-                  <h2 className="text-xl font-bold text-white">Create New Group</h2>
-                  <p className="text-sm text-gray-400">Build your community</p>
-                </div>
-              </div>
-              <button
-                onClick={handleClose}
-                className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
-              >
-                <X size={20} />
-              </button>
-            </div>
-
-            {/* Form */}
-            <form onSubmit={handleSubmit} className="p-6 space-y-6">
-              {/* Cover Image Upload */}
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Cover Image (Optional)
-                </label>
-                <div
-                  onClick={() => coverImageInputRef.current?.click()}
-                  className="relative w-full h-32 bg-gray-800 rounded-lg border-2 border-dashed border-gray-600 hover:border-orange-500 transition-colors cursor-pointer overflow-hidden"
-                  style={{
-                    backgroundImage: coverImagePreview ? `url(${coverImagePreview})` : undefined,
-                    backgroundSize: 'cover',
-                    backgroundPosition: 'center'
-                  }}
-                >
-                  <input
-                    ref={coverImageInputRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => handleImageChange(e, 'cover')}
-                    className="hidden"
-                  />
-                  {!coverImagePreview && (
-                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                      <div className="text-center">
-                        <Image size={32} className="mx-auto text-gray-500 mb-2" />
-                        <p className="text-sm text-gray-500">Click to upload cover image</p>
-                      </div>
-                    </div>
-                  )}
+            <input
+              ref={coverImageInputRef}
+              type="file"
+              accept="image/*"
+              onChange={(e) => handleImageChange(e, 'cover')}
+              className="hidden"
+              disabled={isSubmitting}
+            />
+            {!coverImagePreview && (
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <div className="text-center">
+                  <Image size={32} className="mx-auto text-muted mb-2" />
+                  <p className="text-sm text-muted">Click to upload cover image</p>
                 </div>
               </div>
-
-              {/* Profile Image Upload */}
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Group Icon (Optional)
-                </label>
-                <div className="flex items-center gap-4">
-                  <div
-                    onClick={() => profileImageInputRef.current?.click()}
-                    className="relative w-20 h-20 bg-gray-800 rounded-xl border-2 border-dashed border-gray-600 hover:border-orange-500 transition-colors cursor-pointer overflow-hidden"
-                    style={{
-                      backgroundImage: profileImagePreview ? `url(${profileImagePreview})` : undefined,
-                      backgroundSize: 'cover',
-                      backgroundPosition: 'center'
-                    }}
-                  >
-                    <input
-                      ref={profileImageInputRef}
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => handleImageChange(e, 'profile')}
-                      className="hidden"
-                    />
-                    {!profileImagePreview && (
-                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                        <Upload size={20} className="text-gray-500" />
-                      </div>
-                    )}
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-300">Upload a group icon</p>
-                    <p className="text-xs text-gray-500">Recommended: 400x400px, max 5MB</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Group Name */}
-              <div>
-                <label htmlFor="name" className="block text-sm font-medium text-gray-300 mb-2">
-                  Group Name *
-                </label>
-                <input
-                  type="text"
-                  id="name"
-                  name="name"
-                  value={formData.name}
-                  onChange={handleInputChange}
-                  placeholder="Enter group name..."
-                  className="w-full bg-gray-800 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                  required
-                />
-              </div>
-
-              {/* Description */}
-              <div>
-                <label htmlFor="description" className="block text-sm font-medium text-gray-300 mb-2">
-                  Description (Optional)
-                </label>
-                <textarea
-                  id="description"
-                  name="description"
-                  value={formData.description}
-                  onChange={handleInputChange}
-                  placeholder="Describe your group..."
-                  rows={3}
-                  className="w-full bg-gray-800 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent resize-none"
-                />
-              </div>
-
-              {/* Privacy Setting */}
-              <div className="flex items-center justify-between p-4 bg-gray-800 rounded-lg">
-                <div>
-                  <h3 className="text-sm font-medium text-white">Private Group</h3>
-                  <p className="text-xs text-gray-400">Only invited members can join</p>
-                </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    name="is_private"
-                    checked={formData.is_private}
-                    onChange={handleInputChange}
-                    className="sr-only peer"
-                  />
-                  <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-orange-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-500"></div>
-                </label>
-              </div>
-
-              {/* Submit Buttons */}
-              <div className="flex gap-3 pt-4">
+            )}
+            {coverImagePreview && (
+              <div className="absolute top-2 right-2">
                 <button
                   type="button"
-                  onClick={handleClose}
-                  className="flex-1 px-4 py-3 text-gray-300 bg-gray-800 rounded-lg hover:bg-gray-700 transition-colors font-medium"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setCoverImage(null);
+                    setCoverImagePreview('');
+                  }}
+                  className="p-1.5 bg-black/60 rounded-full text-white hover:bg-black/80 transition-colors"
+                  disabled={isSubmitting}
                 >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting || !formData.name.trim()}
-                  className="flex-1 px-4 py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
-                >
-                  {isSubmitting ? 'Creating...' : 'Create Group'}
+                  <Image size={16} />
                 </button>
               </div>
-            </form>
-          </motion.div>
+            )}
+          </div>
         </div>
-      )}
-    </AnimatePresence>
+
+        {/* Profile Image Upload */}
+        <div>
+          <label className="block text-sm font-medium text-foreground mb-2">
+            Group Icon (Optional)
+          </label>
+          <div className="flex items-center gap-4">
+            <div
+              onClick={() => !isSubmitting && profileImageInputRef.current?.click()}
+              className={`relative w-20 h-20 bg-background-secondary rounded-xl border-2 border-dashed border-border hover:border-accent transition-colors cursor-pointer overflow-hidden flex items-center justify-center ${
+                isSubmitting ? 'opacity-50 cursor-not-allowed' : ''
+              }`}
+              style={{
+                backgroundImage: profileImagePreview ? `url(${profileImagePreview})` : undefined,
+                backgroundSize: 'cover',
+                backgroundPosition: 'center'
+              }}
+            >
+              <input
+                ref={profileImageInputRef}
+                type="file"
+                accept="image/*"
+                onChange={(e) => handleImageChange(e, 'profile')}
+                className="hidden"
+                disabled={isSubmitting}
+              />
+              {!profileImagePreview && (
+                <Upload size={20} className="text-muted" />
+              )}
+              {profileImagePreview && (
+                <div className="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center">
+                  <Upload size={20} className="text-white" />
+                </div>
+              )}
+            </div>
+            <div>
+              <p className="text-sm text-foreground">Upload a group icon</p>
+              <p className="text-xs text-muted">Recommended: 400x400px, max 5MB</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Group Name */}
+        <div>
+          <label htmlFor="name" className="block text-sm font-medium text-foreground mb-2">
+            Group Name *
+          </label>
+          <input
+            type="text"
+            id="name"
+            name="name"
+            value={formData.name}
+            onChange={handleInputChange}
+            placeholder="Enter group name..."
+            className="w-full bg-background-secondary border border-border rounded-xl px-4 py-3 text-foreground placeholder-muted focus:outline-none focus:ring-2 focus:ring-accent/50"
+            required
+            disabled={isSubmitting}
+          />
+        </div>
+
+        {/* Description */}
+        <div>
+          <label htmlFor="description" className="block text-sm font-medium text-foreground mb-2">
+            Description (Optional)
+          </label>
+          <textarea
+            id="description"
+            name="description"
+            value={formData.description}
+            onChange={handleInputChange}
+            placeholder="Describe your group..."
+            rows={3}
+            className="w-full bg-background-secondary border border-border rounded-xl px-4 py-3 text-foreground placeholder-muted focus:outline-none focus:ring-2 focus:ring-accent/50 resize-none"
+            disabled={isSubmitting}
+          />
+        </div>
+
+        {/* Privacy Setting */}
+        <div className={`flex items-center justify-between p-4 bg-background-secondary rounded-xl ${
+          isSubmitting ? 'opacity-50' : ''
+        }`}>
+          <div>
+            <h3 className="text-sm font-medium text-foreground">Private Group</h3>
+            <p className="text-xs text-muted">Only invited members can join</p>
+          </div>
+          <label className="relative inline-flex items-center cursor-pointer">
+            <input
+              type="checkbox"
+              name="is_private"
+              checked={formData.is_private}
+              onChange={handleInputChange}
+              className="sr-only peer"
+              disabled={isSubmitting}
+            />
+            <div className="w-11 h-6 bg-muted peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-accent/50 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-accent"></div>
+          </label>
+        </div>
+      </form>
+    </Modal>
   );
 };
 

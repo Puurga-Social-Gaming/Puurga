@@ -105,6 +105,8 @@
     /* #171717 - Dark card background */
     --card-hover: 32 32 32;
     /* #202020 - Slightly lighter on hover */
+    --highlight-light: 32 32 32;
+    /* #202020 - Match card-hover for dark mode hover */
     --card-foreground: 255 255 255;
     /* White text on cards */
 
@@ -130,8 +132,16 @@
   }
 }
 
+@layer utilities {
+  .btn-primary {
+    @apply bg-white text-black hover:bg-gray-100 hover:text-black disabled:bg-gray-200 disabled:text-gray-500 dark:bg-gray-800 dark:text-white dark:hover:bg-gray-700 dark:hover:text-white dark:disabled:bg-gray-600 dark:disabled:text-gray-400;
+  }
+}
+
 :root {
+  --font-scale: 1;
   font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  font-size: calc(16px * var(--font-scale));
   line-height: 1.5;
   font-weight: 400;
 
@@ -144,6 +154,12 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   -webkit-text-size-adjust: 100%;
+  overscroll-behavior-y: none; /* Prevent pull-to-refresh bounce */
+  -webkit-overflow-scrolling: touch;
+}
+
+body {
+  overscroll-behavior-y: none;
 }
 
 /* Scrollbar hide utility */
@@ -152,6 +168,12 @@
   /* IE and Edge */
   scrollbar-width: none;
   /* Firefox */
+}
+
+/* No scrollbar - WhatsApp/Instagram style */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 
 /* Dark Mode Scrollbar */
@@ -200,4 +222,43 @@
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
   /* Chrome, Safari and Opera */
+}
+
+/* No scrollbar - WhatsApp/Instagram style */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Purgatory Mode — applied to body/html when user is ghosted */
+.purgatory-mode {
+  filter: grayscale(0.85) brightness(0.75) contrast(1.1);
+  transition: filter 0.8s ease;
+}
+
+.purgatory-mode img,
+.purgatory-mode video {
+  filter: grayscale(1) brightness(0.6) contrast(1.15);
+  transition: filter 0.8s ease;
+}
+
+.purgatory-mode * {
+  animation-duration: 2s !important;
+  animation-timing-function: ease-in-out !important;
+}
+
+.purgatory-mode .animate-pulse {
+  animation: purgatoryPulse 4s ease-in-out infinite !important;
+}
+
+@keyframes purgatoryPulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.8; }
+}
+
+.purgatory-vignette {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  background: radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,0.7) 100%);
 }

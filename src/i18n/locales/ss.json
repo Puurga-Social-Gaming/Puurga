@@ -9,12 +9,67 @@
         "viewOriginal": "Buka kwemvelo",
         "viewTranslated": "Buka lokuhunyushiwe",
         "translationDisclaimer": "Kuhunyushwe kusuka ku-{{language}}",
-        "siswatiDisclaimer": "Ikhwalithi yekuhumusha ingahluka"
+        "siswatiDisclaimer": "Ikhwalithi yekuhumusha ingahluka",
+        "continue": "Kubhala"
+    },
+    "onboarding": {
+        "selectLanguage": "Khetsa lulwimi",
+        "intro": {
+            "title": "Wamkelekile e-Puurga",
+            "description": "Umhlalo wekuhlalisana lapho ngaso sonke sikno sinentsandzeko. Kutsekemela kwetfulwa. Bachakij bakho bangakutfumela epurgatory. Utetegema ebangeni bakho langempela kukucela. Ghosted unawubona futsi revenant uyagijima. Post and play games ku receve tokens ya redemption. Purge loneludala. Engeza bangani futsi dala emaqembu kugijima bagcoke. Luphila ne sifundo simnako."
+        },
+        "features": {
+            "connect": "Xhuma",
+            "purge": "Purge",
+            "play": "Dlala",
+            "earn": "Thola",
+            "redeem": "Khulula"
+        }
     },
     "auth": {
         "login": "Ngena",
         "signup": "Bhalisa",
-        "logout": "Phuma"
+        "logout": "Phuma",
+        "emailAddress": "Ikheli le-imeyili",
+        "enterEmail": "Faka ikheli lakho le-imeyili",
+        "password": "Iphasiwedi",
+        "enterPassword": "Faka iphasiwedi lakho",
+        "rememberMe": "Ngikhumbule",
+        "forgotPassword": "Ukhohlwe iphasiwedi?",
+        "signingIn": "Kungena...",
+        "signIn": "Ngena",
+        "welcomeBack": "Wamukelekile emuva",
+        "signInToAccount": "Ngena ku-akhawunti yakho",
+        "orSignInWithEmail": "noma ngena nge-imeyili",
+        "dontHaveAccount": "Unayo i-akhawunti?",
+        "signUp": "Bhalisa",
+        "invalidEmail": "Ikheli le-imeyili elingasebenzi",
+        "passwordMinLength": "Iphasiwedi kumele babe ngezinhlamvu ezingu-8 okuningi",
+        "joinPuurga": "Yena ku-Puurga",
+        "connectWithCommunity": "Hlangana nomphakathi wakho",
+        "orRegisterWithEmail": "noma bhalisa nge-imeyili",
+        "fullName": "Igama lokuqala",
+        "enterName": "Faka igama lakho",
+        "nameRequired": "Igama kuyadingeka",
+        "nameMinLength": "Igama kumele babe ngezinhlamvu ezimbili okuningi",
+        "username": "Igama lomsebenzisi",
+        "chooseUsername": "Khetha igama lomsebenzisi",
+        "usernameRequired": "Igama lomsebenzisi kuyadingeka",
+        "usernameInvalid": "Kuphela amagama, amanani, namagama okuphela kwamandla kuvunyelwe",
+        "usernameMinLength": "Igama lomsebenzisi kumele babe ngezinhlamvu ezintathu okuningi",
+        "emailRequired": "I-imeyili kuyadingeka",
+        "validEmail": "Sicela ufake ikheli le-imeyili elisebenzayo",
+        "passwordRequired": "Iphasiwedi kuyadingeka",
+        "choosePassword": "Khetha iphasiwedi",
+        "confirmPassword": "Hlole iphasiwedi",
+        "verifyPassword": "Hlola iphasiwedi yakho",
+        "confirmPasswordRequired": "Sicela uqinisekise iphasiwedi yakho",
+        "passwordsDoNotMatch": "Amaphasiwedi awahambisani",
+        "registrationFailed": "Ukubhalisa kuhlulekile.",
+        "googleSignInFailed": "Ukungena kwe-Google kuhlulekile",
+        "creatingAccount": "Kudala i-akhawunti...",
+        "createAccount": "Dala i-akhawunti",
+        "alreadyHaveAccount": "Unesakhawunti already?"
     },
     "nav": {
         "home": "Ekhaya",
@@ -80,7 +135,10 @@
         "logout": "Phuma",
         "more": "Okuningi",
         "gaming": "Imidlalo",
-        "puurga": "PUURGA"
+        "puurga": "PUURGA",
+        "purgatory": "Purgatory",
+        "superAdmin": "Super Admin",
+        "chat": "Chat"
     },
     "rightSidebar": {
         "quickActions": "Izenzo Ezikhawulezayo",
@@ -219,5 +277,74 @@
         "welcomeDescription": "Khetsa ingxoxo eceleni noma calisa lensha ukuze ucalise kutuma milayezo.",
         "failedToStart": "Kucalisa ingxoxo kuhlulekile",
         "failedToSend": "Kutuma umilayezo kuhlulekile"
+    },
+    "games": {
+        "arena": "Indlalo",
+        "tapToPlay": "Chwapha umdlalo kute udlale",
+        "backToArena": "Emuva kwendlalo",
+        "credits": "Amakhredithi",
+        "rank": "Isikhundla",
+        "played": "Udlalwe",
+        "allGames": "Tinhlawu temidlalo",
+        "newGameAvailable": "Umdlalo lomusha lukhona",
+        "playNow": "Dlala nyalo",
+        "dismiss": "Susa",
+        "new": "Lomusha",
+        "difficulty": {
+            "easy": "Lula",
+            "medium": "Phakathi",
+            "hard": "kakhulu"
+        },
+        "category": {
+            "strategy": "Tinhlobo",
+            "action": "Kusebenza",
+            "puzzle": "Ipuzo",
+            "multiplayer": "Babdlali labanyenti",
+            "survival": "Kuphila"
+        },
+        "titles": {
+            "judgment": "Siphato",
+            "watchman": "Umlindeli",
+            "redemption": "Kubuyiselwa",
+            "purgaRift": "I-Rift yePurga",
+            "cyberRunner": "I-Cyber Runner"
+        },
+        "descriptions": {
+            "judgment": "Siphuma siphato semhlaba. Siphato sakho kumele sisheshe futhi siqotho. Phatha siphato kubasebenzisi ngekusebenza kwabo.",
+            "watchman": "Vikelwa umboso kwingoti ezingena. Kuqapha kuyisisekelo. Vikelwa itower lakho kumadlalo aku-purge.",
+            "redemption": "Umdlalo wesimo mkhulu. Yenta tinhlanganiso telungile ukuze ulinde siphato sakho futhi ulinde basebenzisi labagijimile.",
+            "purgaRift": "Sula tinhlelo te-dimension, phehla timpho te-rift, futhi uqhubeke ukudlala ngesiqu kule-arena yeziqu.",
+            "cyberRunner": "Qhafaza, phetha futhi qhafaza tinhlanu teka-network. Hlola tintfo, dlala i-boss yeviki, futhi pheqa ku-leaderboard."
+        },
+        "watchman": {
+            "title": "Indlela kaMlindeli",
+            "back": "Emuva",
+            "health": "Impilo",
+            "combo": "I-Combo",
+            "time": "Sikhatsi",
+            "threat": "Ingozi",
+            "score": "Iskawu",
+            "thePathAwaits": "Indlela Ilinde",
+            "navigateChaos": "Hlanganisani ukungaqinisekile. Sebenzisa kukhanya kwakho ukuze udlale ukungcolile.",
+            "initializeRun": "Qalisa ukudlala",
+            "runConcluded": "Ukudlala Kuqedile",
+            "disconnected": "AHLOLEKILE",
+            "retryRun": "Zama futhi",
+            "shieldBurst": "I-Burst leShield",
+            "focusMode": "Indlela ye-Focus",
+            "attack": "Dlala",
+            "dailyLimit": "Isilinganiso Esikhulu",
+            "earnedCredits": "Ukwethwa {credits} amakhredithi!"
+        },
+        "loading": "Kulayishe...",
+        "matchFound": "Udlalo Lutfolakale",
+        "waitingForPlayers": "Kulindela badlali",
+        "victory": "Kuwinile",
+        "defeat": "Kuhlazekile",
+        "connectionLost": "Kuxhumana kulahlekile",
+        "startGame": "Qalisa umdlalo",
+        "continue": "Qhubeka",
+        "exit": "Phuma",
+        "retry": "Zama futhi"
     }
 }

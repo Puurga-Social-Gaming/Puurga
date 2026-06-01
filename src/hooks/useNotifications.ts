@@ -7,6 +7,36 @@ import { useWebSocket } from './useWebSocket';
 import api from '../api/api';
 import toast from 'react-hot-toast';
 
+const NOTIFICATION_MESSAGES: Record<string, (name: string) => string> = {
+  like: (name) => `❤️ ${name} liked your post!`,
+  dislike: (name) => `👎 ${name} disliked your post`,
+  comment: (name) => `💬 ${name} commented on your post!`,
+  reply: (name) => `↩️ ${name} replied to your comment`,
+  mention: (name) => `@ ${name} mentioned you!`,
+  follow: (name) => `👋 ${name} started following you!`,
+  follow_accepted: (name) => `🎉 ${name} accepted your follow request!`,
+  share: (name) => `🔄 ${name} shared your post!`,
+  profile_visit: (name) => `👀 ${name} visited your profile`,
+  message: (name) => `💬 ${name} sent you a message`,
+  group_message: (name) => `💬 ${name} sent a message in a group`,
+  message_reaction: (name) => `👍 ${name} reacted to your message`,
+  missed_call: (name) => `📞 Missed call from ${name}`,
+  resume_game: () => `🎮 Resume your game!`,
+  reward_reminder: () => `🎁 Rewards available!`,
+  tournament_reminder: () => `🏆 Tournament starting soon!`,
+  challenge: (name) => `🏅 ${name} challenged you!`,
+  welcome: () => `👋 Welcome to Puurga!`,
+  verification: () => `📧 Verify your email`,
+  security_alert: () => `🔒 Security alert`,
+  maintenance: () => `🔧 Scheduled maintenance`,
+  friend_request: (name) => `👋 ${name} sent you a friend request!`,
+  friend_request_accepted: (name) => `🎉 ${name} accepted your friend request!`,
+  redemption: (name) => `✨ ${name} redeemed you from ghost mode!`,
+  redemption_contribution: (name) => `🤝 ${name} contributed to your redemption!`,
+  friend_ghosted: (name) => `👻 ${name} has been ghosted!`,
+  purge: (name) => `🔥 ${name} purged your post`,
+};
+
 export const useNotifications = () => {
   const { user } = useUser();
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -17,9 +47,8 @@ export const useNotifications = () => {
     if (!user) return;
 
     try {
-      // Use API endpoint instead of direct Supabase call for consistency
       const response = await api.get('/notifications');
-      const data = response.data || [];
+      const data = response.data?.notifications || response.data || [];
 
       setNotifications(data);
       setUnreadCount(data.filter((n: any) => !n.read).length);
@@ -32,10 +61,8 @@ export const useNotifications = () => {
     if (!user) return;
 
     try {
-      // Use API endpoint for marking as read
       await api.put('/notifications/read', { notificationIds });
 
-      // Update local state
       setNotifications(prev =>
         prev.map(n =>
           notificationIds.includes(n.id) ? { ...n, read: true } : n
@@ -48,7 +75,6 @@ export const useNotifications = () => {
   };
 
   const deleteNotification = async (notificationId: string) => {
-    // Optimistic update: Remove immediately from UI
     const previousNotifications = notifications;
     const previousUnreadCount = unreadCount;
 
@@ -63,97 +89,51 @@ export const useNotifications = () => {
     });
 
     try {
-      // Background API call
       await api.delete(`/notifications/${notificationId}`);
     } catch (error) {
       console.error('Error deleting notification:', error);
-      // Revert on error
       setNotifications(previousNotifications);
       setUnreadCount(previousUnreadCount);
       toast.error('Failed to delete notification');
     }
   };
 
-  // Fetch notifications when user logs in
   useEffect(() => {
     if (user) {
       fetchNotifications();
     }
   }, [user]);
 
-  // Set up WebSocket for real-time notifications
   const { isConnected } = useWebSocket({
-    onNotification: (notification) => {
-      console.log('Received live notification:', notification);
-
-      // Add notification to state
-      setNotifications(prev => [notification, ...prev]);
+    onNotification: (notification: Notification) => {
+      setNotifications(prev => {
+        if (prev.some(n => n.id === notification.id)) return prev;
+        return [notification, ...prev];
+      });
       setUnreadCount(prev => prev + 1);
 
-      // Show different toast notifications based on type
-      if (notification.type === 'friend_request') {
-        toast.success(
-          `👋 ${notification.fromUser.name} sent you a friend request! Check your notifications to accept or decline.`,
-          {
-            duration: 8000,
-            position: 'top-right',
-          }
-        );
-      } else if (notification.type === 'friend_request_accepted') {
-        toast.success(`🎉 ${notification.fromUser.name} accepted your friend request!`, {
-          duration: 5000,
-          position: 'top-right',
-        });
-      } else if (notification.type === 'like') {
-        toast.success(`❤️ ${notification.fromUser.name} liked your post!`, {
-          duration: 4000,
-          position: 'top-right',
-        });
-      } else if (notification.type === 'comment') {
-        toast.success(`💬 ${notification.fromUser.name} commented on your post!`, {
-          duration: 4000,
-          position: 'top-right',
-        });
-      } else if (notification.type === 'redemption') {
-        toast.success(`🌟 ${notification.fromUser.name} fully redeemed you from ghost mode!`, {
-          duration: 10000,
-          position: 'top-right',
-          icon: '✨'
-        });
-      } else if (notification.type === 'redemption_contribution') {
-        toast.success(`🤝 ${notification.fromUser.name} contributed to your redemption!`, {
-          duration: 6000,
-          position: 'top-right'
-        });
-      } else if (notification.type === 'friend_ghosted') {
-        toast.error(`👻 Oh no! ${notification.fromUser.name} has been ghosted! Help them out?`, {
-          duration: 10000,
-          position: 'top-right',
-          icon: '💀'
-        });
-      } else {
-        // Default notification for other types
-        toast.success(`${notification.fromUser.name}: ${notification.type.replace('_', ' ')}`, {
-          duration: 4000,
-          position: 'top-right',
-        });
-      }
+      const type = notification.type as string;
+      const name = notification.fromUser?.name || 'Someone';
+      const messageFn = NOTIFICATION_MESSAGES[type];
+      const toastMessage = messageFn ? messageFn(name) : `${name} sent a notification`;
+
+      toast.success(toastMessage, {
+        duration: 5000,
+        position: 'top-right',
+      });
     },
     onConnectionChange: (connected) => {
       console.log('WebSocket connection status:', connected);
     }
   });
 
-  // Fallback: Set up Supabase real-time subscription if WebSocket is not connected
   useEffect(() => {
     if (!user || isConnected) return;
 
-    // Clean up existing subscription if it exists
     if (subscriptionRef.current) {
       subscriptionRef.current.unsubscribe();
     }
 
-    // Create new subscription as fallback
     subscriptionRef.current = supabase
       .channel('notifications')
       .on(
@@ -172,7 +152,6 @@ export const useNotifications = () => {
       )
       .subscribe();
 
-    // Cleanup function
     return () => {
       if (subscriptionRef.current) {
         subscriptionRef.current.unsubscribe();
@@ -188,4 +167,6 @@ export const useNotifications = () => {
     deleteNotification,
     fetchNotifications
   };
-}; 
+};
+
+export default useNotifications;

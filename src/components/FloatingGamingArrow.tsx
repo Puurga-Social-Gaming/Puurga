@@ -1,12 +1,18 @@
 import React from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { Gamepad2, ChevronRight } from 'lucide-react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { Gamepad2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-const FloatingGamingArrow: React.FC = () => {
-  const navigate = useNavigate();
+interface FloatingGamingArrowProps {
+  onToggleSidebar?: () => void;
+}
+
+// Feature flag for sidebar mode (set to false to navigate to games page)
+const USE_SIDEBAR = import.meta.env.VITE_USE_SIDEBAR !== 'false';
+
+const FloatingGamingArrow: React.FC<FloatingGamingArrowProps> = ({ onToggleSidebar }) => {
   const location = useLocation();
-  const [isHovered, setIsHovered] = React.useState(false);
+  const navigate = useNavigate();
 
   const shouldShow = 
     location.pathname !== '/puurga-games' && 
@@ -16,7 +22,13 @@ const FloatingGamingArrow: React.FC = () => {
     !location.pathname.startsWith('/reset-password');
 
   const handleClick = () => {
-    navigate('/puurga-games');
+    if (USE_SIDEBAR && onToggleSidebar) {
+      // Use sidebar mode
+      onToggleSidebar();
+    } else {
+      // Navigate directly to games page
+      navigate('/puurga-games');
+    }
   };
 
   if (!shouldShow) return null;
@@ -29,32 +41,20 @@ const FloatingGamingArrow: React.FC = () => {
         exit={{ opacity: 0, x: 20 }}
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
-        onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
         onClick={handleClick}
-        className="lg:hidden fixed right-3 top-1/2 -translate-y-1/2 z-[100] flex items-center gap-2 px-4 py-2.5 rounded-full transition-all duration-300 bg-white/10 hover:bg-white/15 border border-white/20 hover:border-white/30 backdrop-blur-md"
-        style={{
-          boxShadow: isHovered 
-            ? '0 4px 20px rgba(0, 0, 0, 0.4), 0 0 30px rgba(255, 255, 255, 0.05)' 
-            : '0 2px 10px rgba(0, 0, 0, 0.2)',
-        }}
-        aria-label="Go to Arena"
+        className="lg:hidden fixed right-3 top-1/2 -translate-y-1/2 z-[100] flex flex-col items-center gap-1 w-16 h-16 min-h-[44px] rounded-full transition-all duration-300 bg-transparent border-transparent shadow-none hover:bg-accent/10 opacity-75 hover:opacity-100"
+        aria-label={USE_SIDEBAR ? "Toggle sidebar" : "Games Menu"}
       >
         <Gamepad2 
-          size={18} 
-          className="text-white/80"
+          size={28} 
+          className="text-foreground"
         />
-        <span className="text-xs font-medium text-white/90 uppercase tracking-wider hidden sm:inline">
-          Arena
+        <span className="text-[10px] font-medium text-foreground uppercase tracking-wide leading-none">
+          Games
         </span>
-        <ChevronRight 
-          size={14} 
-          className="text-white/60"
-        />
       </motion.button>
     </AnimatePresence>
   );
 };
 
 export default FloatingGamingArrow;
-

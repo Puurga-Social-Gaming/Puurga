@@ -13,14 +13,14 @@ const PostList: React.FC<PostListProps> = ({ posts, onPostUpdate }) => {
 
   if (!posts || posts.length === 0) {
     return (
-      <div className="text-center text-gray-400 py-8 bg-transparent">
+      <div className="text-center text-muted py-8 bg-transparent">
         {t('posts.noPostsToDisplay')}
       </div>
     );
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-2">
       {posts.map((post) => (
         <PostComponent
           key={post.id}
@@ -32,4 +32,4 @@ const PostList: React.FC<PostListProps> = ({ posts, onPostUpdate }) => {
   );
 };
 
-export default PostList;
+export default React.memo(PostList);

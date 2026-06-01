@@ -3,6 +3,7 @@ import { Server } from 'http';
 import { IncomingMessage } from 'http';
 import url from 'url';
 import jwt from 'jsonwebtoken';
+import { supabase } from './config/supabase';
 
 interface WebSocketClient extends WebSocket {
   userId?: string;
@@ -36,9 +37,21 @@ interface TypingPayload {
   isTyping: boolean;
 }
 
+type NotificationType =
+  | 'like' | 'dislike' | 'comment' | 'reply' | 'mention'
+  | 'follow' | 'follow_accepted' | 'share' | 'profile_visit'
+  | 'message' | 'group_message' | 'message_reaction' | 'missed_call'
+  | 'resume_game' | 'reward_reminder' | 'tournament_reminder' | 'challenge'
+  | 'welcome' | 'verification' | 'security_alert' | 'maintenance'
+  | 'friend_request' | 'friend_request_accepted'
+  | 'redemption' | 'redemption_contribution' | 'friend_ghosted' | 'purge'
+  // Survival system events
+  | 'state_changed' | 'reputation_updated' | 'threat_level_changed'
+  | 'ghost_status_changed' | 'inactivity_warning' | 'survival_alert';
+
 interface NotificationPayload {
   id: string;
-  type: 'friend_request' | 'friend_request_accepted' | 'like' | 'comment' | 'message';
+  type: NotificationType;
   fromUser: {
     id: string;
     name: string;
@@ -51,7 +64,12 @@ interface NotificationPayload {
     commentId?: string;
     conversationId?: string;
     messageId?: string;
-  };
+    shareId?: string;
+    groupId?: string;
+    gameId?: string;
+  } & Record<string, any>;
+  title?: string;
+  message?: string;
   createdAt: string;
 }
 
@@ -63,6 +81,8 @@ interface OnlineStatusPayload {
 interface CreditUpdatePayload {
   userId: string;
   credits: number;
+  change?: number;
+  source?: string;
 }
 
 interface ProfileUpdatePayload {
@@ -71,9 +91,46 @@ interface ProfileUpdatePayload {
   purgeCount?: number;
 }
 
+interface CreditsUpdatedPayload {
+  userId: string;
+  credits: number;
+  change: number;
+  source: string;
+}
+
+interface SurvivalUpdatePayload {
+  userId: string;
+  survivalState: string;
+  reputationScore: number;
+  threatLevel: number;
+  socialRank: string;
+  inactivityLevel: number;
+  ghostStatus: boolean;
+  warningLevel?: number;
+  visibilityScore?: number;
+  purgePressure?: number;
+  collapseRisk?: number;
+  purgeCount?: number;
+  purgatoryStatus?: boolean;
+  purgatoryEnteredAt?: string;
+  redemptionProgress?: number;
+  redemptionRequested?: boolean;
+  loyaltyScore?: number;
+}
+
+interface AllianceUpdatePayload {
+  userId: string;
+  allianceId?: string;
+  allianceStatus?: 'PENDING' | 'ACTIVE' | 'BROKEN' | 'BETRAYED';
+  loyaltyScore?: number;
+  eventType?: 'ALLIANCE_REQUESTED' | 'ALLIANCE_ACCEPTED' | 'ALLIANCE_BROKEN' | 'ALLIANCE_REJECTED' | 'LOYALTY_CHANGED' | 'ALLY_COLLAPSING' | 'ALLY_GHOSTED' | 'REDEMPTION_SUPPORT_RECEIVED';
+  partnerId?: string;
+  partnerUsername?: string;
+}
+
 interface WebSocketMessage {
-  type: 'new_message' | 'message_read' | 'typing' | 'notification' | 'user_online' | 'user_offline' | 'credit_update' | 'profile_update';
-  payload: NewMessagePayload | MessageReadPayload | TypingPayload | NotificationPayload | OnlineStatusPayload | CreditUpdatePayload | ProfileUpdatePayload;
+  type: 'new_message' | 'message_read' | 'typing' | 'notification' | 'user_online' | 'user_offline' | 'credit_update' | 'profile_update' | 'credits_updated' | 'survival_update' | 'alliance_update';
+  payload: NewMessagePayload | MessageReadPayload | TypingPayload | NotificationPayload | OnlineStatusPayload | CreditUpdatePayload | ProfileUpdatePayload | CreditsUpdatedPayload | SurvivalUpdatePayload | AllianceUpdatePayload;
 }
 
 class WebSocketManager {
@@ -104,7 +161,7 @@ class WebSocketManager {
   private setupWebSocket() {
     if (!this.wss) return;
 
-    this.wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
+    this.wss.on('connection', async (ws: WebSocket, req: IncomingMessage) => {
       const wsClient = ws as WebSocketClient;
       try {
         // Get token from query params
@@ -140,20 +197,53 @@ class WebSocketManager {
 
         console.log(`User ${userId} connected to WebSocket`);
 
-        // Send all currently online users to the new client
+        // Get the current user's online status preference
+        let currentUserAllowsOnlineStatus = true;
+        try {
+          const { data: currentProfile } = await supabase
+            .from('profiles')
+            .select('show_online_status')
+            .eq('id', userId)
+            .single();
+          currentUserAllowsOnlineStatus = currentProfile?.show_online_status !== false;
+        } catch (error) {
+          console.error('Error checking current user online status setting:', error);
+        }
+
+        // Send all currently online users to the new client (respecting their settings)
         const onlineUserIds = this.getOnlineUsers();
         for (const onlineUserId of onlineUserIds) {
           if (onlineUserId !== userId) {
-            const statusMessage: WebSocketMessage = {
-              type: 'user_online',
-              payload: { userId: onlineUserId, isOnline: true } as OnlineStatusPayload
-            };
-            this.sendToUser(userId, statusMessage);
+            // Check if this user allows showing online status
+            try {
+              const { data: profile } = await supabase
+                .from('profiles')
+                .select('show_online_status')
+                .eq('id', onlineUserId)
+                .single();
+
+              if (profile?.show_online_status !== false) {
+                const statusMessage: WebSocketMessage = {
+                  type: 'user_online',
+                  payload: { userId: onlineUserId, isOnline: true } as OnlineStatusPayload
+                };
+                this.sendToUser(userId, statusMessage);
+              }
+            } catch (error) {
+              // Default to showing on error
+              const statusMessage: WebSocketMessage = {
+                type: 'user_online',
+                payload: { userId: onlineUserId, isOnline: true } as OnlineStatusPayload
+              };
+              this.sendToUser(userId, statusMessage);
+            }
           }
         }
 
-        // Broadcast this user's online status to all connected users
-        this.broadcastUserStatus(userId, true);
+        // Broadcast this user's online status to all connected users (respecting settings)
+        if (currentUserAllowsOnlineStatus) {
+          this.broadcastUserStatus(userId, true);
+        }
 
         // Handle client disconnect
         wsClient.on('close', () => {
@@ -201,7 +291,25 @@ class WebSocketManager {
     userIds.forEach(userId => this.sendToUser(userId, data));
   }
 
-  private broadcastUserStatus(userId: string, isOnline: boolean) {
+  private async broadcastUserStatus(userId: string, isOnline: boolean) {
+    // Check if user allows showing online status
+    try {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('show_online_status')
+        .eq('id', userId)
+        .single();
+
+      // If user has disabled online status, don't broadcast
+      if (profile?.show_online_status === false) {
+        console.log(`User ${userId} has disabled online status - not broadcasting`);
+        return;
+      }
+    } catch (error) {
+      console.error('Error checking online status setting:', error);
+      // Continue broadcasting on error (default to showing)
+    }
+
     const statusMessage: WebSocketMessage = {
       type: isOnline ? 'user_online' : 'user_offline',
       payload: { userId, isOnline } as OnlineStatusPayload
@@ -221,6 +329,22 @@ class WebSocketManager {
       payload: notification
     };
     this.sendToUser(userId, notificationMessage);
+  }
+
+  public sendSurvivalUpdate(userId: string, payload: SurvivalUpdatePayload) {
+    const survivalMessage: WebSocketMessage = {
+      type: 'survival_update',
+      payload
+    };
+    this.sendToUser(userId, survivalMessage);
+  }
+
+  public sendAllianceUpdate(userId: string, payload: AllianceUpdatePayload) {
+    const allianceMessage: WebSocketMessage = {
+      type: 'alliance_update',
+      payload
+    };
+    this.sendToUser(userId, allianceMessage);
   }
 
   public getOnlineUsers(): string[] {

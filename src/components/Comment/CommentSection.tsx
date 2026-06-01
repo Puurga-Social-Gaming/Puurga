@@ -95,8 +95,18 @@ const CommentSection: React.FC<CommentSectionProps> = ({ postId, comments: initi
     toast.success('Comment deleted');
   };
 
+  const handleBackdropClick = (e: React.MouseEvent) => {
+    // Dismiss keyboard on mobile when clicking outside input areas
+    if (e.target === e.currentTarget) {
+      const activeElement = document.activeElement as HTMLElement;
+      if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA')) {
+        activeElement.blur();
+      }
+    }
+  };
+
   return (
-    <div className="space-y-2">
+    <div className="space-y-2" onClick={handleBackdropClick}>
       {/* Comments List */}
       <div className="space-y-1">
         {isLoading ? (

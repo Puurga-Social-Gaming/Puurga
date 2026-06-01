@@ -3,6 +3,10 @@ import { supabase } from '../config/supabase';
 import { supabaseAuth as auth, AuthRequest } from '../middleware/supabaseAuth';
 import { normalizeImageUrl } from '../utils/url';
 import { logSuperAdminAction } from '../utils/auditLogger';
+import { PURGE_THRESHOLD } from '../constants/purgeConstants';
+import { CreditService } from '../services/creditService';
+import { NotificationService } from '../services/notificationService';
+import { validateNotGhosted } from '../middleware/restrictGhosted';
 
 const router = express.Router();
 
@@ -62,7 +66,7 @@ router.get('/posts/:postId/comments', auth, async (req: AuthRequest, res) => {
 });
 
 // POST /api/posts/:postId/comments - Create a new comment
-router.post('/posts/:postId/comments', auth, async (req: AuthRequest, res) => {
+router.post('/posts/:postId/comments', auth, validateNotGhosted, async (req: AuthRequest, res) => {
   try {
     const { postId } = req.params;
     const { content } = req.body;
@@ -70,6 +74,11 @@ router.post('/posts/:postId/comments', auth, async (req: AuthRequest, res) => {
 
     if (!userId) {
       return res.status(401).json({ error: 'User not authenticated' });
+    }
+
+    const isRestricted = await CreditService.checkRestricted(userId);
+    if (isRestricted) {
+      return res.status(403).json({ error: 'Account restricted. Cannot comment.' });
     }
 
     if (!content || !content.trim()) {
@@ -101,6 +110,19 @@ router.post('/posts/:postId/comments', auth, async (req: AuthRequest, res) => {
 
     if (commentError) throw commentError;
 
+    // Award credits for comments
+    const canComment = await CreditService.checkAndIncrementCommentCount(userId);
+    if (canComment) {
+      await CreditService.awardCredits(userId, 2, 'comment', 'Comment on post');
+      
+      // Award +3 to post owner
+      if (post?.user_id && post.user_id !== userId) {
+        await CreditService.awardCredits(post.user_id, 3, 'comment', 'Receive comment');
+      }
+    }
+
+    await CreditService.updateLastActiveAt(userId);
+
     // Get user profile
     const { data: profile } = await supabase
       .from('profiles')
@@ -110,19 +132,7 @@ router.post('/posts/:postId/comments', auth, async (req: AuthRequest, res) => {
 
     // Create notification for post owner (if not commenting on own post)
     if (post.user_id !== userId) {
-      await supabase
-        .from('notifications')
-        .insert({
-          type: 'comment',
-          sender_id: userId,
-          receiver_id: post.user_id,
-          post_id: postId,
-          comment_id: comment.id,
-          title: 'New Comment',
-          message: `${profile?.full_name || 'Someone'} commented on your post`,
-          is_read: false,
-          created_at: new Date().toISOString(),
-        });
+      await NotificationService.comment(userId, post.user_id, postId, comment.id, content.trim());
     }
 
     // Return formatted comment
@@ -374,8 +384,8 @@ router.post('/comments/:id/purge', auth, async (req: AuthRequest, res) => {
       .from('comments')
       .update({
         purge_count: totalPurges,
-        is_purged: totalPurges >= 5,
-        purged_at: totalPurges >= 5 ? new Date().toISOString() : null,
+        is_purged: totalPurges >= PURGE_THRESHOLD,
+        purged_at: totalPurges >= PURGE_THRESHOLD ? new Date().toISOString() : null,
       })
       .eq('id', id);
 
@@ -392,8 +402,8 @@ router.post('/comments/:id/purge', auth, async (req: AuthRequest, res) => {
     if (!userCountError && userPurgeCount) {
       const userTotalPurges = userPurgeCount.length;
 
-      // Check if user should go into ghost mode (10+ total purges)
-      if (userTotalPurges >= 10) {
+      // Check if user should go into ghost mode (PURGE_THRESHOLD+ total purges)
+      if (userTotalPurges >= PURGE_THRESHOLD) {
         await supabase
           .from('profiles')
           .update({

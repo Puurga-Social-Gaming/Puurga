@@ -14,7 +14,7 @@ const NavLink: React.FC<NavLinkProps> = ({ to, icon }) => {
     <Link
       to={to}
       className={`transition-colors ${
-        isActive ? 'text-blue-400' : 'text-white hover:text-blue-400'
+        isActive ? 'text-accent' : 'text-muted hover:text-foreground'
       }`}
     >
       {icon}

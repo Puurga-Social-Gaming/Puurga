@@ -142,6 +142,58 @@ router.get('/activity', auth, async (req: AuthRequest, res) => {
   }
 });
 
+// GET /api/purging/status - Get current user's purging status
+router.get('/status', auth, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user.id;
+
+    // Get user's profile to check ghost status and purge count
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('is_ghost, purge_count, ghosted_at, purga_points, credits')
+      .eq('id', userId)
+      .single();
+
+    if (profileError || !profile) {
+      console.error('Error fetching user profile:', profileError);
+      return res.status(500).json({ error: 'Failed to fetch user profile' });
+    }
+
+    const isGhost = profile.is_ghost === true;
+    const purgeCount = profile.purge_count || 0;
+    const currentCredits = Number(profile.purga_points ?? profile.credits ?? 0);
+    const creditsNeeded = Math.max(0, 100 - currentCredits);
+
+    // Calculate days until purge if not already ghosted
+    let daysUntilPurge = undefined;
+    let isAtRisk = false;
+
+    if (!isGhost) {
+      // Assume purge threshold is at 0 credits (or some threshold)
+      // This is a simplified calculation - adjust based on your actual business logic
+      if (currentCredits <= 20) {
+        isAtRisk = true;
+        // Estimate days based on current credits (assuming 1 credit decay per day)
+        daysUntilPurge = currentCredits;
+      } else {
+        daysUntilPurge = currentCredits;
+      }
+    }
+
+    res.json({
+      daysUntilPurge,
+      isAtRisk,
+      purgeCount,
+      isGhost,
+      currentCredits,
+      creditsNeeded
+    });
+  } catch (error) {
+    console.error('Error fetching purging status:', error);
+    res.status(500).json({ error: 'Failed to fetch purging status' });
+  }
+});
+
 // GET /api/purging/redemption-needed - Get friends who need redemption
 router.get('/redemption-needed', auth, async (req: AuthRequest, res) => {
   try {

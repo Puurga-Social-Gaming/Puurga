@@ -7,8 +7,10 @@ import { toast } from 'react-hot-toast';
 const languages = [
     { code: 'en', name: 'English', nativeName: 'English' },
     { code: 'fr', name: 'French', nativeName: 'Français' },
-    { code: 'zu', name: 'Zulu', nativeName: 'isiZulu' },
-    { code: 'ss', name: 'Siswati', nativeName: 'SiSwati' },
+    { code: 'sw', name: 'Swahili', nativeName: 'Kiswahili' },
+    { code: 'es', name: 'Spanish', nativeName: 'Español' },
+    { code: 'pt', name: 'Portuguese', nativeName: 'Português' },
+    { code: 'zh', name: 'Chinese', nativeName: '中文' },
 ];
 
 interface LanguageSelectorProps {

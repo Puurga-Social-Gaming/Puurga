@@ -1,14 +1,16 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { Plus, X, Image, Send, ChevronLeft, ChevronRight, Pause, Play, Smile } from 'lucide-react';
+import React, { Suspense, useEffect, useState, useRef, useCallback } from 'react';
+import { Plus, X, Image, Send, ChevronLeft, ChevronRight, Pause, Play, Smile, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
+import imageCompression from 'browser-image-compression';
 import api from '../../api/api';
 import { useUser } from '../../context/UserContext';
 import { toast } from 'react-hot-toast';
 import Avatar from '../Avatar';
 import { DEFAULT_IMAGES } from '../../constants/defaultImages';
-import EmojiPicker, { EmojiStyle, Theme } from 'emoji-picker-react';
-import type { EmojiClickData } from 'emoji-picker-react';
+import type { EmojiClickData, Theme } from 'emoji-picker-react';
+
+import { retryableLazy } from '../../utils/retryableLazy';
+const EmojiPicker = retryableLazy(() => import('emoji-picker-react'));
 
 interface StatusUser {
   id: string;
@@ -20,8 +22,8 @@ interface StatusUser {
 
 interface Status {
   id: string | number;
-  content?: string;
-  mediaUrl?: string;
+  text?: string;
+  imageUrl?: string;
   type: 'text' | 'media';
   gradientIndex?: number;
   createdAt: string;
@@ -35,8 +37,8 @@ function mapApiStatus(data: Record<string, unknown>): Status {
   const userObj = (data.User as Record<string, unknown>) || {};
   return {
     id: data.id as string | number,
-    content: data.content as string | undefined,
-    mediaUrl: data.mediaUrl as string | undefined,
+    text: (data.text || data.content) as string | undefined,
+    imageUrl: (data.imageUrl || data.mediaUrl || data.media_url) as string | undefined,
     type: (data.type as 'text' | 'media') || 'text',
     gradientIndex: data.gradientIndex as number | undefined,
     createdAt: data.createdAt as string,
@@ -67,9 +69,12 @@ const STATUS_GRADIENTS = [
 // Duration for auto-advance (seconds)
 const STATUS_DURATION = 5;
 
-const StatusBar = () => {
+interface StatusBarProps {
+  onViewerStateChange?: (isOpen: boolean) => void;
+}
+
+const StatusBar: React.FC<StatusBarProps> = ({ onViewerStateChange }) => {
   const { user } = useUser();
-  const navigate = useNavigate();
   const [statuses, setStatuses] = useState<Status[]>([]);
   const [selectedStatusIndex, setSelectedStatusIndex] = useState<number | null>(null);
   const [isCreating, setIsCreating] = useState(false);
@@ -80,16 +85,22 @@ const StatusBar = () => {
   const [loading, setLoading] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
+  const [imageError, setImageError] = useState(false);
   const [progress, setProgress] = useState(0);
   const progressRef = useRef<number | null>(null);
   const startTimeRef = useRef<number>(0);
   const pausedAtRef = useRef<number>(0);
-
   const selectedStatus = selectedStatusIndex !== null ? (statuses[selectedStatusIndex] || null) : null;
 
   useEffect(() => {
     fetchStatuses();
   }, []);
+
+  useEffect(() => {
+    if (onViewerStateChange) {
+      onViewerStateChange(selectedStatusIndex !== null);
+    }
+  }, [selectedStatusIndex, onViewerStateChange]);
 
   const fetchStatuses = async () => {
     try {
@@ -105,10 +116,29 @@ const StatusBar = () => {
     }
   };
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const compressImage = async (file: File): Promise<File> => {
+    if (file.type.startsWith('video/')) return file;
+    const options = {
+      maxSizeMB: 1,
+      maxWidthOrHeight: 1920,
+      useWebWorker: true,
+      fileType: file.type,
+      initialQuality: 0.8,
+    };
+    try {
+      const compressedFile = await imageCompression(file, options);
+      if (compressedFile.size > file.size) return file;
+      return compressedFile;
+    } catch (error) {
+      return file;
+    }
+  };
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      setSelectedFile(file);
+      const compressed = await compressImage(file);
+      setSelectedFile(compressed);
     }
   };
 
@@ -145,17 +175,29 @@ const StatusBar = () => {
     }
   };
 
+  const handleDeleteStatus = async (statusId: string | number) => {
+    try {
+      await api.delete(`/statuses/${statusId}`);
+      toast.success('Status deleted');
+      setSelectedStatusIndex(null);
+      fetchStatuses();
+    } catch (error: any) {
+      console.error('Error deleting status:', error);
+      toast.error(`Failed to delete status: ${error.response?.data?.error || error.message}`);
+    }
+  };
+
   const isStatusActive = (status: Status) => {
     const expiryTime = new Date(status.expiresAt).getTime();
     const now = new Date().getTime();
     return now < expiryTime;
   };
 
-  const getStatusRingColor = (status: Status) => {
-    if (!isStatusActive(status)) return 'border-gray-600';
-    if (status.isViewed) return 'border-gray-400';
-    return 'border-orange-500';
-  };
+const getStatusRingColor = (status: Status) => {
+  if (!isStatusActive(status)) return 'border-gray-600';
+  if (status.isViewed) return 'border-gray-400';
+  return 'border-gray-600';
+};
 
   // Get time ago string
   const getTimeAgo = (dateStr: string) => {
@@ -235,14 +277,20 @@ const StatusBar = () => {
     if (selectedStatusIndex !== null) {
       setProgress(0);
       setIsPaused(false);
+      setImageError(false);
       stopProgress();
       startProgress();
+      document.body.style.overflow = 'hidden';
     } else {
       stopProgress();
       setProgress(0);
+      document.body.style.overflow = '';
     }
 
-    return () => stopProgress();
+    return () => {
+      stopProgress();
+      document.body.style.overflow = '';
+    };
   }, [selectedStatusIndex, startProgress, stopProgress]);
 
   const goToPrevStatus = useCallback(() => {
@@ -278,68 +326,74 @@ const StatusBar = () => {
   // Get a gradient for a status based on its stored gradientIndex
   const getGradientForStatus = (status: Status) => STATUS_GRADIENTS[(status.gradientIndex ?? 0) % STATUS_GRADIENTS.length];
 
-  // Build dummy statuses for preview when loading
-  const dummyStatuses: Status[] = Array.from({ length: 8 }).map((_, i) => ({
-    id: `dummy-${i}`,
-    userId: `u-${i}`,
-    content: '',
-    mediaUrl: '',
-    createdAt: new Date().toISOString(),
-    expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-    isViewed: i === 0,
-    type: 'text',
-    User: {
-      id: `u-${i}`,
-      name: ['Alice', 'Brandon', 'Chidi', 'Dana', 'Ema', 'Felix', 'Gina', 'Hadi'][i % 8],
-      avatar: DEFAULT_IMAGES.avatar,
-      isFriend: true,
-    },
-  } as unknown as Status));
-
-  // Only show dummy statuses during loading
-  const useDummy = loading;
-  const displayStatuses = useDummy ? dummyStatuses : statuses;
-
   return (
-    <div className="mb-2">
-      <div className="flex items-center gap-2">
-        {/* Status circles scrolling area */}
-        <div className="flex-1 min-w-0 flex gap-3 sm:gap-4 overflow-x-auto pb-2 scrollbar-hide">
-        {/* Add Status Button */}
-        <button
-          onClick={() => setIsCreating(true)}
-          className="flex flex-col items-center min-w-[48px] sm:min-w-[56px]"
-          aria-label="Add Status"
-        >
-          <div className="relative w-10 h-10 sm:w-12 sm:h-12 rounded-full border border-border flex items-center justify-center hover:border-accent transition-colors bg-card">
-            <Plus size={18} className="sm:w-5 sm:h-5 text-accent" />
-          </div>
-          <span className="text-xs text-muted mt-1">Add</span>
-        </button>
+    <div className="mb-2 flex justify-center">
+      <div className="w-full max-w-3xl px-4">
+        <div className="flex items-center justify-center gap-3">
+          {/* Status circles scrolling area */}
+          <div className="flex gap-3 sm:gap-4 overflow-x-auto pb-2 scrollbar-hide px-1">
+            {/* Add Status Button with Profile Picture */}
+            <button
+              onClick={() => setIsCreating(true)}
+              className="flex flex-col items-center min-w-[44px] sm:min-w-[48px]"
+              aria-label="Add Status"
+            >
+              <div className="relative w-9 h-9 sm:w-10 sm:h-10 rounded-full border-[1.5px] border-gray-600 hover:border-gray-500 transition-all duration-300 overflow-hidden bg-card">
+                <Avatar
+                  src={user?.avatar || DEFAULT_IMAGES.avatar}
+                  alt={user?.name || 'My Profile'}
+                  size="md"
+                  className="w-full h-full"
+                />
+                <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 sm:w-4 sm:h-4 rounded-full bg-gray-700 border-2 border-card flex items-center justify-center">
+                  <Plus size={10} className="text-gray-300" />
+                </div>
+              </div>
+              <span className="text-[10px] text-muted mt-1">Add</span>
+            </button>
+
+        {/* Loading Skeleton */}
+        {loading && statuses.length === 0 && (
+          <>
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={`skel-${i}`} className="flex flex-col items-center min-w-[44px] sm:min-w-[48px]">
+                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-card border border-border animate-pulse" />
+                <div className="w-8 h-2 bg-card rounded mt-1.5 animate-pulse" />
+              </div>
+            ))}
+          </>
+        )}
 
         {/* Status Circles */}
-        {displayStatuses.map((status, index) => (
+        {statuses.map((status, index) => (
             <button
               key={status.id}
-              onClick={() => {
-                if (!useDummy) setSelectedStatusIndex(index);
-              }}
-              className="flex flex-col items-center min-w-[48px] sm:min-w-[56px] group"
+              onClick={() => setSelectedStatusIndex(index)}
+              className="flex flex-col items-center min-w-[44px] sm:min-w-[48px] group"
               aria-label={status.User.name}
               title={status.User.name}
             >
               <div className="relative">
-                <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full border-2 ${getStatusRingColor(status)} p-[1px] ${isStatusActive(status) ? 'animate-pulse' : ''} overflow-hidden bg-card`}>
-                  {status.mediaUrl ? (
-                    <img
-                      src={status.mediaUrl}
-                      alt={`${status.User.name}'s status`}
-                      className="w-full h-full object-cover rounded-full"
-                    />
-                  ) : status.content ? (
-                    <div className="w-full h-full bg-gradient-to-br from-orange-500 to-pink-500 rounded-full flex items-center justify-center p-1">
+                <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full border-[1.5px] ${getStatusRingColor(status)} p-[1px] ${isStatusActive(status) ? 'animate-pulse' : ''} overflow-hidden bg-card`}>
+                  {status.imageUrl ? (
+                    status.imageUrl.match(/\.(mp4|webm|mov|ogg)$/i) ? (
+                      <video
+                        src={status.imageUrl}
+                        className="w-full h-full object-cover rounded-full"
+                        muted
+                        playsInline
+                      />
+                    ) : (
+                      <img
+                        src={status.imageUrl}
+                        alt={`${status.User.name}'s status`}
+                        className="w-full h-full object-cover rounded-full"
+                      />
+                    )
+                  ) : status.text ? (
+                    <div className={`w-full h-full bg-gradient-to-br ${getGradientForStatus(status)} rounded-full flex items-center justify-center p-1`}>
                       <div className="text-white text-[8px] font-medium text-center leading-tight overflow-hidden">
-                        {status.content.length > 20 ? status.content.substring(0, 20) + '...' : status.content}
+                        {status.text.length > 20 ? status.text.substring(0, 20) + '...' : status.text}
                       </div>
                     </div>
                   ) : (
@@ -352,8 +406,8 @@ const StatusBar = () => {
                   )}
                 </div>
 
-                {(status.mediaUrl || status.content) && (
-                  <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full border-2 border-background overflow-hidden">
+                {(status.imageUrl || status.text) && (
+                  <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 sm:w-4 sm:h-4 rounded-full border-[1.5px] border-background overflow-hidden">
                     <Avatar
                       src={status.User.avatar || DEFAULT_IMAGES.avatar}
                       alt={status.User.name}
@@ -363,55 +417,36 @@ const StatusBar = () => {
                   </div>
                 )}
               </div>
-              <span className="text-xs text-muted mt-1 truncate w-full text-center group-hover:text-foreground transition-colors">
+              <span className="text-[10px] text-muted mt-1 truncate w-full text-center group-hover:text-foreground transition-colors">
                 {status.User.name.split(' ')[0]}
               </span>
             </button>
           ))}
         </div>
-
-        {/* Mobile-Only User Profile Picture - Top Right */}
-        <div className="flex-shrink-0 lg:hidden pb-2">
-          <button
-            onClick={() => navigate('/profile')}
-            className="relative group"
-            aria-label="My Profile"
-          >
-            <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-full ring-2 ring-accent/60 group-hover:ring-accent transition-all duration-300 overflow-hidden group-hover:scale-105">
-              <Avatar
-                src={user?.avatar || DEFAULT_IMAGES.avatar}
-                alt={user?.name || 'My Profile'}
-                size="md"
-                className="w-full h-full"
-              />
-            </div>
-            <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-background" />
-          </button>
-        </div>
       </div>
+    </div>
 
-      {/* ═══════════════════════════════════════════════════════════ */}
-      {/* STATUS CREATION MODAL – Clean, compact, Instagram-style   */}
-      {/* ═══════════════════════════════════════════════════════════ */}
+    {/* ═══════════════════════════════════════════════════════════ */}
+    {/* STATUS CREATION MODAL – Clean, compact, Instagram-style   */}
+    {/* ═══════════════════════════════════════════════════════════ */}
       <AnimatePresence>
         {isCreating && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[9999] bg-black/90 flex flex-col"
+            className="fixed inset-0 z-[9999] bg-foreground/60 backdrop-blur-sm flex items-center justify-center p-4"
             onClick={() => setIsCreating(false)}
           >
             <motion.div
-              initial={{ y: '100%' }}
-              animate={{ y: 0 }}
-              exit={{ y: '100%' }}
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
               transition={{ type: 'spring', damping: 28, stiffness: 320 }}
               onClick={(e) => e.stopPropagation()}
-              className="flex-1 flex flex-col bg-black sm:bg-transparent sm:items-center sm:justify-center"
+              className="w-full max-w-md"
             >
-              {/* Desktop: centered card / Mobile: fullscreen */}
-              <div className="flex-1 sm:flex-initial sm:w-full sm:max-w-md sm:rounded-2xl sm:overflow-hidden bg-[#1a1a1a] flex flex-col relative">
+              <div className="bg-card rounded-2xl shadow-theme-xl flex flex-col relative max-h-[85vh]">
 
                 {/* Top bar */}
                 <div className="flex items-center justify-between px-4 py-3 shrink-0">
@@ -421,30 +456,41 @@ const StatusBar = () => {
                       setNewStatus('');
                       setSelectedFile(null);
                     }}
-                    className="text-white/70 hover:text-white transition-colors p-1"
+                    className="text-muted hover:text-foreground transition-colors p-1"
                   >
                     <X size={24} />
                   </button>
-                  <span className="text-white font-semibold text-sm">Create Status</span>
+                  <span className="text-foreground font-semibold text-sm">Create Status</span>
                   <button
                     onClick={handleCreateStatus}
                     disabled={!newStatus.trim() && !selectedFile}
-                    className="px-4 py-1.5 bg-white text-black text-sm font-semibold rounded-full disabled:opacity-30 disabled:cursor-not-allowed hover:bg-gray-200 transition-colors"
+                    className="px-4 py-1.5 bg-accent text-black text-sm font-semibold rounded-full disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-90 transition-colors shadow-theme-sm"
                   >
                     Share
                   </button>
                 </div>
 
                 {/* Preview area */}
-                <div className="flex-1 flex flex-col items-center justify-center relative min-h-0">
+                <div className="flex-1 flex flex-col items-center justify-center relative min-h-0 overflow-hidden">
                   {selectedFile ? (
-                    /* Image preview – fullscreen style */
+                    /* Image preview */
                     <div className="relative w-full flex-1 flex items-center justify-center bg-black">
-                      <img
-                        src={URL.createObjectURL(selectedFile)}
-                        alt="Preview"
-                        className="max-w-full max-h-full object-contain"
-                      />
+                      {selectedFile.type.startsWith('video/') ? (
+                        <video
+                          src={URL.createObjectURL(selectedFile)}
+                          className="max-w-full max-h-full object-contain"
+                          autoPlay
+                          playsInline
+                          muted
+                          loop
+                        />
+                      ) : (
+                        <img
+                          src={URL.createObjectURL(selectedFile)}
+                          alt="Preview"
+                          className="max-w-full max-h-full object-contain"
+                        />
+                      )}
                       <button
                         onClick={() => setSelectedFile(null)}
                         className="absolute top-3 right-3 w-8 h-8 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black/80 transition-colors"
@@ -465,15 +511,14 @@ const StatusBar = () => {
                     </div>
                   ) : (
                     /* Text status – with gradient background */
-                    <div className={`w-full flex-1 flex flex-col items-center justify-center bg-gradient-to-br ${STATUS_GRADIENTS[selectedGradient]} p-6 relative`}>
+                    <div className={`w-full flex-1 flex flex-col items-center justify-center bg-gradient-to-br ${STATUS_GRADIENTS[selectedGradient]} p-4 sm:p-6 relative`}>
                       <textarea
                         value={newStatus}
                         onChange={(e) => setNewStatus(e.target.value)}
                         placeholder="Type a status..."
                         maxLength={280}
-                        className="w-full text-center text-white text-xl sm:text-2xl font-bold bg-transparent border-none focus:outline-none resize-none placeholder-white/50 flex-1 flex items-center"
-                        style={{ minHeight: '120px', display: 'flex', alignItems: 'center', textAlign: 'center' }}
-                        rows={4}
+                        className="w-full text-center text-white text-lg sm:text-xl font-bold bg-transparent border-none focus:outline-none resize-none placeholder-white/50"
+                        style={{ minHeight: '100px', paddingTop: '1.5rem', textAlign: 'center' }}
                         autoFocus
                       />
 
@@ -494,27 +539,27 @@ const StatusBar = () => {
                 </div>
 
                 {/* Bottom toolbar */}
-                <div className="flex items-center justify-between px-4 py-3 bg-[#1a1a1a] shrink-0 border-t border-white/10">
+                <div className="flex items-center justify-between px-4 py-3 bg-card shrink-0 border-t border-border">
                   <div className="flex items-center gap-3">
                     <input
                       ref={fileInputRef}
                       type="file"
-                      accept="image/*"
+                      accept="image/*,video/*"
                       onChange={handleFileSelect}
                       className="hidden"
                     />
                     <button
                       onClick={() => fileInputRef.current?.click()}
-                      className="flex items-center gap-2 text-white/70 hover:text-white transition-colors text-sm"
-                      title="Add Photo"
+                      className="flex items-center gap-2 text-muted hover:text-foreground transition-colors text-sm"
+                      title="Add Media"
                     >
                       <Image size={20} />
-                      <span className="hidden sm:inline">Photo</span>
+                      <span className="hidden sm:inline">Media</span>
                     </button>
                     <div className="relative">
                       <button
                         onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                        className="flex items-center gap-2 text-white/70 hover:text-white transition-colors text-sm"
+                        className="flex items-center gap-2 text-muted hover:text-foreground transition-colors text-sm"
                         title="Add Emoji"
                       >
                         <Smile size={20} />
@@ -526,20 +571,22 @@ const StatusBar = () => {
                             onClick={() => setShowEmojiPicker(false)}
                           />
                           <div className="relative">
-                            <EmojiPicker
-                              onEmojiClick={onEmojiClick}
-                              emojiStyle={EmojiStyle.NATIVE}
-                              emojiVersion="1.0"
-                              theme={'dark' as Theme}
-                              width={300}
-                              height={350}
-                            />
+                            <Suspense fallback={<div className="w-[300px] h-[350px] bg-card animate-pulse rounded-lg" />}>
+                              <EmojiPicker
+                                onEmojiClick={onEmojiClick}
+                                emojiStyle={'native' as any}
+                                emojiVersion="1.0"
+                                theme={'dark' as Theme}
+                                width={300}
+                                height={350}
+                              />
+                            </Suspense>
                           </div>
                         </div>
                       )}
                     </div>
                   </div>
-                  <span className={`text-xs ${newStatus.length > 250 ? 'text-red-400' : 'text-white/40'}`}>
+                  <span className={`text-xs ${newStatus.length > 250 ? 'text-red-500 font-bold' : 'text-muted'}`}>
                     {newStatus.length}/280
                   </span>
                 </div>
@@ -559,7 +606,7 @@ const StatusBar = () => {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-[9999] bg-black flex items-center justify-center"
+            className="fixed inset-0 h-[100dvh] w-screen z-[9999] bg-black flex items-center justify-center overflow-hidden"
           >
             {/* Fullscreen story container */}
             <div className="relative w-full h-full sm:max-w-md sm:max-h-[90vh] sm:rounded-2xl overflow-hidden flex flex-col mx-auto">
@@ -600,6 +647,15 @@ const StatusBar = () => {
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
+                  {selectedStatus.User.id === user?.id && (
+                    <button
+                      onClick={() => handleDeleteStatus(selectedStatus.id)}
+                      className="w-8 h-8 flex items-center justify-center text-red-400 hover:text-red-300 transition-colors"
+                      aria-label="Delete"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  )}
                   <button
                     onClick={togglePause}
                     className="w-8 h-8 flex items-center justify-center text-white/80 hover:text-white transition-colors"
@@ -618,7 +674,7 @@ const StatusBar = () => {
               </div>
 
               {/* Main content area */}
-              <div className="flex-1 relative">
+              <div className="flex-1 relative min-h-0 overflow-hidden">
                 <AnimatePresence mode="wait">
                   <motion.div
                     key={selectedStatus.id}
@@ -626,31 +682,48 @@ const StatusBar = () => {
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.98 }}
                     transition={{ duration: 0.2 }}
-                    className="absolute inset-0"
+                    className="absolute inset-0 flex flex-col"
                   >
-                    {selectedStatus.mediaUrl ? (
+                    {selectedStatus.imageUrl ? (
                       /* Image status */
                       <div className="w-full h-full bg-black flex flex-col">
-                        <div className="flex-1 flex items-center justify-center">
-                          <img
-                            src={selectedStatus.mediaUrl}
-                            alt="Status"
-                            className="max-w-full max-h-full object-contain"
-                          />
+                        <div className="flex-1 min-h-0 flex items-center justify-center">
+                          {selectedStatus.imageUrl.match(/\.(mp4|webm|mov|ogg)$/i) ? (
+                            <video
+                              src={selectedStatus.imageUrl}
+                              className="max-w-full max-h-full object-contain"
+                              autoPlay
+                              playsInline
+                              muted={false}
+                              loop
+                            />
+                          ) : imageError ? (
+                            <div className="flex flex-col items-center justify-center text-white/50">
+                              <Image size={48} className="mb-4 opacity-40" />
+                              <p className="text-sm font-medium">Unable to load image</p>
+                            </div>
+                          ) : (
+                            <img
+                              src={selectedStatus.imageUrl}
+                              alt="Status"
+                              className="max-w-full max-h-full object-contain"
+                              onError={() => setImageError(true)}
+                            />
+                          )}
                         </div>
-                        {selectedStatus.content && (
-                          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-4 pt-12">
+                        {selectedStatus.text && (
+                          <div className="flex-shrink-0 bg-gradient-to-t from-black/80 to-transparent p-4 pb-0 pt-8">
                             <p className="text-white text-center text-sm font-medium drop-shadow-lg">
-                              {selectedStatus.content}
+                              {selectedStatus.text}
                             </p>
                           </div>
                         )}
                       </div>
-                    ) : selectedStatus.content ? (
+                    ) : selectedStatus.text ? (
                       /* Text status with gradient */
                       <div className={`w-full h-full bg-gradient-to-br ${getGradientForStatus(selectedStatus)} flex items-center justify-center p-8`}>
                         <p className="text-white text-2xl sm:text-3xl font-bold text-center drop-shadow-lg leading-relaxed max-w-sm">
-                          {selectedStatus.content}
+                          {selectedStatus.text}
                         </p>
                       </div>
                     ) : (
@@ -712,7 +785,7 @@ const StatusBar = () => {
               </div>
 
               {/* Bottom reply bar - WhatsApp style */}
-              <div className="absolute bottom-0 left-0 right-0 z-20 bg-gradient-to-t from-black/70 to-transparent p-3 sm:p-4 pt-8">
+              <div className="flex-shrink-0 z-20 bg-gradient-to-t from-black/80 to-transparent p-3 sm:p-4 pb-[max(env(safe-area-inset-bottom),0.75rem)] pt-4">
                 <div className="flex items-center gap-2">
                   <input
                     type="text"
@@ -720,7 +793,7 @@ const StatusBar = () => {
                     className="flex-1 bg-white/15 backdrop-blur-sm text-white placeholder-white/50 rounded-full px-4 py-2 text-sm border border-white/20 focus:outline-none focus:border-white/40 transition-colors"
                     onFocus={() => setIsPaused(true)}
                   />
-                  <button className="w-9 h-9 rounded-full bg-white/15 backdrop-blur-sm flex items-center justify-center text-white/70 hover:text-white hover:bg-white/25 transition-colors border border-white/20">
+                  <button className="flex-shrink-0 w-9 h-9 rounded-full bg-white/15 backdrop-blur-sm flex items-center justify-center text-white/70 hover:text-white hover:bg-white/25 transition-colors border border-white/20">
                     <Send size={16} />
                   </button>
                 </div>

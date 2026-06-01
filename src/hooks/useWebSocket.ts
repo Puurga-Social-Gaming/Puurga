@@ -6,8 +6,9 @@ interface UseWebSocketOptions {
   onMessage?: (message: any) => void;
   onTyping?: (payload: { conversationId: string; userId: string; isTyping: boolean }) => void;
   onUserStatusChange?: (status: { userId: string; isOnline: boolean }) => void;
-  onCreditUpdate?: (payload: { userId: string; credits: number }) => void;
+  onCreditUpdate?: (payload: { userId: string; credits: number; change?: number; source?: string }) => void;
   onProfileUpdate?: (payload: { userId: string; isGhost: boolean; purgeCount?: number }) => void;
+  onSurvivalUpdate?: (payload: { userId: string; survivalState: string; reputationScore: number; threatLevel: number; socialRank: string; inactivityLevel: number; ghostStatus: boolean; warningLevel?: number; visibilityScore?: number; purgePressure?: number; collapseRisk?: number; purgeCount?: number; purgatoryStatus?: boolean; purgatoryEnteredAt?: string; redemptionProgress?: number; redemptionRequested?: boolean }) => void;
   onConnectionChange?: (connected: boolean) => void;
 }
 
@@ -53,6 +54,11 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
       unsubscribers.push(unsubscribe);
     }
 
+    if (options.onSurvivalUpdate) {
+      const unsubscribe = websocketService.on('survival_update', options.onSurvivalUpdate);
+      unsubscribers.push(unsubscribe);
+    }
+
     if (options.onConnectionChange) {
       const unsubscribe = websocketService.on('connection', (data: { connected: boolean }) => {
         options.onConnectionChange!(data.connected);
@@ -63,7 +69,7 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
     unsubscribersRef.current = unsubscribers;
 
     return cleanup;
-  }, [options.onNotification, options.onMessage, options.onTyping, options.onUserStatusChange, options.onConnectionChange, cleanup]);
+  }, [options.onNotification, options.onMessage, options.onTyping, options.onUserStatusChange, options.onCreditUpdate, options.onProfileUpdate, options.onSurvivalUpdate, options.onConnectionChange, cleanup]);
 
   return {
     isConnected: websocketService.isConnected(),

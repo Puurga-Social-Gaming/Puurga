@@ -1,15 +1,3 @@
-import axios from 'axios';
-
-const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || '/api',
-});
-
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
-
-export default api;
+// Re-export the single canonical API instance so all imports from this path
+// share the same Supabase-aware token cache defined in src/lib/axios.ts.
+export { default } from '../lib/axios';

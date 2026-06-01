@@ -1,10 +1,14 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Users, Lock, Globe, TrendingUp, Plus } from 'lucide-react';
+import { Users, Lock, Globe, TrendingUp, Plus, Shield, Heart, AlertTriangle, Check, X } from 'lucide-react';
 import { motion } from 'framer-motion';
 import api from '../api/api';
 import toast from 'react-hot-toast';
 import CreateGroupModal from '../components/CreateGroupModal';
+import Button from '../components/ui/Button';
+import { useSurvival } from '../context/SurvivalContext';
+import { Alliance, PendingAllianceRequest } from '../types/survival';
+import Avatar from '../components/Avatar';
 
 interface Group {
   id: string;
@@ -32,7 +36,17 @@ const Groups: React.FC = () => {
   const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(true);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [filter, setFilter] = useState<'all' | 'my-groups' | 'public' | 'private'>('all');
+  const [filter, setFilter] = useState<'all' | 'my-groups' | 'public' | 'private' | 'my-alliances'>('all');
+  const { 
+    getAlliances, 
+    getPendingAllianceRequests, 
+    acceptAlliance, 
+    rejectAlliance,
+    breakAlliance
+  } = useSurvival();
+  const [alliances, setAlliances] = useState<Alliance[]>([]);
+  const [pendingRequests, setPendingRequests] = useState<PendingAllianceRequest[]>([]);
+  const [alliancesLoading, setAlliancesLoading] = useState(false);
 
   useEffect(() => {
     const fetchGroups = async () => {
@@ -47,6 +61,28 @@ const Groups: React.FC = () => {
     };
     fetchGroups();
   }, []);
+
+  useEffect(() => {
+    const fetchAlliances = async () => {
+      if (filter === 'my-alliances') {
+        setAlliancesLoading(true);
+        try {
+          const [alliancesData, requestsData] = await Promise.all([
+            getAlliances(),
+            getPendingAllianceRequests(),
+          ]);
+          setAlliances(alliancesData);
+          setPendingRequests(requestsData);
+        } catch (error) {
+          console.error('Error loading alliances:', error);
+          toast.error('Failed to load alliances');
+        } finally {
+          setAlliancesLoading(false);
+        }
+      }
+    };
+    fetchAlliances();
+  }, [filter, getAlliances, getPendingAllianceRequests]);
 
   const handleJoinGroup = async (groupId: string) => {
     try {
@@ -70,6 +106,46 @@ const Groups: React.FC = () => {
     }
   };
 
+  const handleAcceptAlliance = async (requestId: string) => {
+    const result = await acceptAlliance(requestId);
+    if (result.success) {
+      toast.success('Alliance accepted');
+      const [alliancesData, requestsData] = await Promise.all([
+        getAlliances(),
+        getPendingAllianceRequests(),
+      ]);
+      setAlliances(alliancesData);
+      setPendingRequests(requestsData);
+    } else {
+      toast.error(result.error || 'Failed to accept alliance');
+    }
+  };
+
+  const handleRejectAlliance = async (requestId: string) => {
+    const result = await rejectAlliance(requestId);
+    if (result.success) {
+      toast.success('Alliance rejected');
+      const requestsData = await getPendingAllianceRequests();
+      setPendingRequests(requestsData);
+    } else {
+      toast.error(result.error || 'Failed to reject alliance');
+    }
+  };
+
+  const handleBreakAlliance = async (allianceId: string) => {
+    if (!confirm('Are you sure you want to break this alliance? This action cannot be undone.')) {
+      return;
+    }
+    const result = await breakAlliance(allianceId);
+    if (result.success) {
+      toast.success('Alliance broken');
+      const alliancesData = await getAlliances();
+      setAlliances(alliancesData);
+    } else {
+      toast.error(result.error || 'Failed to break alliance');
+    }
+  };
+
   const filteredGroups = useMemo(() => {
     if (filter === 'all') return groups;
     if (filter === 'my-groups') return groups.filter(g => g.is_member);
@@ -84,19 +160,19 @@ const Groups: React.FC = () => {
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
-      className="min-h-screen bg-background p-4 sm:p-6"
+      className="flex flex-1 flex-col min-h-0 bg-background overflow-y-auto h-full w-full"
     >
-      <div className="max-w-7xl mx-auto space-y-6">
+      <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
 
         {/* Header */}
         <div className="flex items-center justify-between gap-3">
           <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Groups</h1>
           <button
             onClick={handleCreateGroup}
-            className="px-3 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors flex items-center gap-2 text-sm font-medium flex-shrink-0"
+            className="px-3 py-2 bg-[var(--accent)] text-[var(--fg)] rounded-lg hover:opacity-90 transition-colors flex items-center gap-2 text-sm font-medium flex-shrink-0 shadow-md"
           >
             <Plus size={16} />
             <span className="hidden sm:inline">Create Group</span>
@@ -106,81 +182,167 @@ const Groups: React.FC = () => {
 
         {/* Filter Pills — horizontally scrollable on mobile */}
         <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0">
-          {(['all', 'my-groups', 'public', 'private'] as const).map((f) => (
+          {(['all', 'my-groups', 'my-alliances', 'public', 'private'] as const).map((f) => (
             <FilterButton
               key={f}
-              label={f === 'my-groups' ? 'My Groups' : f.charAt(0).toUpperCase() + f.slice(1)}
+              label={f === 'my-groups' ? 'My Groups' : f === 'my-alliances' ? 'My Alliances' : f.charAt(0).toUpperCase() + f.slice(1)}
               isActive={filter === f}
               onClick={() => setFilter(f)}
             />
           ))}
         </div>
 
-        {loading ? (
-          <>
-            {/* Mobile skeleton */}
-            <div className="md:hidden space-y-2">
-              {[...Array(5)].map((_, i) => <GroupCardSkeletonCompact key={i} />)}
+        {filter === 'my-alliances' ? (
+          alliancesLoading ? (
+            <div className="text-center py-16">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent mx-auto mb-4" />
+              <p className="text-muted">Loading alliances...</p>
             </div>
-            {/* Desktop skeleton */}
-            <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {[...Array(6)].map((_, i) => <GroupCardSkeleton key={i} />)}
-            </div>
-          </>
-        ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            <div className="lg:col-span-9">
-              {filteredGroups.length > 0 ? (
-                <>
-                  {/* ── MOBILE: 2-column card grid ── */}
-                  <div className="grid grid-cols-2 gap-3 md:hidden">
-                    {filteredGroups.map((group, i) => (
-                      <motion.div
-                        key={group.id}
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: i * 0.03, duration: 0.2 }}
-                      >
-                        <GroupCardMobile group={group} onJoin={handleJoinGroup} />
-                      </motion.div>
+          ) : (
+            <>
+              {/* Pending Requests */}
+              {pendingRequests.length > 0 && (
+                <div className="mb-6">
+                  <div className="flex items-center gap-2 mb-4">
+                    <AlertTriangle className="text-amber-400" size={20} />
+                    <h2 className="text-lg font-bold text-foreground">Pending Requests</h2>
+                    <span className="px-2 py-0.5 text-xs bg-amber-500/20 text-amber-400 rounded">
+                      {pendingRequests.length}
+                    </span>
+                  </div>
+                  <div className="space-y-3">
+                    {pendingRequests.map((request) => (
+                      <AllianceRequestCardMobile
+                        key={request.id}
+                        request={request}
+                        onAccept={handleAcceptAlliance}
+                        onReject={handleRejectAlliance}
+                      />
                     ))}
                   </div>
-
-                  {/* ── DESKTOP: original card grid ── */}
-                  <div className="hidden md:grid md:grid-cols-2 xl:grid-cols-3 gap-6">
-                    {filteredGroups.map((group) => (
-                      <GroupCard key={group.id} group={group} onJoin={handleJoinGroup} />
-                    ))}
-                  </div>
-                </>
-              ) : (
-                <div className="text-center py-16 bg-card rounded-xl">
-                  <Users size={56} className="mx-auto text-muted mb-4" />
-                  <h3 className="text-xl font-semibold text-foreground mb-2">No groups found</h3>
-                  <p className="text-muted text-sm max-w-md mx-auto">
-                    We couldn't find any groups matching your criteria.
-                  </p>
-                  {filter !== 'all' && (
-                    <button onClick={() => setFilter('all')} className="mt-6 text-accent hover:underline font-medium">
-                      Clear all filters
-                    </button>
-                  )}
                 </div>
               )}
+
+              {/* Active Alliances */}
+              <div>
+                <div className="flex items-center gap-2 mb-4">
+                  <Shield className="text-green-400" size={20} />
+                  <h2 className="text-lg font-bold text-foreground">Active Alliances</h2>
+                  <span className="px-2 py-0.5 text-xs bg-green-500/20 text-green-400 rounded">
+                    {alliances.filter(a => a.allianceStatus === 'ACTIVE').length}/5
+                  </span>
+                </div>
+                
+                {alliances.filter(a => a.allianceStatus === 'ACTIVE').length === 0 && pendingRequests.length === 0 ? (
+                  <div className="text-center py-16">
+                    <Shield size={56} className="mx-auto text-muted mb-4" />
+                    <h3 className="text-xl font-semibold text-foreground mb-2">No alliances yet</h3>
+                    <p className="text-muted text-sm max-w-md mx-auto">
+                      Form alliances with other users to survive together in the game.
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    {/* Mobile: 2-column grid */}
+                    <div className="grid grid-cols-2 gap-3 sm:hidden">
+                      {alliances.filter(a => a.allianceStatus === 'ACTIVE').map((alliance, i) => (
+                        <motion.div
+                          key={alliance.id}
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: i * 0.03, duration: 0.2 }}
+                        >
+                          <AllianceCardMobile alliance={alliance} onBreak={handleBreakAlliance} />
+                        </motion.div>
+                      ))}
+                    </div>
+
+                    {/* Desktop: Full-width cards */}
+                    <div className="hidden sm:space-y-3">
+                      {alliances.filter(a => a.allianceStatus === 'ACTIVE').map((alliance, i) => (
+                        <motion.div
+                          key={alliance.id}
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: i * 0.03, duration: 0.2 }}
+                        >
+                          <AllianceCardDesktop alliance={alliance} onBreak={handleBreakAlliance} />
+                        </motion.div>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Broken Alliances */}
+              {alliances.filter(a => a.allianceStatus === 'BROKEN' || a.allianceStatus === 'BETRAYED').length > 0 && (
+                <div className="mt-6">
+                  <div className="flex items-center gap-2 mb-4">
+                    <X className="text-gray-400" size={20} />
+                    <h2 className="text-lg font-bold text-foreground">Broken Alliances</h2>
+                  </div>
+                  <div className="space-y-3">
+                    {alliances.filter(a => a.allianceStatus === 'BROKEN' || a.allianceStatus === 'BETRAYED').map((alliance) => (
+                      <AllianceCardDesktop key={alliance.id} alliance={alliance} showActions={false} />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          )
+        ) : loading ? (
+          <>
+            {/* Mobile skeleton */}
+            <div className="sm:hidden grid grid-cols-2 gap-3">
+              {[...Array(4)].map((_, i) => <GroupCardSkeletonCompact key={i} />)}
+            </div>
+            {/* Desktop skeleton */}
+            <div className="hidden sm:grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {[...Array(8)].map((_, i) => <GroupCardSkeleton key={i} />)}
+            </div>
+          </>
+        ) : filteredGroups.length > 0 ? (
+          <>
+            {/* ── MOBILE: 2-column card grid with enhanced mobile shadows ── */}
+            <div className="grid grid-cols-2 gap-3 sm:hidden theme-shadow-md">
+              {filteredGroups.map((group, i) => (
+                <motion.div
+                  key={group.id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.03, duration: 0.2 }}
+                >
+                  <GroupCardMobile group={group} onJoin={handleJoinGroup} />
+                </motion.div>
+              ))}
             </div>
 
-            {/* Sidebar — hidden on mobile, visible on desktop */}
-            <div className="hidden lg:block lg:col-span-3 space-y-6">
-              <div className="bg-card rounded-xl p-4">
+            {/* ── DESKTOP: full-width card grid with enhanced shadows ── */}
+            <div className="hidden sm:grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 theme-shadow-lg">
+              {filteredGroups.map((group, i) => (
+                <motion.div
+                  key={group.id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.03, duration: 0.2 }}
+                >
+                  <GroupCard group={group} onJoin={handleJoinGroup} />
+                </motion.div>
+              ))}
+            </div>
+
+            {/* Trending Sidebar - Enhanced with shadows for mobile */}
+            {trendingGroups.length > 0 && (
+              <div className="bg-card rounded-xl p-4 mt-6 theme-shadow-lg">
                 <div className="flex items-center gap-2 mb-4">
                   <TrendingUp className="text-accent" size={20} />
                   <h2 className="text-lg font-bold text-foreground">Trending</h2>
                 </div>
-                <div className="space-y-3">
+                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
                   {trendingGroups.map(group => (
                     <div
                       key={group.id}
-                      className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity"
+                      className="flex items-center gap-3 p-2 rounded-lg hover:bg-card-hover cursor-pointer transition-colors"
                       onClick={() => navigate(`/groups/${group.id}`)}
                     >
                       <img
@@ -196,7 +358,20 @@ const Groups: React.FC = () => {
                   ))}
                 </div>
               </div>
-            </div>
+            )}
+          </>
+        ) : (
+          <div className="text-center py-16">
+            <Users size={56} className="mx-auto text-muted mb-4" />
+            <h3 className="text-xl font-semibold text-foreground mb-2">No groups found</h3>
+            <p className="text-muted text-sm max-w-md mx-auto">
+              We couldn't find any groups matching your criteria.
+            </p>
+            {filter !== 'all' && (
+              <button onClick={() => setFilter('all')} className="mt-6 text-accent hover:underline font-medium">
+                Clear all filters
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -206,7 +381,7 @@ const Groups: React.FC = () => {
         onClose={() => setIsCreateModalOpen(false)}
         onGroupCreated={handleGroupCreated}
       />
-    </motion.div>
+      </motion.div>
   );
 };
 
@@ -215,7 +390,9 @@ const FilterButton: React.FC<{ label: string; isActive: boolean; onClick: () => 
   <button
     onClick={onClick}
     className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap flex-shrink-0 ${
-      isActive ? 'bg-gray-700 text-white' : 'bg-card text-foreground hover:bg-card-hover'
+      isActive 
+        ? 'bg-[var(--accent)] text-[var(--fg)] dark:bg-white/10 dark:text-white' 
+        : 'bg-[var(--card)] text-[var(--fg)] hover:bg-[var(--card-hover)]'
     }`}
   >
     {label}
@@ -227,7 +404,7 @@ const GroupCardMobile: React.FC<{ group: Group; onJoin: (id: string) => void }> 
   const navigate = useNavigate();
   return (
     <div
-      className="bg-gray-800 rounded-xl overflow-hidden cursor-pointer shadow-lg hover:shadow-xl transition-all duration-200 active:scale-[0.98] border border-gray-700"
+      className="bg-card rounded-xl overflow-hidden cursor-pointer shadow-theme-sm hover:shadow-theme-lg transition-all duration-200 active:scale-[0.98] border border-border"
       onClick={() => navigate(`/groups/${group.id}`)}
     >
       {/* Cover Image */}
@@ -243,7 +420,7 @@ const GroupCardMobile: React.FC<{ group: Group; onJoin: (id: string) => void }> 
           <img
             src={group.profile_image_url || '/default-avatar.png'}
             alt={group.name}
-            className="w-10 h-10 rounded-lg object-cover bg-gray-700 border-2 border-gray-800 shadow-md"
+            className="w-10 h-10 rounded-lg object-cover bg-card border-2 border-border shadow-md"
           />
         </div>
         {/* Private/Public badge */}
@@ -258,31 +435,35 @@ const GroupCardMobile: React.FC<{ group: Group; onJoin: (id: string) => void }> 
 
       {/* Info */}
       <div className="p-2.5 pt-6">
-        <h3 className="text-sm font-bold text-white truncate leading-tight">{group.name}</h3>
+        <h3 className="text-sm font-bold text-foreground truncate leading-tight">{group.name}</h3>
         <div className="flex items-center gap-1 mt-1">
-          <Users size={10} className="text-gray-400" />
-          <span className="text-[10px] text-gray-400">{group.member_count.toLocaleString()} members</span>
+          <Users size={10} className="text-muted" />
+          <span className="text-[10px] text-muted">{group.member_count.toLocaleString()} members</span>
         </div>
         {group.description && (
-          <p className="text-[10px] text-gray-400 mt-1 line-clamp-2 leading-tight">{group.description}</p>
+          <p className="text-[10px] text-muted mt-1 line-clamp-2 leading-tight">{group.description}</p>
         )}
         
         {/* Action Button */}
         <div className="mt-2.5" onClick={e => e.stopPropagation()}>
           {group.is_member ? (
-            <button
+            <Button
+              variant="default"
+              size="sm"
               onClick={() => navigate(`/groups/${group.id}`)}
-              className="w-full py-1.5 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-lg text-xs font-semibold hover:opacity-90 transition-opacity"
+              className="w-full text-xs"
             >
               View
-            </button>
+            </Button>
           ) : (
-            <button
+            <Button
+              variant="primary"
+              size="sm"
               onClick={() => onJoin(group.id)}
-              className="w-full py-1.5 bg-white/10 border border-white/20 text-white rounded-lg text-xs font-semibold hover:bg-white/20 transition-colors"
+              className="w-full text-xs"
             >
               Join
-            </button>
+            </Button>
           )}
         </div>
       </div>
@@ -290,17 +471,22 @@ const GroupCardMobile: React.FC<{ group: Group; onJoin: (id: string) => void }> 
   );
 };
 
-// ─── Desktop Card (unchanged) ────────────────────────────────────────────────
+// ─── Desktop Card ────────────────────────────────────────────────────────────────
 const GroupCard: React.FC<{ group: Group; onJoin: (id: string) => void }> = ({ group, onJoin }) => {
   const navigate = useNavigate();
   return (
     <div
-      className="bg-card rounded-xl overflow-hidden cursor-pointer shadow-theme-sm hover:shadow-theme-md transition-all duration-300 group"
+      className="bg-card rounded-xl overflow-hidden cursor-pointer shadow-theme-sm hover:shadow-theme-lg transition-all duration-300 group theme-shadow-xl"
       onClick={() => navigate(`/groups/${group.id}`)}
     >
       <div
         className="h-32 bg-cover bg-center relative"
-        style={{ backgroundImage: group.cover_image_url ? `url(${group.cover_image_url})` : 'none', backgroundColor: 'var(--card-secondary)' }}
+        style={{ 
+          backgroundImage: group.cover_image_url 
+            ? `url(${group.cover_image_url})` 
+            : 'linear-gradient(135deg, var(--accent) 0%, var(--accent-hover) 100%)',
+          backgroundColor: group.cover_image_url ? undefined : 'var(--accent)'
+        }}
       >
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
         <div className="absolute bottom-[-28px] left-4">
@@ -322,19 +508,23 @@ const GroupCard: React.FC<{ group: Group; onJoin: (id: string) => void }> = ({ g
           </div>
         </div>
         {group.is_member ? (
-          <button
+          <Button
+            variant="default"
+            size="md"
             onClick={(e) => { e.stopPropagation(); navigate(`/groups/${group.id}`); }}
-            className="w-full mt-4 py-2 bg-accent text-white rounded-lg hover:bg-accent-hover transition-colors text-sm font-semibold"
+            className="w-full mt-4"
           >
             View
-          </button>
+          </Button>
         ) : (
-          <button
+          <Button
+            variant="primary"
+            size="md"
             onClick={(e) => { e.stopPropagation(); onJoin(group.id); }}
-            className="w-full mt-4 py-2 bg-card-secondary text-foreground rounded-lg hover:bg-accent hover:text-white transition-colors text-sm font-semibold"
+            className="w-full mt-4"
           >
             Join
-          </button>
+          </Button>
         )}
       </div>
     </div>
@@ -370,5 +560,152 @@ const GroupCardSkeleton: React.FC = () => (
     </div>
   </div>
 );
+
+// ─── Alliance Request Card Mobile ─────────────────────────────────────────
+const AllianceRequestCardMobile: React.FC<{ 
+  request: PendingAllianceRequest; 
+  onAccept: (id: string) => void; 
+  onReject: (id: string) => void; 
+}> = ({ request, onAccept, onReject }) => {
+  return (
+    <div className="bg-card rounded-xl p-3 border border-amber-500/30 shadow-theme-sm">
+      <div className="flex items-start gap-3">
+        <Avatar src={request.avatar || undefined} alt={request.username} size="sm" />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1 mb-1">
+            <Shield className="w-3 h-3 text-amber-400" />
+            <h3 className="text-sm font-bold text-foreground truncate">{request.name}</h3>
+          </div>
+          <p className="text-xs text-muted mb-2">@{request.username}</p>
+          <div className="flex gap-2">
+            <button
+              onClick={() => onAccept(request.id)}
+              className="flex-1 px-2 py-1.5 text-xs bg-green-500/20 text-green-400 rounded hover:bg-green-500/30 transition-colors flex items-center justify-center gap-1"
+            >
+              <Check className="w-3 h-3" />
+              Accept
+            </button>
+            <button
+              onClick={() => onReject(request.id)}
+              className="flex-1 px-2 py-1.5 text-xs bg-red-500/20 text-red-400 rounded hover:bg-red-500/30 transition-colors flex items-center justify-center gap-1"
+            >
+              <X className="w-3 h-3" />
+              Reject
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ─── Alliance Card Mobile ─────────────────────────────────────────────────
+const AllianceCardMobile: React.FC<{ 
+  alliance: Alliance; 
+  onBreak: (id: string) => void; 
+}> = ({ alliance, onBreak }) => {
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'ACTIVE': return 'border-green-500/30 bg-green-500/5';
+      case 'PENDING': return 'border-amber-500/30 bg-amber-500/5';
+      case 'BROKEN': return 'border-red-500/30 bg-red-500/5';
+      case 'BETRAYED': return 'border-purple-500/30 bg-purple-500/5';
+      default: return 'border-gray-500/30 bg-gray-500/5';
+    }
+  };
+
+  const getLoyaltyColor = (score: number) => {
+    if (score >= 80) return 'text-green-400';
+    if (score >= 50) return 'text-amber-400';
+    if (score >= 30) return 'text-orange-400';
+    return 'text-red-400';
+  };
+
+  return (
+    <div className={`bg-card rounded-xl p-3 border ${getStatusColor(alliance.allianceStatus)} shadow-theme-sm`}>
+      <div className="flex flex-col gap-2">
+        <Avatar src={alliance.avatar || undefined} alt={alliance.username} size="md" className="mx-auto" />
+        <div className="text-center">
+          <h3 className="text-sm font-bold text-foreground truncate">{alliance.name}</h3>
+          <p className="text-xs text-muted">@{alliance.username}</p>
+        </div>
+        <div className="flex items-center justify-center gap-2 text-xs">
+          <Heart className={`w-3 h-3 ${getLoyaltyColor(alliance.loyaltyScore)}`} />
+          <span className={getLoyaltyColor(alliance.loyaltyScore)}>{alliance.loyaltyScore}</span>
+        </div>
+        <div className="text-center">
+          <span className="text-[10px] px-2 py-0.5 rounded bg-card-secondary text-muted">
+            {alliance.allianceStatus}
+          </span>
+        </div>
+        {alliance.allianceStatus === 'ACTIVE' && (
+          <button
+            onClick={() => onBreak(alliance.id)}
+            className="w-full px-2 py-1.5 text-xs bg-red-500/20 text-red-400 rounded hover:bg-red-500/30 transition-colors"
+          >
+            Break Alliance
+          </button>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ─── Alliance Card Desktop ───────────────────────────────────────────────
+const AllianceCardDesktop: React.FC<{ 
+  alliance: Alliance; 
+  onBreak?: (id: string) => void; 
+  showActions?: boolean;
+}> = ({ alliance, onBreak, showActions = true }) => {
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'ACTIVE': return 'border-green-500/30 bg-green-500/5';
+      case 'PENDING': return 'border-amber-500/30 bg-amber-500/5';
+      case 'BROKEN': return 'border-red-500/30 bg-red-500/5';
+      case 'BETRAYED': return 'border-purple-500/30 bg-purple-500/5';
+      default: return 'border-gray-500/30 bg-gray-500/5';
+    }
+  };
+
+  const getLoyaltyColor = (score: number) => {
+    if (score >= 80) return 'text-green-400';
+    if (score >= 50) return 'text-amber-400';
+    if (score >= 30) return 'text-orange-400';
+    return 'text-red-400';
+  };
+
+  return (
+    <div className={`p-4 rounded-lg border ${getStatusColor(alliance.allianceStatus)} backdrop-blur-sm`}>
+      <div className="flex items-start gap-3">
+        <Avatar src={alliance.avatar || undefined} alt={alliance.username} size="md" />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1">
+            <h3 className="font-semibold text-foreground truncate">{alliance.name}</h3>
+          </div>
+          <p className="text-sm text-muted mb-2">@{alliance.username}</p>
+          <div className="flex items-center gap-4 text-xs">
+            <div className="flex items-center gap-1">
+              <Heart className={`w-3 h-3 ${getLoyaltyColor(alliance.loyaltyScore)}`} />
+              <span className={getLoyaltyColor(alliance.loyaltyScore)}>
+                {alliance.loyaltyScore}
+              </span>
+            </div>
+            <div className="text-muted">
+              {alliance.allianceStatus}
+            </div>
+          </div>
+        </div>
+        {showActions && alliance.allianceStatus === 'ACTIVE' && onBreak && (
+          <button
+            onClick={() => onBreak(alliance.id)}
+            className="px-3 py-1 text-xs bg-red-500/20 text-red-400 rounded hover:bg-red-500/30 transition-colors"
+          >
+            Break
+          </button>
+        )}
+      </div>
+    </div>
+  );
+};
 
 export default Groups;

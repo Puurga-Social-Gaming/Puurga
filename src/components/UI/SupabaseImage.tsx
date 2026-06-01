@@ -33,13 +33,15 @@ const SupabaseImage: React.FC<SupabaseImageProps> = ({
             const [bucket, ...filePathParts] = pathParts[1].split('/');
             const filePath = filePathParts.join('/');
 
-            // Get signed URL
-            const { data, error } = await supabase.storage
-              .from(bucket)
-              .createSignedUrl(filePath, 3600); // 1 hour expiry
+            // Get signed URL (skip for public Media bucket)
+            if (bucket !== 'Media') {
+              const { data, error } = await supabase.storage
+                .from(bucket)
+                .createSignedUrl(filePath, 3600); // 1 hour expiry
 
-            if (data?.signedUrl && !error) {
-              setImageSrc(data.signedUrl);
+              if (data?.signedUrl && !error) {
+                setImageSrc(data.signedUrl);
+              }
             }
           }
         } catch (error) {

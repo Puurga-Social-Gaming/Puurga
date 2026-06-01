@@ -2,10 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { toast } from 'react-hot-toast';
 import { Bell, Shield, Eye, Globe, Moon, Sun, Loader2 } from 'lucide-react';
+import Button from '../../components/ui/Button';
 
 import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
 import api from '../../lib/axios';
+import { useFontSizeStore, type FontSizeOption } from '../../store/fontSizeStore';
 
 interface SettingsState {
   dataCollection: boolean;
@@ -31,6 +33,42 @@ interface SettingsState {
   adminNotifications?: boolean;
   systemAlerts?: boolean;
 }
+
+// Visual Text Size Selector
+const TEXT_SIZE_OPTIONS: { value: FontSizeOption; label: string; sampleSize: string }[] = [
+  { value: 'small', label: 'Small', sampleSize: 'text-xs' },
+  { value: 'medium', label: 'Medium', sampleSize: 'text-sm' },
+  { value: 'large', label: 'Large', sampleSize: 'text-base' },
+];
+
+const TextSizeSelector: React.FC = () => {
+  const { fontSize, setFontSize } = useFontSizeStore();
+
+  return (
+    <div className="space-y-2">
+      <div className="flex gap-1 bg-background-secondary rounded-lg p-1 border border-border">
+        {TEXT_SIZE_OPTIONS.map((opt) => (
+          <button
+            key={opt.value}
+            type="button"
+            onClick={() => setFontSize(opt.value)}
+            className={`flex-1 flex flex-col items-center gap-0.5 py-2 px-2 rounded-md transition-all duration-200 ${
+              fontSize === opt.value
+                ? 'bg-accent text-white shadow-theme-sm'
+                : 'text-muted hover:text-foreground hover:bg-card-hover'
+            }`}
+          >
+            <span className={`font-bold leading-none ${opt.sampleSize}`}>A</span>
+            <span className="text-[10px] leading-none">{opt.label}</span>
+          </button>
+        ))}
+      </div>
+      <p className="text-xs text-muted">
+        Preview: <span className="text-foreground">This is how your text will look.</span>
+      </p>
+    </div>
+  );
+};
 
 const Settings: React.FC = () => {
   const { theme, toggleTheme } = useTheme();
@@ -166,19 +204,19 @@ const Settings: React.FC = () => {
         transition={{ duration: 0.4 }}
         className="max-w-3xl mx-auto py-8 px-4"
       >
-        <h1 className="text-2xl font-bold text-foreground mb-8">App Settings</h1>
-        <p className="text-muted mb-8">Manage your app preferences, privacy, and notification settings.</p>
+        <h1 className="text-lg font-bold text-foreground mb-6">App Settings</h1>
+        <p className="text-muted text-sm mb-6">Manage your app preferences, privacy, and notification settings.</p>
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Theme Toggle */}
-          <div className="bg-card border border-border rounded-xl p-6 shadow-theme-md">
-            <div className="flex items-center gap-3 mb-6">
+          <div className="bg-card border border-border rounded-xl p-4 shadow-theme-md">
+            <div className="flex items-center gap-2 mb-4">
               {theme === 'dark' ? (
-                <Moon className="w-6 h-6 text-accent" />
+                <Moon className="w-5 h-5 text-accent" />
               ) : (
-                <Sun className="w-6 h-6 text-accent" />
+                <Sun className="w-5 h-5 text-accent" />
               )}
-              <h2 className="text-xl font-semibold text-foreground">Appearance</h2>
+              <h2 className="text-base font-semibold text-foreground">Appearance</h2>
             </div>
 
             <div className="flex items-center justify-between">
@@ -225,10 +263,10 @@ const Settings: React.FC = () => {
           </div>
 
           {/* Privacy & Security */}
-          <div className="bg-card border border-border rounded-xl p-6 shadow-theme-md">
-            <div className="flex items-center gap-3 mb-6">
-              <Shield className="w-6 h-6 text-accent" />
-              <h2 className="text-xl font-semibold text-foreground">Privacy & Security</h2>
+          <div className="bg-card border border-border rounded-xl p-4 shadow-theme-md">
+            <div className="flex items-center gap-2 mb-4">
+              <Shield className="w-5 h-5 text-accent" />
+              <h2 className="text-base font-semibold text-foreground">Privacy & Security</h2>
             </div>
 
             <div className="space-y-4">
@@ -277,10 +315,10 @@ const Settings: React.FC = () => {
           </div>
 
           {/* Notifications */}
-          <div className="bg-card border border-border rounded-xl p-6 shadow-theme-md">
-            <div className="flex items-center gap-3 mb-6">
-              <Bell className="w-6 h-6 text-accent" />
-              <h2 className="text-xl font-semibold text-foreground">Notifications</h2>
+          <div className="bg-card border border-border rounded-xl p-4 shadow-theme-md">
+            <div className="flex items-center gap-2 mb-4">
+              <Bell className="w-5 h-5 text-accent" />
+              <h2 className="text-base font-semibold text-foreground">Notifications</h2>
             </div>
 
             <div className="space-y-4">
@@ -329,10 +367,10 @@ const Settings: React.FC = () => {
           </div>
 
           {/* Display & Accessibility */}
-          <div className="bg-card border border-border rounded-xl p-6 shadow-theme-md">
-            <div className="flex items-center gap-3 mb-6">
-              <Eye className="w-6 h-6 text-accent" />
-              <h2 className="text-xl font-semibold text-foreground">Display & Accessibility</h2>
+          <div className="bg-card border border-border rounded-xl p-4 shadow-theme-md">
+            <div className="flex items-center gap-2 mb-4">
+              <Eye className="w-5 h-5 text-accent" />
+              <h2 className="text-base font-semibold text-foreground">Display & Accessibility</h2>
             </div>
 
             <div className="space-y-4">
@@ -352,17 +390,8 @@ const Settings: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-foreground mb-2">Font Size</label>
-                <select
-                  name="fontSize"
-                  value={appSettings.fontSize}
-                  onChange={handleChange}
-                  className="w-full px-3 py-2 bg-input border border-input-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-accent"
-                >
-                  <option value="small">Small</option>
-                  <option value="medium">Medium</option>
-                  <option value="large">Large</option>
-                </select>
+                <label className="block text-sm font-medium text-foreground mb-2">Text Size</label>
+                <TextSizeSelector />
               </div>
 
               <div className="flex items-center justify-between">
@@ -382,10 +411,10 @@ const Settings: React.FC = () => {
           </div>
 
           {/* Content & Feed */}
-          <div className="bg-card border border-border rounded-xl p-6 shadow-theme-md">
-            <div className="flex items-center gap-3 mb-6">
-              <Globe className="w-6 h-6 text-accent" />
-              <h2 className="text-xl font-semibold text-foreground">Content & Feed</h2>
+          <div className="bg-card border border-border rounded-xl p-4 shadow-theme-md">
+            <div className="flex items-center gap-2 mb-4">
+              <Globe className="w-5 h-5 text-accent" />
+              <h2 className="text-base font-semibold text-foreground">Content & Feed</h2>
             </div>
 
             <div className="space-y-4">
@@ -435,10 +464,10 @@ const Settings: React.FC = () => {
 
           {/* Admin Settings - Only visible to admins and super admins */}
           {(user?.role === 'admin' || user?.role === 'super_admin') && (
-            <div className="bg-card border border-border rounded-xl p-6 shadow-theme-md">
-              <div className="flex items-center gap-3 mb-6">
-                <Shield className="w-6 h-6 text-accent" />
-                <h2 className="text-xl font-semibold text-foreground">Admin Settings</h2>
+            <div className="bg-card border border-border rounded-xl p-4 shadow-theme-md">
+              <div className="flex items-center gap-2 mb-4">
+                <Shield className="w-5 h-5 text-accent" />
+                <h2 className="text-base font-semibold text-foreground">Admin Settings</h2>
                 <span className="text-xs bg-accent/10 text-accent px-2 py-1 rounded-full">
                   {user.role === 'super_admin' ? 'Super Admin' : 'Admin'}
                 </span>
@@ -538,10 +567,10 @@ const Settings: React.FC = () => {
 
           {/* Global Settings - Only visible to super admins */}
           {user?.role === 'super_admin' && (
-            <div className="bg-gradient-to-r from-red-500/10 to-orange-500/10 border border-red-500/20 rounded-xl p-6 shadow-theme-md">
-              <div className="flex items-center gap-3 mb-6">
-                <Globe className="w-6 h-6 text-red-500" />
-                <h2 className="text-xl font-semibold text-foreground">Global Platform Settings</h2>
+            <div className="bg-gradient-to-r from-red-500/10 to-orange-500/10 border border-red-500/20 rounded-xl p-4 shadow-theme-md">
+              <div className="flex items-center gap-2 mb-4">
+                <Globe className="w-5 h-5 text-red-500" />
+                <h2 className="text-base font-semibold text-foreground">Global Platform Settings</h2>
                 <span className="text-xs bg-red-500/10 text-red-500 px-2 py-1 rounded-full">
                   Super Admin Only
                 </span>
@@ -580,15 +609,15 @@ const Settings: React.FC = () => {
             </div>
           )}
 
-          <div className="bg-card border border-border rounded-xl p-6 shadow-theme-md">
-            <button
+          <div className="bg-card border border-border rounded-xl p-4 shadow-theme-md">
+            <Button
+              variant="default"
               type="submit"
-              disabled={isSaving}
-              className="w-full px-4 py-2 bg-accent text-white rounded-lg hover:bg-accent-hover transition-colors disabled:opacity-50 btn-float shadow-theme-button flex items-center justify-center gap-2"
+              isLoading={isSaving}
+              className="w-full flex items-center justify-center gap-2"
             >
-              {isSaving && <Loader2 className="w-4 h-4 animate-spin" />}
               {isSaving ? 'Saving Settings...' : 'Save App Settings'}
-            </button>
+            </Button>
           </div>
         </form>
       </motion.div>

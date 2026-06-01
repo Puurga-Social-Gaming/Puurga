@@ -5,6 +5,8 @@ import api from '../lib/axios';
 import toast from 'react-hot-toast';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { useUser } from '../context/UserContext';
+import { PURGE_THRESHOLD } from '../constants/purgeConstants';
+import { DEFAULT_IMAGES } from '../constants/defaultImages';
 
 interface UserStats {
   credits: number;
@@ -43,24 +45,12 @@ interface LeaderboardUser {
   credits?: number;
 }
 
-const DEFAULT_IMAGES = {
-  avatar: 'https://via.placeholder.com/150'
-};
-
 const MOCK_CHALLENGES = [
   { id: 1, text: 'Complete 3 Group Tasks', points: 50 },
   { id: 2, text: 'Win a Puurga Battle', points: 100 },
   { id: 3, text: 'Survive a Purge Event', points: 200 },
   { id: 4, text: 'Invite a Friend', points: 30 },
   { id: 5, text: 'React to 5 Posts', points: 20 },
-];
-
-const BONUS_REWARDS = [
-  { icon: <Gift className="text-accent inline" />, label: '+50 Points', value: 50 },
-  { icon: <Shield className="text-accent inline" />, label: '+1 Shield', value: 1 },
-  { icon: <Award className="text-accent inline" />, label: 'Double Points (1h)', value: 0 },
-  { icon: <Trophy className="text-accent inline" />, label: 'Leaderboard Boost', value: 0 },
-  { icon: <XCircle className="text-red-500 inline" />, label: 'No Bonus', value: 0 },
 ];
 
 const RANK_CONFIG: Record<string, { bg: string; text: string; border: string }> = {
@@ -107,7 +97,7 @@ const StatPill: React.FC<{ label: string; value: string | number; color?: string
 
 const PuurgaDashboard: React.FC = () => {
   const { user } = useUser();
-  const [loading, setLoading] = useState(true);
+
   const [feed, setFeed] = useState<FeedEvent[]>([]);
   const [leaderboard, setLeaderboard] = useState<LeaderboardUser[]>([]);
 
@@ -122,7 +112,7 @@ const PuurgaDashboard: React.FC = () => {
   const [challenges, setChallenges] = useState(
     MOCK_CHALLENGES.map(c => ({ ...c, completed: false }))
   );
-  const [bonus, setBonus] = useState<{ label: string; icon: React.ReactNode } | null>(null);
+  const [bonus, _setBonus] = useState<{ label: string; icon: React.ReactNode } | null>(null);
   const [spinning, setSpinning] = useState(false);
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({
     'games': true, // Collapse games by default to save space
@@ -209,7 +199,6 @@ const PuurgaDashboard: React.FC = () => {
 
   const fetchUserStats = async () => {
     try {
-      setLoading(true);
 
       // Use allSettled so one failing endpoint doesn't break the whole dashboard
       const [creditsRes, purgesRes, leaderboardRes, postsRes, friendsRes, purgingRes, gameStatsRes, redemptionRes] =
@@ -311,7 +300,7 @@ const PuurgaDashboard: React.FC = () => {
         setFeed(prev => [...prev, ...postFeed]);
       }
 
-      const riskLevel = Math.min((purgeData.stats.totalReceived / 5) * 100, 100);
+      const riskLevel = Math.min((purgeData.stats.totalReceived / PURGE_THRESHOLD) * 100, 100);
 
       let rank = 'Novice';
       if (creditData.credits >= 500) rank = 'Elite Survivor';
@@ -330,17 +319,26 @@ const PuurgaDashboard: React.FC = () => {
       console.error('Failed to fetch user stats:', error);
       toast.error('Failed to load dashboard data');
     } finally {
-      setLoading(false);
     }
   };
 
   const { isConnected: _isConnected } = useWebSocket({
-    onCreditUpdate: (payload: { userId: string; credits: number }) => {
+    onCreditUpdate: (payload: { userId: string; credits: number; change?: number; source?: string }) => {
       console.log('Real-time credit update:', payload);
       setUserStats(prev => ({
         ...prev,
         credits: payload.credits
       }));
+      if (payload.change && payload.change > 0) {
+        toast.success(`+${payload.change} credits earned!`, {
+          icon: '🪙',
+          duration: 3000,
+        });
+      } else if (payload.change && payload.change < 0) {
+        toast.error(`${payload.change} credits deducted`, {
+          duration: 3000,
+        });
+      }
     },
     onProfileUpdate: (payload: { userId: string; isGhost: boolean; purgeCount?: number }) => {
       console.log('Real-time profile update:', payload);
@@ -408,70 +406,43 @@ const PuurgaDashboard: React.FC = () => {
 
   const handleSpin = () => {
     setSpinning(true);
-    setBonus(null);
-    setTimeout(() => {
-      const reward = BONUS_REWARDS[Math.floor(Math.random() * BONUS_REWARDS.length)];
-      setBonus(reward);
-      setSpinning(false);
-      if (reward.value > 0) {
-        setUserStats(s => ({ ...s, credits: s.credits + reward.value }));
-        setFeed(f => [
-          { id: Date.now(), user: 'You', action: 'earned bonus', detail: reward.label, time: 'now' },
-          ...f
-        ]);
-      }
-    }, 1200);
   };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-10 h-10 rounded-full border-2 border-accent border-t-transparent animate-spin" />
-          <div className="text-muted text-sm">Loading dashboard...</div>
-        </div>
-      </div>
-    );
-  }
-
-  const rankCfg = RANK_CONFIG[userStats.rank] || RANK_CONFIG['Novice'];
-  const completedChallenges = challenges.filter(c => c.completed).length;
 
   return (
     <div className="min-h-screen bg-background">
-      {/* ── Hero Header ── */}
-      <div className="bg-card border-b border-border/50">
-        <div className="max-w-7xl mx-auto px-6 py-6">
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
-            {/* Left: Title + Rank */}
-            <div className="flex items-center gap-4">
-              <div className="relative">
-                <div className="w-14 h-14 rounded-2xl bg-accent/15 flex items-center justify-center">
-                  <Shield className="w-7 h-7 text-accent" />
+        {/* ── Hero Header ── */}
+        <div className="bg-card border-b border-border/50">
+          <div className="max-w-7xl mx-auto px-6 py-6">
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+              {/* Left: Title + Rank */}
+              <div className="flex items-center gap-4">
+                <div className="relative">
+                  <div className="w-14 h-14 rounded-2xl bg-accent/15 flex items-center justify-center">
+                    <Shield className="w-7 h-7 text-accent" />
+                  </div>
+                  <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-green-500 border-2 border-card" />
                 </div>
-                <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-green-500 border-2 border-card" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold text-foreground">Puurga Dashboard</h1>
-                <div className="flex items-center gap-2 mt-1">
-                  <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${rankCfg.bg} ${rankCfg.text} ${rankCfg.border}`}>
-                    {userStats.rank}
-                  </span>
-                  <span className="text-muted text-xs">Shield Points: N/A</span>
+                <div>
+                  <h1 className="text-2xl font-bold text-foreground">Puurga Dashboard</h1>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${RANK_CONFIG[userStats.rank].bg} ${RANK_CONFIG[userStats.rank].text} ${RANK_CONFIG[userStats.rank].border}`}>
+                      {userStats.rank}
+                    </span>
+                    <span className="text-muted text-xs">Shield Points: N/A</span>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            {/* Right: Key Stats Row */}
-            <div className="flex flex-wrap gap-2">
-              <StatPill label="Total Points" value={Math.round(displayCredits)} />
-              <StatPill label="Purge Streak" value={userStats.purgeStreak} color="text-orange-400" />
-              <StatPill label="Purges Given" value={userStats.totalPurgesGiven} color="text-red-400" />
-              <StatPill label="Purges Received" value={userStats.totalPurgesReceived} color="text-yellow-400" />
+              {/* Right: Key Stats Row */}
+              <div className="flex flex-wrap gap-2">
+                <StatPill label="Total Points" value={Math.round(displayCredits)} />
+                <StatPill label="Purge Streak" value={userStats.purgeStreak} color="text-orange-400" />
+                <StatPill label="Purges Given" value={userStats.totalPurgesGiven} color="text-red-400" />
+                <StatPill label="Purges Received" value={userStats.totalPurgesReceived} color="text-yellow-400" />
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
       {/* ── Main Content ── */}
       <div className="max-w-7xl mx-auto px-6 py-6 space-y-6">
@@ -517,14 +488,14 @@ const PuurgaDashboard: React.FC = () => {
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <span className="text-sm text-muted">Challenges Completed</span>
-                  <span className="text-sm font-bold text-foreground">{completedChallenges}/{challenges.length}</span>
+                  <span className="text-sm font-bold text-foreground">{challenges.filter(c => c.completed).length}/{challenges.length}</span>
                 </div>
                 <div className="w-full bg-background rounded-full h-2.5 overflow-hidden">
                   <motion.div
                     className="h-2.5 rounded-full bg-gradient-to-r from-accent to-accent/60"
-                    animate={{ width: `${(completedChallenges / challenges.length) * 100}%` }}
+                    animate={{ width: `${(challenges.filter(c => c.completed).length / challenges.length) * 100}%` }}
                     transition={{ duration: 0.6 }}
-                    style={{ width: `${(completedChallenges / challenges.length) * 100}%` }}
+                    style={{ width: `${(challenges.filter(c => c.completed).length / challenges.length) * 100}%` }}
                   />
                 </div>
               </div>
@@ -996,7 +967,7 @@ const PuurgaDashboard: React.FC = () => {
 
                 <button
                   onClick={() => setShowRedemptionModal(false)}
-                  className="w-full py-3 bg-accent hover:bg-accent-hover text-white rounded-xl font-bold transition-all hover:scale-[1.02] active:scale-95"
+                  className="w-full py-3 bg-accent hover:opacity-90 text-black rounded-xl font-bold transition-all hover:scale-[1.02] active:scale-95"
                 >
                   Confirm & Access Account
                 </button>

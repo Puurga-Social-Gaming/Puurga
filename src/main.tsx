@@ -6,9 +6,12 @@ import App from './App';
 import './index.css';
 import './styles/leaflet.css';
 import './styles/theme.css';
+// Initialize font-size scaling from persisted user preference
+import './store/fontSizeStore';
 import { ThemeProvider } from './context/ThemeContext';
+import { prefetchIntroVideoUrl } from './services/introVideoService';
 
-console.log('Starting application initialization...');
+prefetchIntroVideoUrl();
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -16,20 +19,12 @@ if (!rootElement) {
   throw new Error('Failed to find the root element');
 }
 
-console.log('Root element found, creating React root...');
-
 const root = createRoot(rootElement);
 
-try {
-  console.log('Attempting to render App...');
-  root.render(
-    <StrictMode>
-      <ThemeProvider>
-        <App />
-      </ThemeProvider>
-    </StrictMode>
-  );
-  console.log('App rendered successfully');
-} catch (error) {
-  console.error('Error rendering app:', error);
-}
+root.render(
+  <StrictMode>
+    <ThemeProvider>
+      <App />
+    </ThemeProvider>
+  </StrictMode>,
+);

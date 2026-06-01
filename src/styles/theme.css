@@ -1,36 +1,36 @@
 /* Theme tokens and color scheme */
 :root {
-  /* Brand accent - Silver Gray */
-  --accent: 156 163 175;
-  /* #9CA3AF - Silver Gray */
-  --accent-hover: 107 114 128;
-  /* #6B7280 - Darker Gray */
+  /* Brand accent - Darker Silver Gray for better contrast */
+  --accent: 107 114 128;
+  /* #6B7280 - Darker Gray for more contrast */
+  --accent-hover: 71 85 105;
+  /* #475569 - Even darker on hover */
   --accent-light: 229 231 235;
   /* Light Gray tint */
 
-  /* Highlight colors - Silver accents for depth */
-  --highlight: 203 213 225;
-  /* #CBD5E1 - Slate-300 */
-  --highlight-hover: 148 163 184;
-  /* #94A3B8 - Slate-400 */
+  /* Highlight colors - Enhanced silver accents for depth */
+  --highlight: 148 163 184;
+  /* #94A3B8 - Darker Slate-400 for contrast */
+  --highlight-hover: 100 116 139;
+  /* #64748B - Slate-500 for better contrast */
   --highlight-light: 241 245 249;
   /* #F1F5F9 - Slate-100 */
 
-  /* Light mode colors - Modern & Clean with depth */
-  --bg: 248 250 252;
-  /* #f9fafb - Cool gray/off-white background */
-  --bg-secondary: 241 245 249;
-  /* #f3f4f6 - Slightly darker for contrast */
+  /* Light mode colors - Enhanced with darker grays for better contrast */
+  --bg: 241 245 249;
+  /* #f1f5f9 - Darker gray background for better contrast */
+  --bg-secondary: 229 231 235;
+  /* #e5e7eb - Even darker for contrast */
 
   --fg: 15 23 42;
   /* #0f172a - Deep black/navy for primary text */
   --fg-secondary: 71 85 105;
   /* #475569 - Slate grey for secondary text */
 
-  --muted: 100 116 139;
-  /* #64748b - Muted cool grey */
-  --muted-light: 148 163 184;
-  /* #94a3b8 - Light muted */
+  --muted: 71 85 105;
+  /* #475569 - Darker muted grey for better contrast */
+  --muted-light: 100 116 139;
+  /* #64748b - Darker light muted */
 
   /* Floating Cards */
   --card: 255 255 255;
@@ -56,13 +56,13 @@
   --radius: 0.75rem;
   /* 12px */
 
-  /* Modern Floating Shadows - Enhanced for depth */
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06);
-  --shadow-md: 0 4px 8px -2px rgba(0, 0, 0, 0.12), 0 2px 4px -2px rgba(0, 0, 0, 0.08);
-  --shadow-lg: 0 10px 20px -4px rgba(0, 0, 0, 0.12), 0 4px 8px -4px rgba(0, 0, 0, 0.08);
-  --shadow-xl: 0 20px 30px -6px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.08);
-  --shadow-float: 0 20px 30px -8px rgba(0, 0, 0, 0.2);
-  --shadow-button: 0 4px 12px rgba(0, 0, 0, 0.15);
+  /* Modern Floating Shadows - Enhanced for depth with more spread and prominence */
+  --shadow-sm: 0 4px 12px rgba(0, 0, 0, 0.18), 0 2px 6px rgba(0, 0, 0, 0.12);
+  --shadow-md: 0 8px 16px -2px rgba(0, 0, 0, 0.22), 0 4px 8px -2px rgba(0, 0, 0, 0.15);
+  --shadow-lg: 0 16px 32px -4px rgba(0, 0, 0, 0.25), 0 8px 16px -4px rgba(0, 0, 0, 0.18);
+  --shadow-xl: 0 32px 48px -6px rgba(0, 0, 0, 0.3), 0 12px 20px -6px rgba(0, 0, 0, 0.15);
+  --shadow-float: 0 32px 48px -8px rgba(0, 0, 0, 0.35), 0 16px 24px -8px rgba(0, 0, 0, 0.2);
+  --shadow-button: 0 8px 20px rgba(0, 0, 0, 0.25);
 
   /* Overlay */
   --overlay: rgba(0, 0, 0, 0.5);
@@ -99,6 +99,8 @@
   --card-hover: 31 31 31;
   /* #1f1f1f */
   --card-foreground: 255 255 255;
+  --highlight-light: 31 31 31;
+  /* #1f1f1f - Match card-hover for dark mode hover */
 
   /* Borders - ULTRA SUBTLE DARK (NO WHITE LINES) */
   --border: 38 38 38;
@@ -142,6 +144,9 @@ html,
 body,
 #root {
   height: 100%;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
 }
 
 body {
@@ -203,11 +208,11 @@ body {
 }
 
 .theme-card-hover:hover {
-  background-color: var(--card-hover);
+  background-color: rgb(var(--card-hover));
 }
 
 .theme-border {
-  border-color: var(--border);
+  border-color: rgb(var(--border));
 }
 
 .theme-input {
@@ -259,8 +264,8 @@ body {
 
 /* Card with elevation */
 .card-elevated {
-  background-color: var(--card);
-  border: 1px solid var(--border);
+  background-color: rgb(var(--card));
+  border: 1px solid rgb(var(--border));
   box-shadow: var(--shadow-md);
   border-radius: var(--radius);
 }
@@ -269,53 +274,37 @@ body {
   box-shadow: var(--shadow-lg);
 }
 
-/* Primary button with glow effect */
-.btn-primary {
-  background-color: var(--accent);
-  color: white;
-  box-shadow: var(--shadow-button);
-  transition: all 0.2s ease;
-}
-
-.btn-primary:hover {
-  background-color: var(--accent-hover);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 16px rgba(245, 245, 245, 0.2);
-}
-
-.btn-primary:active {
-  transform: translateY(0);
-}
+/* Primary button with glow effect - handled in index.css to avoid conflicts */
 
 /* Input field styling */
 .input-themed {
-  background-color: var(--input);
-  border: 1px solid var(--input-border);
-  color: var(--fg);
+  background-color: rgb(var(--input));
+  border: 1px solid rgb(var(--input-border));
+  color: rgb(var(--fg));
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .input-themed:focus {
-  border-color: var(--accent);
+  border-color: rgb(var(--accent));
   box-shadow: 0 0 0 3px rgba(245, 245, 245, 0.1);
   outline: none;
 }
 
 .input-themed::placeholder {
-  color: var(--muted);
+  color: rgb(var(--muted));
 }
 
 /* Accent helpers */
 .token-accent {
-  color: var(--accent);
+  color: rgb(var(--accent));
 }
 
 .token-accent-bg {
-  background-color: var(--accent);
+  background-color: rgb(var(--accent));
 }
 
 .token-ring {
-  outline-color: var(--ring);
+  outline-color: rgb(var(--ring));
 }
 
 /* ========================================
@@ -330,29 +319,29 @@ body {
    Modern, clean, floating aesthetic
    ======================================== */
 
-/* Card with 'floating' feel for light mode - Silver accents */
+/* Enhanced card with 'floating' feel for light mode - Better depth and contrast */
 .card-gradient {
   background: white;
-  border: 1px solid var(--border);
+  border: 1px solid rgb(var(--border));
   box-shadow:
-    0 2px 4px rgba(0, 0, 0, 0.06),
-    0 4px 8px rgba(0, 0, 0, 0.04);
+    0 4px 8px rgba(0, 0, 0, 0.1),
+    0 2px 4px rgba(0, 0, 0, 0.06);
   border-radius: var(--radius);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
 }
 
 .card-gradient:hover {
-  transform: translateY(-2px);
+  transform: translateY(-3px);
   box-shadow:
-    0 8px 16px rgba(0, 0, 0, 0.1),
-    0 4px 8px rgba(0, 0, 0, 0.06);
-  border-color: var(--highlight);
+    0 12px 24px rgba(0, 0, 0, 0.15),
+    0 6px 12px rgba(0, 0, 0, 0.1);
+  border-color: rgb(var(--highlight));
 }
 
 /* Card with inner glow (subtle border highlight in light mode) */
 .card-glow {
   background: white;
-  border: 1px solid var(--border);
+  border: 1px solid rgb(var(--border));
   box-shadow:
     0 2px 4px rgba(0, 0, 0, 0.05),
     0 4px 12px rgba(156, 163, 175, 0.15);
@@ -370,44 +359,50 @@ body {
 /* Enforce black text for posts in light mode */
 .light .post-content,
 .light p {
-  color: var(--fg);
+  color: rgb(var(--fg));
 }
 
-/* Make images pop with shadow for depth */
+/* Make images pop with stronger shadow for better depth */
 img.rounded-full,
 img.rounded-lg,
 img.rounded-xl {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2), 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
-/* Text shadow for headings in light mode - subtle depth */
+/* Enhanced text shadow for headings in light mode - more depth */
 h1, h2, h3, h4, h5, h6 {
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
 }
 
-/* Silver accent button with shadow (Light Mode) */
+/* Enhanced silver accent button with stronger colors and shadows (Light Mode) */
 .btn-accent {
-  background: linear-gradient(135deg, #9CA3AF 0%, #6B7280 100%);
+  background: linear-gradient(135deg, #6B7280 0%, #4B5563 100%);
   color: white;
   border: none;
-  box-shadow: 0 4px 12px rgba(156, 163, 175, 0.4);
+  box-shadow: 0 6px 16px rgba(107, 114, 128, 0.4), 0 1px 3px rgba(0, 0, 0, 0.1);
   transition: all 0.2s ease;
+  font-weight: 600;
 }
 
 .btn-accent:hover {
-  background: linear-gradient(135deg, #B0B7C3 0%, #9CA3AF 100%);
+  background: linear-gradient(135deg, #4B5563 0%, #374151 100%);
   color: white;
-  transform: translateY(-1px);
-  box-shadow: 0 6px 16px rgba(156, 163, 175, 0.5);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(107, 114, 128, 0.6), 0 2px 4px rgba(0, 0, 0, 0.15);
+}
+
+.btn-accent:active {
+  transform: translateY(0);
+  box-shadow: 0 4px 12px rgba(107, 114, 128, 0.3), 0 1px 2px rgba(0, 0, 0, 0.08);
 }
 
 /* Nav item active state (Light Mode) - Silver highlight */
 .nav-active {
-  background: var(--highlight-light);
+  background: rgb(var(--highlight-light));
   /* Light silver tint */
-  border-left: 3px solid var(--accent);
+  border-left: 3px solid rgb(var(--accent));
   /* Silver left border */
-  color: var(--fg);
+  color: rgb(var(--fg));
   box-shadow: inset 0 1px 3px rgba(156, 163, 175, 0.2);
 }
 
@@ -513,12 +508,12 @@ h1, h2, h3, h4, h5, h6 {
 .dark [class*="border-white"],
 .dark [class*="border-gray-"],
 .dark [class*="border-slate-"] {
-  border-color: var(--border) !important;
+  border-color: rgb(var(--border)) !important;
 }
 
 /* Ensure no white backgrounds in dark mode */
 .dark [class*="bg-white"] {
-  background-color: var(--card) !important;
+  background-color: rgb(var(--card)) !important;
 }
 
 /* Universal Scrollbar Styling to match theme (Invisible/Blended) */

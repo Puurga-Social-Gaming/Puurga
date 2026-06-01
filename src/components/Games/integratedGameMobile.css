@@ -1,0 +1,21 @@
+/* Full-screen integrated games inside Puurga Arena — no page scroll */
+.puurga-integrated-game {
+  height: 100dvh;
+  max-height: 100dvh;
+  width: 100%;
+  overflow: hidden;
+  touch-action: manipulation;
+  -webkit-overflow-scrolling: auto;
+}
+
+.puurga-integrated-game * {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.puurga-integrated-game .integrated-game-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}

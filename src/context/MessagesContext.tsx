@@ -3,6 +3,7 @@ import { useUser } from '../context/UserContext';
 import api from '../lib/axios';
 import { useWebSocket } from '../hooks/useWebSocket';
 import toast from 'react-hot-toast';
+import { useMessageNotification } from '../components/MessageNotificationPopup';
 
 export interface Message {
   id: string;
@@ -53,6 +54,7 @@ interface MessagesContextType {
   messages: Message[];
   onlineUsers: OnlineUser[];
   loading: boolean;
+  messagesLoading: boolean;
   typingUsers: Record<string, string[]>; // conversationId -> userIds
   loadConversations: () => Promise<void>;
   loadMessages: (conversationId: string) => Promise<void>;
@@ -74,7 +76,47 @@ export const MessagesProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [messages, setMessages] = useState<Message[]>([]);
   const [onlineUsers, setOnlineUsers] = useState<OnlineUser[]>([]);
   const [loading, setLoading] = useState(false);
+  const [messagesLoading, setMessagesLoading] = useState(false);
   const [typingUsers, setTypingUsers] = useState<Record<string, string[]>>({});
+  const messagesCacheRef = useRef<Map<string, Message[]>>(new Map());
+  const activeMessagesFetchRef = useRef<string | null>(null);
+  const [appIsActive, setAppIsActive] = useState(document.hasFocus());
+  const appIsActiveRef = useRef(appIsActive);
+  const showNotificationRef = useRef<((message: any) => void) | null>(null);
+
+  const { showNotification } = useMessageNotification();
+
+  useEffect(() => {
+    showNotificationRef.current = showNotification;
+  }, [showNotification]);
+
+  useEffect(() => {
+    appIsActiveRef.current = appIsActive;
+  }, [appIsActive]);
+
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      setAppIsActive(!document.hidden && document.hasFocus());
+    };
+
+    const handleFocus = () => {
+      setAppIsActive(true);
+    };
+
+    const handleBlur = () => {
+      setAppIsActive(false);
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleFocus);
+    window.addEventListener('blur', handleBlur);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('blur', handleBlur);
+    };
+  }, []);
 
   // Keep ref updated with latest user
   useEffect(() => {
@@ -114,24 +156,40 @@ export const MessagesProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
   }, [user, conversations.length]);
 
-  const loadMessages = async (conversationId: string) => {
+  const loadMessages = useCallback(async (conversationId: string) => {
     if (!user) return;
 
+    const cached = messagesCacheRef.current.get(conversationId);
+    if (cached) {
+      setMessages(cached);
+    }
+
+    if (activeMessagesFetchRef.current === conversationId) return;
+    activeMessagesFetchRef.current = conversationId;
+
     try {
-      setLoading(true);
+      setMessagesLoading(true);
       const response = await api.get(`/messages/conversations/${conversationId}/messages`);
-      console.log('Loaded messages:', response.data);
-      setMessages(response.data || []);
-      
-      // Mark messages as read after loading them
-      await markAsRead(conversationId);
+      const data: Message[] = response.data || [];
+      messagesCacheRef.current.set(conversationId, data);
+
+      if (currentConversationRef.current?.id === conversationId) {
+        setMessages(data);
+      }
+
+      void markAsRead(conversationId);
     } catch (error) {
       console.error('Error loading messages:', error);
-      setMessages([]);
+      if (currentConversationRef.current?.id === conversationId && !cached) {
+        setMessages([]);
+      }
     } finally {
-      setLoading(false);
+      if (activeMessagesFetchRef.current === conversationId) {
+        activeMessagesFetchRef.current = null;
+      }
+      setMessagesLoading(false);
     }
-  };
+  }, [user]);
 
   const markAsRead = async (conversationId: string) => {
     if (!user) return;
@@ -155,11 +213,16 @@ export const MessagesProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
       console.log('Message sent:', response.data);
 
-      // Add the new message to the messages array immediately (optimistic update/server response)
-      setMessages(prev => [...prev, response.data]);
+      const newMessage = response.data as Message;
+      setMessages(prev => [...prev, newMessage]);
 
-      // Reload conversations to update the latest message
-      await loadConversations();
+      if (currentConversationRef.current) {
+        const convoId = currentConversationRef.current.id;
+        const cached = messagesCacheRef.current.get(convoId) || [];
+        messagesCacheRef.current.set(convoId, [...cached, newMessage]);
+      }
+
+      void loadConversations();
     } catch (error) {
       console.error('Error sending message:', error);
       throw error;
@@ -225,7 +288,7 @@ export const MessagesProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         // Prevent duplicate messages
         if (prev.some(m => m.id === message.id)) return prev;
 
-        return [...prev, {
+        const incoming: Message = {
           id: message.id,
           content: message.content,
           images: message.images || [],
@@ -238,29 +301,46 @@ export const MessagesProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             username: message.fromUser.username,
             avatar_url: message.fromUser.avatar
           }
-        }];
+        };
+        const next = [...prev, incoming];
+        messagesCacheRef.current.set(conversationId, next);
+        return next;
       });
     }
 
-    // 2. Show toast notification if we are NOT in this conversation
+    // 2. Show notification if we are NOT in this conversation
     const isChattingInThisConvo = currentConversationRef.current?.id === conversationId;
 
     if (!isChattingInThisConvo) {
-      toast.success(
-        <div className="flex flex-col">
-          <span className="font-bold">{message.fromUser.name}</span>
-          <span className="text-sm line-clamp-2">{message.content}</span>
-        </div>,
-        {
-          duration: 4000,
-          position: 'top-right',
-          style: {
-            background: '#1a1a1a',
-            color: '#fff',
-            border: '1px solid #333'
+      // Show popup notification if user is actively using the app (has focus)
+      if (appIsActiveRef.current && document.hasFocus()) {
+        showNotificationRef.current?.({
+          id: message.id,
+          conversationId,
+          senderId: message.fromUser.id,
+          senderName: message.fromUser.name,
+          senderUsername: message.fromUser.username,
+          senderAvatar: message.fromUser.avatar,
+          content: message.content
+        });
+      } else {
+        // Fallback to toast if app is in background
+        toast.success(
+          <div className="flex flex-col">
+            <span className="font-bold">{message.fromUser.name}</span>
+            <span className="text-sm line-clamp-2">{message.content}</span>
+          </div>,
+          {
+            duration: 4000,
+            position: 'top-right',
+            style: {
+              background: '#1a1a1a',
+              color: '#fff',
+              border: '1px solid #333'
+            }
           }
-        }
-      );
+        );
+      }
     }
 
     // 3. Reload conversations list to update latest message/unread count
@@ -323,12 +403,15 @@ export const MessagesProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
   }, [user]);
 
-  // Set up real-time subscription for messages
   useEffect(() => {
-    if (user && currentConversation) {
-      loadMessages(currentConversation.id);
+    if (!user || !currentConversation) {
+      setMessages([]);
+      return;
     }
-  }, [user, currentConversation]);
+    const cached = messagesCacheRef.current.get(currentConversation.id);
+    setMessages(cached ?? []);
+    loadMessages(currentConversation.id);
+  }, [user, currentConversation?.id, loadMessages]);
 
   return (
     <MessagesContext.Provider
@@ -338,6 +421,7 @@ export const MessagesProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         messages,
         onlineUsers,
         loading,
+        messagesLoading,
         typingUsers,
         loadConversations,
         loadMessages,

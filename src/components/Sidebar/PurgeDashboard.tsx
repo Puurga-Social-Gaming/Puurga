@@ -13,8 +13,8 @@ const PurgeDashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [redeemingId, setRedeemingId] = useState<string | null>(null);
 
-  const userCredits = (user as any)?.credits || 0;
-  const purgeRisk = Math.min(100, Math.max(0, (user as any)?.purgeRisk || 0));
+  const userCredits = (user as any)?.credits ?? 0;
+  const purgeRisk = Math.min(100, Math.max(0, (user as any)?.purgeRisk ?? 0));
 
   useEffect(() => {
     const fetchGhostedFriends = async () => {
@@ -157,7 +157,7 @@ const PurgeDashboard: React.FC = () => {
                   <div className="flex items-center gap-1 text-[10px] text-muted">
                     <Coins size={10} />
                     <span className={userCredits >= friend.creditsRequired ? 'text-foreground/70' : 'text-red-500/70'}>
-                      {friend.creditsRequired.toLocaleString()}
+                      {(friend.creditsRequired ?? 0).toLocaleString()}
                     </span>
                   </div>
                 </div>

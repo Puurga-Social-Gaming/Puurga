@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { OnlineStatusIndicator } from './OnlineStatusIndicator';
+import AvatarViewer from './AvatarViewer';
 
 const DEFAULT_AVATAR = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgdmlld0JveD0iMCAwIDIwMCAyMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjIwMCIgaGVpZ2h0PSIyMDAiIGZpbGw9IiMyZDJkMmQiLz48Y2lyY2xlIGN4PSIxMDAiIGN5PSI4NSIgcj0iMzUiIGZpbGw9IiM0MDQwNDAiLz48cGF0aCBkPSJNMTYwIDE2NWMwLTMzLjEzNy0yNi44NjMtNjAtNjAtNjBzLTYwIDI2Ljg2My02MCA2MCIgc3Ryb2tlPSIjNDA0MDQwIiBzdHJva2Utd2lkdGg9IjEyIi8+PC9zdmc+';
 
@@ -12,6 +13,7 @@ interface AvatarProps {
   showBorder?: boolean;
   userId?: string;
   showOnlineStatus?: boolean;
+  expandOnTap?: boolean;
 }
 
 const Avatar: React.FC<AvatarProps> = ({ 
@@ -22,8 +24,11 @@ const Avatar: React.FC<AvatarProps> = ({
   onClick,
   showBorder = false,
   userId,
-  showOnlineStatus = false
+  showOnlineStatus = false,
+  expandOnTap = false
 }) => {
+  const [isViewerOpen, setIsViewerOpen] = useState(false);
+
   const sizeClasses = {
     sm: 'w-8 h-8',
     md: 'w-12 h-12',
@@ -35,20 +40,39 @@ const Avatar: React.FC<AvatarProps> = ({
     e.currentTarget.src = DEFAULT_AVATAR;
   };
 
+  const handleAvatarClick = (e: React.MouseEvent) => {
+    if (expandOnTap) {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsViewerOpen(true);
+    }
+    if (onClick) {
+      onClick();
+    }
+  };
+
   return (
     <div className="relative inline-block">
       <img
         src={src || DEFAULT_AVATAR}
         alt={alt}
         onError={handleError}
-        onClick={onClick}
-        className={`rounded-full object-cover bg-[#2d2d2d] shadow-theme-sm ${sizeClasses[size]} ${showBorder ? 'border-2 border-highlight' : ''} ${onClick ? 'cursor-pointer hover:opacity-90 hover:shadow-theme-md transition-shadow' : ''} ${className}`}
+        onClick={handleAvatarClick}
+        className={`rounded-full object-cover bg-[#2d2d2d] shadow-theme-sm ${sizeClasses[size]} ${showBorder ? 'border-2 border-highlight' : ''} ${onClick || expandOnTap ? 'cursor-pointer hover:opacity-90 hover:shadow-theme-md transition-shadow' : ''} ${className}`}
       />
       {showOnlineStatus && userId && (
         <OnlineStatusIndicator 
           userId={userId} 
           size={size === 'sm' ? 'sm' : size === 'xl' ? 'lg' : 'md'}
           className="absolute -bottom-1 -right-1"
+        />
+      )}
+      {expandOnTap && (
+        <AvatarViewer
+          src={src || DEFAULT_AVATAR}
+          alt={alt}
+          isOpen={isViewerOpen}
+          onClose={() => setIsViewerOpen(false)}
         />
       )}
     </div>

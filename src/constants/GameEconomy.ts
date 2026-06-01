@@ -77,6 +77,33 @@ export const GAME_ECONOMY: Record<string, GameEconomyRules> = {
             corruption: 5 // Getting hit by enemies
         }
     },
+    PURGA_RIFT: {
+        id: 'purga_rift',
+        name: 'Purga Rift',
+        scoreToCreditsRatio: 0.12,
+        rewards: {
+            completion: 25,
+            win: 40,
+            perfectScore: 80,
+        },
+        penalties: {
+            wrongAnswer: 8,
+        },
+    },
+    CYBER_RUNNER: {
+        id: 'cyber_runner',
+        name: 'Cyber Runner',
+        scoreToCreditsRatio: 0.1,
+        rewards: {
+            completion: 20,
+            win: 35,
+            perfectScore: 70,
+        },
+        penalties: {
+            missedTarget: 3,
+            corruption: 5,
+        },
+    },
     // Template for future games
     TEMPLATE_GAME: {
         id: 'template',

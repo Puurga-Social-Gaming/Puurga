@@ -3,6 +3,9 @@ import { supabase } from '../config/supabase';
 import { supabaseAuth as auth, AuthRequest } from '../middleware/supabaseAuth';
 import { wsManager } from '../websocketManager';
 import { normalizeImageUrl } from '../utils/url';
+import { canSendMessage } from '../services/settingsService';
+import { NotificationService } from '../services/notificationService';
+import { validateNotGhosted } from '../middleware/restrictGhosted';
 
 const router = express.Router();
 
@@ -197,7 +200,9 @@ router.get('/conversations/:conversationId/messages', auth, async (req: AuthRequ
       return res.status(403).json({ error: 'Not authorized to view this conversation' });
     }
 
-    // Get messages for this conversation
+    const MESSAGE_PAGE_SIZE = 100;
+
+    // Latest N messages only (avoids loading entire history on open)
     const { data: messages, error } = await supabase
       .from('messages')
       .select(`
@@ -209,7 +214,8 @@ router.get('/conversations/:conversationId/messages', auth, async (req: AuthRequ
         profiles!messages_from_user_id_fkey(id, full_name, username, avatar_url)
       `)
       .eq('conversation_id', conversationId)
-      .order('created_at', { ascending: true });
+      .order('created_at', { ascending: false })
+      .limit(MESSAGE_PAGE_SIZE);
 
     if (error) {
       if (error.code === '42P01') {
@@ -218,7 +224,9 @@ router.get('/conversations/:conversationId/messages', auth, async (req: AuthRequ
       throw error;
     }
 
-    const formattedMessages = (messages || []).map((msg: any) => ({
+    const chronological = [...(messages || [])].reverse();
+
+    const formattedMessages = chronological.map((msg: any) => ({
       id: msg.id,
       content: msg.content,
       created_at: msg.created_at,
@@ -241,7 +249,7 @@ router.get('/conversations/:conversationId/messages', auth, async (req: AuthRequ
 });
 
 // Send a message
-router.post('/conversations/:conversationId/messages', auth, async (req: AuthRequest, res) => {
+router.post('/conversations/:conversationId/messages', auth, validateNotGhosted, async (req: AuthRequest, res) => {
   try {
     const { user } = req;
     const { conversationId } = req.params;
@@ -315,46 +323,14 @@ router.post('/conversations/:conversationId/messages', auth, async (req: AuthReq
 
     // Create notifications for all other participants
     if (otherParticipants && otherParticipants.length > 0) {
-      const senderProfile = (message as any).profiles;
-      const notifications = otherParticipants.map(participant => ({
-        type: 'message',
-        sender_id: user.id,
-        receiver_id: participant.user_id,
-        conversation_id: conversationId,
-        message_id: message.id,
-        title: 'New Message',
-        message: `${senderProfile?.full_name || 'Someone'} sent you a message`,
-        read: false,
-        created_at: new Date().toISOString(),
-      }));
-
-      const { data: createdNotifications } = await supabase
-        .from('notifications')
-        .insert(notifications)
-        .select('*');
-
-      // Broadcast notifications via WebSocket to each recipient
-      if (createdNotifications && createdNotifications.length > 0) {
-        createdNotifications.forEach((notification: any) => {
-          const wsNotification = {
-            id: notification.id,
-            type: 'message' as const,
-            fromUser: {
-              id: user.id,
-              name: senderProfile?.full_name || 'Someone',
-              username: senderProfile?.username || 'unknown',
-              avatar: normalizeImageUrl(senderProfile?.avatar_url) || undefined
-            },
-            data: {
-              conversationId,
-              messageId: message.id
-            },
-            createdAt: notification.created_at
-          };
-
-          wsManager.sendNotification(notification.receiver_id, wsNotification);
-          console.log(`📬 Sent message notification to user ${notification.receiver_id}`);
-        });
+      for (const participant of otherParticipants) {
+        await NotificationService.message(
+          user.id,
+          participant.user_id,
+          conversationId,
+          message.id,
+          content?.trim()
+        );
       }
     }
 
@@ -408,7 +384,7 @@ router.post('/conversations/:conversationId/messages', auth, async (req: AuthReq
 });
 
 // Create or get conversation with another user
-router.post('/conversations', auth, async (req: AuthRequest, res) => {
+router.post('/conversations', auth, validateNotGhosted, async (req: AuthRequest, res) => {
   try {
     const { user } = req;
     const { otherUserId } = req.body;
@@ -419,6 +395,20 @@ router.post('/conversations', auth, async (req: AuthRequest, res) => {
 
     if (!otherUserId) {
       return res.status(400).json({ error: 'Other user ID is required' });
+    }
+
+    // Prevent messaging yourself
+    if (otherUserId === user.id) {
+      return res.status(400).json({ error: 'Cannot message yourself' });
+    }
+
+    // Check if recipient allows messages from this user
+    const messagePermission = await canSendMessage(user.id, otherUserId);
+    if (!messagePermission.allowed) {
+      return res.status(403).json({ 
+        error: messagePermission.reason || 'You cannot send messages to this user',
+        code: 'MESSAGE_NOT_ALLOWED'
+      });
     }
 
     // Check if conversation already exists between these users
@@ -593,7 +583,8 @@ router.get('/users/online', auth, async (req: AuthRequest, res) => {
       username: u.username || 'unknown',
       avatar_url: normalizeImageUrl(u.avatar_url),
       show_online_status: Boolean(u.show_online_status ?? true),
-      isOnline: u.show_online_status ?? true ? onlineUserIds.has(u.id) : false
+      // Only show online status if user allows it
+      isOnline: (u.show_online_status ?? true) ? onlineUserIds.has(u.id) : false
     }));
 
     // Sort: online -> friends -> others -> alphabetical

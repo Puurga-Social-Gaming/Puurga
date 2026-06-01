@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import api from '../../lib/axios';
 import { useUser } from '../../context/UserContext';
 import { useCredits } from '../../hooks/useCredits';
+import { PURGE_THRESHOLD } from '../../constants/purgeConstants';
 import toast from 'react-hot-toast';
 
 interface PurgeActivity {
@@ -44,7 +45,6 @@ interface CreditData {
 }
 
 type TabType = 'given' | 'received';
-const GHOST_THRESHOLD = 5; // Number of purges received before ghosting
 
 const PurgasTab: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>('given');
@@ -227,13 +227,13 @@ const PurgasTab: React.FC = () => {
             <AlertTriangle className="w-5 h-5 text-yellow-500" />
             Ghost Status Risk
           </h3>
-          <span className="text-xs text-muted font-mono">Threshold: {GHOST_THRESHOLD} Purges</span>
+          <span className="text-xs text-muted font-mono">Threshold: {PURGE_THRESHOLD} Purges</span>
         </div>
 
         {(() => {
           const received = purgeData.stats.totalReceived;
-          const remaining = Math.max(0, GHOST_THRESHOLD - received);
-          const percentage = Math.min(100, (received / GHOST_THRESHOLD) * 100);
+          const remaining = Math.max(0, PURGE_THRESHOLD - received);
+          const percentage = Math.min(100, (received / PURGE_THRESHOLD) * 100);
           const isSafe = percentage < 50;
           const isCritical = percentage > 80;
 
@@ -309,7 +309,7 @@ const PurgasTab: React.FC = () => {
                   <button
                     onClick={() => handleRedeemFriend(friend.userId, friend.name)}
                     disabled={redeeming === friend.userId}
-                    className="bg-accent hover:bg-accent-hover text-white text-xs px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1 shadow-sm font-medium"
+                    className="bg-accent hover:opacity-90 text-black text-xs px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1 shadow-sm font-medium"
                   >
                     {redeeming === friend.userId ? <Loader2 className="w-3 h-3 animate-spin" /> : <Heart className="w-3 h-3" />}
                     Redeem

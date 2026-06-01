@@ -205,15 +205,25 @@ const ProfileSettings: React.FC = () => {
 
   const hasChanges = isEditing || formData.currentPassword || formData.newPassword;
 
+  const handleBackdropClick = (e: React.MouseEvent) => {
+    // Dismiss keyboard on mobile when clicking outside input areas
+    if (e.target === e.currentTarget) {
+      const activeElement = document.activeElement as HTMLElement;
+      if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA')) {
+        activeElement.blur();
+      }
+    }
+  };
+
   if (!user) {
     return <div>Loading...</div>; // Or a spinner
   }
 
   return (
     <div className="space-y-6">
-      <h2 className="text-xl font-bold text-white">Profile Settings</h2>
+      <h2 className="text-xl font-bold text-foreground">Profile Settings</h2>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={handleSubmit} className="space-y-6" onClick={handleBackdropClick}>
         {/* Cover Photo Upload */}
         <div className="relative w-full h-48 mb-16 rounded-lg overflow-hidden bg-[#2d2d2d]">
           <img
@@ -224,7 +234,7 @@ const ProfileSettings: React.FC = () => {
           <button
             type="button"
             onClick={handleCoverPhotoClick}
-            className="absolute bottom-4 right-4 p-2 bg-gray-700 rounded-full text-white hover:bg-gray-600"
+            className="absolute bottom-4 right-4 p-2 bg-[var(--accent)] rounded-full text-[var(--fg)] hover:opacity-90"
           >
             <Camera size={16} />
           </button>
@@ -248,7 +258,7 @@ const ProfileSettings: React.FC = () => {
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="absolute bottom-0 right-0 p-2 bg-gray-700 rounded-full text-white hover:bg-gray-600"
+              className="absolute bottom-0 right-0 p-2 bg-[var(--accent)] rounded-full text-[var(--fg)] hover:opacity-90"
             >
               <Camera size={16} />
             </button>
@@ -403,8 +413,8 @@ const ProfileSettings: React.FC = () => {
           type="submit"
           disabled={!hasChanges || saveStatus === 'saving'}
           className={`w-full py-2 rounded-lg flex items-center justify-center space-x-2 ${hasChanges
-              ? 'bg-gray-700 hover:bg-gray-600 text-white'
-              : 'bg-gray-600 text-gray-400 cursor-not-allowed'
+              ? 'bg-accent text-black hover:opacity-90'
+              : 'bg-muted text-white cursor-not-allowed'
             } transition-colors`}
         >
           <Save size={20} />

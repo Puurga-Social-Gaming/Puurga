@@ -6,13 +6,24 @@ import en from './locales/en.json';
 import fr from './locales/fr.json';
 import zu from './locales/zu.json';
 import ss from './locales/ss.json';
+import es from './locales/es.json';
+import pt from './locales/pt.json';
+import sw from './locales/sw.json';
+import zh from './locales/zh.json';
+import ar from './locales/ar.json';
+import hi from './locales/hi.json';
 
-// Define the resources
 const resources = {
     en: { translation: en },
     fr: { translation: fr },
     zu: { translation: zu },
     ss: { translation: ss },
+    es: { translation: es },
+    pt: { translation: pt },
+    sw: { translation: sw },
+    zh: { translation: zh },
+    ar: { translation: ar },
+    hi: { translation: hi },
 };
 
 i18n
@@ -21,9 +32,9 @@ i18n
     .init({
         resources,
         fallbackLng: 'en',
-        supportedLngs: ['en', 'fr', 'zu', 'ss'],
+        supportedLngs: ['en', 'fr', 'zu', 'ss', 'es', 'pt', 'sw', 'zh', 'ar', 'hi'],
         interpolation: {
-            escapeValue: false, // not needed for react as it escapes by default
+            escapeValue: false,
         },
         detection: {
             order: ['localStorage', 'navigator'],

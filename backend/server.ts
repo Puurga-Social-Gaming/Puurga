@@ -12,6 +12,7 @@ if (!process.env.JWT_SECRET) {
 export const JWT_SECRET = process.env.JWT_SECRET;
 // Clear line 12
 import express, { Request, Response, NextFunction } from 'express';
+import compression from 'compression';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
@@ -38,9 +39,16 @@ import testGhostModeRoutes from './routes/testGhostMode';
 import creditsRoutes from './routes/credits';
 import gamesRoutes from './routes/games';
 import purgingRoutes from './routes/purging';
+import purgesRoutes from './routes/purges';
+import purgatoryRoutes from './routes/purgatory';
+import survivalRoutes from './routes/survival';
+import allianceRoutes from './routes/alliances';
 import superadminRoutes from './routes/superadmin';
+import mediaRoutes from './routes/media';
 import securityRoutes from './routes/security';
+import linksRoutes from './routes/links';
 import { errorHandler } from './middleware/errorHandler';
+import { PushNotificationService } from './services/pushNotificationService';
 
 
 
@@ -62,6 +70,9 @@ app.use(helmet({
   },
   crossOriginEmbedderPolicy: false
 }));
+
+// Enable gzip/brotli compression for all responses
+app.use(compression());
 
 const PORT = process.env.PORT ? Number(process.env.PORT) : 3005;
 
@@ -93,15 +104,22 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
-// Body parsing middleware
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// Body parsing middleware - increased limit for status uploads with images
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Serve uploaded files statically
 const storagePath = path.resolve(__dirname, '..', 'storage', 'media', 'uploads');
 const fallbackStoragePath = path.resolve(__dirname, '..', '..', 'storage', 'media', 'uploads');
+const backendUploadsPath = path.resolve(__dirname, 'uploads');
 
-app.use('/uploads', express.static(fs.existsSync(storagePath) ? storagePath : fallbackStoragePath, {
+const getStaticUploadPath = () => {
+  if (fs.existsSync(backendUploadsPath)) return backendUploadsPath;
+  if (fs.existsSync(storagePath)) return storagePath;
+  return fallbackStoragePath;
+};
+
+app.use('/uploads', express.static(getStaticUploadPath(), {
   setHeaders: (res) => {
     res.set('Access-Control-Allow-Origin', '*');
     res.set('Access-Control-Allow-Methods', 'GET');
@@ -137,6 +155,10 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 
 // Health check endpoint
 app.get('/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
@@ -218,11 +240,29 @@ app.use('/api/purging', purgingRoutes);
 // Use games routes
 app.use('/api/games', gamesRoutes);
 
+// Use purges routes (Phase 2 purge engine)
+app.use('/api/purges', purgesRoutes);
+
+// Use purgatory routes (Phase 3 purgatory system)
+app.use('/api/purgatory', purgatoryRoutes);
+
+// Use survival routes
+app.use('/api/survival', survivalRoutes);
+
+// Use alliance routes (Phase 4)
+app.use('/api/alliances', allianceRoutes);
+
 // Use settings routes
 app.use('/api/settings', settingsRoutes);
 
 // Use superadmin routes
 app.use('/api/admin', superadminRoutes);
+
+// Use media routes
+app.use('/api/media', mediaRoutes);
+
+// Use links routes
+app.use('/api/links', linksRoutes);
 
 // Global Error Handler (Must be last)
 app.use(errorHandler);
@@ -233,8 +273,24 @@ const server = createServer(app);
 const wsManager = WebSocketManager.getInstance();
 wsManager.initialize(server);
 
+// Start inactivity scheduler (runs every 24 hours)
+import { InactivityService } from './services/inactivityService';
+void InactivityService.startScheduler(24);
+
 // Export wsManager for use in other modules
 export { wsManager };
+
+// Initialize Push Notification service if VAPID keys are available
+if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
+  PushNotificationService.initialize(
+    process.env.VAPID_PUBLIC_KEY,
+    process.env.VAPID_PRIVATE_KEY
+  );
+} else {
+  console.log('ℹ️ VAPID keys not set. Push notifications disabled.');
+  console.log('   Set VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY in .env');
+  console.log('   Generate keys: npx web-push generate-vapid-keys');
+}
 
 const startServer = async () => {
   try {

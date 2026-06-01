@@ -1,6 +1,7 @@
 import { Response, NextFunction } from 'express';
 import { supabase } from '../config/supabase';
 import { AuthRequest } from './supabaseAuth';
+import { PURGE_THRESHOLD } from '../constants/purgeConstants';
 
 export const checkGhostMode = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
@@ -34,7 +35,7 @@ export const checkGhostMode = async (req: AuthRequest, res: Response, next: Next
         ghostMode: true,
         purgeCount: profile.purge_count,
         ghostedAt: profile.ghosted_at,
-        message: 'Your account has been frozen due to receiving 5+ purges. You need to be redeemed by another user with credits to restore your account.'
+        message: `Your account has been frozen due to receiving ${PURGE_THRESHOLD}+ purges. You need to be redeemed by another user with credits to restore your account.`
       });
     }
 

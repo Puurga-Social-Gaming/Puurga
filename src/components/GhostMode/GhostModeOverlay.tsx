@@ -25,7 +25,7 @@ const GhostModeOverlay: React.FC<GhostModeOverlayProps> = ({ purgeCount, ghosted
 
   return (
     <>
-      <div className={`fixed inset-0 z-[9999] transition-all duration-500 pointer-events-none`}>
+      <div className={`fixed inset-0 z-toast transition-all duration-500 pointer-events-none`}>
         {/* Background Visuals - Always present but transparent when dismissed */}
         <div className="absolute inset-0 transition-opacity duration-500 opacity-100">
           <div className={`absolute inset-0 bg-black/${dismissed ? '45' : '70'}`} />

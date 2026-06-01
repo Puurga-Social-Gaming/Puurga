@@ -4,6 +4,8 @@ import { useWebSocket } from '../hooks/useWebSocket';
 import { websocketService } from '../services/websocketService';
 
 // Types
+export type AccountStatus = 'active' | 'warned' | 'penalized' | 'restricted';
+
 export interface User {
   id: string;
   name: string;
@@ -39,10 +41,17 @@ export interface User {
     following: number;
     posts: number;
     puurgas: number;
+    purges: number;
+    credits: number;
   };
   credits: number;
+  purga_points?: number;
   isGhost?: boolean;
   purgeCount?: number;
+  // Credit system fields
+  accountStatus?: AccountStatus;
+  inactivityLevel?: number;
+  lastActiveAt?: string;
 }
 
 interface UserContextType {
@@ -75,6 +84,58 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
       if (sessionError || !session) {
+        // Fallback: check if we have a token in localStorage from a previous session
+        // This handles cases where Supabase session hasn't restored yet on page load
+        const storedToken = localStorage.getItem('token');
+        const storedUser = localStorage.getItem('user');
+        
+        if (storedToken && storedUser) {
+          console.log('Restoring user from localStorage fallback');
+          try {
+            const userData = JSON.parse(storedUser);
+            const normalized = {
+              id: userData.id,
+              name: userData.full_name ?? userData.name ?? '',
+              username: userData.username ?? '',
+              email: userData.email ?? '',
+              avatar: userData.avatar_url ?? userData.avatar ?? null,
+              coverPhoto: userData.cover_photo ?? userData.coverPhoto ?? null,
+              bio: userData.bio ?? '',
+              location: userData.location ?? '',
+              website: userData.website ?? '',
+              createdAt: userData.created_at ?? userData.createdAt ?? new Date().toISOString(),
+              role: userData.role ?? 'user',
+              isBlocked: userData.is_blocked ?? false,
+              isOnline: userData.isOnline ?? false,
+              isFriend: userData.isFriend ?? false,
+              occupation: userData.occupation ?? '',
+              education: userData.education ?? '',
+              relationship: userData.relationship ?? '',
+              isPrivate: userData.is_private ?? false,
+              hideFromSuggestions: userData.hide_from_suggestions ?? false,
+              messageRequests: userData.message_requests ?? 'everyone',
+              showReadReceipts: userData.show_read_receipts ?? true,
+              showOnlineStatus: userData.show_online_status ?? true,
+              commentPrivacy: userData.comment_privacy ?? 'everyone',
+              storyPrivacy: userData.story_privacy ?? 'everyone',
+              isVerified: userData.isVerified ?? false,
+              joinDate: userData.joinDate ?? userData.created_at ?? undefined,
+              postCount: userData.postCount ?? 0,
+              totalLikes: userData.totalLikes ?? 0,
+              stats: userData.stats ?? { posts: 0, followers: 0, following: 0, puurgas: 0, purges: 0, credits: userData.purga_points ?? userData.credits ?? 0 },
+              credits: userData.purga_points ?? userData.credits ?? 0,
+              purga_points: userData.purga_points ?? userData.credits ?? 0,
+              isGhost: userData.is_ghost ?? userData.isGhost ?? false,
+              purgeCount: userData.purge_count ?? userData.purgeCount ?? 0,
+            } as User;
+            setUser(normalized);
+            setLoading(false);
+            return;
+          } catch (e) {
+            console.error('Failed to parse stored user:', e);
+          }
+        }
+        
         console.log('No valid Supabase session found, clearing local data');
         localStorage.removeItem('token');
         localStorage.removeItem('user');
@@ -124,8 +185,9 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
                 joinDate: userData.joinDate ?? userData.created_at ?? undefined,
                 postCount: userData.postCount ?? 0,
                 totalLikes: userData.totalLikes ?? 0,
-                stats: userData.stats ?? { posts: 0, followers: 0, following: 0, puurgas: 0 },
-                credits: userData.credits ?? 0,
+                stats: userData.stats ?? { posts: 0, followers: 0, following: 0, puurgas: 0, purges: 0, credits: userData.purga_points ?? userData.credits ?? 0 },
+                credits: userData.purga_points ?? userData.credits ?? 0,
+                purga_points: userData.purga_points ?? userData.credits ?? 0,
                 isGhost: userData.is_ghost ?? userData.isGhost ?? false,
                 purgeCount: userData.purge_count ?? userData.purgeCount ?? 0,
               } as User;
@@ -196,8 +258,9 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
               joinDate: mergedData.joinDate ?? mergedData.created_at ?? undefined,
               postCount: mergedData.postCount ?? 0,
               totalLikes: mergedData.totalLikes ?? 0,
-              stats: mergedData.stats ?? { posts: 0, followers: 0, following: 0, puurgas: 0 },
-              credits: mergedData.credits ?? 0,
+              stats: mergedData.stats ?? { posts: 0, followers: 0, following: 0, puurgas: 0, purges: 0, credits: mergedData.purga_points ?? mergedData.credits ?? 0 },
+              credits: mergedData.purga_points ?? mergedData.credits ?? 0,
+              purga_points: mergedData.purga_points ?? mergedData.credits ?? 0,
               isGhost: mergedData.is_ghost ?? mergedData.isGhost ?? false,
               purgeCount: mergedData.purge_count ?? mergedData.purgeCount ?? 0,
             } as User;
@@ -222,13 +285,19 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
     // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event: any, session: any) => {
       console.log('Auth state changed:', event, session?.user?.id);
-      if (event === 'SIGNED_OUT' || event === 'TOKEN_REFRESHED') {
+      if (event === 'SIGNED_OUT') {
         localStorage.removeItem('user');
-        if (event === 'SIGNED_OUT') {
-          setUser(null);
+        localStorage.removeItem('token');
+        setUser(null);
+      } else if (event === 'TOKEN_REFRESHED') {
+        // Update the stored token so axios always sends the fresh JWT
+        if (session?.access_token) {
+          localStorage.setItem('token', session.access_token);
+          console.log('Token refreshed and updated in localStorage');
         }
+        localStorage.removeItem('user'); // Triggers re-fetch of profile on next initializeUser
       }
-      if (session) {
+      if (session && event !== 'SIGNED_OUT') {
         // Re-initialize user when auth state changes
         initializeUser();
       }

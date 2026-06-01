@@ -4,6 +4,7 @@ import { toast } from 'react-hot-toast';
 import { useUser } from '../context/UserContext';
 import { supabase } from '../lib/supabaseClient';
 import { websocketService } from '../services/websocketService';
+import { signInWithGoogle as googleOAuthSignIn } from '../lib/googleAuth';
 
 export const useAuth = () => {
   const [loading, setLoading] = useState(false);
@@ -321,6 +322,19 @@ export const useAuth = () => {
     }
   }, [setUser, navigate]);
 
+  const signInWithGoogle = useCallback(async () => {
+    try {
+      setLoading(true);
+      await googleOAuthSignIn();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Google sign-in failed';
+      toast.error(message);
+      throw new Error(message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   const forgotPassword = useCallback(async (email: string) => {
     try {
       setLoading(true);
@@ -343,6 +357,7 @@ export const useAuth = () => {
     register,
     login,
     logout,
+    signInWithGoogle,
     forgotPassword,
     loading
   };

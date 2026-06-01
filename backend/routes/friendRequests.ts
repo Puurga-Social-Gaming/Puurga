@@ -2,6 +2,7 @@ import express from 'express';
 import { supabase } from '../config/supabase';
 import { supabaseAuth as auth, AuthRequest } from '../middleware/supabaseAuth';
 import { createNotification } from './createNotification';
+import { validateNotGhosted } from '../middleware/restrictGhosted';
 
 const router = express.Router();
 
@@ -16,7 +17,7 @@ const getErrDetails = (err: any) => {
 };
 
 // Send a friend request
-router.post('/send', auth, async (req: AuthRequest, res) => {
+router.post('/send', auth, validateNotGhosted, async (req: AuthRequest, res) => {
   try {
     const { user } = req;
     const { receiverId } = req.body;

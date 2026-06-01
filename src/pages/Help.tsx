@@ -93,7 +93,7 @@ const Help: React.FC = () => {
                 <p className="flex items-center gap-2"><Mail size={16} /> <span>support@puurga.com</span></p>
                 <p className="flex items-center gap-2"><Phone size={16} /> <span>+27 12 345 6789</span></p>
                 <Link to="/messages" className="block w-full mt-4">
-                  <button className="w-full py-2 px-4 bg-accent text-white rounded-lg hover:bg-accent-hover transition-colors font-medium">
+                  <button className="w-full py-2 px-4 bg-accent text-black rounded-lg hover:opacity-90 transition-colors font-medium">
                     Send a Direct Message
                   </button>
                 </Link>

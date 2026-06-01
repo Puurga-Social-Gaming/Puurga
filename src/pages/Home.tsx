@@ -1,18 +1,21 @@
-import { useEffect, useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useUser } from '../context/UserContext';
 import { useNavigate } from 'react-router-dom';
 import { Post, ReactionCount } from '../types';
 import PostList from '../components/Post/PostList';
 import StatusBar from '../components/StatusBar/StatusBar';
+import NewGamePromoBanner from '../components/Games/NewGamePromoBanner';
 import api from '../api/api';
 import { toast } from 'react-hot-toast';
 import { supabase } from '../lib/supabaseClient';
 import FloatingCreateButton from '../components/Post/FloatingCreateButton';
+import PullToRefresh from '../components/PullToRefresh/PullToRefresh';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import '../styles/neo-home.css';
+
 import RedeemUserButton from '../components/GhostMode/RedeemUserButton';
 
 
@@ -77,6 +80,7 @@ function mapBackendPost(post: unknown): Post {
         })
         : [],
       visibility: (p.visibility as 'friends' | 'public' | 'private') || 'public',
+      background_index: (p.background_index as number) || 0,
       // Ensure images array is clean and valid
       images: typeof p.media_url === 'string'
         ? (p.media_url as string)
@@ -146,6 +150,9 @@ export default function Home() {
   const [currentTipIndex, setCurrentTipIndex] = useState(0);
   const [userPoints, setUserPoints] = useState(0);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isStatusViewerOpen, setIsStatusViewerOpen] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const sentinelRef = useRef<HTMLDivElement>(null);
 
   // Games data
   const games = [
@@ -158,7 +165,7 @@ export default function Home() {
       players: '1.2K',
       rating: 4.8,
       available: true,
-      link: '/new-game'
+      link: '/puurga-games'
     },
     {
       id: 'redemption',
@@ -180,7 +187,29 @@ export default function Home() {
       players: '150',
       rating: 5.0,
       available: true,
-      link: '/new-game'
+      link: '/next-game'
+    },
+    {
+      id: 'purga-rift',
+      name: 'Purga Rift',
+      description: 'Decode dimension patterns and survive the rift storms.',
+      image: '/images/games/purga-rift-cover.svg',
+      color: 'purple',
+      players: '480',
+      rating: 4.9,
+      available: true,
+      link: '/puurga-games?play=purga-rift'
+    },
+    {
+      id: 'puurga-slot-2',
+      name: 'Cyber Runner',
+      description: 'Run, slash, and survive through five network phases.',
+      image: '/images/games/cyber-runner-cover.svg',
+      color: 'orange',
+      players: '1.2K',
+      rating: 4.8,
+      available: true,
+      link: '/puurga-games?play=puurga-slot-2'
     }
   ];
 
@@ -223,11 +252,8 @@ export default function Home() {
   }, []);
 
   const handleGameSelect = (gameId: string) => {
-    // Determine target route based on game
-    if (gameId === 'judgment') navigate('/puurga-games');
-    else if (gameId === 'redemption') navigate('/new-game');
-    else if (gameId === 'watchman') navigate('/next-game');
-    else navigate('/puurga-games');
+    const match = games.find((g) => g.id === gameId);
+    navigate(match?.link ?? '/puurga-games');
   };
 
   const fetchGhostedFriends = async () => {
@@ -249,11 +275,34 @@ export default function Home() {
     fetchGhostedFriends();
   }, [user]);
 
+  // Refresh user stats from API
+  const refreshUserStats = async () => {
+    if (!user) return;
+    try {
+      const { data } = await api.get('/users/profile');
+      if (data.stats) {
+        updateUser({
+          stats: {
+            followers: data.stats.followers || 0,
+            following: data.stats.following || 0,
+            posts: data.stats.posts || 0,
+            puurgas: data.stats.puurgas || 0,
+            purges: data.stats.purges || 0,
+            credits: data.stats.credits || user.credits
+          }
+        });
+      }
+    } catch (error) {
+      console.error('Error refreshing user stats:', error);
+    }
+  };
+
   // Real-time updates
   useWebSocket({
     onCreditUpdate: (payload) => {
       if (user && payload.userId === user.id) {
         setUserPoints(payload.credits);
+        refreshUserStats();
       }
     },
     onProfileUpdate: (payload) => {
@@ -261,10 +310,7 @@ export default function Home() {
       fetchGhostedFriends();
       // If the current user was redeemed/ghosted, they might need to know too
       if (user && payload.userId === user.id) {
-        // Points might have changed too
-        api.get('/users/points').then(res => {
-          if (res.data.supported) setUserPoints(res.data.points);
-        });
+        refreshUserStats();
       }
     }
   });
@@ -303,6 +349,7 @@ export default function Home() {
   }, []);
 
   const fetchPosts = async (pageNum: number) => {
+    console.log('[Infinite Scroll] fetchPosts called:', { pageNum, hasMore, isLoadingMore });
     try {
       setLoading(true);
       const limit = 10;
@@ -311,29 +358,34 @@ export default function Home() {
       const data = Array.isArray(response.data) ? response.data : (response.data?.data ?? []);
 
       const mappedPosts = (Array.isArray(data) ? data : []).map(mapBackendPost);
+      console.log('[Infinite Scroll] Fetched posts:', mappedPosts.length, 'Page:', pageNum, 'Expected:', limit);
 
       if (mappedPosts.length < limit) {
         setHasMore(false);
+        console.log('[Infinite Scroll] No more posts available, set hasMore to false');
       } else {
         setHasMore(true);
+        console.log('[Infinite Scroll] More posts available, set hasMore to true');
       }
 
       setPosts(prev => {
         // If refreshing page 1, replace. Otherwise append.
         if (pageNum === 1) {
+          console.log('[Infinite Scroll] Replacing posts with page 1 data');
           return mappedPosts;
         }
 
         // Prevent duplicates when appending
         const existingIds = new Set(prev.map(p => p.id));
         const uniqueNewPosts = mappedPosts.filter(p => !existingIds.has(p.id));
+        console.log('[Infinite Scroll] Appending posts:', uniqueNewPosts.length, 'Total posts after append:', prev.length + uniqueNewPosts.length);
         return [...prev, ...uniqueNewPosts];
       });
 
       setPage(pageNum);
       setError(null);
     } catch (err) {
-      console.error('Error fetching posts:', err);
+      console.error('[Infinite Scroll] Error fetching posts:', err);
       if (pageNum === 1) {
         setError(t('posts.failedToFetch'));
       } else {
@@ -341,14 +393,48 @@ export default function Home() {
       }
     } finally {
       setLoading(false);
+      setIsLoadingMore(false);
+      console.log('[Infinite Scroll] fetchPosts completed');
     }
   };
 
   const handleLoadMore = () => {
-    if (hasMore) {
+    console.log('[Infinite Scroll] handleLoadMore called:', { hasMore, isLoadingMore, page });
+    if (hasMore && !isLoadingMore) {
+      console.log('[Infinite Scroll] Starting load more for page:', page + 1);
+      setIsLoadingMore(true);
       fetchPosts(page + 1);
+    } else {
+      console.log('[Infinite Scroll] Cannot load more:', { hasMore, isLoadingMore });
     }
   };
+
+  // Infinite scroll with Intersection Observer
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !isLoadingMore && !loading) {
+          handleLoadMore();
+        }
+      },
+      {
+        root: null,
+        rootMargin: '200px',
+        threshold: 0.1
+      }
+    );
+
+    const sentinel = sentinelRef.current;
+    if (sentinel) {
+      observer.observe(sentinel);
+    }
+
+    return () => {
+      if (sentinel) {
+        observer.unobserve(sentinel);
+      }
+    };
+  }, [hasMore, isLoadingMore, loading, page]);
 
   const handlePostCreated = async (newPost: unknown) => {
     const mapped = mapBackendPost(newPost);
@@ -377,71 +463,185 @@ export default function Home() {
   };
 
   return (
-    <div className="neo-home relative w-full min-h-screen overflow-x-hidden">
-      {/* Background orbs */}
-      <div className="neo-orb neo-orb--1" />
-      <div className="neo-orb neo-orb--2" />
+    <>
+    <PullToRefresh onRefresh={() => fetchPosts(1)}>
+    <div className="relative w-full">
+      {/* Status Bar — scrolls with content, hides under the fixed header */}
+      <div className="w-full px-3 sm:px-6 pt-4 pb-2">
+        <NewGamePromoBanner className="mb-3" />
+        <StatusBar onViewerStateChange={setIsStatusViewerOpen} />
 
-      {/* Fixed header covering full top area */}
-      <div className="neo-sticky">
-        <div className="max-w-4xl mx-auto w-full px-3 sm:px-0">
-          <StatusBar />
+        {/* Smart Bar — swipeable mini carousel */}
+        <div className="mt-2 flex justify-center">
+          {(() => {
+            const userPurges = user?.stats?.purges || 0;
+            const dangerLevel = userPurges >= 15 ? 'CRITICAL' : userPurges >= 10 ? 'HIGH' : userPurges >= 5 ? 'MED' : 'LOW';
+            const dangerColor = userPurges >= 15 ? 'text-red-500' : userPurges >= 10 ? 'text-orange-500' : userPurges >= 5 ? 'text-yellow-500' : 'text-green-500';
+            const ghostedCount = ghostedFriends.length;
+            const rank = (user?.credits || 0) > 500 ? 'Elite' : (user?.credits || 0) > 200 ? 'Survivor' : 'Initiate';
+            const atRiskCount = ghostedFriends.filter((f: any) => (f.purgeCount || 0) < 20 && (f.purgeCount || 0) >= 10).length;
+
+            const items = [
+              {
+                label: 'Danger',
+                value: dangerLevel,
+                color: dangerColor,
+                icon: (
+                  <svg key="danger" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={dangerColor}>
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+                  </svg>
+                ),
+              },
+              {
+                label: 'Ghosted',
+                value: `${ghostedCount}`,
+                color: ghostedCount > 0 ? 'text-red-400' : 'text-muted',
+                icon: (
+                  <svg key="ghosted" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={ghostedCount > 0 ? 'text-red-400' : 'text-muted'}>
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+                  </svg>
+                ),
+              },
+              {
+                label: 'At Risk',
+                value: `${atRiskCount}`,
+                color: atRiskCount > 0 ? 'text-orange-400' : 'text-muted',
+                icon: (
+                  <svg key="risk" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={atRiskCount > 0 ? 'text-orange-400' : 'text-muted'}>
+                    <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                  </svg>
+                ),
+              },
+              {
+                label: 'Purges',
+                value: `${userPurges}/20`,
+                color: 'text-red-500',
+                icon: (
+                  <svg key="purges" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-red-500">
+                    <path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/>
+                  </svg>
+                ),
+              },
+              {
+                label: 'Rank',
+                value: rank,
+                color: 'text-accent',
+                icon: (
+                  <svg key="rank" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-accent">
+                    <circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/>
+                  </svg>
+                ),
+              },
+            ];
+
+            const [slideIdx, setSlideIdx] = useState(0);
+            const [isDragging, setIsDragging] = useState(false);
+            const autoPlayDelay = 3200;
+            const totalSlides = items.length;
+            const carouselRef = useRef<HTMLDivElement>(null);
+
+            useEffect(() => {
+              const timer = setInterval(() => {
+                if (!isDragging) setSlideIdx(prev => (prev + 1) % totalSlides);
+              }, autoPlayDelay);
+              return () => clearInterval(timer);
+            }, [isDragging, totalSlides]);
+
+            return (
+              <div
+                className="w-full overflow-hidden cursor-grab active:cursor-grabbing select-none"
+                onMouseDown={() => setIsDragging(true)}
+                onMouseUp={() => setTimeout(() => setIsDragging(false), 500)}
+                onMouseLeave={() => setIsDragging(false)}
+                ref={carouselRef}
+              >
+                <motion.div
+                  className="flex"
+                  animate={{ x: `-${slideIdx * 100}%` }}
+                  transition={{ type: 'spring', stiffness: 250, damping: 28 }}
+                  drag="x"
+                  dragConstraints={carouselRef}
+                  dragElastic={0.1}
+                  onDragStart={() => setIsDragging(true)}
+                  onDragEnd={(_, info) => {
+                    const threshold = 30;
+                    if (info.offset.x < -threshold && slideIdx < totalSlides - 1) {
+                      setSlideIdx(slideIdx + 1);
+                    } else if (info.offset.x > threshold && slideIdx > 0) {
+                      setSlideIdx(slideIdx - 1);
+                    }
+                    setTimeout(() => setIsDragging(false), 800);
+                  }}
+                >
+                  {items.map((item, i) => (
+                    <div
+                      key={i}
+                      className="min-w-full flex items-center justify-center px-3 py-1.5 bg-gradient-to-r from-orange-500/10 via-purple-500/10 to-blue-500/10 rounded-lg border border-orange-500/20 text-xs font-semibold text-foreground shadow-theme-sm"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polygon points="23 7 16 12 23 17 23 7"></polygon>
+                        <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
+                      </svg>
+                      <span className="hidden sm:inline ml-1.5">Smart Arena</span>
+                      <span className="text-accent font-bold ml-1.5">{userPoints}</span>
+                      <span className="text-muted-foreground text-[10px] ml-0.5">pts</span>
+                      <span className="mx-1.5 text-muted-foreground/30">|</span>
+                      <span className="text-[9px] text-muted-foreground uppercase tracking-wider mr-1">{item.label}:</span>
+                      <span className={`text-xs font-bold ${item.color}`}>{item.value}</span>
+                    </div>
+                  ))}
+                </motion.div>
+
+                {/* Dots */}
+                <div className="flex items-center justify-center gap-1 mt-1">
+                  {items.map((_, i) => (
+                    <button
+                      key={i}
+                      onClick={() => { setSlideIdx(i); setIsDragging(true); setTimeout(() => setIsDragging(false), 1500); }}
+                      className={`transition-all duration-300 rounded-full ${
+                        i === slideIdx ? 'w-3 h-1 bg-foreground/60' : 'w-1 h-1 bg-foreground/20'
+                      }`}
+                    />
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
         </div>
       </div>
 
-      {/* Top fade to prevent content showing underneath fixed header */}
-      <div className="neo-top-fade" />
-
-      {/* Main content with mobile two-column layout */}
-      <div className="pt-16 sm:pt-20 lg:pt-24" style={{ paddingTop: 'calc(4rem + env(safe-area-inset-top, 0))' }}>
-        <div className="max-w-4xl mx-auto w-full px-3 sm:px-0 relative">
-          {/* Mobile Two-Column Layout with Independent Scrolling */}
-          <div className="lg:hidden flex h-[calc(100vh-6rem-env(safe-area-inset-top,0))]">
-            {/* Left Column - Posts Feed (Wider) */}
-            <div 
-              className="flex-1 min-w-0 pr-2 overflow-y-auto scrollbar-hide"
-              style={{ overscrollBehavior: 'contain' }}
-            >
-              <div className="neo-feed-mask">
-                {loading ? (
-                  <div className="py-20 flex justify-center">
-                    {/* Empty or minimal loader */}
-                  </div>
-                ) : error ? (
-                  <div className="bg-red-500/10 border border-red-500/50 text-red-500 p-4 rounded-xl text-center shadow-[0_4px_16px_rgba(156,163,175,0.3),0_2px_8px_rgba(156,163,175,0.2)] dark:shadow-none">
-                    {error}
-                  </div>
-                ) : (
-                  <PostList
-                    posts={posts}
-                    onPostUpdate={handlePostUpdate}
-                  />
-                )}
-
-                {hasMore && !loading && !error && (
-                  <div className="py-6 flex justify-center pb-20">
-                    <button
-                      onClick={handleLoadMore}
-                      disabled={loading}
-                      className="px-6 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full text-sm font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-[0_4px_12px_rgba(156,163,175,0.25),0_2px_6px_rgba(156,163,175,0.15)] dark:shadow-none"
-                    >
-                      {loading ? (
-                        <>
-                          <div className="w-4 h-4 border-2 border-white/50 border-t-white rounded-full animate-spin" />
-                          {t('posts.loading')}
-                        </>
-                      ) : (
-                        t('posts.loadMore')
-                      )}
-                    </button>
-                  </div>
-                )}
-              </div>
+      {/* Main content */}
+      <div className="w-full px-3 sm:px-6 relative">
+        {/* Mobile Layout */}
+        <div className="lg:hidden">
+          {loading && posts.length === 0 ? (
+            <div className="py-20 flex justify-center">
+              <div className="w-8 h-8 border-4 border-accent border-t-transparent rounded-full animate-spin" />
             </div>
+          ) : error ? (
+            <div className="bg-red-500/10 border border-red-500/50 text-red-500 p-4 rounded-xl text-center">
+              {error}
+            </div>
+          ) : (
+            <>
+              <PostList
+                posts={posts}
+                onPostUpdate={handlePostUpdate}
+              />
+              {isLoadingMore && hasMore && (
+                <div className="py-6 flex justify-center pb-20">
+                  <div className="w-6 h-6 border-3 border-accent border-t-transparent rounded-full animate-spin" />
+                </div>
+              )}
+              <div ref={sentinelRef} className="h-8" />
+            </>
+          )}
 
             {/* Mobile Sidebar Drawer */}
-            <AnimatePresence>
-              {sidebarOpen && (
+            {createPortal(
+              <>
+              <AnimatePresence>
+                {sidebarOpen && (
                 <>
                   {/* Backdrop */}
                   <motion.div
@@ -452,18 +652,18 @@ export default function Home() {
                     className="fixed inset-0 bg-black/30 z-[54] lg:hidden"
                     onClick={() => setSidebarOpen(false)}
                   />
-                  {/* Sidebar Drawer */}
-                  <motion.div
-                    initial={{ x: '100%' }}
-                    animate={{ x: 0 }}
-                    exit={{ x: '100%' }}
-                    transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-                    className="fixed right-0 top-0 bottom-0 w-48 z-[55] lg:hidden overflow-hidden bg-background"
-                  >
-                    <div 
-                      className="h-full overflow-y-auto scrollbar-hide pt-20 pb-4"
-                      style={{ overscrollBehavior: 'contain' }}
-                    >
+                   {/* Sidebar Drawer */}
+                   <motion.div
+                     initial={{ x: '100%' }}
+                     animate={{ x: 0 }}
+                     exit={{ x: '100%' }}
+                     transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+                     className="fixed right-0 top-0 bottom-0 w-48 z-[55] lg:hidden overflow-hidden bg-background"
+                   >
+                     <div
+                       className="h-full overflow-y-auto scrollbar-hide pt-14 pb-4"
+                       style={{ overscrollBehavior: 'contain' }}
+                     >
                       {/* PUURGA GAMES Section - Enhanced with Professional Gradients */}
                       <div className="relative">
                         {/* Subtle Gradient Background */}
@@ -594,61 +794,60 @@ export default function Home() {
             </AnimatePresence>
 
             {/* Floating Toggle Button - Always visible on mobile */}
-            <button
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="fixed right-3 top-1/2 -translate-y-1/2 z-[60] lg:hidden w-10 h-10 rounded-full bg-card border border-border shadow-theme-md hover:shadow-theme-lg flex items-center justify-center transition-all duration-300 hover:scale-110"
-            >
-              {sidebarOpen ? (
-                <ChevronLeft className="w-5 h-5 text-foreground" />
-              ) : (
-                <ChevronRight className="w-5 h-5 text-foreground" />
-              )}
-            </button>
+            {!isStatusViewerOpen && (
+              <button
+                onClick={() => setSidebarOpen(!sidebarOpen)}
+                className="fixed right-3 top-1/2 -translate-y-1/2 z-[60] lg:hidden flex flex-col items-center gap-1 w-16 h-16 min-h-[44px] rounded-full bg-transparent border-transparent shadow-none flex items-center justify-center transition-all duration-300 hover:scale-110"
+              >
+                {sidebarOpen ? (
+                  <ChevronLeft className="w-5 h-5 text-foreground" />
+                ) : (
+                  <ChevronRight className="w-5 h-5 text-foreground" />
+                )}
+                <span className="text-[10px] font-medium text-foreground uppercase tracking-wide leading-none">
+                  Games
+                </span>
+              </button>
+            )}
+            </>,
+            document.body
+          )}
           </div>
 
-          {/* Desktop Layout - Original Single Column */}
-          <div className="hidden lg:block">
-            <div className="neo-feed-mask">
-              {loading ? (
-                <div className="py-20 flex justify-center">
-                  {/* Empty or minimal loader */}
-                </div>
-              ) : error ? (
-                <div className="bg-red-500/10 border border-red-500/50 text-red-500 p-4 rounded-xl text-center shadow-[0_4px_16px_rgba(156,163,175,0.3),0_2px_8px_rgba(156,163,175,0.2)] dark:shadow-none">
-                  {error}
-                </div>
-              ) : (
-                <PostList
-                  posts={posts}
-                  onPostUpdate={handlePostUpdate}
-                />
-              )}
-
-              {hasMore && !loading && !error && (
-                <div className="py-6 flex justify-center pb-20">
-                  <button
-                    onClick={handleLoadMore}
-                    disabled={loading}
-                    className="px-6 py-2 bg-card border border-border hover:bg-highlight-light rounded-full text-sm font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-theme-md hover:shadow-theme-lg"
-                  >
-                    {loading ? (
-                      <>
-                        <div className="w-4 h-4 border-2 border-accent border-t-transparent rounded-full animate-spin" />
-                        {t('posts.loading')}
-                      </>
-                    ) : (
-                      t('posts.loadMore')
-                    )}
-                  </button>
-                </div>
-              )}
+        {/* Desktop Layout */}
+        <div className="hidden lg:block">
+          {loading && posts.length === 0 ? (
+            <div className="py-20 flex justify-center">
+              <div className="w-8 h-8 border-4 border-accent border-t-transparent rounded-full animate-spin" />
             </div>
-          </div>
+          ) : error ? (
+            <div className="bg-red-500/10 border border-red-500/50 text-red-500 p-4 rounded-xl text-center">
+              {error}
+            </div>
+          ) : (
+            <>
+              <PostList
+                posts={posts}
+                onPostUpdate={handlePostUpdate}
+              />
+              {isLoadingMore && hasMore && (
+                <div className="py-6 flex justify-center pb-20">
+                  <div className="w-6 h-6 border-3 border-accent border-t-transparent rounded-full animate-spin" />
+                </div>
+              )}
+              <div ref={sentinelRef} className="h-8" />
+            </>
+          )}
         </div>
       </div>
 
+      </div>
+    </PullToRefresh>
+
       {/* Floating Create Post Button */}
-      <FloatingCreateButton onPostCreated={handlePostCreated} />
-    </div>
+      {!isStatusViewerOpen && (
+        <FloatingCreateButton onPostCreated={handlePostCreated} />
+      )}
+    </>
   );
 }

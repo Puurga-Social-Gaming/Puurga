@@ -42,11 +42,11 @@ const LocationPicker: React.FC<LocationPickerProps> = ({ onLocationSelect, onClo
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-[#1a1a1a] rounded-xl w-full max-w-md mx-4 overflow-hidden">
-        <div className="flex items-center justify-between p-4 border-b border-[#2d2d2d]">
-          <h2 className="text-lg font-semibold text-white">Add Location</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-white">
+    <div className="fixed inset-0 bg-foreground/50 flex items-center justify-center z-modal">
+      <div className="bg-card rounded-xl w-full max-w-md mx-4 overflow-hidden border border-border">
+        <div className="flex items-center justify-between p-4 border-b border-border">
+          <h2 className="text-lg font-semibold text-foreground">Add Location</h2>
+          <button onClick={onClose} className="text-muted hover:text-foreground">
             <X size={20} />
           </button>
         </div>
@@ -58,13 +58,13 @@ const LocationPicker: React.FC<LocationPickerProps> = ({ onLocationSelect, onClo
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search location..."
-              className="flex-1 bg-[#2d2d2d] text-white rounded-lg px-4 py-2"
+              className="flex-1 bg-input text-foreground rounded-lg px-4 py-2 border border-input-border"
               onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
             />
             <button
               onClick={handleSearch}
               disabled={isSearching}
-              className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50"
+              className="px-4 py-2 bg-accent text-black rounded-lg hover:opacity-90 disabled:opacity-50"
             >
               {isSearching ? 'Searching...' : <Search size={20} />}
             </button>
@@ -79,4 +79,4 @@ const LocationPicker: React.FC<LocationPickerProps> = ({ onLocationSelect, onClo
   );
 };
 
-export default LocationPicker; 
+export default LocationPicker;

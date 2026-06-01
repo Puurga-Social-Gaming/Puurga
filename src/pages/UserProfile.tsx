@@ -15,7 +15,8 @@ import {
   MessageSquare,
   Share2,
   Flame,
-  Zap
+  Zap,
+  Ghost
 } from 'lucide-react';
 import api from '../lib/axios';
 import { supabase } from '../lib/supabaseClient';
@@ -42,6 +43,8 @@ interface UserProfileData {
   isFriend: boolean;
   hasPendingRequest: boolean;
   isOwnProfile: boolean;
+  isGhosted?: boolean;
+  redemptionProgress?: number;
 }
 
 interface UserPost {
@@ -64,6 +67,7 @@ const UserProfile: React.FC = () => {
   const [userPosts, setUserPosts] = useState<UserPost[]>([]);
   const [loadingPosts, setLoadingPosts] = useState(true);
   const [sendingRequest, setSendingRequest] = useState(false);
+  const [isPurging, setIsPurging] = useState(false);
 
   useEffect(() => {
     if (username) {
@@ -128,6 +132,8 @@ const UserProfile: React.FC = () => {
         isFriend: data.is_friend || data.isFriend || false,
         hasPendingRequest: data.has_pending_request || data.hasPendingRequest || false,
         isOwnProfile: currentUser?.username === username,
+        isGhosted: data.is_ghost || data.purgatory_status || false,
+        redemptionProgress: data.redemption_progress || 0,
       });
     } catch (err: any) {
       console.error('Failed to load profile:', err);
@@ -174,6 +180,24 @@ const UserProfile: React.FC = () => {
       toast.error('Failed to remove friend');
     } finally {
       setSendingRequest(false);
+    }
+  };
+
+  const handlePurgeUser = async () => {
+    if (!profile) return;
+    try {
+      setIsPurging(true);
+      const response = await api.post(`/users/${profile.id}/purge`);
+      toast.success('User purged successfully!');
+      if (response.data.ghostModeTriggered) {
+        toast.error('User has been sent to purgatory!');
+      }
+      loadProfile();
+    } catch (err: any) {
+      console.error('Failed to purge user:', err);
+      toast.error(err.response?.data?.error || 'Failed to purge user');
+    } finally {
+      setIsPurging(false);
     }
   };
 
@@ -263,7 +287,7 @@ const UserProfile: React.FC = () => {
               src={profile.avatar}
               alt={profile.name}
               size="lg"
-              className="w-28 h-28 sm:w-32 sm:h-32 border-4 border-background rounded-full"
+              className="w-20 h-20 sm:w-24 sm:h-24 border-4 border-background rounded-full"
             />
             {profile.isFriend && (
               <div className="absolute bottom-2 right-2 bg-green-500 text-white text-xs px-2 py-1 rounded-full border-2 border-background">
@@ -282,11 +306,20 @@ const UserProfile: React.FC = () => {
             {/* Action Buttons - Only show for other users */}
             {!profile.isOwnProfile && (
               <div className="flex items-center gap-3">
+                <button
+                  onClick={handlePurgeUser}
+                  disabled={isPurging}
+                  className="flex items-center gap-2 px-4 py-2 bg-red-600/20 hover:bg-red-600/40 text-red-500 rounded-lg transition-colors disabled:opacity-50"
+                  title="Purge User"
+                >
+                  <Flame size={18} />
+                  Purge
+                </button>
                 {profile.isFriend ? (
                   <>
                     <button
                       onClick={handleMessage}
-                      className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
+                      className="flex items-center gap-2 px-4 py-2 bg-[var(--accent)] hover:opacity-90 text-[var(--fg)] rounded-lg transition-colors"
                     >
                       <MessageCircle size={18} />
                       Message
@@ -341,6 +374,16 @@ const UserProfile: React.FC = () => {
               </div>
             )}
           </div>
+
+          {profile.isGhosted && (
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-900/30 border border-gray-800 rounded-lg text-xs text-gray-400">
+              <Ghost size={14} className="text-gray-500" />
+              <span>Ghosted</span>
+              {profile.redemptionProgress !== undefined && profile.redemptionProgress > 0 && (
+                <span className="text-gray-600">({profile.redemptionProgress}% redeemed)</span>
+              )}
+            </div>
+          )}
 
           {/* Stats - Compact horizontal layout */}
           <div className="flex items-center justify-center gap-6 py-4 border-t border-b border-border">

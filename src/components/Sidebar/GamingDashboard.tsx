@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
-import { Gamepad2, Play, Trophy, Zap } from 'lucide-react';
+import { Gamepad2, Play, Trophy, Zap, ChevronLeft, ChevronRight } from 'lucide-react';
 import { getGameStats, getCurrentlyPlaying, subscribeToPlayingUsers, GameStats, PlayingUser } from '../../services/purgaService';
 import { useUser } from '../../context/UserContext';
 
@@ -11,27 +11,64 @@ const GAMES = [
     id: 'judgment',
     title: 'Judgment',
     icon: '⚖️',
-    description: 'Decide the fate of souls. Your judgment must be swift and fair.',
+    description: 'Decide the fate of souls. Swift and fair.',
     difficulty: 'Hard',
-    rewardCoins: 600
+    rewardCoins: 600,
+    theme: 'epic',
+    available: true,
+    target: '/puurga-games'
   },
   {
     id: 'watchman',
     title: 'Watchman',
     icon: '🛡️',
-    description: 'Defend the realm from incoming threats. Vigilance is key.',
+    description: 'Defend the realm. Vigilance is key.',
     difficulty: 'Hard',
-    rewardCoins: 500
+    rewardCoins: 500,
+    theme: 'epic',
+    available: true,
+    target: '/next-game'
   },
   {
     id: 'redemption',
     title: 'Redemption',
     icon: '✨',
-    description: 'Make the right choices to restore your status and redeem ghosted users.',
+    description: 'Make right choices to restore your status.',
     difficulty: 'Medium',
-    rewardCoins: 300
+    rewardCoins: 300,
+    theme: 'epic',
+    available: true,
+    target: '/new-game'
+  },
+  {
+    id: 'purga-rift',
+    title: 'Purga Rift',
+    icon: '🌀',
+    description: 'Pattern prediction in the rift dimension.',
+    difficulty: 'Hard',
+    rewardCoins: 520,
+    theme: 'epic',
+    available: true,
+    target: '/puurga-games?play=purga-rift'
+  },
+  {
+    id: 'puurga-slot-2',
+    title: 'Cyber Runner',
+    icon: '🏃',
+    description: 'Stickman runner with combat and upgrades.',
+    difficulty: 'Medium',
+    rewardCoins: 480,
+    theme: 'epic',
+    available: true,
+    target: '/puurga-games?play=puurga-slot-2'
   }
 ];
+
+const DIFFICULTY_COLOR: Record<string, string> = {
+  Hard: 'text-red-400',
+  Medium: 'text-yellow-400',
+  Easy: 'text-green-400',
+};
 
 const GamingDashboard: React.FC = () => {
   const { t } = useTranslation();
@@ -40,7 +77,10 @@ const GamingDashboard: React.FC = () => {
   const [gameStats, setGameStats] = useState<GameStats[]>([]);
   const [playingUsers, setPlayingUsers] = useState<PlayingUser[]>([]);
   const [loading, setLoading] = useState(true);
-  const [hoveredGame, setHoveredGame] = useState<string | null>(null);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval>>();
 
   useEffect(() => {
     const fetchData = async () => {
@@ -64,10 +104,30 @@ const GamingDashboard: React.FC = () => {
       setPlayingUsers(users);
     });
 
-    return () => {
-      unsubscribe();
-    };
+    return () => { unsubscribe(); };
   }, []);
+
+  const availableGames = GAMES.filter(g => g.available);
+
+  const goTo = useCallback((index: number) => {
+    const total = availableGames.length;
+    setCurrentIndex(((index % total) + total) % total);
+  }, [availableGames.length]);
+
+  const next = useCallback(() => goTo(currentIndex + 1), [currentIndex, goTo]);
+  const prev = useCallback(() => goTo(currentIndex - 1), [currentIndex, goTo]);
+
+  useEffect(() => {
+    if (!isPaused) {
+      intervalRef.current = setInterval(next, 4000);
+    }
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+  }, [isPaused, next]);
+
+  const handleDragEnd = (_: any, info: any) => {
+    if (info.offset.x < -50) next();
+    else if (info.offset.x > 50) prev();
+  };
 
   const getGameStat = (gameId: string): GameStats | undefined => {
     if (!Array.isArray(gameStats)) return undefined;
@@ -83,118 +143,152 @@ const GamingDashboard: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-4">
-        <div className="w-6 h-6 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+      <div className="flex items-center justify-center py-3">
+        <div className="w-5 h-5 border-2 border-accent border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="mb-3">
-      <div className="flex items-center justify-between mb-3 px-1">
-        <h2 className="text-sm font-bold text-foreground flex items-center gap-2">
-          <Gamepad2 size={16} className="text-muted" />
+    <div className="mb-2">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-2 px-0.5">
+        <span className="text-[11px] font-semibold text-foreground flex items-center gap-1.5">
+          <Gamepad2 size={13} className="text-muted" />
           {t('rightSidebar.gamingArena')}
-        </h2>
+        </span>
         {totalPlaying > 0 && (
-          <div className="flex items-center gap-1.5 text-xs text-muted bg-accent/10 px-2 py-1 rounded-full">
+          <span className="flex items-center gap-1 text-[10px] text-green-500 font-medium">
             <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
-            {totalPlaying} playing
-          </div>
+            {totalPlaying} live
+          </span>
         )}
       </div>
 
-      <div className="space-y-2">
-        {GAMES.map((game) => {
-          const stats = getGameStat(game.id);
-          const activePlayers = getActivePlayers(game.id);
-          const isHovered = hoveredGame === game.id;
+      {/* Carousel */}
+      <div
+        ref={containerRef}
+        className="relative overflow-hidden group"
+        onMouseEnter={() => setIsPaused(true)}
+        onMouseLeave={() => setIsPaused(false)}
+      >
+        <motion.div
+          className="flex"
+          animate={{ x: `-${currentIndex * 100}%` }}
+          transition={{ type: 'spring', stiffness: 340, damping: 32 }}
+          drag="x"
+          dragConstraints={{ left: 0, right: 0 }}
+          dragElastic={0.25}
+          onDragEnd={handleDragEnd}
+          style={{ touchAction: 'pan-y' }}
+        >
+          {availableGames.map((game) => {
+            const s = getGameStat(game.id);
+            const ap = getActivePlayers(game.id);
 
-          return (
-            <motion.div
-              key={game.id}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              onMouseEnter={() => setHoveredGame(game.id)}
-              onMouseLeave={() => setHoveredGame(null)}
-              className="relative overflow-hidden rounded-lg hover:bg-card-hover transition-all duration-200 cursor-pointer group"
-              onClick={() => navigate('/puurga-games')}
-            >
-              <div className="p-3">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-accent/10 flex items-center justify-center text-lg">
-                      {game.icon}
-                    </div>
-                    <div>
-                      <h3 className="text-sm font-semibold text-foreground group-hover:text-accent transition-colors">
-                        {game.title}
-                      </h3>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        <span className="text-[10px] text-muted uppercase tracking-wide">
-                          {game.difficulty}
-                        </span>
-                        {activePlayers > 0 && (
-                          <span className="flex items-center gap-1 text-[10px] text-green-500">
-                            <span className="w-1 h-1 bg-green-500 rounded-full" />
-                            {activePlayers} live
+            return (
+              <div
+                key={game.id}
+                className="w-full flex-shrink-0"
+                onClick={() => navigate(game.target)}
+              >
+                <div className="relative overflow-hidden rounded-lg border border-border/40 bg-card hover:bg-card-hover transition-colors duration-150 cursor-pointer group/card">
+                  <div className="p-2.5">
+                    {/* Top row: icon + title + score */}
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-md bg-accent/10 flex items-center justify-center text-base shrink-0">
+                        {game.icon}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-1">
+                          <span className="text-[12px] font-semibold text-foreground group-hover/card:text-accent transition-colors truncate">
+                            {game.title}
                           </span>
-                        )}
+                          {s && (
+                            <span className="flex items-center gap-0.5 text-[10px] text-muted shrink-0">
+                              <Trophy size={9} />
+                              {s.highScore.toLocaleString()}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className={`text-[10px] font-medium ${DIFFICULTY_COLOR[game.difficulty] || 'text-muted'}`}>
+                            {game.difficulty}
+                          </span>
+                          {ap > 0 && (
+                            <span className="flex items-center gap-0.5 text-[10px] text-green-500">
+                              <span className="w-1 h-1 bg-green-500 rounded-full" />
+                              {ap} live
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  {stats && (
-                    <div className="text-right">
-                      <div className="flex items-center gap-1 text-[10px] text-muted">
-                        <Trophy size={10} />
-                        <span>{stats.lastScore.toLocaleString()}</span>
-                      </div>
-                      <div className="text-[10px] text-muted/50 mt-0.5">
-                        Best: {stats.highScore.toLocaleString()}
-                      </div>
-                    </div>
-                  )}
-                </div>
+                    {/* Description */}
+                    <p className="text-[10.5px] text-muted leading-relaxed mt-2 line-clamp-1">
+                      {game.description}
+                    </p>
 
-                {isHovered && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                    className="mt-3 pt-3 border-t border-border"
-                  >
-                    <p className="text-xs text-muted mb-2">{game.description}</p>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1 text-xs text-muted">
-                        <Zap size={12} />
-                        <span>+{game.rewardCoins} credits</span>
-                      </div>
-                      <button className="flex items-center gap-1.5 px-3 py-1.5 bg-accent/10 hover:bg-accent/20 rounded-full text-xs font-medium text-foreground transition-colors">
-                        <Play size={12} />
-                        Play Now
+                    {/* Bottom row: reward + play */}
+                    <div className="flex items-center justify-between mt-2">
+                      <span className="flex items-center gap-1 text-[10px] text-muted">
+                        <Zap size={10} className="text-accent" />
+                        +{game.rewardCoins} credits
+                      </span>
+                      <button className="flex items-center gap-1 px-2.5 py-1 bg-accent/10 hover:bg-accent/20 rounded-full text-[11px] font-medium text-foreground transition-colors">
+                        <Play size={10} />
+                        Play
                       </button>
                     </div>
-                  </motion.div>
-                )}
+                  </div>
+                </div>
               </div>
-            </motion.div>
-          );
-        })}
+            );
+          })}
+        </motion.div>
+
+        {/* Nav arrows — visible on hover */}
+        <button
+          onClick={(e) => { e.stopPropagation(); prev(); }}
+          className="absolute left-0.5 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-background/80 border border-border/50 flex items-center justify-center text-muted hover:text-foreground transition-all opacity-0 group-hover:opacity-100 z-10"
+        >
+          <ChevronLeft size={12} />
+        </button>
+        <button
+          onClick={(e) => { e.stopPropagation(); next(); }}
+          className="absolute right-0.5 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-background/80 border border-border/50 flex items-center justify-center text-muted hover:text-foreground transition-all opacity-0 group-hover:opacity-100 z-10"
+        >
+          <ChevronRight size={12} />
+        </button>
       </div>
 
+      {/* Dots */}
+      <div className="flex items-center justify-center gap-1 mt-2">
+        {availableGames.map((game, i) => (
+          <button
+            key={game.id}
+            onClick={() => goTo(i)}
+            className={`transition-all rounded-full ${i === currentIndex ? 'w-4 h-1 bg-accent' : 'w-1 h-1 bg-border hover:bg-muted'
+              }`}
+          />
+        ))}
+      </div>
+
+      {/* Credits + view all */}
       {user && (
-        <div className="mt-3 px-1 flex items-center justify-between text-xs">
-          <div className="flex items-center gap-1.5 text-muted">
-            <span>Your Credits:</span>
-            <span className="text-foreground font-medium">{(user as any).credits?.toLocaleString() || 0}</span>
-          </div>
+        <div className="mt-2 flex items-center justify-between text-[10.5px] px-0.5">
+          <span className="text-muted">
+            Credits:{' '}
+            <span className="text-foreground font-medium">
+              {(user as any).credits?.toLocaleString() || 0}
+            </span>
+          </span>
           <button
             onClick={() => navigate('/puurga-games')}
-            className="text-muted hover:text-foreground transition-colors flex items-center gap-1"
+            className="text-muted hover:text-accent transition-colors flex items-center gap-0.5"
           >
-            View All
-            <span className="text-lg">→</span>
+            View all <span className="text-sm">→</span>
           </button>
         </div>
       )}

@@ -9,12 +9,67 @@
         "viewOriginal": "Voir l'original",
         "viewTranslated": "Voir la traduction",
         "translationDisclaimer": "Traduit du {{language}}",
-        "siswatiDisclaimer": "La qualité de la traduction peut varier"
+        "siswatiDisclaimer": "La qualité de la traduction peut varier",
+        "continue": "Continuer"
+    },
+"onboarding": {
+        "selectLanguage": "Choisir la langue",
+        "intro": {
+            "title": "Bienvenue sur Puurga",
+            "description": "Un jeu social où chacune de vos actions a des conséquences. L'inaction est punie. Vos haters peuvent vous envoyer au purgatoire. Vous compterez sur vos vrais amis pour vous racheter. Fantômisé vous pouvez voir et revenant vous chassez. Publiez et jouez pour gagner des jetons de rédemption. Purgez tout ce que vous n'aimez pas. Ajoutez des amis et créez des groupes pour combattre vos ennemis. La vie et la mort sont entre vos mains."
+        },
+        "features": {
+            "connect": "Connecter",
+            "purge": "Purger",
+            "play": "Jouer",
+            "earn": "Gagner",
+            "redeem": "Racheter"
+        }
     },
     "auth": {
         "login": "Connexion",
         "signup": "Inscription",
-        "logout": "Déconnexion"
+        "logout": "Déconnexion",
+        "emailAddress": "Adresse email",
+        "enterEmail": "Entrez votre email",
+        "password": "Mot de passe",
+        "enterPassword": "Entrez votre mot de passe",
+        "rememberMe": "Se souvenir de moi",
+        "forgotPassword": "Mot de passe oublié?",
+        "signingIn": "Connexion...",
+        "signIn": "Se connecter",
+        "welcomeBack": "Bon retour",
+        "signInToAccount": "Connectez-vous à votre compte",
+        "orSignInWithEmail": "ou connectez-vous avec email",
+        "dontHaveAccount": "Vous n'avez pas de compte?",
+        "signUp": "S'inscrire",
+        "invalidEmail": "Adresse email invalide",
+        "passwordMinLength": "Le mot de passe doit contenir au moins 8 caractères",
+        "joinPuurga": "Rejoindre Puurga",
+        "connectWithCommunity": "Connectez-vous avec votre communauté",
+        "orRegisterWithEmail": "ou inscrivez-vous avec email",
+        "fullName": "Nom complet",
+        "enterName": "Entrez votre nom",
+        "nameRequired": "Le nom est requis",
+        "nameMinLength": "Le nom doit contenir au moins 2 caractères",
+        "username": "Nom d'utilisateur",
+        "chooseUsername": "Choisissez un nom d'utilisateur",
+        "usernameRequired": "Le nom d'utilisateur est requis",
+        "usernameInvalid": "Seules les lettres, chiffres et tirets bas sont autorisés",
+        "usernameMinLength": "Le nom d'utilisateur doit contenir au moins 3 caractères",
+        "emailRequired": "L'email est requis",
+        "validEmail": "Veuillez entrer une adresse email valide",
+        "passwordRequired": "Le mot de passe est requis",
+        "choosePassword": "Choisissez un mot de passe",
+        "confirmPassword": "Vérifier le mot de passe",
+        "verifyPassword": "Vérifiez votre mot de passe",
+        "confirmPasswordRequired": "Veuillez confirmer votre mot de passe",
+        "passwordsDoNotMatch": "Les mots de passe ne correspondent pas",
+        "registrationFailed": "L'inscription a échoué.",
+        "googleSignInFailed": "La connexion Google a échoué",
+        "creatingAccount": "Création du compte...",
+        "createAccount": "Créer un compte",
+        "alreadyHaveAccount": "Vous avez déjà un compte?"
     },
     "nav": {
         "home": "Accueil",
@@ -80,7 +135,10 @@
         "logout": "Déconnexion",
         "more": "Plus",
         "gaming": "Jeux",
-        "puurga": "PUURGA"
+        "puurga": "PUURGA",
+        "purgatory": "Purgatoire",
+        "superAdmin": "Super Admin",
+        "chat": "Chat"
     },
     "rightSidebar": {
         "quickActions": "Actions rapides",
@@ -219,5 +277,74 @@
         "welcomeDescription": "Sélectionnez une conversation dans la barre latérale ou démarrez-en une nouvelle pour commencer à discuter.",
         "failedToStart": "Échec du démarrage de la conversation",
         "failedToSend": "Échec de l'envoi du message"
+    },
+    "games": {
+        "arena": "Arène",
+        "tapToPlay": "Appuyez sur un jeu pour jouer",
+        "backToArena": "Retour à l'arène",
+        "credits": "Crédits",
+        "rank": "Rang",
+        "played": "Joué",
+        "allGames": "Tous les jeux",
+        "newGameAvailable": "Nouveau jeu disponible",
+        "playNow": "Jouer maintenant",
+        "dismiss": "Ignorer",
+        "new": "Nouveau",
+        "difficulty": {
+            "easy": "Facile",
+            "medium": "Moyen",
+            "hard": "Difficile"
+        },
+        "category": {
+            "strategy": "Stratégie",
+            "action": "Action",
+            "puzzle": "Puzzle",
+            "multiplayer": "Multijoueur",
+            "survival": "Survie"
+        },
+        "titles": {
+            "judgment": "Jugement",
+            "watchman": "Le Gardien",
+            "redemption": "Rédemption",
+            "purgaRift": "Faille Purga",
+            "cyberRunner": "Cyber Runner"
+        },
+        "descriptions": {
+            "judgment": "Décidez du sort des âmes. Votre jugement doit être rapide et juste. Prononcez des verdicts sur les utilisateurs en fonction de leurs actions.",
+            "watchman": "Défendez le royaume contre les menaces entrantes. La vigilance est la clé. Protégez votre tour des attaques de purge.",
+            "redemption": "Un jeu de scénario moral. Faites les bons choix pour restaurer votre statut et racheter les utilisateurs fantômes.",
+            "purgaRift": "Décodez les modèles dimensionnels, survivez aux tempêtes de faille et surpassez la tromperie dans cette arène d'élite.",
+            "cyberRunner": "Courez, coupez et glissez à travers cinq phases de réseau. Améliorez votre équipement, battez le boss hebdomadaire et grimpez au classement."
+        },
+        "watchman": {
+            "title": "Chemin du Gardien",
+            "back": "Retour",
+            "health": "Santé",
+            "combo": "Combo",
+            "time": "Temps",
+            "threat": "Menace",
+            "score": "Score",
+            "thePathAwaits": "Le Chemin Attend",
+            "navigateChaos": "Naviguez le chaos. Utilisez votre lumière pour vaincre la corruption.",
+            "initializeRun": "Initialiser la course",
+            "runConcluded": "Course Terminée",
+            "disconnected": "DÉCONNECTÉ",
+            "retryRun": "Réessayer",
+            "shieldBurst": "Rafale de Bouclier",
+            "focusMode": "Mode Focus",
+            "attack": "Attaquer",
+            "dailyLimit": "Limite Quotidienne",
+            "earnedCredits": "Gagné {credits} crédits!"
+        },
+        "loading": "Chargement...",
+        "matchFound": "Match Trouvé",
+        "waitingForPlayers": "En attente de joueurs",
+        "victory": "Victoire",
+        "defeat": "Défaite",
+        "connectionLost": "Connexion perdue",
+        "startGame": "Démarrer le jeu",
+        "continue": "Continuer",
+        "exit": "Sortir",
+        "retry": "Réessayer"
     }
 }

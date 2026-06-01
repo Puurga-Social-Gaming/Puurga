@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import PuurgaLogo from '../Icons/PuurgaLogo';
+import { Users, Flame, Gamepad2, Zap, Gift } from 'lucide-react';
 
 interface WelcomeScreenProps {
   username: string;
@@ -95,7 +96,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
           <p className="text-gray-400 text-lg font-medium">
             Welcome back
           </p>
-          <p className="text-white text-3xl font-bold tracking-wider">
+          <p className="text-gray-300 text-3xl font-bold tracking-wider">
             {username}
           </p>
         </motion.div>
@@ -119,6 +120,35 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
           </p>
         </motion.div>
       </div>
+
+      {/* Feature preview icons */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.8, duration: 0.5 }}
+        className="absolute bottom-12 left-0 right-0 flex justify-center gap-8 sm:gap-12"
+      >
+        <div className="flex flex-col items-center gap-1.5 text-gray-700">
+          <Users size={22} />
+          <span className="text-[10px] font-medium">Connect</span>
+        </div>
+        <div className="flex flex-col items-center gap-1.5 text-gray-700">
+          <Flame size={22} />
+          <span className="text-[10px] font-medium">Purge</span>
+        </div>
+        <div className="flex flex-col items-center gap-1.5 text-gray-700">
+          <Gamepad2 size={22} />
+          <span className="text-[10px] font-medium">Play</span>
+        </div>
+        <div className="flex flex-col items-center gap-1.5 text-gray-700">
+          <Zap size={22} />
+          <span className="text-[10px] font-medium">Earn</span>
+        </div>
+        <div className="flex flex-col items-center gap-1.5 text-gray-700">
+          <Gift size={22} />
+          <span className="text-[10px] font-medium">Redeem</span>
+        </div>
+      </motion.div>
     </motion.div>
   );
 };

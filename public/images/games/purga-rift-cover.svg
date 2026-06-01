@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800" role="img" aria-label="Purga Rift cover art">
+  <defs>
+    <linearGradient id="void" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#050508"/>
+      <stop offset="50%" stop-color="#12061f"/>
+      <stop offset="100%" stop-color="#1a0828"/>
+    </linearGradient>
+    <radialGradient id="rift" cx="50%" cy="45%" r="50%">
+      <stop offset="0%" stop-color="#a855f7" stop-opacity="0.9"/>
+      <stop offset="40%" stop-color="#7c3aed" stop-opacity="0.5"/>
+      <stop offset="100%" stop-color="#4c1d95" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="crimson" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#dc2626" stop-opacity="0.8"/>
+      <stop offset="100%" stop-color="#f97316" stop-opacity="0.2"/>
+    </linearGradient>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="14" result="b"/>
+      <feMerge>
+        <feMergeNode in="b"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <rect width="800" height="800" fill="url(#void)"/>
+  <ellipse cx="400" cy="380" rx="220" ry="300" fill="url(#rift)" filter="url(#glow)"/>
+  <path d="M400 120 L520 680 L400 620 L280 680 Z" fill="none" stroke="#c084fc" stroke-width="4" opacity="0.85"/>
+  <path d="M400 160 L480 640 L400 590 L320 640 Z" fill="#1e1033" stroke="#e879f9" stroke-width="2" opacity="0.7"/>
+  <circle cx="400" cy="400" r="48" fill="url(#crimson)" stroke="#fbbf24" stroke-width="3"/>
+  <text x="400" y="415" text-anchor="middle" font-family="system-ui,sans-serif" font-size="28" font-weight="800" fill="#fafafa">RIFT</text>
+  <text x="400" y="720" text-anchor="middle" font-family="system-ui,sans-serif" font-size="22" font-weight="700" fill="#a78bfa" letter-spacing="6">PURGA RIFT</text>
+  <text x="400" y="755" text-anchor="middle" font-family="system-ui,sans-serif" font-size="14" fill="#6b7280">NEW IN ARENA</text>
+</svg>

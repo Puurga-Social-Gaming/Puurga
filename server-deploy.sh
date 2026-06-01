@@ -27,7 +27,13 @@ cd ..
 echo "🏗️ Building Project..."
 npm run build
 
-# 5. Restart Services
+# 5. Update Nginx config if changed
+echo "🔧 Updating Nginx config..."
+cp /var/www/Puurga/deployment/nginx.conf /etc/nginx/sites-available/puurga 2>/dev/null || \
+cp /var/www/Puurga/backend/nginx.conf /etc/nginx/sites-available/puurga 2>/dev/null || true
+nginx -t && systemctl reload nginx || echo "⚠️ Nginx config unchanged or test failed"
+
+# 6. Restart Services
 echo "🔄 Restarting Backend..."
 pm2 restart backend
 pm2 restart puurga-backend 2>/dev/null || true

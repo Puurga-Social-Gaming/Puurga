@@ -10,7 +10,7 @@ if (!supabaseUrl || !supabaseAnonKey) {
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     autoRefreshToken: true,
-    persistSession: false, // Disable session persistence to prevent cross-account contamination
+    persistSession: true, // Enable session persistence for proper auth across reloads
     detectSessionInUrl: true
   }
 }); 

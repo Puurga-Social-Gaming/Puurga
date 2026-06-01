@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Cyber Runner cover">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#020813"/>
+      <stop offset="100%" stop-color="#2e1204"/>
+    </linearGradient>
+    <linearGradient id="glow" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0%" stop-color="#f97316" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#f97316" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <rect x="0" y="380" width="512" height="132" fill="#051833" opacity="0.8"/>
+  <ellipse cx="256" cy="400" rx="200" ry="40" fill="url(#glow)" opacity="0.5"/>
+  <g stroke="#f97316" stroke-width="6" stroke-linecap="round" fill="none">
+    <circle cx="200" cy="280" r="28" fill="#0a0a0a"/>
+    <line x1="200" y1="308" x2="200" y2="360"/>
+    <line x1="200" y1="325" x2="170" y2="300"/>
+    <line x1="200" y1="325" x2="240" y2="290"/>
+    <line x1="200" y1="360" x2="175" y2="400"/>
+    <line x1="200" y1="360" x2="230" y2="395"/>
+    <path d="M240 290 L310 250 L350 270" stroke="#06b6d4" stroke-width="8"/>
+  </g>
+  <text x="256" y="460" text-anchor="middle" font-family="system-ui,sans-serif" font-size="26" font-weight="800" fill="#fafafa" letter-spacing="3">CYBER RUNNER</text>
+</svg>

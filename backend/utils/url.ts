@@ -20,6 +20,12 @@ export const normalizeImageUrl = (url: string | null | undefined): string => {
     return url;
   }
 
+  // If it's just a filename and might be a local file, try local uploads first
+  // Check if it looks like a Supabase storage path (contains 'storage/v1/')
+  if (url.includes('storage/v1/') || url.includes('supabase')) {
+    return url; // Don't convert Supabase URLs
+  }
+
   // If it's just a filename, construct relative path
   // This works for both local dev (via proxy) and production (via nginx)
   return `/uploads/${url}`;

@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
@@ -12,20 +13,17 @@ import {
   Gamepad2,
   BarChart3,
   Settings,
-  MoreHorizontal,
-  X,
-  Sun,
-  Moon,
-  Globe,
   ShieldCheck,
+  Ghost,
+  MoreHorizontal,
 } from 'lucide-react';
 import { LucideIcon } from 'lucide-react';
-import { useTheme } from '../../context/ThemeContext';
 import { useNotifications } from '../../context/NotificationContext';
 import { useUser } from '../../context/UserContext';
+import { useSurvival } from '../../context/SurvivalContext';
 import { supabase } from '../../lib/supabaseClient';
 import { toast } from 'react-hot-toast';
-import { updateUserLanguage } from '../../services/languageService';
+import { motion, AnimatePresence } from 'framer-motion';
 import PuurgaLogo from '../Icons/PuurgaLogo';
 
 interface NavigationItem {
@@ -37,95 +35,51 @@ interface NavigationItem {
 }
 
 const MainNav: React.FC = () => {
-  const { t, i18n } = useTranslation();
-  const { theme, toggleTheme } = useTheme();
+  const { t } = useTranslation();
   const { unreadCount } = useNotifications();
   const { user: currentUser } = useUser();
+  const { survivalState } = useSurvival();
+  const isGhosted = survivalState?.purgatory_status === true;
   const navigate = useNavigate();
   const isSuperAdmin = currentUser?.role === 'super_admin' || currentUser?.role === 'superadmin';
-  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
-  const [languageMenuOpen, setLanguageMenuOpen] = useState(false);
-  const [isChangingLanguage, setIsChangingLanguage] = useState(false);
-  const moreMenuRef = useRef<HTMLDivElement>(null);
-  const languageMenuRef = useRef<HTMLDivElement>(null);
+  const [showMore, setShowMore] = useState(false);
+  const moreBtnRef = useRef<HTMLButtonElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
 
-  const languages = [
-    { code: 'en', name: 'English', nativeName: 'English' },
-    { code: 'fr', name: 'French', nativeName: 'Français' },
-    { code: 'zu', name: 'Zulu', nativeName: 'isiZulu' },
-    { code: 'ss', name: 'Siswati', nativeName: 'SiSwati' },
-  ];
-
-  const handleLanguageChange = async (code: string) => {
-    if (isChangingLanguage) return;
-
-    try {
-      setIsChangingLanguage(true);
-      // First change the language in i18n (instant UI update)
-      await i18n.changeLanguage(code);
-      
-      // Then update on backend
-      try {
-        await updateUserLanguage(code);
-        toast.success(`Language changed to ${languages.find(l => l.code === code)?.name}`);
-      } catch (error) {
-        // Language changed in UI but failed on backend - still acceptable
-        console.warn('Language updated locally but failed to save on backend:', error);
-        toast.success(`Language changed to ${languages.find(l => l.code === code)?.name}`);
-      }
-    } catch (error) {
-      console.error('Failed to change language:', error);
-      toast.error('Failed to change language');
-    } finally {
-      setIsChangingLanguage(false);
-      setLanguageMenuOpen(false);
-      setMoreMenuOpen(false);
-    }
-  };
-
-  // Close more menu and language menu when clicking outside
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (moreMenuRef.current && !moreMenuRef.current.contains(event.target as Node)) {
-        setMoreMenuOpen(false);
-        setLanguageMenuOpen(false);
-      }
-      if (languageMenuRef.current && !languageMenuRef.current.contains(event.target as Node)) {
-        setLanguageMenuOpen(false);
+    const handleClickOutside = (e: MouseEvent | TouchEvent) => {
+      if (
+        popoverRef.current && !popoverRef.current.contains(e.target as Node) &&
+        moreBtnRef.current && !moreBtnRef.current.contains(e.target as Node)
+      ) {
+        setShowMore(false);
       }
     };
-
-    if (moreMenuOpen || languageMenuOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
     };
-  }, [moreMenuOpen, languageMenuOpen]);
+  }, []);
 
   const navLinkClasses = (isActive: boolean) => `
     relative flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200
     ${isActive
-      ? 'nav-active shadow-theme-sm' // This class is defined in theme.css for both light and dark modes
+      ? 'nav-active shadow-theme-sm'
       : 'text-muted hover:text-foreground hover:bg-highlight-light hover:shadow-theme-sm border border-transparent hover:border-highlight'
     }
   `;
 
   const handleLogout = async () => {
     try {
-      // Sign out from Supabase
       const { error } = await supabase.auth.signOut();
-      if (error) {
-        throw error;
-      }
+      if (error) throw error;
 
-      // Clear all authentication data from localStorage
       try {
         localStorage.removeItem('token');
         localStorage.removeItem('user');
         localStorage.removeItem('supabase.auth.token');
-        console.log('Cleared authentication data from localStorage');
       } catch (storageError) {
         console.warn('Failed to clear localStorage (non-fatal):', storageError);
       }
@@ -145,43 +99,65 @@ const MainNav: React.FC = () => {
   };
 
   const getNavigationItems = (): NavigationItem[] => {
-    const commonItems: NavigationItem[] = [
+    const items: NavigationItem[] = [
       { to: '/home', icon: Home, label: t('navigation.home') },
       { to: '/profile', icon: UserCircle, label: t('navigation.profile') },
-      { to: '/messages', icon: MessageSquare, label: t('navigation.messages') },
-      { to: '/groups', icon: Users, label: t('navigation.groups') },
       { to: '/puurga-games', icon: Gamepad2, label: t('navigation.games') },
       { to: '/puurga-dashboard', icon: BarChart3, label: t('navigation.dashboard') },
+      { to: '/purgatory', icon: Ghost, label: t('navigation.purgatory'), className: isGhosted ? 'text-gray-400 hover:text-gray-200 border-gray-800' : undefined },
+    ];
+
+    if (!isGhosted) {
+      items.push(
+        { to: '/messages', icon: MessageSquare, label: t('navigation.messages') },
+        { to: '/groups', icon: Users, label: t('navigation.groups') },
+      );
+    }
+
+    items.push(
       { to: '/help', icon: HelpCircle, label: t('navigation.help') },
       { to: '/notifications', icon: Bell, label: t('navigation.notifications') },
       { to: '/settings', icon: Settings, label: t('navigation.settings') },
-    ];
+    );
 
-    const roleBasedItems: NavigationItem[] = [];
-
-    // Super Admin link — only visible to super admins
     if (isSuperAdmin) {
-      roleBasedItems.push({ to: '/super-admin', icon: ShieldCheck, label: 'Super Admin', className: 'text-red-500 hover:text-red-400' });
+      items.push({ to: '/super-admin', icon: ShieldCheck, label: t('navigation.superAdmin'), className: 'text-red-500 hover:text-red-400' });
     }
 
-    return [...commonItems, ...roleBasedItems];
+    return items;
   };
 
   const navigationItems = getNavigationItems();
+
+  const moreOptions = [
+    { icon: Ghost, label: t('navigation.purgatory'), to: '/purgatory' },
+    { icon: Bell, label: t('navigation.notifications'), to: '/notifications' },
+    { icon: Gamepad2, label: t('navigation.games'), to: '/puurga-games' },
+    { icon: BarChart3, label: t('navigation.dashboard'), to: '/puurga-dashboard' },
+  ];
+
+  if (!isGhosted) {
+    moreOptions.push({ icon: Users, label: t('navigation.groups'), to: '/groups' });
+  }
+
+  moreOptions.push(
+    { icon: HelpCircle, label: t('navigation.help'), to: '/help' },
+    { icon: Settings, label: t('navigation.settings'), to: '/settings' },
+  );
+
+  if (isSuperAdmin) {
+    moreOptions.push({ icon: ShieldCheck, label: t('navigation.superAdmin'), to: '/super-admin' });
+  }
 
   return (
     <>
       {/* Desktop Sidebar Layout */}
       <div className="hidden lg:flex flex-col h-full sidebar justify-center">
-        {/* Logo at the top */}
         <div className="p-6 pb-8 flex items-center justify-center gap-3">
           <PuurgaLogo size={40} className="text-accent" />
           <span className="text-xl font-bold tracking-wide text-accent">PUURGA</span>
         </div>
 
-
-
-        {/* Navigation items with extra top spacing */}
         <div className="px-4 space-y-6 mt-8">
           {navigationItems.map((item) => (
             item.to ? (
@@ -214,7 +190,6 @@ const MainNav: React.FC = () => {
           ))}
         </div>
 
-        {/* Logout button at the bottom */}
         <div className="mt-auto p-4">
           <button
             onClick={handleLogout}
@@ -227,228 +202,108 @@ const MainNav: React.FC = () => {
       </div>
 
       {/* Mobile Bottom Navigation */}
-      <div className="lg:hidden flex justify-around items-center w-full px-1 py-1">
-        {/* Home */}
+      <div className="lg:hidden grid grid-cols-5 items-center w-full max-w-full mx-auto px-0.5 py-0.5">
         <NavLink
           to="/home"
           className={({ isActive }) => `
-            flex flex-col items-center justify-center gap-0.5 px-3 py-2 min-h-[44px] transition-colors relative
+            flex flex-col items-center justify-center gap-1 px-1 py-2 transition-colors relative min-w-0 overflow-hidden
             ${isActive ? 'text-accent' : 'text-muted-foreground hover:text-foreground'}
           `}
         >
-          <Home size={22} />
-          <span className="text-[10px] leading-none">Home</span>
+          <Home size={18} />
+          <span className="text-[9px] leading-none truncate w-full text-center">{t('navigation.home')}</span>
         </NavLink>
 
-        {/* Profile */}
         <NavLink
           to="/profile"
           className={({ isActive }) => `
-            flex flex-col items-center justify-center gap-0.5 px-3 py-2 min-h-[44px] transition-colors relative
+            flex flex-col items-center justify-center gap-1 px-1 py-2 transition-colors relative min-w-0 overflow-hidden
             ${isActive ? 'text-accent' : 'text-muted-foreground hover:text-foreground'}
           `}
         >
-          <UserCircle size={22} />
-          <span className="text-[10px] leading-none">Profile</span>
+          <UserCircle size={18} />
+          <span className="text-[9px] leading-none truncate w-full text-center">{t('navigation.profile')}</span>
         </NavLink>
 
-        {/* Games */}
         <NavLink
           to="/puurga-games"
           className={({ isActive }) => `
-            flex flex-col items-center justify-center gap-0.5 px-3 py-2 min-h-[44px] transition-colors relative
+            flex flex-col items-center justify-center gap-1 px-1 py-2 transition-colors relative min-w-0 overflow-hidden
             ${isActive ? 'text-accent' : 'text-muted-foreground hover:text-foreground'}
           `}
         >
-          <Gamepad2 size={22} />
-          <span className="text-[10px] leading-none">Games</span>
+          <Gamepad2 size={18} />
+          <span className="text-[9px] leading-none truncate w-full text-center">{t('navigation.games')}</span>
         </NavLink>
 
-        {/* Messages */}
         <NavLink
           to="/messages"
           className={({ isActive }) => `
-            flex flex-col items-center justify-center gap-0.5 px-3 py-2 min-h-[44px] transition-colors relative
+            flex flex-col items-center justify-center gap-1 px-1 py-2 transition-colors relative min-w-0 overflow-hidden
             ${isActive ? 'text-accent' : 'text-muted-foreground hover:text-foreground'}
           `}
         >
-          <MessageSquare size={22} />
-          <span className="text-[10px] leading-none">Chat</span>
+          <MessageSquare size={18} />
+          <span className="text-[9px] leading-none truncate w-full text-center">{t('navigation.chat')}</span>
         </NavLink>
 
-        {/* More Menu Button */}
-        <div className="relative" ref={moreMenuRef}>
-          <button
-            onClick={() => {
-              setMoreMenuOpen(!moreMenuOpen);
-              setLanguageMenuOpen(false);
-            }}
-            className={`flex flex-col items-center justify-center gap-0.5 px-3 py-2 min-h-[44px] transition-colors relative ${moreMenuOpen ? 'text-accent' : 'text-muted-foreground hover:text-foreground'}`}
-          >
-            {moreMenuOpen ? <X size={22} /> : <MoreHorizontal size={22} />}
-            <span className="text-[10px] leading-none">More</span>
-          </button>
-
-          {/* More Menu Dropdown - Mobile Optimized */}
-          {moreMenuOpen && (
-            <div className="absolute bottom-full right-0 mb-2 bg-card border border-border rounded-lg shadow-lg min-w-[180px] max-w-[200px] overflow-hidden z-50">
-              {/* Groups */}
-              <NavLink
-                to="/groups"
-                onClick={() => setMoreMenuOpen(false)}
-                className={({ isActive }) => `
-                  flex items-center gap-3 px-4 py-3 text-sm text-foreground transition-colors w-full text-left hover:bg-card-hover active:bg-card-hover
-                  ${isActive ? 'bg-card-hover' : ''}
-                `}
-              >
-                <Users size={18} />
-                <span>{t('navigation.groups')}</span>
-              </NavLink>
-
-              {/* Games */}
-
-              {/* Games */}
-              <NavLink
-                to="/puurga-games"
-                onClick={() => setMoreMenuOpen(false)}
-                className={({ isActive }) => `
-                  flex items-center gap-2 px-3 py-2 text-xs text-foreground transition-colors w-full text-left hover:bg-card-hover
-                  ${isActive ? 'bg-card-hover' : ''}
-                `}
-              >
-                <Gamepad2 size={16} />
-                <span>{t('navigation.games')}</span>
-              </NavLink>
-
-              {/* Dashboard */}
-              <NavLink
-                to="/puurga-dashboard"
-                onClick={() => setMoreMenuOpen(false)}
-                className={({ isActive }) => `
-                  flex items-center gap-2 px-3 py-2 text-xs text-foreground transition-colors w-full text-left hover:bg-card-hover
-                  ${isActive ? 'bg-card-hover' : ''}
-                `}
-              >
-                <BarChart3 size={16} />
-                <span>{t('navigation.dashboard')}</span>
-              </NavLink>
-
-              {/* Help */}
-              <NavLink
-                to="/help"
-                onClick={() => setMoreMenuOpen(false)}
-                className={({ isActive }) => `
-                  flex items-center gap-2 px-3 py-2 text-xs text-foreground transition-colors w-full text-left hover:bg-card-hover
-                  ${isActive ? 'bg-card-hover' : ''}
-                `}
-              >
-                <HelpCircle size={16} />
-                <span>{t('navigation.help')}</span>
-              </NavLink>
-
-              {/* Settings */}
-              <NavLink
-                to="/settings"
-                onClick={() => setMoreMenuOpen(false)}
-                className={({ isActive }) => `
-                  flex items-center gap-2 px-3 py-2 text-xs text-foreground transition-colors w-full text-left hover:bg-card-hover
-                  ${isActive ? 'bg-card-hover' : ''}
-                `}
-              >
-                <Settings size={16} />
-                <span>{t('navigation.settings')}</span>
-              </NavLink>
-
-              {/* Super Admin - only for super admins */}
-              {isSuperAdmin && (
-                <NavLink
-                  to="/super-admin"
-                  onClick={() => setMoreMenuOpen(false)}
-                  className={({ isActive }) => `
-                    flex items-center gap-2 px-3 py-2 text-xs text-red-500 hover:text-red-400 transition-colors w-full text-left hover:bg-red-500/10
-                    ${isActive ? 'bg-red-500/10' : ''}
-                  `}
-                >
-                  <ShieldCheck size={16} />
-                  <span>Super Admin</span>
-                </NavLink>
-              )}
-
-              {/* Divider */}
-              <div className="border-t border-border" />
-
-              {/* Light/Dark Mode Toggle */}
-              <button
-                onClick={toggleTheme}
-                className="flex items-center gap-2 px-3 py-2 text-xs text-foreground transition-colors w-full text-left hover:bg-card-hover"
-              >
-                {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
-                <span>{theme === 'dark' ? t('settings.lightMode') : t('settings.darkMode')}</span>
-              </button>
-
-              {/* Notifications Link */}
-              <NavLink
-                to="/notifications"
-                onClick={() => setMoreMenuOpen(false)}
-                className={({ isActive }) => `
-                  flex items-center gap-2 px-3 py-2 text-xs text-foreground transition-colors relative
-                  hover:bg-card-hover
-                  ${isActive ? 'bg-card-hover' : ''}
-                `}
-              >
-                <Bell size={16} />
-                <span>{t('navigation.notifications')}</span>
-                {unreadCount > 0 && (
-                  <span className="ml-auto bg-blue-500 text-white text-[10px] rounded-full h-3.5 w-3.5 flex items-center justify-center">
-                    {unreadCount > 9 ? '9+' : unreadCount}
-                  </span>
-                )}
-              </NavLink>
-
-              {/* Language Selector */}
-              <div className="relative border-t border-border" ref={languageMenuRef}>
-                <button
-                  onClick={() => setLanguageMenuOpen(!languageMenuOpen)}
-                  className="flex items-center gap-2 px-3 py-2 text-xs text-foreground transition-colors w-full text-left hover:bg-card-hover"
-                >
-                  <Globe size={16} />
-                  <span>{t('settings.language')}</span>
-                </button>
-                
-                {/* Language Options Dropdown */}
-                {languageMenuOpen && (
-                  <div className="bg-background-secondary border-t border-border">
-                    {languages.map((lang) => (
-                      <button
-                        key={lang.code}
-                        onClick={() => handleLanguageChange(lang.code)}
-                        disabled={isChangingLanguage}
-                        className={`block w-full text-left px-3 py-1.5 text-xs text-foreground hover:bg-card-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-                          i18n.language === lang.code ? 'bg-card-hover font-medium' : ''
-                        }`}
-                      >
-                        {lang.nativeName}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Divider */}
-              <div className="border-t border-border" />
-
-              {/* Logout */}
-              <button
-                onClick={handleLogout}
-                className="flex items-center gap-2 px-3 py-2 text-xs text-red-500 hover:text-red-400 transition-colors w-full text-left hover:bg-red-500/10"
-              >
-                <LogOut size={16} />
-                <span>{t('navigation.logout')}</span>
-              </button>
-            </div>
-          )}
-        </div>
+        <button
+          ref={moreBtnRef}
+          onClick={() => setShowMore(!showMore)}
+          className={`flex flex-col items-center justify-center gap-1 px-1 py-2 transition-colors relative min-w-0 overflow-hidden ${showMore ? 'text-accent' : 'text-muted-foreground hover:text-foreground'}`}
+        >
+          <MoreHorizontal size={18} />
+          <span className="text-[9px] leading-none truncate w-full text-center">{t('navigation.more')}</span>
+        </button>
       </div>
+
+      {/* Mobile More Popover */}
+      {createPortal(
+        <>
+          {showMore && (
+            <div className="fixed inset-0 z-[9998]" onClick={() => setShowMore(false)} />
+          )}
+          <AnimatePresence>
+            {showMore && (
+              <motion.div
+                ref={popoverRef}
+                initial={{ opacity: 0, y: 8, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 8, scale: 0.95 }}
+                transition={{ duration: 0.12 }}
+                className="fixed z-[9999] mx-auto bg-card border border-border rounded-xl shadow-xl overflow-hidden"
+                style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 72px)', left: '50%', transform: 'translateX(-50%)', minWidth: '200px' }}
+              >
+                <div className="py-0.5">
+                  {moreOptions.map((option) => (
+                    <NavLink
+                      key={option.to}
+                      to={option.to!}
+                      onClick={() => setShowMore(false)}
+                      className="flex items-center gap-2.5 px-3 py-2 text-sm text-foreground hover:bg-card-hover transition-colors"
+                    >
+                      <option.icon size={15} className="text-muted" />
+                      <span>{option.label}</span>
+                    </NavLink>
+                  ))}
+                  <div className="border-t border-border mx-2 my-0.5" />
+                  <button
+                    onClick={() => {
+                      setShowMore(false);
+                      handleLogout();
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-red-500 hover:bg-red-500/10 transition-colors"
+                  >
+                    <LogOut size={15} />
+                    <span>{t('navigation.logout')}</span>
+                  </button>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </>,
+        document.body
+      )}
     </>
   );
 };

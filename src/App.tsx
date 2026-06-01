@@ -1,45 +1,57 @@
-import React from 'react';
+import React, { Suspense } from 'react';
 import {
   Route,
   Navigate,
+  Outlet,
   createRoutesFromElements,
   createBrowserRouter,
   RouterProvider
 } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
-import Home from './pages/Home';
-import Profile from './pages/Profile';
-import Notifications from './pages/Notifications/Notifications';
-import Login from './pages/Login';
-import Register from './pages/Register';
-import ForgotPassword from './pages/ForgotPassword';
-import ResetPassword from './pages/ResetPassword';
-import TestResetUrl from './pages/TestResetUrl';
-import Messages from './pages/Messages';
-import PuurgaDashboard from './pages/PuurgaDashboard';
-import PurgaGames from './pages/PurgaGames/PurgaGames';
+import RouteLoadingBar from './components/RouteLoadingBar';
+import { retryableLazy } from './utils/retryableLazy';
+
+const Home = retryableLazy(() => import('./pages/Home'));
+const Profile = retryableLazy(() => import('./pages/Profile'));
+const Notifications = retryableLazy(() => import('./pages/Notifications/Notifications'));
+const Login = retryableLazy(() => import('./pages/Login'));
+const Register = retryableLazy(() => import('./pages/Register'));
+const ForgotPassword = retryableLazy(() => import('./pages/ForgotPassword'));
+const ResetPassword = retryableLazy(() => import('./pages/ResetPassword'));
+const TestResetUrl = retryableLazy(() => import('./pages/TestResetUrl'));
+const Messages = retryableLazy(() => import('./pages/Messages'));
+const PuurgaDashboard = retryableLazy(() => import('./pages/PuurgaDashboard'));
+const Purgatory = retryableLazy(() => import('./pages/Purgatory'));
+const PurgaGames = retryableLazy(() => import('./pages/PurgaGames/PurgaGames'));
+const Settings = retryableLazy(() => import('./pages/Settings/Settings'));
+const Groups = retryableLazy(() => import('./pages/Groups'));
+const Security = retryableLazy(() => import('./pages/Security'));
+const GroupDetail = retryableLazy(() => import('./pages/GroupDetail'));
+const JoinGroup = retryableLazy(() => import('./pages/JoinGroup'));
+const Help = retryableLazy(() => import('./pages/Help'));
+const NewGameCode = retryableLazy(() => import('./pages/NewGameCode'));
+const TheNextGame = retryableLazy(() => import('./pages/TheNextGame'));
+const UserProfile = retryableLazy(() => import('./pages/UserProfile'));
+const UserList = retryableLazy(() => import('./pages/Admin/UserList'));
+const SuperAdmin = retryableLazy(() => import('./pages/SuperAdmin/SuperAdmin'));
+import VideoScreen from './components/Onboarding/VideoScreen';
+import AuthCallback from './pages/AuthCallback';
+import LanguageScreen from './components/Onboarding/LanguageScreen';
+import WelcomeScreenWrapper from './components/Onboarding/WelcomeScreenWrapper';
+
 import ErrorBoundary from './components/ErrorBoundary';
 import ConsoleGuard from './components/ConsoleGuard';
 import DevDetector from './components/DevDetector';
-import Settings from './pages/Settings/Settings';
-import Groups from './pages/Groups';
-import Security from './pages/Security';
-import GroupDetail from './pages/GroupDetail';
-import Help from './pages/Help';
-import NewGameCode from './pages/NewGameCode';
-import TheNextGame from './pages/TheNextGame';
 import { UserProvider } from './context/UserContext';
-import UserProfile from './pages/UserProfile';
-import UserList from './pages/Admin/UserList';
-import SuperAdmin from './pages/SuperAdmin/SuperAdmin';
 import ProtectedRoute from './components/ProtectedRoute/index.tsx';
 import SuperAdminRoute from './components/SuperAdminRoute/index.tsx';
-
+import RootLayout from './components/RootLayout';
 import { NotificationProvider } from './context/NotificationContext';
 import { NotificationsProvider } from './context/NotificationsContext';
+import { SurvivalProvider } from './context/SurvivalContext';
 import { MessagesProvider } from './context/MessagesContext';
+import { MessageNotificationProvider } from './components/MessageNotificationPopup';
 import Layout from './components/Layout';
-import 'leaflet/dist/leaflet.css';
 
 // Imports needed for RootRedirect
 import { supabase } from './lib/supabaseClient';
@@ -51,6 +63,10 @@ const RootRedirect: React.FC = () => {
   const [isChecking, setIsChecking] = useState(true);
   const navigate = useNavigate();
   const { hash, search } = window.location;
+
+  if (!localStorage.getItem('hasSeenIntro')) {
+    return <Navigate to="/onboarding/video" replace />;
+  }
 
   // 1. Immediate synchronous check for recovery token
   // If we see it, don't wait for effects or auth states, just go there.
@@ -83,7 +99,7 @@ const RootRedirect: React.FC = () => {
       // 3. Fallback: If no event fires quickly, we proceed
       setTimeout(() => {
         if (isChecking) setIsChecking(false);
-      }, 2000);
+      }, 50);
 
       return () => {
         subscription.unsubscribe();
@@ -91,15 +107,10 @@ const RootRedirect: React.FC = () => {
     };
 
     checkAuthStatus();
-  }, [navigate]);
+  }, [navigate, isChecking]);
 
   if (isChecking) {
-    // Show a minimal loading state while we check for auth events
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[var(--bg)]">
-        <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
+    return null;
   }
 
   // If we have an access token (other auth flows), go to login with the token
@@ -110,13 +121,30 @@ const RootRedirect: React.FC = () => {
   return <Navigate to="/login" replace />;
 };
 
+const SuspenseWrapper: React.FC = () => (
+  <Suspense fallback={<RouteLoadingBar />}>
+    <Outlet />
+  </Suspense>
+);
+
 // Create router with future flags
 const router = createBrowserRouter(
   createRoutesFromElements(
-    <Route>
-      {/* Public Routes */}
-      <Route path="/login" element={<Login />} />
+    <Route element={<SuspenseWrapper />}>
+      {/* RootLayout wraps onboarding + login so OnboardingAudioManager persists across them */}
+      <Route element={<RootLayout />}>
+        {/* Onboarding Routes (Public) */}
+        <Route path="/splash" element={<Navigate to="/onboarding/video" replace />} />
+        <Route path="/onboarding/video" element={<VideoScreen />} />
+        <Route path="/onboarding/language" element={<LanguageScreen />} />
+        <Route path="/onboarding/welcome" element={<WelcomeScreenWrapper />} />
+        {/* Login lives inside RootLayout so audio fades as it mounts */}
+        <Route path="/login" element={<Login />} />
+      </Route>
+
+      {/* Public Routes (outside audio scope) */}
       <Route path="/register" element={<Register />} />
+      <Route path="/auth/callback" element={<AuthCallback />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/test-reset-url" element={<TestResetUrl />} />
@@ -137,8 +165,10 @@ const router = createBrowserRouter(
         <Route path="/messages" element={<Messages />} />
         <Route path="/groups" element={<Groups />} />
         <Route path="/groups/:id" element={<GroupDetail />} />
+        <Route path="/join/:inviteCode" element={<JoinGroup />} />
         <Route path="/puurga-games" element={<PurgaGames />} />
         <Route path="/puurga-dashboard" element={<PuurgaDashboard />} />
+        <Route path="/purgatory" element={<Purgatory />} />
         <Route path="/help" element={<Help />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/security" element={<Security />} />
@@ -165,41 +195,48 @@ const App: React.FC = () => {
   console.log('App rendering...');
 
   return (
-    <div className="min-h-screen bg-[var(--bg)] text-[var(--fg)]">
+    <div className="min-h-screen w-full max-w-full overflow-x-hidden flex flex-col bg-[var(--bg)] text-[var(--fg)]">
       <ErrorBoundary>
         <ConsoleGuard />
         <DevDetector />
         <UserProvider>
+          <SurvivalProvider>
           <NotificationProvider>
             <NotificationsProvider>
-              <MessagesProvider>
-                <Toaster
-                  position="top-right"
-                  toastOptions={{
-                    duration: 4000,
-                    style: {
-                      background: 'var(--card)',
-                      color: 'var(--fg)',
-                      border: '1px solid var(--border)',
-                    },
-                    success: {
-                      iconTheme: {
-                        primary: '#22c55e',
-                        secondary: '#fff',
+              <MessageNotificationProvider>
+                <MessagesProvider>
+                  <Toaster
+                    position="top-right"
+                    toastOptions={{
+                      duration: 4000,
+                      style: {
+                        background: 'transparent',
+                        color: 'rgb(var(--fg))',
+                        border: 'none',
+                        padding: '4px 8px',
+                        fontSize: '12px',
+                        boxShadow: 'none',
                       },
-                    },
-                    error: {
-                      iconTheme: {
-                        primary: '#ef4444',
-                        secondary: '#fff',
+                      success: {
+                        iconTheme: {
+                          primary: '#22c55e',
+                          secondary: '#fff',
+                        },
                       },
-                    },
-                  }}
-                />
+                      error: {
+                        iconTheme: {
+                          primary: '#ef4444',
+                          secondary: '#fff',
+                        },
+                      },
+                    }}
+                  />
                 <RouterProvider router={router} />
-              </MessagesProvider>
+                </MessagesProvider>
+                </MessageNotificationProvider>
             </NotificationsProvider>
           </NotificationProvider>
+          </SurvivalProvider>
         </UserProvider>
       </ErrorBoundary>
     </div>

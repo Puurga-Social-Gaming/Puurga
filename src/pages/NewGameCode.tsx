@@ -100,7 +100,7 @@ const StatCard = ({ icon: Icon, label, value, subValue, color, borderColor }: an
 const ActionButton = ({ onClick, disabled, variant = 'primary', children, className = '' }: any) => {
     const baseStyle = "w-full py-3 px-4 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 active:scale-95";
     const variants: any = {
-        primary: "bg-accent hover:bg-accent-hover text-white shadow-theme-button disabled:opacity-50 disabled:cursor-not-allowed border border-transparent",
+        primary: "bg-accent hover:opacity-90 text-black shadow-theme-button disabled:opacity-50 disabled:cursor-not-allowed border border-transparent",
         secondary: "bg-background-secondary hover:bg-card-hover text-foreground disabled:opacity-50 border border-border",
         danger: "bg-red-500/10 text-red-500 border border-red-500/20 hover:bg-red-500/20",
         outline: "border border-border text-muted hover:border-accent hover:text-accent bg-transparent"

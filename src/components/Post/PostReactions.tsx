@@ -91,24 +91,23 @@ const PostReactions: React.FC<PostReactionsProps> = ({
       {/* Main Reaction Button */}
       <div className="flex items-center gap-2">
         <motion.button
-          whileHover={{ scale: 1.1 }}
-          whileTap={{ scale: 0.9 }}
+          whileTap={{ scale: 0.95 }}
           onClick={() => setShowPicker(!showPicker)}
           className={`flex items-center gap-1 transition-colors ${userReaction
-              ? 'text-white hover:text-gray-200'
-              : 'text-gray-400 hover:text-white'
+              ? 'text-foreground'
+              : 'text-muted hover:text-foreground'
             }`}
         >
           {userReaction ? (
             <>
-              <span className="text-base sm:text-lg">{getUserReactionEmoji()}</span>
-              <span className="text-xs sm:text-sm">{getUserReactionCount()}</span>
+              <span className="text-sm">{getUserReactionEmoji()}</span>
+              <span className="text-xs">{getUserReactionCount()}</span>
             </>
           ) : (
             <>
-              <SmilePlus size={18} className="sm:w-5 sm:h-5" />
+              <SmilePlus size={16} />
               {getTotalReactions() > 0 && (
-                <span className="text-xs sm:text-sm">{getTotalReactions()}</span>
+                <span className="text-xs">{getTotalReactions()}</span>
               )}
             </>
           )}
@@ -128,7 +127,7 @@ const PostReactions: React.FC<PostReactionsProps> = ({
               initial={{ opacity: 0, scale: 0.95, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              className="absolute bottom-full left-0 mb-2 p-1.5 sm:p-2 bg-[#2d2d2d] rounded-lg shadow-lg z-50 flex gap-0.5 sm:gap-1"
+              className="absolute bottom-full left-0 mb-2 p-1.5 sm:p-2 bg-card rounded-lg shadow-lg z-modal flex gap-0.5 sm:gap-1 border border-border"
             >
               {REACTIONS.map((reaction) => {
                 const reactionData = reactions[reaction.name];
@@ -141,17 +140,17 @@ const PostReactions: React.FC<PostReactionsProps> = ({
                     whileHover={{ scale: 1.2 }}
                     whileTap={{ scale: 0.9 }}
                     onClick={() => handleReaction(reaction.name)}
-                    className={`p-1.5 sm:p-2 hover:bg-white/5 rounded-full transition-colors relative group ${isUserReaction ? 'bg-white/20' : ''
+                    className={`p-1.5 sm:p-2 hover:bg-card-hover rounded-full transition-colors relative group ${isUserReaction ? 'bg-accent/20' : ''
                       }`}
                     disabled={isLoading}
                   >
-                    <span className="text-lg sm:text-xl">{reaction.emoji}</span>
+                    <span className="text-sm">{reaction.emoji}</span>
                     {count > 0 && (
-                      <span className="absolute -top-1 -right-1 bg-white text-black text-[10px] sm:text-xs rounded-full w-3.5 h-3.5 sm:w-4 sm:h-4 flex items-center justify-center">
+                      <span className="absolute -top-1 -right-1 bg-accent text-background text-[9px] rounded-full w-3.5 h-3.5 flex items-center justify-center">
                         {count}
                       </span>
                     )}
-                    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-1 px-2 py-0.5 bg-black/90 rounded text-xs text-white whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-1 px-2 py-0.5 bg-foreground/90 rounded text-xs text-background whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
                       {reaction.label}
                     </div>
                   </motion.button>

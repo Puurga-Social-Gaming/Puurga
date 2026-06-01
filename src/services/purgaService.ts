@@ -42,9 +42,13 @@ export const getGameStats = async (): Promise<GameStats[]> => {
 export const getCurrentlyPlaying = async (): Promise<PlayingUser[]> => {
   try {
     const response = await api.get('/games/playing');
-    return response.data;
-  } catch (error) {
-    console.error('Error fetching currently playing:', error);
+    return response.data || [];
+  } catch (error: any) {
+    // Don't log error for this - it's expected to return empty if no one is playing
+    if (error.response?.status === 404) {
+      return [];
+    }
+    console.warn('Could not fetch currently playing users:', error.message);
     return [];
   }
 };

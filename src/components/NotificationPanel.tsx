@@ -41,7 +41,7 @@ const NotificationPanel: React.FC<NotificationPanelProps> = ({ isOpen, onClose }
             </div>
           ) : (
             <div className="divide-y">
-              {notifications.map((notification) => (
+              {notifications.map((notification: any) => (
                 <div
                   key={notification.id}
                   className={`p-4 hover:bg-gray-50 cursor-pointer ${
@@ -51,11 +51,14 @@ const NotificationPanel: React.FC<NotificationPanelProps> = ({ isOpen, onClose }
                 >
                   <div className="flex items-start space-x-3">
                     <div className="flex-1">
-                      <p className="text-sm text-gray-900">{notification.message}</p>
+                      <p className="text-sm text-gray-900">
+                        {notification.message || notification.fromUser?.name || 'Notification'}
+                      </p>
                       <p className="text-xs text-gray-500 mt-1">
-                        {formatDistanceToNow(new Date(notification.created_at), {
-                          addSuffix: true
-                        })}
+                        {formatDistanceToNow(
+                          new Date(notification.createdAt || notification.created_at),
+                          { addSuffix: true }
+                        )}
                       </p>
                     </div>
                     {!notification.read && (
@@ -72,4 +75,4 @@ const NotificationPanel: React.FC<NotificationPanelProps> = ({ isOpen, onClose }
   );
 };
 
-export default NotificationPanel; 
+export default NotificationPanel;

@@ -42,6 +42,7 @@ export interface Post {
     };
   }>;
   visibility: 'friends' | 'public' | 'private';
+  background_index?: number;
   images?: string[];
   media_layout?: string;
   location?: {
@@ -86,6 +87,8 @@ export interface UserProfile {
     following: number;
     posts: number;
     puurgas: number;
+    purges: number;
+    credits: number;
   };
 }
 

@@ -3,9 +3,15 @@ import { supabase } from '../config/supabase';
 import { supabaseAuth as auth, AuthRequest } from '../middleware/supabaseAuth';
 import multer from 'multer';
 import { normalizeImageUrl } from '../utils/url';
+import { validateNotGhosted } from '../middleware/restrictGhosted';
 import path from 'path';
+import crypto from 'crypto';
 
 const router = express.Router();
+
+const generateInviteCode = (): string => {
+  return crypto.randomBytes(3).toString('hex');
+};
 
 // Configure multer for memory storage (direct to Supabase)
 const storage = multer.memoryStorage();
@@ -220,7 +226,7 @@ router.post('/', auth, async (req: AuthRequest, res) => {
 });
 
 // POST /api/groups/:id/join - Join a group
-router.post('/:id/join', auth, async (req: AuthRequest, res) => {
+router.post('/:id/join', auth, validateNotGhosted, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
     const userId = req.user?.id;
@@ -228,6 +234,8 @@ router.post('/:id/join', auth, async (req: AuthRequest, res) => {
     if (!userId) {
       return res.status(401).json({ error: 'User not authenticated' });
     }
+
+    let groupId = id;
 
     // Check if group exists
     const { data: group, error: groupError } = await supabase
@@ -269,6 +277,219 @@ router.post('/:id/join', auth, async (req: AuthRequest, res) => {
   } catch (error) {
     console.error('Error joining group:', error);
     res.status(500).json({ error: 'Failed to join group' });
+  }
+});
+
+// POST /api/groups/join - Join a group via invite code
+router.post('/join', auth, validateNotGhosted, async (req: AuthRequest, res) => {
+  try {
+    const { invite_code } = req.body;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+
+    if (!invite_code) {
+      return res.status(400).json({ error: 'Invite code is required' });
+    }
+
+    // Find group by invite code
+    const { data: group, error: groupError } = await supabase
+      .from('groups')
+      .select('id, name, is_private')
+      .eq('invite_code', invite_code.toLowerCase())
+      .single();
+
+    if (groupError || !group) {
+      return res.status(404).json({ error: 'Invalid invite code' });
+    }
+
+    // Check if user is already a member
+    const { data: existingMember } = await supabase
+      .from('group_members')
+      .select('id')
+      .eq('group_id', group.id)
+      .eq('user_id', userId)
+      .single();
+
+    if (existingMember) {
+      return res.status(400).json({ error: 'Already a member of this group' });
+    }
+
+    // Add user to group
+    const { data: membership, error } = await supabase
+      .from('group_members')
+      .insert({
+        group_id: group.id,
+        user_id: userId,
+        role: 'member'
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    res.status(201).json({ message: 'Successfully joined group', group, membership });
+  } catch (error) {
+    console.error('Error joining group:', error);
+    res.status(500).json({ error: 'Failed to join group' });
+  }
+});
+
+// GET /api/groups/:id/invite - Get group invite link
+router.get('/:id/invite', auth, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user?.id;
+
+    // Check if user is a member
+    const { data: membership } = await supabase
+      .from('group_members')
+      .select('role')
+      .eq('group_id', id)
+      .eq('user_id', userId)
+      .single();
+
+    if (!membership) {
+      return res.status(403).json({ error: 'Must be a member to get invite link' });
+    }
+
+    // Get group and generate invite code if not exists
+    const { data: group, error } = await supabase
+      .from('groups')
+      .select('id, name, invite_code')
+      .eq('id', id)
+      .single();
+
+    if (error || !group) {
+      return res.status(404).json({ error: 'Group not found' });
+    }
+
+    let inviteCode = group.invite_code;
+    if (!inviteCode) {
+      inviteCode = generateInviteCode();
+      await supabase
+        .from('groups')
+        .update({ invite_code: inviteCode })
+        .eq('id', id);
+    }
+
+    const inviteLink = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/join/${inviteCode}`;
+
+    res.json({
+      invite_code: inviteCode,
+      invite_link: inviteLink
+    });
+  } catch (error) {
+    console.error('Error getting invite link:', error);
+    res.status(500).json({ error: 'Failed to get invite link' });
+  }
+});
+
+// POST /api/groups/:id/invite/regenerate - Regenerate invite code (admin only)
+router.post('/:id/invite/regenerate', auth, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user?.id;
+
+    // Check if user is admin
+    const { data: membership } = await supabase
+      .from('group_members')
+      .select('role')
+      .eq('group_id', id)
+      .eq('user_id', userId)
+      .single();
+
+    if (!membership || membership.role !== 'admin') {
+      return res.status(403).json({ error: 'Only admins can regenerate invite code' });
+    }
+
+    // Generate new invite code
+    const inviteCode = generateInviteCode();
+
+    const { data: group, error } = await supabase
+      .from('groups')
+      .update({ invite_code: inviteCode })
+      .eq('id', id)
+      .select('id, name')
+      .single();
+
+    if (error) throw error;
+
+    const inviteLink = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/join/${inviteCode}`;
+
+    res.json({
+      message: 'Invite code regenerated',
+      invite_code: inviteCode,
+      invite_link: inviteLink
+    });
+  } catch (error) {
+    console.error('Error regenerating invite code:', error);
+    res.status(500).json({ error: 'Failed to regenerate invite code' });
+  }
+});
+
+// GET /api/groups/invite/:inviteCode - Get group by invite code (preview)
+router.get('/invite/:inviteCode', auth, async (req: AuthRequest, res) => {
+  try {
+    const { inviteCode } = req.params;
+    const userId = req.user?.id;
+
+    // Find group by invite code
+    const { data: group, error } = await supabase
+      .from('groups')
+      .select('id, name, description, profile_image_url, cover_image_url, is_private')
+      .eq('invite_code', inviteCode.toLowerCase())
+      .single();
+
+    if (error || !group) {
+      return res.status(404).json({ error: 'Invalid invite code' });
+    }
+
+    // Get member count
+    const { count } = await supabase
+      .from('group_members')
+      .select('*', { count: 'exact', head: true })
+      .eq('group_id', group.id);
+
+    // Get members list
+    const { data: members } = await supabase
+      .from('group_members')
+      .select('id, role, user_id')
+      .eq('group_id', group.id)
+      .order('joined_at', { ascending: true })
+      .limit(10);
+
+    // Get member profiles
+    const membersWithProfiles = await Promise.all(
+      (members || []).map(async (member) => {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('username, full_name, avatar_url')
+          .eq('id', member.user_id)
+          .single();
+
+        return {
+          ...member,
+          profile: profile ? {
+            ...profile,
+            avatar_url: normalizeImageUrl(profile.avatar_url)
+          } : null
+        };
+      })
+    );
+
+    res.json({
+      ...group,
+      profile_image_url: normalizeImageUrl(group.profile_image_url),
+      cover_image_url: normalizeImageUrl(group.cover_image_url),
+      member_count: count || 0,
+      members: membersWithProfiles
+    });
+  } catch (error) {
+    console.error('Error fetching group by invite code:', error);
+    res.status(500).json({ error: 'Failed to fetch group' });
   }
 });
 

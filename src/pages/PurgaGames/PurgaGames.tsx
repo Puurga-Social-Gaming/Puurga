@@ -1,385 +1,224 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { Suspense, useEffect, useMemo, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
 import {
   Gamepad2,
   Trophy,
   Coins,
-  Star,
-  Play,
-  Clock,
   Zap,
   Crown,
   Flame,
-  ArrowLeft
+  ArrowLeft,
+  Loader2,
 } from 'lucide-react';
 import PurgaSlicer from '../../components/Games/PurgaSlicer';
+import NewGamePromoBanner from '../../components/Games/NewGamePromoBanner';
+import GameIconTile from '../../components/Games/GameIconTile';
+import { createIntegratedLazy } from '../../components/Games/integratedGameLoaders';
+import {
+  getGameById,
+  getTranslatedGamesCatalog,
+  type PuurgaGameCatalogEntry,
+  type IntegratedSlotId,
+} from '../../config/puurgaGamesCatalog';
 
-interface Game {
-  id: string;
-  title: string;
-  description: string;
-  image: string;
-  category: string;
-  difficulty: 'Easy' | 'Medium' | 'Hard';
-  rewardCoins: number;
-  playTime: string;
-  players: number;
-  featured: boolean;
-  action: 'embed' | 'navigate';
-  target?: string;
-  viewDetails?: string;
-}
+type ArenaView = 'menu' | 'purgaslicer' | 'integrated';
 
 const PurgaGames: React.FC = () => {
   const navigate = useNavigate();
-  const [currentView, setCurrentView] = useState<'menu' | 'purgaslicer'>('menu');
-  const [lastResult, setLastResult] = useState<any>(null);
+  const { t } = useTranslation();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [currentView, setCurrentView] = useState<ArenaView>('menu');
+  const [integratedSlot, setIntegratedSlot] = useState<IntegratedSlotId | null>(null);
+  const [lastResult, setLastResult] = useState<Record<string, unknown> | null>(null);
 
-  React.useEffect(() => {
+  const mainGames = useMemo(() => getTranslatedGamesCatalog(), [t]);
+
+  const IntegratedShell = useMemo(
+    () => (integratedSlot ? createIntegratedLazy(integratedSlot) : null),
+    [integratedSlot],
+  );
+
+  useEffect(() => {
     const stored = localStorage.getItem('perga_last_result');
     if (stored) {
       try {
         setLastResult(JSON.parse(stored));
-      } catch (e) {
+      } catch {
         console.error('Failed to parse last result');
       }
     }
   }, []);
 
-  const mainGames: Game[] = [
-    {
-      id: 'judgment',
-      title: 'Judgment',
-      description: 'Decide the fate of souls. Your judgment must be swift and fair. Pass verdict on users based on their actions.',
-      image: '/images/games/judgment.jpg',
-      category: 'Strategy',
-      difficulty: 'Hard',
-      rewardCoins: 600,
-      playTime: '15-20 min',
-      players: 1500,
-      featured: true,
-      action: 'embed',
-      viewDetails: 'purgaslicer'
-    },
-    {
-      id: 'watchman',
-      title: 'The Watchman',
-      description: 'Defend the realm from incoming threats. Vigilance is key. Protect your tower from purge attacks.',
-      image: '/images/games/watchman.jpg',
-      category: 'Action',
-      difficulty: 'Hard',
-      rewardCoins: 500,
-      playTime: '10-15 min',
-      players: 1240,
-      featured: true,
-      action: 'navigate',
-      target: '/next-game'
-    },
-    {
-      id: 'redemption',
-      title: 'Redemption',
-      description: 'A moral scenario game. Make the right choices to restore your status and redeem ghosted users.',
-      image: '/images/games/redemption.jpg',
-      category: 'Strategy',
-      difficulty: 'Medium',
-      rewardCoins: 300,
-      playTime: '5-10 min',
-      players: 890,
-      featured: true,
-      action: 'navigate',
-      target: '/new-game'
-    }
-  ];
+  useEffect(() => {
+    const playId = searchParams.get('play');
+    if (!playId) return;
 
-  const handleGameSelect = (game: Game) => {
-    if (game.action === 'embed' && game.viewDetails === 'purgaslicer') {
+    const game = getGameById(playId);
+    if (game?.embedKey === 'integrated' && game.integratedSlot) {
+      setIntegratedSlot(game.integratedSlot);
+      setCurrentView('integrated');
+    } else if (game?.embedKey === 'purgaslicer') {
       setCurrentView('purgaslicer');
-    } else if (game.action === 'navigate' && game.target) {
+    }
+
+    searchParams.delete('play');
+    setSearchParams(searchParams, { replace: true });
+  }, [searchParams, setSearchParams]);
+
+  const handleGameSelect = (game: PuurgaGameCatalogEntry) => {
+    localStorage.setItem(
+      'perga_last_result',
+      JSON.stringify({ game: game.title, score: 0, net: 0 }),
+    );
+
+    if (game.action === 'embed') {
+      if (game.embedKey === 'purgaslicer') {
+        setCurrentView('purgaslicer');
+        return;
+      }
+      if (game.embedKey === 'integrated' && game.integratedSlot) {
+        setIntegratedSlot(game.integratedSlot);
+        setCurrentView('integrated');
+        return;
+      }
+    }
+    if (game.action === 'navigate' && game.target) {
       navigate(game.target);
     }
   };
 
   const handleBackToMenu = () => {
+    setIntegratedSlot(null);
     setCurrentView('menu');
   };
 
-  const getDifficultyColor = (difficulty: string) => {
-    switch (difficulty) {
-      case 'Easy': return 'bg-green-500/20 text-green-400 border-green-500/30';
-      case 'Medium': return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30';
-      case 'Hard': return 'bg-red-500/20 text-red-400 border-red-500/30';
-      default: return 'bg-gray-500/20 text-gray-400 border-gray-500/30';
-    }
-  };
-
-  // Render Embedded Game
-  if (currentView === 'purgaslicer') {
-    return (
+  const embedShell = (child: React.ReactNode) => (
+    <motion.div
+      initial={{ opacity: 0, x: '100%' }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: '-100%' }}
+      transition={{ duration: 0.3, ease: 'easeInOut' }}
+      className="h-[100dvh] max-h-[100dvh] overflow-hidden bg-background relative"
+    >
       <motion.div
-        initial={{ opacity: 0, x: '100%' }}
+        initial={{ opacity: 0, x: -20 }}
         animate={{ opacity: 1, x: 0 }}
-        exit={{ opacity: 0, x: '-100%' }}
-        transition={{ duration: 0.3, ease: 'easeInOut' }}
-        className="min-h-screen bg-background relative"
+        transition={{ delay: 0.2 }}
+        className="absolute top-[max(0.75rem,env(safe-area-inset-top))] left-4 z-[10001]"
       >
-        {/* Back Button */}
-        <motion.div
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: 0.2 }}
-          className="absolute top-4 left-4 z-50"
+        <button
+          type="button"
+          onClick={handleBackToMenu}
+          className="flex items-center gap-2 bg-black/50 hover:bg-black/80 text-white px-4 py-2 rounded-xl transition-all duration-300 backdrop-blur-md border border-white/10"
         >
-          <button
-            onClick={handleBackToMenu}
-            className="flex items-center gap-2 bg-black/50 hover:bg-black/80 text-white px-4 py-2 rounded-xl transition-all duration-300 backdrop-blur-md border border-white/10"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span className="hidden sm:inline font-medium">Back to Arena</span>
-          </button>
-        </motion.div>
-
-        {/* Game Container */}
-        <div className="w-full h-screen">
-          <PurgaSlicer className="w-full h-full" />
-        </div>
+          <ArrowLeft className="w-4 h-4" />
+          <span className="hidden sm:inline font-medium">{t('games.backToArena')}</span>
+        </button>
       </motion.div>
+      <div className="w-full h-full min-h-0 overflow-hidden">{child}</div>
+    </motion.div>
+  );
+
+  if (currentView === 'purgaslicer') {
+    return embedShell(<PurgaSlicer className="w-full h-full min-h-screen" />);
+  }
+
+  if (currentView === 'integrated' && IntegratedShell) {
+    const Shell = IntegratedShell;
+    return embedShell(
+      <Suspense
+        fallback={
+          <div className="flex min-h-screen items-center justify-center bg-neutral-950">
+            <Loader2 className="h-10 w-10 animate-spin text-violet-400" />
+          </div>
+        }
+      >
+        <Shell onExit={handleBackToMenu} />
+      </Suspense>,
     );
   }
 
-  // Render Arena Dashboard (Professional Landing)
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background via-background-secondary to-background">
-      {/* Hero Section */}
-      <div className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-r from-orange-500/10 via-transparent to-purple-500/10" />
-        <div className="absolute inset-0 bg-[url('/images/games/judgment.jpg')] bg-cover bg-center opacity-5" />
-
-        <div className="relative max-w-7xl mx-auto px-4 py-8 md:py-16">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="text-center space-y-4"
-          >
-            <div className="flex items-center justify-center gap-3 mb-4">
-              <div className="p-3 bg-gradient-to-br from-orange-500 to-red-600 rounded-xl shadow-lg shadow-orange-500/25">
-                <Gamepad2 className="w-8 h-8 md:w-10 md:h-10 text-white" />
-              </div>
+    <div className="min-h-screen bg-gradient-to-b from-background via-background-secondary to-background pb-10">
+      <div className="relative border-b border-border/50">
+        <div className="absolute inset-0 bg-gradient-to-r from-orange-500/8 via-transparent to-purple-500/8" />
+        <div className="relative max-w-lg mx-auto px-4 pt-8 pb-6 text-center">
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
+            <div className="inline-flex p-2.5 rounded-2xl bg-gradient-to-br from-orange-500 to-red-600 shadow-lg shadow-orange-500/20 mb-3">
+              <Gamepad2 className="w-7 h-7 text-white" />
             </div>
-            <h1 className="text-3xl md:text-5xl font-black text-foreground tracking-tight">
-              Puurga <span className="bg-gradient-to-r from-orange-400 to-red-500 bg-clip-text text-transparent">Arena</span>
+            <h1 className="text-2xl font-black text-foreground tracking-tight">
+              Puurga{' '}
+              <span className="bg-gradient-to-r from-orange-400 to-red-500 bg-clip-text text-transparent">
+                {t('games.arena')}
+              </span>
             </h1>
-            <p className="text-muted text-base md:text-lg max-w-2xl mx-auto">
-              Enter the arena, earn credits, and rise through the ranks. Your destiny awaits.
-            </p>
-
-            {lastResult && (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="mt-6 mx-auto max-w-lg bg-gradient-to-r from-orange-500/20 to-red-500/20 border border-orange-500/30 rounded-xl p-3 flex items-center justify-between backdrop-blur-md"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-orange-500/20 rounded-lg">
-                    <Zap size={16} className="text-orange-400" />
-                  </div>
-                  <div className="text-left">
-                    <p className="text-xs text-orange-300 uppercase font-bold">Latest Report</p>
-                    <p className="text-sm font-semibold text-white">{lastResult.game}: {lastResult.score} pts</p>
-                  </div>
-                </div>
-                <div className={`text-sm font-bold ${lastResult.net >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                  {lastResult.net >= 0 ? '+' : ''}{lastResult.net} Credits
-                </div>
-              </motion.div>
-            )}
+            <p className="text-muted text-sm mt-1">{t('games.tapToPlay')}</p>
           </motion.div>
 
-          {/* Stats Row */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="grid grid-cols-3 gap-3 md:gap-6 mt-8 max-w-2xl mx-auto"
-          >
-            <div className="bg-card/50 backdrop-blur-sm rounded-xl p-3 md:p-4 border border-border text-center">
-              <Coins className="w-5 h-5 md:w-6 md:h-6 text-orange-400 mx-auto mb-1" />
-              <p className="text-lg md:text-2xl font-bold text-foreground">2,450</p>
-              <p className="text-[10px] md:text-xs text-muted">Credits Earned</p>
+          <div className="mt-4">
+            <NewGamePromoBanner />
+          </div>
+
+          {lastResult && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="mt-4 rounded-xl border border-orange-500/30 bg-orange-500/10 p-2.5 flex items-center gap-2 text-left"
+            >
+              <Zap size={16} className="text-orange-400 shrink-0" />
+              <p className="text-xs text-foreground">
+                <span className="font-semibold">{String(lastResult.game ?? 'Arena')}</span>
+                {' · '}
+                {String(lastResult.score ?? 0)} pts
+              </p>
+            </motion.div>
+          )}
+
+          <div className="grid grid-cols-3 gap-2 mt-5">
+            <div className="rounded-xl bg-card/60 border border-border p-2 text-center">
+              <Coins className="w-4 h-4 text-orange-400 mx-auto mb-0.5" />
+              <p className="text-sm font-bold text-foreground">2,450</p>
+              <p className="text-[9px] text-muted">{t('games.credits')}</p>
             </div>
-            <div className="bg-card/50 backdrop-blur-sm rounded-xl p-3 md:p-4 border border-border text-center">
-              <Trophy className="w-5 h-5 md:w-6 md:h-6 text-yellow-400 mx-auto mb-1" />
-              <p className="text-lg md:text-2xl font-bold text-foreground">#127</p>
-              <p className="text-[10px] md:text-xs text-muted">Global Rank</p>
+            <div className="rounded-xl bg-card/60 border border-border p-2 text-center">
+              <Trophy className="w-4 h-4 text-yellow-400 mx-auto mb-0.5" />
+              <p className="text-sm font-bold text-foreground">#127</p>
+              <p className="text-[9px] text-muted">{t('games.rank')}</p>
             </div>
-            <div className="bg-card/50 backdrop-blur-sm rounded-xl p-3 md:p-4 border border-border text-center">
-              <Flame className="w-5 h-5 md:w-6 md:h-6 text-red-400 mx-auto mb-1" />
-              <p className="text-lg md:text-2xl font-bold text-foreground">47</p>
-              <p className="text-[10px] md:text-xs text-muted">Games Played</p>
+            <div className="rounded-xl bg-card/60 border border-border p-2 text-center">
+              <Flame className="w-4 h-4 text-red-400 mx-auto mb-0.5" />
+              <p className="text-sm font-bold text-foreground">47</p>
+              <p className="text-[9px] text-muted">{t('games.played')}</p>
             </div>
-          </motion.div>
+          </div>
         </div>
       </div>
 
-      {/* Main Games Grid */}
-      <div className="max-w-7xl mx-auto px-4 py-8">
+      <div className="max-w-lg mx-auto px-4 pt-6">
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="mb-6"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.1 }}
+          className="mb-4 flex items-center gap-2"
         >
-          <h2 className="text-xl md:text-2xl font-bold text-foreground flex items-center gap-2">
-            <Crown className="w-5 h-5 md:w-6 md:h-6 text-orange-500" />
-            Featured Games
-          </h2>
-          <p className="text-muted text-sm mt-1">Choose your arena and prove your worth</p>
+          <Crown className="w-4 h-4 text-orange-500" />
+          <h2 className="text-sm font-semibold text-foreground">{t('games.allGames')}</h2>
         </motion.div>
 
-        {/* Large Game Cards - Half size on mobile */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-6">
+        <div className="grid grid-cols-3 gap-x-3 gap-y-5 sm:gap-x-4 sm:gap-y-6">
           {mainGames.map((game, index) => (
-            <motion.div
+            <GameIconTile
               key={game.id}
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 * (index + 1) }}
-              whileHover={{ y: -5, transition: { duration: 0.2 } }}
-              className="group relative cursor-pointer"
+              game={game}
+              index={index}
               onClick={() => handleGameSelect(game)}
-            >
-              <div className="relative overflow-hidden rounded-xl md:rounded-2xl bg-gradient-to-b from-card to-background-secondary border border-border hover:border-orange-500/50 transition-all duration-300 shadow-xl hover:shadow-orange-500/10 max-h-[180px] md:max-h-none">
-                {/* Game Image - Half height on mobile */}
-                <div className="relative h-[90px] md:h-auto md:aspect-video lg:aspect-square overflow-hidden">
-                  <img
-                    src={game.image}
-                    alt={game.title}
-                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent opacity-80" />
-
-                  {/* Featured Badge */}
-                  <div className="absolute top-1.5 left-1.5 md:top-2 md:left-2">
-                    <span className="flex items-center gap-0.5 bg-gradient-to-r from-orange-500 to-red-500 text-white text-[8px] md:text-[10px] px-1 md:px-1.5 py-0.5 rounded-full font-medium shadow-lg">
-                      <Star className="w-2 md:w-2.5 h-2 md:h-2.5" />
-                      <span className="hidden md:inline">Featured</span>
-                    </span>
-                  </div>
-
-                  {/* Difficulty Badge */}
-                  <div className="absolute top-1.5 right-1.5 md:top-2 md:right-2">
-                    <span className={`text-[8px] md:text-[10px] px-1 md:px-1.5 py-0.5 rounded-full font-medium border ${getDifficultyColor(game.difficulty)}`}>
-                      {game.difficulty}
-                    </span>
-                  </div>
-
-                  {/* Play Button Overlay */}
-                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                    <div className="p-1.5 md:p-2 bg-orange-500 rounded-full shadow-xl shadow-orange-500/50 transform scale-75 group-hover:scale-100 transition-transform duration-300">
-                      <Play className="w-4 h-4 md:w-5 md:h-5 text-white" fill="white" />
-                    </div>
-                  </div>
-
-                  {/* Game Info Overlay */}
-                  <div className="absolute bottom-0 left-0 right-0 p-1.5 md:p-2">
-                    <h3 className="text-xs md:text-base lg:text-xl font-bold text-white mb-0.5 truncate">{game.title}</h3>
-                    <p className="text-gray-300 text-[9px] md:text-[10px] lg:text-sm line-clamp-1 md:line-clamp-2 mb-0.5 md:mb-1 hidden sm:block">{game.description}</p>
-
-                    {/* Stats Row */}
-                    <div className="flex items-center justify-between text-[9px] md:text-[10px] lg:text-xs text-gray-400">
-                      <div className="flex items-center gap-1">
-                        <span className="flex items-center gap-0.5">
-                          <Clock className="w-2 md:w-2.5 h-2 md:h-2.5" />
-                          <span className="hidden md:inline">{game.playTime}</span>
-                        </span>
-                      </div>
-                      <span className="flex items-center gap-0.5 text-orange-400 font-medium">
-                        <Coins className="w-2 md:w-2.5 h-2 md:h-2.5" />
-                        {game.rewardCoins}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
+            />
           ))}
         </div>
 
-        {/* Quick Play Section - Mobile - Navigates instead of linking directly */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4 }}
-          className="mt-8 md:hidden"
-        >
-          <h2 className="text-lg font-bold text-foreground mb-4 flex items-center gap-2">
-            <Zap className="w-5 h-5 text-yellow-500" />
-            Quick Play
-          </h2>
-          <div className="space-y-3">
-            {mainGames.map((game) => (
-              <div
-                key={game.id}
-                onClick={() => handleGameSelect(game)}
-                className="flex items-center gap-3 p-2 rounded-xl bg-card/50 border border-border hover:border-orange-500/30 transition-all cursor-pointer"
-              >
-                <img
-                  src={game.image}
-                  alt={game.title}
-                  className="w-8 h-8 rounded-lg object-cover shadow-sm"
-                />
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-semibold text-foreground text-sm truncate">{game.title}</h3>
-                  <p className="text-[10px] text-muted">{game.category} • {game.difficulty}</p>
-                  <div className="flex items-center gap-1 mt-0.5 text-[10px] text-orange-400">
-                    <Coins className="w-3 h-3" />
-                    <span>{game.rewardCoins}</span>
-                  </div>
-                </div>
-                <Play className="w-4 h-4 text-orange-500 flex-shrink-0" />
-              </div>
-            ))}
-          </div>
-        </motion.div>
-
-        {/* How to Play Section */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.5 }}
-          className="mt-12 p-6 rounded-2xl bg-gradient-to-r from-orange-500/10 to-purple-500/10 border border-border"
-        >
-          <h2 className="text-lg md:text-xl font-bold text-foreground mb-4">How the Arena Works</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-            <div className="flex gap-3">
-              <div className="w-8 h-8 rounded-full bg-orange-500/20 flex items-center justify-center flex-shrink-0">
-                <span className="text-orange-400 font-bold">1</span>
-              </div>
-              <div>
-                <h3 className="font-semibold text-foreground">Choose Your Game</h3>
-                <p className="text-muted text-xs">Select from Judgment, Watchman, or Redemption</p>
-              </div>
-            </div>
-            <div className="flex gap-3">
-              <div className="w-8 h-8 rounded-full bg-orange-500/20 flex items-center justify-center flex-shrink-0">
-                <span className="text-orange-400 font-bold">2</span>
-              </div>
-              <div>
-                <h3 className="font-semibold text-foreground">Play & Win</h3>
-                <p className="text-muted text-xs">Complete challenges and earn credits</p>
-              </div>
-            </div>
-            <div className="flex gap-3">
-              <div className="w-8 h-8 rounded-full bg-orange-500/20 flex items-center justify-center flex-shrink-0">
-                <span className="text-orange-400 font-bold">3</span>
-              </div>
-              <div>
-                <h3 className="font-semibold text-foreground">Rise in Ranks</h3>
-                <p className="text-muted text-xs">Climb the leaderboard and unlock rewards</p>
-              </div>
-            </div>
-          </div>
-        </motion.div>
       </div>
     </div>
   );

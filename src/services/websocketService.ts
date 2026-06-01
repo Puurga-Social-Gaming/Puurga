@@ -1,24 +1,51 @@
+type NotificationType =
+  | 'like' | 'dislike' | 'comment' | 'reply' | 'mention'
+  | 'follow' | 'follow_accepted' | 'share' | 'profile_visit'
+  | 'message' | 'group_message' | 'message_reaction' | 'missed_call'
+  | 'resume_game' | 'reward_reminder' | 'tournament_reminder' | 'challenge'
+  | 'welcome' | 'verification' | 'security_alert' | 'maintenance'
+  | 'friend_request' | 'friend_request_accepted'
+  | 'redemption' | 'redemption_contribution' | 'friend_ghosted' | 'purge'
+  // Survival system events
+  | 'state_changed' | 'reputation_updated' | 'threat_level_changed'
+  | 'ghost_status_changed' | 'inactivity_warning' | 'survival_alert';
+
+interface SurvivalUpdatePayload {
+  userId: string;
+  survivalState: string;
+  reputationScore: number;
+  threatLevel: number;
+  socialRank: string;
+  inactivityLevel: number;
+  ghostStatus: boolean;
+  warningLevel?: number;
+  visibilityScore?: number;
+  purgePressure?: number;
+  collapseRisk?: number;
+  purgeCount?: number;
+  purgatoryStatus?: boolean;
+  purgatoryEnteredAt?: string;
+  redemptionProgress?: number;
+  redemptionRequested?: boolean;
+}
+
 interface WebSocketMessage {
-  type: 'new_message' | 'message_read' | 'typing' | 'notification' | 'user_online' | 'user_offline' | 'credit_update' | 'profile_update';
+  type: 'new_message' | 'message_read' | 'typing' | 'notification' | 'user_online' | 'user_offline' | 'credit_update' | 'profile_update' | 'survival_update';
   payload: any;
 }
 
 interface NotificationPayload {
   id: string;
-  type: 'friend_request' | 'friend_request_accepted' | 'like' | 'comment' | 'message';
+  type: NotificationType;
   fromUser: {
     id: string;
     name: string;
     username: string;
     avatar?: string;
   };
-  data?: {
-    friendRequestId?: string;
-    postId?: string;
-    commentId?: string;
-    conversationId?: string;
-    messageId?: string;
-  };
+  data?: Record<string, any>;
+  title?: string;
+  message?: string;
   createdAt: string;
 }
 
@@ -38,7 +65,7 @@ class WebSocketService {
   private lastToken: string | null = null;
 
   constructor() {
-    this.connect();
+    // Connection is deferred until auth confirms — see setCurrentUserId()
   }
 
   public setCurrentUserId(userId: string | null) {
@@ -50,46 +77,71 @@ class WebSocketService {
     const token = localStorage.getItem('token');
     if (!token) return;
 
-    // If token changed (account switch) reset connection state
     if (this.lastToken && this.lastToken !== token) {
       this.disconnect();
     }
 
-    // Connect if not connected
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
       this.connect();
     }
   }
 
-  private connect() {
+  private getWebSocketUrl(token: string): string {
+    const isDevelopment = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+
+    if (isDevelopment) {
+      return `ws://localhost:3005/ws?token=${encodeURIComponent(token)}`;
+    }
+
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    return `${wsProtocol}//${window.location.host}/ws?token=${encodeURIComponent(token)}`;
+  }
+
+  private async checkBackendHealth(): Promise<boolean> {
+    try {
+      const baseUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+        ? 'http://localhost:3005'
+        : '';
+      
+      const response = await fetch(`${baseUrl}/api/health`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+        signal: AbortSignal.timeout(5000)
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('[WebSocket] Backend health check passed:', data);
+        return true;
+      }
+    } catch (error) {
+      console.error('[WebSocket] Backend health check failed:', error);
+    }
+    return false;
+  }
+
+  private async connect() {
     const token = localStorage.getItem('token');
     if (!token) {
-      console.warn('No token found, cannot connect to WebSocket');
+      console.warn('[WebSocket] No token found, cannot connect');
       return;
     }
 
     this.lastToken = token;
 
     try {
-      // In development, connect directly to backend (Vite proxy doesn't handle WebSocket upgrades well)
-      // In production, use the same host with appropriate protocol (nginx will proxy it)
-      const isDevelopment = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+      const wsUrl = this.getWebSocketUrl(token);
+      console.log('[WebSocket] Connecting to:', wsUrl.replace(/token=[^&]+/, 'token=***'));
 
-      let wsUrl: string;
-      if (isDevelopment) {
-        // Connect directly to backend server in development
-        wsUrl = `ws://localhost:3005/ws?token=${encodeURIComponent(token)}`;
-      } else {
-        // Production: use the same host with appropriate protocol
-        const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        wsUrl = `${wsProtocol}//${window.location.host}/ws?token=${encodeURIComponent(token)}`;
+      if (this.ws) {
+        this.ws.close();
+        this.ws = null;
       }
 
-      console.log('Connecting to WebSocket:', wsUrl.replace(/token=[^&]+/, 'token=***'));
       this.ws = new WebSocket(wsUrl);
 
       this.ws.onopen = () => {
-        console.log('WebSocket connected');
+        console.log('[WebSocket] Connected successfully');
         this.reconnectAttempts = 0;
         this.emit('connection', { connected: true });
       };
@@ -99,22 +151,47 @@ class WebSocketService {
           const message: WebSocketMessage = JSON.parse(event.data);
           this.handleMessage(message);
         } catch (error) {
-          console.error('Error parsing WebSocket message:', error);
+          console.error('[WebSocket] Error parsing message:', error);
         }
       };
 
-      this.ws.onclose = () => {
-        console.log('WebSocket disconnected');
+      this.ws.onclose = (event) => {
+        console.log(`[WebSocket] Disconnected (code: ${event.code}, reason: ${event.reason || 'none'})`);
         this.emit('connection', { connected: false });
-        this.attemptReconnect();
+        
+        if (event.code !== 1000) {
+          this.attemptReconnect();
+        }
       };
 
       this.ws.onerror = (error) => {
-        console.error('WebSocket error:', error);
+        console.error('[WebSocket] Connection error:', error);
+        console.error('[WebSocket] Error details:', {
+          url: wsUrl.replace(/token=[^&]+/, 'token=***'),
+          readyState: this.ws?.readyState,
+          readyStateText: this.getReadyStateText(this.ws?.readyState)
+        });
       };
+
+      setTimeout(() => {
+        if (this.ws?.readyState === WebSocket.CONNECTING) {
+          console.warn('[WebSocket] Connection timeout - backend may not be reachable');
+        }
+      }, 10000);
+
     } catch (error) {
-      console.error('Error connecting to WebSocket:', error);
+      console.error('[WebSocket] Error creating connection:', error);
       this.attemptReconnect();
+    }
+  }
+
+  private getReadyStateText(state?: number): string {
+    switch (state) {
+      case WebSocket.CONNECTING: return 'CONNECTING';
+      case WebSocket.OPEN: return 'OPEN';
+      case WebSocket.CLOSING: return 'CLOSING';
+      case WebSocket.CLOSED: return 'CLOSED';
+      default: return 'UNKNOWN';
     }
   }
 
@@ -157,21 +234,36 @@ class WebSocketService {
       case 'profile_update':
         this.emit('profile_update', message.payload);
         break;
+      case 'survival_update':
+        this.emit('survival_update', message.payload as SurvivalUpdatePayload);
+        break;
       default:
         console.warn('Unknown WebSocket message type:', message.type);
     }
   }
 
-  private attemptReconnect() {
+  private async attemptReconnect() {
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.error('Max reconnection attempts reached');
+      console.error('[WebSocket] Max reconnection attempts reached. Will retry after 60 seconds.');
+
+      setTimeout(() => {
+        this.reconnectAttempts = 0;
+        this.connect();
+      }, 60000);
       return;
     }
 
     this.reconnectAttempts++;
     const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1);
 
-    console.log(`Attempting to reconnect in ${delay}ms (attempt ${this.reconnectAttempts})`);
+    console.log(`[WebSocket] Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
+
+    const isHealthy = await this.checkBackendHealth();
+    if (!isHealthy) {
+      console.warn('[WebSocket] Backend health check failed - skipping reconnect attempt');
+      setTimeout(() => this.attemptReconnect(), delay);
+      return;
+    }
 
     setTimeout(() => {
       this.connect();

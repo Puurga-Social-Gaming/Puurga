@@ -9,12 +9,67 @@
         "viewOriginal": "View original",
         "viewTranslated": "View translated",
         "translationDisclaimer": "Translated from {{language}}",
-        "siswatiDisclaimer": "Translation quality may vary"
+        "siswatiDisclaimer": "Translation quality may vary",
+        "continue": "Continue"
+    },
+    "onboarding": {
+        "selectLanguage": "Select Language",
+        "intro": {
+            "title": "Welcome to Puurga",
+            "description": "A Social Network Gaming platform where each of your actions have consequences. Inaction is punished. Your haters will send you to purgatory. You will count on your real friends to redeem yourself. Ghosted you can see and revenant you hunt back. Post and play games to earn tokens for redemption. Purge anything you don't like. Make friends and create groups to fight your enemies. Life and death are in your hands."
+        },
+        "features": {
+            "connect": "Connect",
+            "purge": "Purge",
+            "play": "Play",
+            "earn": "Earn",
+            "redeem": "Redeem"
+        }
     },
     "auth": {
         "login": "Login",
         "signup": "Sign Up",
-        "logout": "Logout"
+        "logout": "Logout",
+        "emailAddress": "Email address",
+        "enterEmail": "Enter your email",
+        "password": "Password",
+        "enterPassword": "Enter your password",
+        "rememberMe": "Remember me",
+        "forgotPassword": "Forgot password?",
+        "signingIn": "Signing in...",
+        "signIn": "Sign in",
+        "welcomeBack": "Welcome back",
+        "signInToAccount": "Sign in to your account",
+        "orSignInWithEmail": "or sign in with email",
+        "dontHaveAccount": "Don't have an account?",
+        "signUp": "Sign up",
+        "invalidEmail": "Invalid email address",
+        "passwordMinLength": "Password must be at least 8 characters",
+        "joinPuurga": "Join Puurga",
+        "connectWithCommunity": "Connect with your community",
+        "orRegisterWithEmail": "or register with email",
+        "fullName": "Full Name",
+        "enterName": "Enter your name",
+        "nameRequired": "Name is required",
+        "nameMinLength": "Name must be at least 2 characters",
+        "username": "Username",
+        "chooseUsername": "Choose a username",
+        "usernameRequired": "Username is required",
+        "usernameInvalid": "Only letters, numbers, and underscores allowed",
+        "usernameMinLength": "Username must be at least 3 characters",
+        "emailRequired": "Email is required",
+        "validEmail": "Please enter a valid email",
+        "passwordRequired": "Password is required",
+        "choosePassword": "Choose a password",
+        "confirmPassword": "Verify Password",
+        "verifyPassword": "Verify your password",
+        "confirmPasswordRequired": "Please confirm your password",
+        "passwordsDoNotMatch": "Passwords do not match",
+        "registrationFailed": "Registration failed.",
+        "googleSignInFailed": "Google sign-in failed",
+        "creatingAccount": "Creating account...",
+        "createAccount": "Create account",
+        "alreadyHaveAccount": "Already have an account?"
     },
     "nav": {
         "home": "Home",
@@ -80,7 +135,10 @@
         "logout": "Logout",
         "more": "More",
         "gaming": "Gaming",
-        "puurga": "PUURGA"
+        "puurga": "PUURGA",
+        "purgatory": "Purgatory",
+        "superAdmin": "Super Admin",
+        "chat": "Chat"
     },
     "rightSidebar": {
         "quickActions": "Quick Actions",
@@ -221,5 +279,74 @@
         "failedToStart": "Failed to start conversation",
         "failedToSend": "Failed to send message",
         "sendMessage": "Send message"
+    },
+    "games": {
+        "arena": "Arena",
+        "tapToPlay": "Tap a game to play",
+        "backToArena": "Back to Arena",
+        "credits": "Credits",
+        "rank": "Rank",
+        "played": "Played",
+        "allGames": "All games",
+        "newGameAvailable": "New game available",
+        "playNow": "Play now",
+        "dismiss": "Dismiss",
+        "new": "New",
+        "difficulty": {
+            "easy": "Easy",
+            "medium": "Medium",
+            "hard": "Hard"
+        },
+        "category": {
+            "strategy": "Strategy",
+            "action": "Action",
+            "puzzle": "Puzzle",
+            "multiplayer": "Multiplayer",
+            "survival": "Survival"
+        },
+        "titles": {
+            "judgment": "Judgment",
+            "watchman": "The Watchman",
+            "redemption": "Redemption",
+            "purgaRift": "Purga Rift",
+            "cyberRunner": "Cyber Runner"
+        },
+        "descriptions": {
+            "judgment": "Decide the fate of souls. Your judgment must be swift and fair. Pass verdict on users based on their actions.",
+            "watchman": "Defend the realm from incoming threats. Vigilance is key. Protect your tower from purge attacks.",
+            "redemption": "A moral scenario game. Make the right choices to restore your status and redeem ghosted users.",
+            "purgaRift": "Decode dimension patterns, survive rift storms, and outsmart deception in this elite strategy arena.",
+            "cyberRunner": "Run, slash, and slide through five network phases. Upgrade gear, beat the weekly boss, and climb the leaderboard."
+        },
+        "watchman": {
+            "title": "Path of the Watchman",
+            "back": "Back",
+            "health": "Health",
+            "combo": "Combo",
+            "time": "Time",
+            "threat": "Threat",
+            "score": "Score",
+            "thePathAwaits": "The Path Awaits",
+            "navigateChaos": "Navigate the chaos. Use your light to strike down corruption.",
+            "initializeRun": "Initialize Run",
+            "runConcluded": "Run Concluded",
+            "disconnected": "DISCONNECTED",
+            "retryRun": "Retry Run",
+            "shieldBurst": "Shield Burst",
+            "focusMode": "Focus Mode",
+            "attack": "Attack",
+            "dailyLimit": "Daily Limit",
+            "earnedCredits": "Earned {credits} credits!"
+        },
+        "loading": "Loading...",
+        "matchFound": "Match Found",
+        "waitingForPlayers": "Waiting for players",
+        "victory": "Victory",
+        "defeat": "Defeat",
+        "connectionLost": "Connection lost",
+        "startGame": "Start Game",
+        "continue": "Continue",
+        "exit": "Exit",
+        "retry": "Retry"
     }
 }

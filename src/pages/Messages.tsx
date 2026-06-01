@@ -1,17 +1,25 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useMessages } from '../context/MessagesContext';
 import { formatDistanceToNow } from 'date-fns';
-import { Send, Search, MoreVertical, Phone, Video, MessageSquare, X, Plus, Loader2, Image } from 'lucide-react';
+import { Send, Search, MoreVertical, Phone, Video, MessageSquare, X, Plus, Loader2, Film } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { useUser } from '../context/UserContext';
 import toast from 'react-hot-toast';
 import Avatar from '../components/Avatar';
 import imageCompression from 'browser-image-compression';
+import CallRoom from '../components/Call/CallRoom';
+import CallNotification from '../components/Call/CallNotification';
+import { supabase } from '../lib/supabaseClient';
+import api from '../lib/axios';
+import SupabaseVideo from '../components/UI/SupabaseVideo';
+import RichText from '../components/RichText/RichText';
+import { extractUrls } from '../utils/linkParser';
 
 const Messages: React.FC = () => {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { user } = useUser();
   const {
@@ -20,8 +28,8 @@ const Messages: React.FC = () => {
     messages,
     onlineUsers,
     loading,
+    messagesLoading,
     typingUsers,
-    loadMessages,
     sendMessage,
     sendTypingStatus,
     setCurrentConversation,
@@ -37,7 +45,14 @@ const Messages: React.FC = () => {
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedImages, setSelectedImages] = useState<File[]>([]);
+  const [selectedVideos, setSelectedVideos] = useState<File[]>([]);
   const [imagePreviewUrls, setImagePreviewUrls] = useState<string[]>([]);
+  const [videoPreviewUrls, setVideoPreviewUrls] = useState<string[]>([]);
+  const [playingVideoId, setPlayingVideoId] = useState<string | null>(null);
+  const [callType, setCallType] = useState<'video' | 'audio' | null>(null);
+  const [callRoomId, setCallRoomId] = useState<string | null>(null);
+  const [showMessagePreview, setShowMessagePreview] = useState(false);
+  const [showChatMenu, setShowChatMenu] = useState(false);
 
   // Load online users on component mount
   useEffect(() => {
@@ -70,6 +85,16 @@ const Messages: React.FC = () => {
     scrollToBottom();
   }, [messages]);
 
+  // Detect URLs in message for live preview
+  useEffect(() => {
+    if (newMessage) {
+      const urls = extractUrls(newMessage);
+      setShowMessagePreview(urls.length > 0);
+    } else {
+      setShowMessagePreview(false);
+    }
+  }, [newMessage]);
+
   const compressImage = async (file: File): Promise<File> => {
     const options = {
       maxSizeMB: 1,
@@ -96,29 +121,38 @@ const Messages: React.FC = () => {
 
   const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
-    if (files.length + selectedImages.length > 5) {
-      toast.error(t('messages.maxImagesError', 'Maximum 5 images allowed'));
+    if (files.length + selectedImages.length + selectedVideos.length > 5) {
+      toast.error(t('messages.maxImagesError', 'Maximum 5 files allowed'));
       return;
     }
 
     const newImages = files.filter(file => file.type.startsWith('image/'));
+    const newVideos = files.filter(file => file.type.startsWith('video/'));
 
-    try {
-      // Compress images
-      const compressedImages = await Promise.all(
-        newImages.map(file => compressImage(file))
-      );
+    if (newImages.length > 0) {
+      try {
+        // Compress images
+        const compressedImages = await Promise.all(
+          newImages.map(file => compressImage(file))
+        );
 
-      setSelectedImages(prev => [...prev, ...compressedImages]);
+        setSelectedImages(prev => [...prev, ...compressedImages]);
 
-      // Create preview URLs
-      const newPreviewUrls = compressedImages.map(file => URL.createObjectURL(file));
-      setImagePreviewUrls(prev => [...prev, ...newPreviewUrls]);
+        // Create preview URLs
+        const newPreviewUrls = compressedImages.map(file => URL.createObjectURL(file));
+        setImagePreviewUrls(prev => [...prev, ...newPreviewUrls]);
+        toast.success(t('messages.imagesAdded', 'Images added successfully'));
+      } catch (error) {
+        console.error('Error processing images:', error);
+        toast.error(t('messages.errorProcessing', 'Error processing images'));
+      }
+    }
 
-      toast.success(t('messages.imagesAdded', 'Images added successfully'));
-    } catch (error) {
-      console.error('Error processing images:', error);
-      toast.error(t('messages.errorProcessing', 'Error processing images'));
+    if (newVideos.length > 0) {
+      setSelectedVideos(prev => [...prev, ...newVideos]);
+      const newVideoUrls = newVideos.map(file => URL.createObjectURL(file));
+      setVideoPreviewUrls(prev => [...prev, ...newVideoUrls]);
+      toast.success(`${newVideos.length} video(s) added`);
     }
   };
 
@@ -128,10 +162,77 @@ const Messages: React.FC = () => {
     setImagePreviewUrls(prev => prev.filter((_, i) => i !== index));
   };
 
+  const removeVideo = (index: number) => {
+    setSelectedVideos(prev => prev.filter((_, i) => i !== index));
+    URL.revokeObjectURL(videoPreviewUrls[index]);
+    setVideoPreviewUrls(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleVideoClick = (mediaUrl: string) => {
+    setPlayingVideoId(playingVideoId === mediaUrl ? null : mediaUrl);
+  };
+
+  const handleStartCall = async (type: 'video' | 'audio') => {
+    if (!currentConversation || !user) return;
+
+    const isConfigured = import.meta.env.VITE_ZEGO_APP_ID && import.meta.env.VITE_ZEGO_SERVER_SECRET;
+    if (!isConfigured) {
+      toast.error('Call feature not configured. Please contact support.');
+      return;
+    }
+
+    const roomId = `call_${currentConversation.id}`;
+    const calleeId = currentConversation.participants[0]?.id;
+
+    if (!calleeId) {
+      toast.error('Unable to identify the recipient.');
+      return;
+    }
+
+    const { error } = await supabase.from('call_invites').insert({
+      caller_id: user.id,
+      callee_id: calleeId,
+      conversation_id: currentConversation.id,
+      call_type: type,
+      room_id: roomId,
+      status: 'pending',
+    });
+
+    if (error) {
+      console.error('Failed to send call invite:', error);
+      toast.error('Failed to start call. Please try again.');
+      return;
+    }
+
+    toast.success(`${type === 'video' ? 'Video' : 'Audio'} call started`);
+    setCallRoomId(roomId);
+    setCallType(type);
+  };
+
+  const handleEndCall = () => {
+    setCallRoomId(null);
+    setCallType(null);
+  };
+
+  const handleAcceptCall = (invite: any) => {
+    setCallRoomId(invite.room_id);
+    setCallType(invite.call_type);
+    supabase
+      .from('call_invites')
+      .update({ status: 'accepted', accepted_at: new Date().toISOString() })
+      .eq('id', invite.id);
+  };
+
+  const handleDeclineCall = async (invite: any) => {
+    await supabase
+      .from('call_invites')
+      .update({ status: 'declined', ended_at: new Date().toISOString() })
+      .eq('id', invite.id);
+  };
+
   const handleSelectConversation = (conversation: typeof currentConversation) => {
     if (conversation) {
       setCurrentConversation(conversation);
-      loadMessages(conversation.id);
       setShowUserList(false);
       setShowMobileSidebar(false);
     }
@@ -155,11 +256,21 @@ const Messages: React.FC = () => {
     conv.participants[0]?.full_name?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const handleBackdropClick = (e: React.MouseEvent) => {
+    // Dismiss keyboard on mobile when clicking outside input areas
+    if (e.target === e.currentTarget) {
+      const activeElement = document.activeElement as HTMLElement;
+      if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA')) {
+        activeElement.blur();
+      }
+    }
+  };
+
   const [isSending, setIsSending] = useState(false);
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!currentConversation || (!newMessage.trim() && selectedImages.length === 0) || isSending) return;
+    if (!currentConversation || (!newMessage.trim() && selectedImages.length === 0 && selectedVideos.length === 0) || isSending) return;
     
     setIsSending(true);
 
@@ -170,41 +281,43 @@ const Messages: React.FC = () => {
       }
       await sendTypingStatus(currentConversation.id, false);
 
-      let imageUrls: string[] = [];
+      let mediaUrls: string[] = [];
 
-      if (selectedImages.length > 0) {
+      if (selectedImages.length > 0 || selectedVideos.length > 0) {
         const formData = new FormData();
+        
         selectedImages.forEach((file, index) => {
-          // Ensure file has proper extension in name
           const fileExtension = file.type.split('/')[1];
-          const fileName = `message_image${index}.${fileExtension}`;
+          const fileName = `image${index}.${fileExtension}`;
           const newFile = new File([file], fileName, { type: file.type });
-          formData.append('images', newFile);
+          formData.append('media', newFile);
         });
-
-        const uploadResponse = await fetch('/api/users/upload', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          },
-          body: formData,
+        
+        selectedVideos.forEach((file, index) => {
+          const fileExtension = file.type.split('/')[1];
+          const fileName = `video${index}.${fileExtension}`;
+          const newFile = new File([file], fileName, { type: file.type });
+          formData.append('media', newFile);
         });
-
-        if (!uploadResponse.ok) {
-          throw new Error('Failed to upload images');
-        }
-
-        const uploadData = await uploadResponse.json();
-        imageUrls = uploadData.urls;
+        
+        const response = await api.post('/users/upload', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+          timeout: 180000, // 3 minutes for video uploads
+        });
+        
+        mediaUrls = response.data.urls;
       }
 
-      await sendMessage(currentConversation.id, newMessage, imageUrls);
+      await sendMessage(currentConversation.id, newMessage.trim(), mediaUrls);
+
       setNewMessage('');
       setSelectedImages([]);
+      setSelectedVideos([]);
       setImagePreviewUrls([]);
+      setVideoPreviewUrls([]);
     } catch (error) {
-      console.error('Failed to send message:', error);
-      toast.error(t('messages.failedToSend'));
+      console.error('Error sending message:', error);
+      toast.error(t('messages.errorSending'));
     } finally {
       setIsSending(false);
     }
@@ -280,11 +393,12 @@ const Messages: React.FC = () => {
 
   return (
     <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.3 }}
-      className="h-screen bg-background text-foreground flex relative"
-    >
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.3 }}
+        className="flex-1 min-h-0 flex relative h-full bg-background text-foreground"
+        onClick={handleBackdropClick}
+      >
       {/* Sidebar - Conversations List */}
       <div className={`${showMobileSidebar ? 'flex' : 'hidden'
         } lg:flex flex-col w-full lg:w-80 bg-background border-r border-border z-10 h-full`}>
@@ -295,11 +409,11 @@ const Messages: React.FC = () => {
               <h2 className="text-xl font-bold text-foreground">{t('messages.title')}</h2>
               <button
                 onClick={() => { setShowUserList(true); setShowMobileSidebar(false); }}
-                className="p-2 sm:p-2.5 bg-accent hover:bg-accent-hover text-black rounded-full transition-colors touch-manipulation flex items-center justify-center"
+                className="p-1 sm:p-1.5 bg-accent hover:bg-accent-hover text-black rounded-full transition-colors touch-manipulation flex items-center justify-center"
                 title={t('messages.newConversation')}
                 aria-label={t('messages.newConversation')}
-              >
-                <Plus size={20} className="sm:w-5 sm:h-5 text-black" />
+               >
+                <Plus size={16} className="sm:w-4 sm:h-4 text-black" />
               </button>
             </div>
 
@@ -439,47 +553,94 @@ const Messages: React.FC = () => {
                 >
                   <MessageSquare size={20} className="sm:w-5 sm:h-5" />
                 </button>
-                <Avatar
-                  src={currentConversation.participants[0]?.avatar_url || ''}
-                  alt={currentConversation.participants[0]?.full_name || 'User'}
-                  size="md"
-                  userId={currentConversation.participants[0]?.id || ''}
-                  showOnlineStatus={currentConversation.participants[0]?.show_online_status !== false}
-                />
+                <div
+                  className="cursor-pointer"
+                  onClick={() => {
+                    const username = currentConversation.participants[0]?.username;
+                    if (username) navigate(`/profile/${username}`);
+                  }}
+                >
+                  <Avatar
+                    src={currentConversation.participants[0]?.avatar_url || ''}
+                    alt={currentConversation.participants[0]?.full_name || 'User'}
+                    size="md"
+                    userId={currentConversation.participants[0]?.id || ''}
+                    showOnlineStatus={currentConversation.participants[0]?.show_online_status !== false}
+                  />
+                </div>
                 <div>
-                  <h3 className="font-semibold text-foreground text-sm">
+                  <h3
+                    className="font-semibold text-foreground text-sm cursor-pointer hover:text-accent transition-colors"
+                    onClick={() => {
+                      const username = currentConversation.participants[0]?.username;
+                      if (username) navigate(`/profile/${username}`);
+                    }}
+                  >
                     {currentConversation.participants[0]?.full_name || 'Unknown User'}
                   </h3>
-                  <p className="text-xs text-muted">
+                  <p
+                    className="text-xs text-muted cursor-pointer hover:text-accent transition-colors"
+                    onClick={() => {
+                      const username = currentConversation.participants[0]?.username;
+                      if (username) navigate(`/profile/${username}`);
+                    }}
+                  >
                     @{currentConversation.participants[0]?.username || 'unknown'}
                   </p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
                 <button
+                  onClick={() => handleStartCall('audio')}
                   className="p-2.5 text-muted hover:text-foreground hover:bg-card-hover rounded-lg transition-colors touch-manipulation"
-                  aria-label="Call"
+                  aria-label="Audio call"
                 >
                   <Phone size={18} className="sm:w-5 sm:h-5" />
                 </button>
                 <button
+                  onClick={() => handleStartCall('video')}
                   className="p-2.5 text-muted hover:text-foreground hover:bg-card-hover rounded-lg transition-colors touch-manipulation"
                   aria-label="Video call"
                 >
                   <Video size={18} className="sm:w-5 sm:h-5" />
                 </button>
-                <button
-                  className="p-2.5 text-muted hover:text-foreground hover:bg-card-hover rounded-lg transition-colors touch-manipulation"
-                  aria-label="More options"
-                >
-                  <MoreVertical size={18} className="sm:w-5 sm:h-5" />
-                </button>
+                <div className="relative">
+                  <button
+                    onClick={() => setShowChatMenu(!showChatMenu)}
+                    className="p-2.5 text-muted hover:text-foreground hover:bg-card-hover rounded-lg transition-colors touch-manipulation"
+                    aria-label="More options"
+                  >
+                    <MoreVertical size={18} className="sm:w-5 sm:h-5" />
+                  </button>
+                  {showChatMenu && (
+                    <>
+                      <div
+                        className="fixed inset-0 z-40"
+                        onClick={() => setShowChatMenu(false)}
+                      />
+                      <div className="absolute right-0 top-full mt-1 w-48 bg-card border border-border rounded-lg shadow-lg z-50 py-1">
+                        <button
+                          onClick={() => {
+                            const username = currentConversation.participants[0]?.username;
+                            if (username) {
+                              navigate(`/profile/${username}`);
+                              setShowChatMenu(false);
+                            }
+                          }}
+                          className="w-full text-left px-4 py-2 text-sm text-foreground hover:bg-card-hover transition-colors"
+                        >
+                          View Profile
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
 
             {/* Scrollable Messages List */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-4 min-h-0">
-              {loading && messages.length === 0 ? (
+              {messagesLoading && messages.length === 0 ? (
                 <div className="flex items-center justify-center py-12">
                   <Loader2 className="w-6 h-6 animate-spin text-accent" />
                 </div>
@@ -531,23 +692,56 @@ const Messages: React.FC = () => {
                           ? 'bg-accent text-black'
                           : 'bg-card text-foreground'
                           }`}>
-                          <p className="text-sm leading-relaxed break-words">
-                            {message.content}
-                          </p>
+                          <div className="text-sm leading-relaxed break-words">
+                            <RichText 
+                              content={message.content}
+                              showLinkPreviews={true}
+                              compactLinks={true}
+                              onHashtagClick={(tag) => console.log('Hashtag clicked:', tag)}
+                              onMentionClick={(username) => navigate(`/profile/${username}`)}
+                            />
+                          </div>
                           {message.images && message.images.length > 0 && (
                             <div className={`mt-2 grid gap-1 ${message.images.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
-                              {message.images.map((imageUrl: string, imgIndex: number) => (
-                                <img
-                                  key={imgIndex}
-                                  src={imageUrl}
-                                  alt={`Message image ${imgIndex + 1}`}
-                                  className="w-full h-auto max-h-48 object-cover rounded-lg cursor-pointer"
-                                  onClick={() => {
-                                    // Open image in new tab for viewing
-                                    window.open(imageUrl, '_blank');
-                                  }}
-                                />
-                              ))}
+                              {message.images.map((mediaUrl: string, mediaIndex: number) => {
+                                const isVideo = mediaUrl.toLowerCase().match(/\.(mp4|webm|mov|avi|mkv|flv|wmv)$/);
+                                return isVideo ? (
+                                  <div key={mediaIndex} className="relative">
+                                    <div 
+                                      className="cursor-pointer"
+                                      onClick={() => handleVideoClick(mediaUrl)}
+                                    >
+                                      <SupabaseVideo
+                                        src={mediaUrl}
+                                        controls={playingVideoId === mediaUrl}
+                                        muted={playingVideoId !== mediaUrl}
+                                        playsInline={true}
+                                        autoPlay={playingVideoId === mediaUrl}
+                                        className="w-full h-auto max-h-48 object-cover rounded-lg"
+                                      />
+                                      {playingVideoId !== mediaUrl && (
+                                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                          <div className="w-10 h-10 bg-black/50 rounded-full flex items-center justify-center">
+                                            <svg width="20" height="20" viewBox="0 0 24 24" fill="white" xmlns="http://www.w3.org/2000/svg">
+                                              <path d="M8 5v14l11-7z"/>
+                                            </svg>
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <img
+                                    key={mediaIndex}
+                                    src={mediaUrl}
+                                    alt={`Message media ${mediaIndex + 1}`}
+                                    className="w-full h-auto max-h-48 object-cover rounded-lg cursor-pointer"
+                                    onClick={() => {
+                                      window.open(mediaUrl, '_blank');
+                                    }}
+                                  />
+                                );
+                              })}
                             </div>
                           )}
                         </div>
@@ -578,7 +772,7 @@ const Messages: React.FC = () => {
             {/* Sticky Message Input - Above Footer */}
             <div className="sticky bottom-20 lg:bottom-0 z-[100] p-3 sm:p-4 border-t border-border bg-background flex-shrink-0">
               {/* Image Previews */}
-              {imagePreviewUrls.length > 0 && (
+              {(imagePreviewUrls.length > 0 || videoPreviewUrls.length > 0) && (
                 <div className="mb-3">
                   <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto">
                     {imagePreviewUrls.map((url, index) => (
@@ -597,6 +791,29 @@ const Messages: React.FC = () => {
                         </button>
                       </div>
                     ))}
+                    {videoPreviewUrls.map((url, index) => (
+                      <div key={index} className="relative group">
+                        <video
+                          src={url}
+                          muted
+                          className="w-full h-20 object-cover rounded-lg"
+                        />
+                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                          <div className="w-8 h-8 bg-black/50 rounded-full flex items-center justify-center">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="white" xmlns="http://www.w3.org/2000/svg">
+                              <path d="M8 5v14l11-7z"/>
+                            </svg>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removeVideo(index)}
+                          className="absolute top-1 right-1 p-1 bg-background/80 rounded-full text-foreground opacity-0 group-hover:opacity-100 transition-opacity touch-manipulation"
+                        >
+                          <X size={12} />
+                        </button>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}
@@ -606,15 +823,16 @@ const Messages: React.FC = () => {
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
                   className="p-2.5 sm:p-2 text-muted hover:text-accent rounded-full hover:bg-accent/10 flex-shrink-0 touch-manipulation"
-                  aria-label="Add image"
+                  aria-label="Add media (images or videos)"
+                  title="Add media (images or videos)"
                 >
-                  <Image size={20} className="sm:w-5 sm:h-5" />
+                  <Film size={20} className="sm:w-5 sm:h-5" />
                 </button>
                 <input
                   type="file"
                   ref={fileInputRef}
                   onChange={handleImageSelect}
-                  accept="image/*"
+                  accept="image/*,video/*"
                   multiple
                   className="hidden"
                 />
@@ -626,8 +844,23 @@ const Messages: React.FC = () => {
                     placeholder={t('messages.messageUserPlaceholder', { username: currentConversation.participants[0]?.full_name || t('messages.user') })}
                     className="w-full bg-input text-foreground rounded-full px-4 py-2.5 sm:py-2 text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-accent"
                   />
+                  {/* Live Preview for Message */}
+                  {showMessagePreview && (
+                    <div className="mt-2 p-2 bg-card/50 rounded-lg">
+                      <div className="text-xs text-muted mb-1 font-medium">
+                        Message Preview
+                      </div>
+                      <div className="text-sm">
+                        <RichText 
+                          content={newMessage}
+                          showLinkPreviews={true}
+                          compactLinks={true}
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
-                {(newMessage.trim() || selectedImages.length > 0) && (
+                {(newMessage.trim() || selectedImages.length > 0 || selectedVideos.length > 0) && (
                   <button
                     type="submit"
                     className="bg-accent text-black p-2.5 sm:p-2 rounded-full hover:bg-accent-hover transition-colors flex-shrink-0 touch-manipulation focus:ring-2 focus:ring-offset-2 focus:ring-accent"
@@ -651,14 +884,30 @@ const Messages: React.FC = () => {
             </p>
             <button
               onClick={() => { setShowUserList(true); setShowMobileSidebar(false); }}
-              className="bg-accent text-black px-6 py-3 rounded-lg hover:bg-accent-hover transition-colors font-medium touch-manipulation shadow-theme-button"
+              className="bg-accent text-black px-6 py-3 rounded-lg hover:opacity-90 transition-colors font-medium touch-manipulation shadow-theme-button"
             >
               {t('messages.startNewConversation')}
             </button>
           </div>
         )}
       </div>
-    </motion.div>
+      <AnimatePresence>
+        {callRoomId && callType && user && (
+          <CallRoom
+            roomId={callRoomId}
+            callType={callType}
+            userId={user.id}
+            userName={user.name}
+            onLeave={handleEndCall}
+          />
+        )}
+      </AnimatePresence>
+      <CallNotification
+        onAccept={handleAcceptCall}
+        onDecline={handleDeclineCall}
+        currentCallRoomId={callRoomId}
+      />
+      </motion.div>
   );
 };
 

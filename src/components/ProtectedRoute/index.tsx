@@ -12,11 +12,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
   // Wait for loading to complete before checking authentication
   // This prevents logout when user presses back button on mobile
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500"></div>
-      </div>
-    );
+    return null;
   }
 
   // Check if user exists or if there's a token in localStorage

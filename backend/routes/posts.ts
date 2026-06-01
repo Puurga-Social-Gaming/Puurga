@@ -1,17 +1,19 @@
 import express from 'express';
 import { supabase } from '../config/supabase';
 import { supabaseAuth as auth, AuthRequest } from '../middleware/supabaseAuth';
-import { checkGhostMode } from '../middleware/ghostMode';
 import { normalizeImageUrl } from '../utils/url';
 import { logSuperAdminAction } from '../utils/auditLogger';
-import { wsManager } from '../websocketManager';
-import { createNotification } from './createNotification';
+import { NotificationService } from '../services/notificationService';
+import { CreditService } from '../services/creditService';
+import { PurgeEngine } from '../services/survival';
+import { validateNotGhosted } from '../middleware/restrictGhosted';
 
 const router = express.Router();
 
 // --- GET /api/posts/feed ---
 router.get('/feed', auth, async (req: AuthRequest, res) => {
   try {
+    const currentUserId = req.user.id;
     const page = parseInt(req.query.page as string) || 1;
     const requestedLimit = parseInt(req.query.limit as string) || 10;
     const limit = Math.min(requestedLimit, 50);
@@ -29,15 +31,68 @@ router.get('/feed', auth, async (req: AuthRequest, res) => {
 
     if (postsError) throw postsError;
 
-    const safePosts = posts || [];
+    let safePosts = posts || [];
     if (safePosts.length === 0) {
       return res.json([]);
     }
 
-    // 2) Collect unique user_ids
+    // 2) Get current user's friends for visibility filtering
+    const { data: friendships } = await supabase
+      .from('friends')
+      .select('user_id_1, user_id_2')
+      .or(`user_id_1.eq.${currentUserId},user_id_2.eq.${currentUserId}`);
+
+    const friendIds = new Set(
+      (friendships || []).map(f =>
+        f.user_id_1 === currentUserId ? f.user_id_2 : f.user_id_1
+      )
+    );
+
+    // 3) Filter posts by visibility
+    safePosts = safePosts.filter(post => {
+      const visibility = post.visibility || 'public';
+
+      if (visibility === 'public') return true;
+      if (visibility === 'private') return post.user_id === currentUserId;
+      if (visibility === 'friends') {
+        return post.user_id === currentUserId || friendIds.has(post.user_id);
+      }
+      return true;
+    });
+
+    if (safePosts.length === 0) {
+      return res.json([]);
+    }
+
+    // 4) Fetch visibility scores for ranking
+    const uniqueUserIds = Array.from(new Set(safePosts.map(p => p.user_id).filter(Boolean)));
+    const { data: survivalStates } = await supabase
+      .from('user_survival_state')
+      .select('user_id, visibility_score')
+      .in('user_id', uniqueUserIds);
+
+    const visibilityMap = new Map<string, number>();
+    (survivalStates || []).forEach(s => {
+      visibilityMap.set(s.user_id, s.visibility_score ?? 100);
+    });
+
+    // 5) Apply visibility-based ranking
+    safePosts.sort((a, b) => {
+      const visA = visibilityMap.get(a.user_id) ?? 100;
+      const visB = visibilityMap.get(b.user_id) ?? 100;
+      const timeA = new Date(a.created_at).getTime();
+      const timeB = new Date(b.created_at).getTime();
+
+      const rankA = timeA * (visA >= 80 ? 1.5 : visA >= 50 ? 1.0 : visA >= 20 ? 0.5 : 0.2);
+      const rankB = timeB * (visB >= 80 ? 1.5 : visB >= 50 ? 1.0 : visB >= 20 ? 0.5 : 0.2);
+
+      return rankB - rankA;
+    });
+
+    // 7) Collect unique user_ids
     const userIds = Array.from(new Set(safePosts.map(p => p.user_id).filter(Boolean)));
 
-    // 3) Fetch profile data from profiles and avatar from users (if table exists)
+    // 8) Fetch profile data from profiles and avatar from users (if table exists)
     const [profilesRes, usersRes] = await Promise.all([
       supabase.from('profiles').select('id, full_name, username, avatar_url').in('id', userIds),
       supabase.from('users').select('id, avatar_url').in('id', userIds),
@@ -52,7 +107,7 @@ router.get('/feed', auth, async (req: AuthRequest, res) => {
     for (const u of usersTbl) usersMap.set(u.id, u);
 
 
-    // 4) Fetch comment counts for these posts
+    // 9) Fetch comment counts for these posts
     const postIds = safePosts.map(p => p.id).filter(Boolean);
     const commentCounts = await Promise.all(
       postIds.map(async (postId) => {
@@ -67,7 +122,7 @@ router.get('/feed', auth, async (req: AuthRequest, res) => {
     for (const cc of commentCounts) commentCountMap.set(cc.postId, cc.count);
 
 
-    // 5) Map posts with images and merged user object
+    // 10) Map posts with images and merged user object
     const mapped = safePosts.map(post => {
       const prof = profileMap.get(post.user_id as string);
       const urow = usersMap.get(post.user_id as string);
@@ -256,12 +311,11 @@ router.get('/purges/my-activity', auth, async (req: AuthRequest, res) => {
 });
 
 // --- POST /api/posts/:id/purge ---
-router.post('/:id/purge', auth, async (req, res) => {
+router.post('/:id/purge', auth, validateNotGhosted, async (req, res) => {
   try {
     const postId = req.params.id;
     const userId = req.user.id;
 
-    // Get post to find the target user
     const { data: post, error: postError } = await supabase
       .from('posts')
       .select('user_id')
@@ -274,26 +328,16 @@ router.post('/:id/purge', auth, async (req, res) => {
 
     const targetUserId = post.user_id;
 
-    // Debug logging to identify comparison issue
-    console.log('Purge check:', {
-      userId: userId,
-      targetUserId: targetUserId,
-      userIdType: typeof userId,
-      targetUserIdType: typeof targetUserId,
-      areEqual: userId === targetUserId,
-      stringComparison: String(userId) === String(targetUserId)
-    });
-
     const isSuperAdmin = req.user.role === 'super_admin' || req.user.role === 'superadmin';
 
-    // Prevent users from purging their own posts (Super Admins can override for moderation/testing)
-    // Use String() comparison to handle potential type mismatches
-    if (String(userId) === String(targetUserId) && !isSuperAdmin) {
-      return res.status(403).json({
-        error: 'Cannot purge your own post',
-        message: 'You cannot purge your own posts. Purges are meant for content from other users.',
-        code: 'OWN_POST'
-      });
+    if (!isSuperAdmin) {
+      const validation = await PurgeEngine.validatePurge(userId, postId, targetUserId);
+      if (!validation.valid) {
+        return res.status(403).json({
+          error: validation.error,
+          code: validation.code,
+        });
+      }
     }
 
     if (String(userId) === String(targetUserId) && isSuperAdmin) {
@@ -308,139 +352,42 @@ router.post('/:id/purge', auth, async (req, res) => {
       });
     }
 
-    // Check if user has already purged this post
-    const { data: existingPurge, error: checkError } = await supabase
+    const purgeWeight = await PurgeEngine.calculatePurgeWeight(userId);
+
+    const { error: insertError } = await supabase
       .from('post_purges')
-      .select('*')
-      .eq('post_id', postId)
-      .eq('user_id', userId)
-      .single();
+      .insert({
+        post_id: postId,
+        user_id: userId,
+        created_at: new Date().toISOString()
+      });
 
-    if (checkError && checkError.code !== 'PGRST116') {
-      throw checkError;
-    }
+    if (insertError) throw insertError;
 
-    let purged = false;
-    let totalPurges = 0;
-
-    if (existingPurge) {
-      // Remove purge (unpurge)
-      const { error: deleteError } = await supabase
-        .from('post_purges')
-        .delete()
-        .eq('id', existingPurge.id);
-
-      if (deleteError) throw deleteError;
-      purged = false;
-    } else {
-      // Add purge
-      const { error: insertError } = await supabase
-        .from('post_purges')
-        .insert({
-          post_id: postId,
-          user_id: userId,
-          created_at: new Date().toISOString()
-        });
-
-      if (insertError) throw insertError;
-      purged = true;
-    }
-
-    // Get total purge count for this post
-    const { data: purgeCount, error: countError } = await supabase
+    const { data: purgeCount } = await supabase
       .from('post_purges')
       .select('*', { count: 'exact' })
       .eq('post_id', postId);
 
-    if (countError) throw countError;
-    totalPurges = purgeCount?.length || 0;
+    const totalPurges = purgeCount?.length || 0;
 
-    // Update post's purge_count column
     await supabase
       .from('posts')
       .update({ purge_count: totalPurges })
       .eq('id', postId);
 
-    // Count total purges received by target user (across all their posts)
-    const { data: targetUserPosts } = await supabase
-      .from('posts')
-      .select('id')
-      .eq('user_id', targetUserId);
+    const consequences = await PurgeEngine.applyConsequences(targetUserId, userId);
 
-    let userTotalPurges = 0;
-    if (targetUserPosts && targetUserPosts.length > 0) {
-      const postIds = targetUserPosts.map(p => p.id);
-      const { data: allPurges } = await supabase
-        .from('post_purges')
-        .select('id')
-        .in('post_id', postIds);
-      userTotalPurges = allPurges?.length || 0;
-    }
-
-    // Check if user should go into ghost mode (5+ total purges)
-    // First check if they are already ghosted to avoid redundant updates/notifications
-    const { data: targetProfileStatus } = await supabase
-      .from('profiles')
-      .select('is_ghost')
-      .eq('id', targetUserId)
-      .single();
-
-    if (userTotalPurges >= 5 && !targetProfileStatus?.is_ghost) {
-      const { error: ghostError } = await supabase
-        .from('profiles')
-        .update({
-          is_ghost: true,
-          ghosted_at: new Date().toISOString()
-        })
-        .eq('id', targetUserId);
-
-      if (ghostError) {
-        console.error('Error setting ghost mode:', ghostError);
-      } else {
-        // Emit profile update via WebSocket
-        wsManager.sendToUser(targetUserId, {
-          type: 'profile_update',
-          payload: { userId: targetUserId, isGhost: true, purgeCount: userTotalPurges }
-        });
-
-        // Notify friends that this user has been ghosted
-        try {
-          // Get all friends
-          const { data: friendships } = await supabase
-            .from('friends')
-            .select('user_id_1, user_id_2')
-            .or(`user_id_1.eq.${targetUserId},user_id_2.eq.${targetUserId}`);
-
-          if (friendships && friendships.length > 0) {
-            const friendIds = friendships.map(f =>
-              f.user_id_1 === targetUserId ? f.user_id_2 : f.user_id_1
-            );
-
-            // Send notification and broadcast WebSocket update to each friend
-            for (const friendId of friendIds) {
-              await createNotification({
-                type: 'friend_ghosted',
-                senderId: targetUserId, // The ghosted user is the "subject"
-                receiverId: friendId
-              });
-
-              // Also send WebSocket profile_update to friends so their UI (dashboard) updates
-              wsManager.sendToUser(friendId, {
-                type: 'profile_update',
-                payload: { userId: targetUserId, isGhost: true, purgeCount: userTotalPurges }
-              });
-            }
-          }
-        } catch (notifError) {
-          console.error('Error sending friend ghosted notifications:', notifError);
-        }
-      }
-    }
+    await PurgeEngine.recordCooldown(userId, postId);
+    await PurgeEngine.updateRateLimits(userId);
 
     res.json({
-      purged,
+      purged: true,
       purges: totalPurges,
-      ghostModeTriggered: totalPurges >= 5
+      ghostModeTriggered: consequences.ghostTriggered,
+      tier: consequences.tier,
+      visibilityScore: consequences.visibilityScore,
+      purgeWeight: purgeWeight.weight,
     });
 
   } catch (error) {
@@ -450,7 +397,7 @@ router.post('/:id/purge', auth, async (req, res) => {
 });
 
 // --- POST /api/posts/:id/puurga ---
-router.post('/:id/puurga', auth, async (req, res) => {
+router.post('/:id/puurga', auth, validateNotGhosted, async (req, res) => {
   try {
     const postId = req.params.id;
     const userId = req.user.id;
@@ -521,7 +468,7 @@ router.put('/:id', auth, async (req: AuthRequest, res) => {
   try {
     const postId = req.params.id;
     const userId = req.user.id;
-    const { content } = req.body;
+    const { content, background_index } = req.body;
 
     if (!content || typeof content !== 'string') {
       return res.status(400).json({ error: 'Content is required' });
@@ -556,19 +503,26 @@ router.put('/:id', auth, async (req: AuthRequest, res) => {
       });
     }
 
+    // Build update payload
+    const updateData: any = {
+      content,
+      last_edited: new Date().toISOString()
+    };
+    if (typeof background_index === 'number') {
+      updateData.background_index = background_index;
+    }
+
     // Update the post
     const { data: updatedPost, error: updateError } = await supabase
       .from('posts')
-      .update({
-        content,
-        updated_at: new Date().toISOString()
-      })
+      .update(updateData)
       .eq('id', postId)
       .select()
       .single();
 
     if (updateError) {
-      throw updateError;
+      console.error('Error updating post:', updateError);
+      return res.status(500).json({ error: 'Failed to update post: ' + updateError.message });
     }
 
     res.json(updatedPost);
@@ -643,7 +597,7 @@ router.delete('/:id', auth, async (req: AuthRequest, res) => {
 });
 
 // POST /api/posts/:postId/react - Add or toggle a reaction
-router.post('/:postId/react', auth, async (req: AuthRequest, res) => {
+router.post('/:postId/react', auth, validateNotGhosted, async (req: AuthRequest, res) => {
   try {
     const { postId } = req.params;
     const { type } = req.body;
@@ -697,6 +651,25 @@ router.post('/:postId/react', auth, async (req: AuthRequest, res) => {
           user_id: userId,
           type,
         });
+
+      // Award credits for likes
+      if (type === 'like') {
+        const canLike = await CreditService.checkAndIncrementLikeCount(userId);
+        if (canLike) {
+          await CreditService.awardCredits(userId, 1, 'like', 'Like post');
+          
+          // Award +2 to post owner
+          const { data: post } = await supabase.from('posts').select('user_id').eq('id', postId).single();
+          if (post?.user_id && post.user_id !== userId) {
+            await CreditService.awardCredits(post.user_id, 2, 'like', 'Receive like');
+
+            // Send like notification to post owner
+            await NotificationService.like(userId, post.user_id, postId);
+          }
+        }
+      }
+
+      await CreditService.updateLastActiveAt(userId);
     }
 
     // Fetch all reactions for this post grouped by type

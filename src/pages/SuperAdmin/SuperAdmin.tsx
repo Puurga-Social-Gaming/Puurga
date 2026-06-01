@@ -30,8 +30,6 @@ import {
   ArrowUp,
   ArrowDown,
   Plus,
-  Eye,
-  EyeOff
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -66,118 +64,26 @@ interface UserAdminInfo {
 // --- Sub-components ---
 
 const StatCard = ({ title, value, icon: Icon, trend, description, color = 'accent' }: any) => (
-  <motion.div 
+  <motion.div
     initial={{ opacity: 0, y: 20 }}
     animate={{ opacity: 1, y: 0 }}
     whileHover={{ y: -5 }}
-    className="bg-card/50 backdrop-blur-xl border border-border/50 rounded-2xl p-6 flex items-start justify-between shadow-theme-lg transition-all hover:border-accent/30"
+    className="bg-card/50 backdrop-blur-xl border border-border/50 rounded-xl p-4 flex items-start justify-between shadow-theme-md transition-all hover:border-accent/30"
   >
     <div>
-      <p className="text-muted-light text-sm font-medium mb-1 uppercase tracking-wider">{title}</p>
-      <h3 className="text-4xl font-extrabold tracking-tight text-foreground">{value.toLocaleString()}</h3>
-      <p className="text-sm text-muted-light mt-2 flex items-center gap-1">
-        {trend && <span className="text-green-500 font-bold flex items-center mr-1"><TrendingUp size={14} className="mr-0.5" /> {trend}</span>}
+      <p className="text-muted-light text-xs font-medium mb-1 uppercase tracking-wider">{title}</p>
+      <h3 className="text-2xl font-extrabold tracking-tight text-foreground">{value.toLocaleString()}</h3>
+      <p className="text-xs text-muted-light mt-1.5 flex items-center gap-1">
+        {trend && <span className="text-green-500 font-bold flex items-center mr-1"><TrendingUp size={12} className="mr-0.5" /> {trend}</span>}
         {description}
       </p>
     </div>
-    <div className={`p-4 bg-${color}/10 rounded-2xl text-${color} border border-${color}/20`}>
-      <Icon size={28} />
+    <div className={`p-2.5 bg-${color}/10 rounded-xl text-${color} border border-${color}/20`}>
+      <Icon size={20} />
     </div>
   </motion.div>
 );
 
-const AddUserModal = ({ onClose, onCreate }: { onClose: () => void, onCreate: (data: any) => Promise<void> }) => {
-  const [formData, setFormData] = useState({
-    username: '',
-    full_name: '',
-    email: '',
-    password: '',
-    role: 'user'
-  });
-  const [isSaving, setIsSaving] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
-
-  const handleSave = async () => {
-    if (!formData.username || !formData.email || !formData.password || !formData.full_name) {
-      toast.error('All fields are required');
-      return;
-    }
-    if (formData.password.length < 8) {
-      toast.error('Password must be at least 8 characters');
-      return;
-    }
-    setIsSaving(true);
-    try {
-      await onCreate(formData);
-      onClose();
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  return (
-    <motion.div 
-      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
-    >
-      <motion.div 
-        initial={{ scale: 0.9, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }}
-        className="bg-card border border-border w-full max-w-md rounded-3xl overflow-hidden shadow-2xl flex flex-col"
-      >
-        <div className="p-6 border-b border-border flex justify-between items-center bg-accent/5 shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-accent/10 rounded-xl text-accent"><Plus size={24} /></div>
-            <div>
-              <h2 className="text-xl font-bold text-foreground">Add User</h2>
-              <p className="text-sm text-muted-light">Create a new user account</p>
-            </div>
-          </div>
-          <button onClick={onClose} className="p-2 hover:bg-border/50 rounded-full transition-colors"><X size={24} /></button>
-        </div>
-        <div className="p-6 space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-muted-light mb-1.5">Full Name</label>
-            <input type="text" value={formData.full_name} onChange={e => setFormData({...formData, full_name: e.target.value})} className="w-full bg-input/50 border border-input-border rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-accent outline-none" placeholder="E.g. John Doe" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-muted-light mb-1.5">Username</label>
-            <input type="text" value={formData.username} onChange={e => setFormData({...formData, username: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '')})} className="w-full bg-input/50 border border-input-border rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-accent outline-none" placeholder="john_doe" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-muted-light mb-1.5">Email</label>
-            <input type="email" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} className="w-full bg-input/50 border border-input-border rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-accent outline-none" placeholder="john@example.com" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-muted-light mb-1.5">Secure Password</label>
-            <div className="relative">
-              <input type={showPassword ? "text" : "password"} value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} className="w-full bg-input/50 border border-input-border rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-accent outline-none pr-10" placeholder="min 8 chars" />
-              <button
-                 type="button"
-                 onClick={() => setShowPassword(!showPassword)}
-                 className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted hover:text-foreground"
-              >
-                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-              </button>
-            </div>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-muted-light mb-1.5">Role</label>
-            <select value={formData.role} onChange={e => setFormData({...formData, role: e.target.value})} className="w-full bg-input/50 border border-input-border rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-accent outline-none appearance-none">
-              <option value="user">User</option>
-              <option value="admin">Admin</option>
-              <option value="super_admin">Super Admin</option>
-              <option value="moderator">Moderator</option>
-              <option value="business">Business</option>
-            </select>
-          </div>
-          <button onClick={handleSave} disabled={isSaving} className="w-full bg-accent hover:bg-accent-hover text-white py-3 rounded-2xl font-bold flex items-center justify-center gap-2 transition-all shadow-theme-button mt-4 disabled:opacity-50">
-            {isSaving ? <RefreshCcw className="animate-spin" size={20} /> : <Save size={20} />} Create User
-          </button>
-        </div>
-      </motion.div>
-    </motion.div>
-  );
-};
 
 const UserDetailsModal = ({ user, onClose, onUpdate, onResetPassword, onDelete }: { 
   user: UserAdminInfo, 
@@ -250,60 +156,60 @@ const UserDetailsModal = ({ user, onClose, onUpdate, onResetPassword, onDelete }
         animate={{ scale: 1, opacity: 1, y: 0 }}
         className="bg-card border border-border w-full max-w-2xl rounded-3xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]"
       >
-        <div className="p-6 border-b border-border flex justify-between items-center bg-accent/5 shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-accent/10 rounded-xl text-accent">
-              <Edit2 size={24} />
+        <div className="p-4 border-b border-border flex justify-between items-center bg-accent/5 shrink-0">
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 bg-accent/10 rounded-lg text-accent">
+              <Edit2 size={18} />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-foreground">Manage User</h2>
-              <p className="text-sm text-muted-light">Editing {user.username}</p>
+              <h2 className="text-lg font-bold text-foreground">Manage User</h2>
+              <p className="text-xs text-muted-light">Editing {user.username}</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-border/50 rounded-full transition-colors">
-            <X size={24} />
+          <button onClick={onClose} className="p-1.5 hover:bg-border/50 rounded-full transition-colors">
+            <X size={18} />
           </button>
         </div>
 
-        <div className="overflow-y-auto p-8 flex-1 custom-scrollbar">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div className="overflow-y-auto p-5 flex-1 custom-scrollbar">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             <div className="space-y-6">
-              <h3 className="text-sm font-bold text-muted uppercase tracking-widest">Profile Information</h3>
-            
+              <h3 className="text-xs font-bold text-muted uppercase tracking-widest">Profile Information</h3>
+
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-muted-light mb-1.5">Email</label>
-                <input 
-                  type="email" 
+                <label className="block text-xs font-medium text-muted-light mb-1">Email</label>
+                <input
+                  type="email"
                   value={formData.email}
                   onChange={e => setFormData({...formData, email: e.target.value})}
-                  className="w-full bg-input/50 border border-input-border rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-accent outline-none"
+                  className="w-full bg-input/50 border border-input-border rounded-lg px-3 py-2 focus:ring-2 focus:ring-accent outline-none text-sm"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-muted-light mb-1.5">Username</label>
-                <input 
-                  type="text" 
+                <label className="block text-xs font-medium text-muted-light mb-1">Username</label>
+                <input
+                  type="text"
                   value={formData.username}
                   onChange={e => setFormData({...formData, username: e.target.value})}
-                  className="w-full bg-input/50 border border-input-border rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-accent outline-none"
+                  className="w-full bg-input/50 border border-input-border rounded-lg px-3 py-2 focus:ring-2 focus:ring-accent outline-none text-sm"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-muted-light mb-1.5">Full Name</label>
-                <input 
-                  type="text" 
+                <label className="block text-xs font-medium text-muted-light mb-1">Full Name</label>
+                <input
+                  type="text"
                   value={formData.full_name}
                   onChange={e => setFormData({...formData, full_name: e.target.value})}
-                  className="w-full bg-input/50 border border-input-border rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-accent outline-none"
+                  className="w-full bg-input/50 border border-input-border rounded-lg px-3 py-2 focus:ring-2 focus:ring-accent outline-none text-sm"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-muted-light mb-1.5">Role</label>
-                <select 
+                <label className="block text-xs font-medium text-muted-light mb-1">Role</label>
+                <select
                   value={formData.role}
                   onChange={e => setFormData({...formData, role: e.target.value})}
-                  className="w-full bg-input/50 border border-input-border rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-accent outline-none appearance-none"
+                  className="w-full bg-input/50 border border-input-border rounded-lg px-3 py-2 focus:ring-2 focus:ring-accent outline-none appearance-none text-sm"
                 >
                   <option value="user">User</option>
                   <option value="admin">Admin</option>
@@ -312,103 +218,103 @@ const UserDetailsModal = ({ user, onClose, onUpdate, onResetPassword, onDelete }
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-muted-light mb-1.5">Bio</label>
-                <textarea 
+                <label className="block text-xs font-medium text-muted-light mb-1">Bio</label>
+                <textarea
                   value={formData.bio}
                   onChange={e => setFormData({...formData, bio: e.target.value})}
-                  className="w-full bg-input/50 border border-input-border rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-accent outline-none h-24 resize-none"
+                  className="w-full bg-input/50 border border-input-border rounded-lg px-3 py-2 focus:ring-2 focus:ring-accent outline-none h-24 resize-none text-sm"
                 />
               </div>
-              <div className="flex items-center justify-between p-4 bg-accent/5 rounded-2xl border border-accent/10">
+              <div className="flex items-center justify-between p-3 bg-accent/5 rounded-xl border border-accent/10">
                 <div>
                   <p className="font-semibold text-foreground">Ghost Mode</p>
                   <p className="text-xs text-muted-light">Freeze user activities</p>
                 </div>
-                <button 
+                <button
                   onClick={() => setFormData({...formData, is_ghost: !formData.is_ghost})}
-                  className={`w-12 h-6 rounded-full transition-all relative ${formData.is_ghost ? 'bg-red-500' : 'bg-gray-600'}`}
+                  className={`w-11 h-5 rounded-full transition-all relative ${formData.is_ghost ? 'bg-red-500' : 'bg-gray-600'}`}
                 >
-                  <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${formData.is_ghost ? 'right-1' : 'left-1'}`} />
+                  <div className={`absolute top-0.5 w-3.5 h-3.5 bg-white rounded-full transition-all ${formData.is_ghost ? 'right-1' : 'left-1'}`} />
                 </button>
               </div>
             </div>
-            
-            <button 
+
+            <button
               onClick={handleSave}
               disabled={isSaving}
-              className="w-full bg-accent hover:bg-accent-hover text-white py-3 rounded-2xl font-bold flex items-center justify-center gap-2 transition-all shadow-theme-button disabled:opacity-50"
+              className="w-full bg-accent hover:opacity-90 text-black py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-theme-button disabled:opacity-50 text-sm"
             >
-              {isSaving ? <RefreshCcw className="animate-spin" size={20} /> : <Save size={20} />}
+              {isSaving ? <RefreshCcw className="animate-spin" size={16} /> : <Save size={16} />}
               Save Changes
             </button>
           </div>
 
-          <div className="space-y-6">
-            <h3 className="text-sm font-bold text-muted uppercase tracking-widest">Security</h3>
-            
-            <div className="p-6 bg-red-500/5 border border-red-500/10 rounded-2xl space-y-4">
-              <div className="flex items-center gap-2 text-red-500 mb-2">
-                <Lock size={18} />
-                <p className="font-bold text-sm">Force Password Reset</p>
-              </div>
-              <p className="text-xs text-muted-light leading-relaxed">
-                Enter a new password for this user. They will be able to log in with this password immediately.
-              </p>
-              <input 
-                type="password" 
-                placeholder="New secure password"
-                value={newPassword}
-                onChange={e => setNewPassword(e.target.value)}
-                className="w-full bg-input/50 border border-input-border rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-red-500 outline-none"
-              />
-              <button 
-                onClick={handleResetPassword}
-                disabled={isResetting || !newPassword}
-                className="w-full bg-red-500 hover:bg-red-600 text-white py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 transition-all disabled:opacity-50"
-              >
-                {isResetting ? <RefreshCcw className="animate-spin" size={18} /> : <CheckCircle2 size={18} />}
-                Reset Password
-              </button>
-            </div>
+            <div className="space-y-6">
+              <h3 className="text-xs font-bold text-muted uppercase tracking-widest">Security</h3>
 
-            <div className="p-6 bg-card border border-border rounded-2xl space-y-3">
-              <h4 className="text-xs font-bold text-muted uppercase tracking-wider">Account Metrics</h4>
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-light">Joined</span>
-                <span className="text-foreground">{format(new Date(user.created_at), 'PPP')}</span>
+              <div className="p-4 bg-red-500/5 border border-red-500/10 rounded-2xl space-y-3">
+                <div className="flex items-center gap-2 text-red-500 mb-2">
+                  <Lock size={16} />
+                  <p className="font-bold text-xs">Force Password Reset</p>
+                </div>
+                <p className="text-xs text-muted-light leading-relaxed">
+                  Enter a new password for this user. They will be able to log in with this password immediately.
+                </p>
+                <input
+                  type="password"
+                  placeholder="New secure password"
+                  value={newPassword}
+                  onChange={e => setNewPassword(e.target.value)}
+                  className="w-full bg-input/50 border border-input-border rounded-lg px-3 py-2 focus:ring-2 focus:ring-red-500 outline-none text-sm"
+                />
+                <button
+                  onClick={handleResetPassword}
+                  disabled={isResetting || !newPassword}
+                  className="w-full bg-red-500 hover:bg-red-600 text-white py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 transition-all disabled:opacity-50 text-sm"
+                >
+                  {isResetting ? <RefreshCcw className="animate-spin" size={16} /> : <CheckCircle2 size={16} />}
+                  Reset Password
+                </button>
               </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-light">Posts</span>
-                <span className="text-foreground font-bold">{user.posts_count}</span>
+
+              <div className="p-4 bg-card border border-border rounded-2xl space-y-2">
+                <h4 className="text-xs font-bold text-muted uppercase tracking-wider">Account Metrics</h4>
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted-light">Joined</span>
+                  <span className="text-foreground">{format(new Date(user.created_at), 'PPP')}</span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted-light">Posts</span>
+                  <span className="text-foreground font-bold">{user.posts_count}</span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted-light">Purges Received</span>
+                  <span className="text-foreground font-bold">{user.purges_count}</span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted-light">User ID</span>
+                  <span className="text-xs font-mono text-muted-light truncate ml-4" title={user.id}>{user.id}</span>
+                </div>
               </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-light">Purges Received</span>
-                <span className="text-foreground font-bold">{user.purges_count}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-light">User ID</span>
-                <span className="text-xs font-mono text-muted-light truncate ml-4" title={user.id}>{user.id}</span>
+
+              <div className="p-4 bg-red-900/10 border border-red-500/20 rounded-2xl space-y-3">
+                <div className="flex items-center gap-2 text-red-500 mb-2">
+                  <AlertCircle size={16} />
+                  <p className="font-bold text-xs">Danger Zone</p>
+                </div>
+                <p className="text-xs text-muted-light leading-relaxed">
+                  Permanently delete this user from the Puurga network. This action cannot be reversed.
+                </p>
+                <button
+                  onClick={handleDelete}
+                  disabled={isSaving}
+                  className="w-full bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white border border-red-500/30 py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 transition-all disabled:opacity-50 text-sm"
+                >
+                  {isSaving ? <RefreshCcw className="animate-spin" size={16} /> : <X size={16} />}
+                  Delete User Account
+                </button>
               </div>
             </div>
-            
-            <div className="p-6 bg-red-900/10 border border-red-500/20 rounded-2xl space-y-4">
-              <div className="flex items-center gap-2 text-red-500 mb-2">
-                <AlertCircle size={18} />
-                <p className="font-bold text-sm">Danger Zone</p>
-              </div>
-              <p className="text-xs text-muted-light leading-relaxed">
-                Permanently delete this user from the Puurga network. This action cannot be reversed.
-              </p>
-              <button 
-                onClick={handleDelete}
-                disabled={isSaving}
-                className="w-full bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white border border-red-500/30 py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 transition-all disabled:opacity-50"
-              >
-                {isSaving ? <RefreshCcw className="animate-spin" size={18} /> : <X size={18} />}
-                Delete User Account
-              </button>
-            </div>
-          </div>
         </div>
         </div>
       </motion.div>
@@ -438,7 +344,7 @@ const SuperAdmin: React.FC = () => {
   const [sortBy, setSortBy] = useState('created_at');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [selectedUser, setSelectedUser] = useState<UserAdminInfo | null>(null);
-  const [showAddModal, setShowAddModal] = useState(false);
+  const [, setShowAddModal] = useState(false);
   const [activeTab, setActiveTab] = useState<'users' | 'logs' | 'system'>('users');
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [systemLogs, setSystemLogs] = useState<any[]>([]);
@@ -552,15 +458,6 @@ const SuperAdmin: React.FC = () => {
     }
   };
 
-  const handleCreateUser = async (data: any) => {
-    try {
-      await api.post('/admin/users', data);
-      toast.success('User created successfully');
-      fetchData();
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to create user');
-    }
-  };
 
   const handleResetPassword = async (password: string) => {
     try {
@@ -715,64 +612,64 @@ const SuperAdmin: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-background text-foreground pb-20 pt-6">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
         {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
           <div>
-            <motion.div 
+            <motion.div
               initial={{ x: -20, opacity: 0 }}
               animate={{ x: 0, opacity: 1 }}
-              className="flex items-center gap-2 text-accent font-bold uppercase tracking-widest text-sm mb-2"
+              className="flex items-center gap-2 text-accent font-bold uppercase tracking-widest text-xs mb-2"
             >
-              <ShieldCheck size={16} />
+              <ShieldCheck size={14} />
               Super Admin Control
             </motion.div>
-            <motion.h1 
+            <motion.h1
               initial={{ x: -20, opacity: 0 }}
               animate={{ x: 0, opacity: 1 }}
               transition={{ delay: 0.1 }}
-              className="text-4xl md:text-5xl font-black tracking-tight"
+              className="text-2xl md:text-3xl font-black tracking-tight"
             >
               Dashboard
             </motion.h1>
           </div>
-          
+
           <div className="flex items-center gap-3">
-            <motion.button 
+            <motion.button
               whileTap={{ scale: 0.95 }}
               onClick={() => setShowAddModal(true)}
-              className="p-4 bg-green-500/10 border border-green-500/20 text-green-500 rounded-2xl hover:bg-green-500 hover:text-white transition-all flex items-center gap-2 shadow-theme-md"
+              className="p-2.5 bg-green-500/10 border border-green-500/20 text-green-500 rounded-xl hover:bg-green-500 hover:text-white transition-all flex items-center gap-2 shadow-theme-sm"
             >
-              <Plus size={20} />
+              <Plus size={16} />
               <span className="hidden sm:inline font-bold uppercase text-xs">Add User</span>
             </motion.button>
-            <motion.button 
+            <motion.button
               whileTap={{ scale: 0.95 }}
               onClick={handleRefresh}
               disabled={refreshing}
-              className="p-4 bg-card border border-border rounded-2xl hover:bg-card-hover transition-all flex items-center gap-2 shadow-theme-md"
+              className="p-2.5 bg-card border border-border rounded-xl hover:bg-card-hover transition-all flex items-center gap-2 shadow-theme-sm"
             >
-              <RefreshCcw className={refreshing ? 'animate-spin' : ''} size={20} />
+              <RefreshCcw className={refreshing ? 'animate-spin' : ''} size={16} />
               <span className="hidden sm:inline font-bold">Refresh</span>
             </motion.button>
 
-            <motion.button 
+            <motion.button
               whileTap={{ scale: 0.95 }}
               onClick={() => {
                 const data = activeTab === 'users' ? users : activeTab === 'logs' ? auditLogs : systemLogs;
                 exportToJSON(data, `${activeTab}_full_export`);
               }}
-              className="p-4 bg-accent/10 border border-accent/20 text-accent rounded-2xl hover:bg-accent hover:text-white transition-all flex items-center gap-2 shadow-theme-md"
+              className="p-2.5 bg-accent/10 border border-accent/20 text-accent rounded-xl hover:bg-accent hover:text-white transition-all flex items-center gap-2 shadow-theme-sm"
             >
-              <Download size={20} />
+              <Download size={16} />
               <span className="hidden sm:inline font-bold uppercase text-xs">Export</span>
             </motion.button>
-            <div className="h-10 w-px bg-border mx-2 hidden md:block" />
+            <div className="h-8 w-px bg-border mx-2 hidden md:block" />
             <div className="flex flex-col text-right">
-              <span className="text-sm font-bold text-foreground">System Health</span>
+              <span className="text-xs font-bold text-foreground">System Health</span>
               <div className="flex items-center gap-2 justify-end text-green-500 text-xs font-bold uppercase">
-                <Activity size={12} className="animate-pulse" />
+                <Activity size={10} className="animate-pulse" />
                 {stats?.health || 'Optimal'}
               </div>
             </div>
@@ -780,7 +677,7 @@ const SuperAdmin: React.FC = () => {
         </div>
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           <StatCard 
             title="Total Citizens" 
             value={stats?.totalUsers || 0} 
@@ -813,41 +710,41 @@ const SuperAdmin: React.FC = () => {
 
         {/* Activity Visualization */}
         {stats?.postsPerDay && stats.postsPerDay.length > 0 && (
-          <div className="bg-card/40 backdrop-blur-xl border border-border rounded-3xl p-8 mb-8 shadow-theme-xl">
-            <div className="flex items-center justify-between mb-8">
+          <div className="bg-card/40 backdrop-blur-xl border border-border rounded-2xl p-5 mb-6 shadow-theme-lg">
+            <div className="flex items-center justify-between mb-6">
               <div>
-                <h3 className="text-xl font-black text-foreground uppercase tracking-tight">System Pulse</h3>
-                <p className="text-sm text-muted">Daily citizen activity for the last 7 days</p>
+                <h3 className="text-lg font-black text-foreground uppercase tracking-tight">System Pulse</h3>
+                <p className="text-xs text-muted">Daily citizen activity for the last 7 days</p>
               </div>
-              <div className="flex items-center gap-2 text-accent font-bold text-sm">
-                <TrendingUp size={16} />
+              <div className="flex items-center gap-2 text-accent font-bold text-xs">
+                <TrendingUp size={14} />
                 Global Activity
               </div>
             </div>
-            
-            <div className="h-64 flex items-end justify-between gap-2 sm:gap-4 px-4 overflow-hidden">
+
+            <div className="h-48 flex items-end justify-between gap-2 sm:gap-3 px-3 overflow-hidden">
               {stats.postsPerDay.map((day, idx) => {
                 const maxCount = Math.max(...stats.postsPerDay.map(d => d.count), 1);
                 const height = (day.count / maxCount) * 100;
                 return (
                   <div key={day.date} className="flex-1 flex flex-col items-center group relative h-full justify-end">
                     <div className="w-full relative min-h-[4px]">
-                      <motion.div 
+                      <motion.div
                         initial={{ height: 0 }}
                         animate={{ height: `${height}%` }}
                         transition={{ duration: 1, delay: idx * 0.1 }}
                         className={`w-full rounded-t-xl transition-all duration-500 relative ${
-                          idx === stats.postsPerDay.length - 1 
-                            ? 'bg-gradient-to-t from-accent/40 to-accent shadow-[0_0_20px_-5px_rgba(255,107,0,0.5)]' 
+                          idx === stats.postsPerDay.length - 1
+                            ? 'bg-gradient-to-t from-accent/40 to-accent shadow-[0_0_20px_-5px_rgba(255,107,0,0.5)]'
                             : 'bg-muted/30 group-hover:bg-accent/40'
                         }`}
                       >
-                        <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-popover text-popover-foreground text-[10px] font-black px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap border border-border shadow-xl">
+                        <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-popover text-popover-foreground text-[9px] font-black px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap border border-border shadow-lg">
                           {day.count} POSTS
                         </div>
                       </motion.div>
                     </div>
-                    <div className="mt-4 text-[10px] sm:text-xs font-bold text-muted uppercase tracking-tighter truncate w-full text-center">
+                    <div className="mt-2 text-[9px] sm:text-xs font-bold text-muted uppercase tracking-tighter truncate w-full text-center">
                       {idx === stats.postsPerDay.length - 1 ? 'Today' : format(new Date(day.date), 'EEE')}
                     </div>
                   </div>
@@ -859,38 +756,38 @@ const SuperAdmin: React.FC = () => {
 
 
         {/* Tab Switcher */}
-        <div className="flex items-center gap-4 mb-8">
-          <button 
+        <div className="flex items-center gap-2 mb-6">
+          <button
             onClick={() => setActiveTab('users')}
-            className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-bold transition-all ${
-              activeTab === 'users' 
-                ? 'bg-accent text-white shadow-theme-button' 
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold transition-all text-sm ${
+              activeTab === 'users'
+                ? 'bg-accent text-white shadow-theme-button'
                 : 'bg-card border border-border text-muted hover:text-foreground'
             }`}
           >
-            <Users size={20} />
+            <Users size={16} />
             Citizens List
           </button>
-          <button 
+          <button
             onClick={() => setActiveTab('logs')}
-            className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-bold transition-all ${
-              activeTab === 'logs' 
-                ? 'bg-accent text-white shadow-theme-button' 
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold transition-all text-sm ${
+              activeTab === 'logs'
+                ? 'bg-accent text-white shadow-theme-button'
                 : 'bg-card border border-border text-muted hover:text-foreground'
             }`}
           >
-            <ShieldAlert size={20} />
+            <ShieldAlert size={16} />
             Activity Logs
           </button>
-          <button 
+          <button
             onClick={() => setActiveTab('system')}
-            className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-bold transition-all ${
-              activeTab === 'system' 
-                ? 'bg-red-500 text-white shadow-theme-button' 
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold transition-all text-sm ${
+              activeTab === 'system'
+                ? 'bg-red-500 text-white shadow-theme-button'
                 : 'bg-card border border-border text-muted hover:text-foreground'
             }`}
           >
-            <Activity size={20} />
+            <Activity size={16} />
             System Health
           </button>
         </div>
@@ -899,28 +796,28 @@ const SuperAdmin: React.FC = () => {
           <div className="space-y-8">
             {/* Filters & Actions Bar */}
 
-        <div className="bg-card/30 backdrop-blur-md border border-border/50 rounded-3xl p-6 mb-8 shadow-theme-xl space-y-6">
-          <div className="flex flex-col lg:flex-row justify-between gap-6">
+        <div className="bg-card/30 backdrop-blur-md border border-border/50 rounded-2xl p-5 mb-6 shadow-theme-lg space-y-5">
+          <div className="flex flex-col lg:flex-row justify-between gap-5">
             <div className="flex-1 relative max-w-xl">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted" size={20} />
-              <input 
-                type="text" 
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" size={16} />
+              <input
+                type="text"
                 placeholder="Search name, email, or ID..."
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                className="w-full bg-input/40 border border-input-border/50 rounded-2xl pl-12 pr-4 py-3.5 focus:ring-2 focus:ring-accent outline-none transition-all placeholder:text-muted/60"
+                className="w-full bg-input/40 border border-input-border/50 rounded-2xl pl-10 pr-4 py-2.5 focus:ring-2 focus:ring-accent outline-none transition-all placeholder:text-muted/60"
               />
             </div>
-            
+
             <div className="flex flex-wrap items-center gap-3">
-              <div className="flex items-center gap-2 p-1 bg-background-secondary rounded-2xl border border-border/50">
+              <div className="flex items-center gap-2 p-1 bg-background-secondary rounded-xl border border-border/50">
                 {['all', 'active', 'ghosted'].map((status) => (
                   <button
                     key={status}
                     onClick={() => setStatusFilter(status)}
-                    className={`px-4 py-2 rounded-xl text-sm font-bold uppercase tracking-wider transition-all ${
-                      statusFilter === status 
-                        ? 'bg-accent text-white shadow-theme-button' 
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${
+                      statusFilter === status
+                        ? 'bg-accent text-white shadow-theme-button'
                         : 'text-muted hover:text-foreground'
                     }`}
                   >
@@ -931,13 +828,13 @@ const SuperAdmin: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-6 pt-6 border-t border-border/30">
-            <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-5 pt-5 border-t border-border/30">
+            <div className="flex items-center gap-2">
               <span className="text-xs font-black uppercase text-muted tracking-widest whitespace-nowrap">Filter Role</span>
-              <select 
+              <select
                 value={roleFilter}
                 onChange={e => setRoleFilter(e.target.value)}
-                className="bg-background-secondary border border-border rounded-xl px-4 py-2 text-sm font-bold outline-none focus:ring-2 focus:ring-accent transition-all"
+                className="bg-background-secondary border border-border rounded-lg px-3 py-1.5 text-xs font-bold outline-none focus:ring-2 focus:ring-accent transition-all"
               >
                 <option value="all">All Roles</option>
                 <option value="user">Citizens</option>
@@ -946,31 +843,31 @@ const SuperAdmin: React.FC = () => {
               </select>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
               <span className="text-xs font-black uppercase text-muted tracking-widest whitespace-nowrap">Registered Between</span>
               <div className="flex items-center gap-2">
-                <input 
-                  type="date" 
+                <input
+                  type="date"
                   value={startDate}
                   onChange={e => setStartDate(e.target.value)}
-                  className="bg-background-secondary border border-border rounded-xl px-3 py-2 text-xs font-bold outline-none focus:ring-2 focus:ring-accent transition-all color-scheme-dark"
+                  className="bg-background-secondary border border-border rounded-lg px-2.5 py-1.5 text-xs font-bold outline-none focus:ring-2 focus:ring-accent transition-all color-scheme-dark"
                 />
                 <span className="text-muted text-xs">to</span>
-                <input 
-                  type="date" 
+                <input
+                  type="date"
                   value={endDate}
                   onChange={e => setEndDate(e.target.value)}
-                  className="bg-background-secondary border border-border rounded-xl px-3 py-2 text-xs font-bold outline-none focus:ring-2 focus:ring-accent transition-all color-scheme-dark"
+                  className="bg-background-secondary border border-border rounded-lg px-2.5 py-1.5 text-xs font-bold outline-none focus:ring-2 focus:ring-accent transition-all color-scheme-dark"
                 />
               </div>
             </div>
 
-            <div className="flex items-center gap-3 border-l border-border/30 pl-6">
+            <div className="flex items-center gap-2 border-l border-border/30 pl-5">
               <span className="text-xs font-black uppercase text-muted tracking-widest whitespace-nowrap">Activity Level</span>
-              <select 
+              <select
                 value={minPosts}
                 onChange={e => setMinPosts(e.target.value)}
-                className="bg-background-secondary border border-border rounded-xl px-4 py-2 text-sm font-bold outline-none focus:ring-2 focus:ring-accent transition-all"
+                className="bg-background-secondary border border-border rounded-lg px-3 py-1.5 text-xs font-bold outline-none focus:ring-2 focus:ring-accent transition-all"
               >
                 <option value="">Any Activity</option>
                 <option value="1">Active (1+ Posts)</option>
@@ -979,7 +876,7 @@ const SuperAdmin: React.FC = () => {
               </select>
             </div>
 
-            <button 
+            <button
               onClick={() => {
                 setRoleFilter('all');
                 setStartDate('');
@@ -996,148 +893,148 @@ const SuperAdmin: React.FC = () => {
         </div>
 
         {/* User Table */}
-        <div className="bg-card/50 backdrop-blur-xl border border-border rounded-3xl overflow-hidden shadow-theme-xl">
+        <div className="bg-card/50 backdrop-blur-xl border border-border rounded-2xl overflow-hidden shadow-theme-lg">
           <div className="overflow-x-auto">
             <table className="w-full border-collapse">
               <thead>
-                <tr className="bg-accent/5 text-muted uppercase text-xs font-black tracking-[0.2em] border-b border-border">
-                  <th className="px-6 py-6 text-left w-12">
-                    <input 
-                      type="checkbox" 
+                <tr className="bg-accent/5 text-muted uppercase text-xs font-black tracking-[0.15em] border-b border-border">
+                  <th className="px-6 py-4 text-left w-12">
+                    <input
+                      type="checkbox"
                       onChange={toggleSelectAll}
                       checked={selectedUserIds.length === users.length && users.length > 0}
-                      className="w-5 h-5 rounded border-border bg-background-secondary text-accent focus:ring-accent"
+                      className="w-4 h-4 rounded border-border bg-background-secondary text-accent focus:ring-accent"
                     />
                   </th>
-                  <th className="px-8 py-6 text-left cursor-pointer hover:bg-accent/10 transition-colors" onClick={() => toggleSort('username')}>
+                  <th className="px-6 py-4 text-left cursor-pointer hover:bg-accent/10 transition-colors" onClick={() => toggleSort('username')}>
                     <div className="flex items-center gap-2">
                        Citizen
-                       {sortBy === 'username' ? (sortOrder === 'asc' ? <ArrowUp size={14}/> : <ArrowDown size={14}/>) : <ArrowUpDown size={14} className="opacity-30"/>}
+                       {sortBy === 'username' ? (sortOrder === 'asc' ? <ArrowUp size={12}/> : <ArrowDown size={12}/>) : <ArrowUpDown size={12} className="opacity-30"/>}
                     </div>
                   </th>
-                  <th className="px-8 py-6 text-left cursor-pointer hover:bg-accent/10 transition-colors" onClick={() => toggleSort('created_at')}>
+                  <th className="px-6 py-4 text-left cursor-pointer hover:bg-accent/10 transition-colors" onClick={() => toggleSort('created_at')}>
                     <div className="flex items-center gap-2">
                       Contact & Dates
-                      {sortBy === 'created_at' ? (sortOrder === 'asc' ? <ArrowUp size={14}/> : <ArrowDown size={14}/>) : <ArrowUpDown size={14} className="opacity-30"/>}
+                      {sortBy === 'created_at' ? (sortOrder === 'asc' ? <ArrowUp size={12}/> : <ArrowDown size={12}/>) : <ArrowUpDown size={12} className="opacity-30"/>}
                     </div>
                   </th>
-                  <th className="px-8 py-6 text-center cursor-pointer hover:bg-accent/10 transition-colors" onClick={() => toggleSort('posts_count')}>
+                  <th className="px-6 py-4 text-center cursor-pointer hover:bg-accent/10 transition-colors" onClick={() => toggleSort('posts_count')}>
                     <div className="flex items-center justify-center gap-2">
                       Activities
-                      {sortBy === 'posts_count' ? (sortOrder === 'asc' ? <ArrowUp size={14}/> : <ArrowDown size={14}/>) : <ArrowUpDown size={14} className="opacity-30"/>}
+                      {sortBy === 'posts_count' ? (sortOrder === 'asc' ? <ArrowUp size={12}/> : <ArrowDown size={12}/>) : <ArrowUpDown size={12} className="opacity-30"/>}
                     </div>
                   </th>
-                  <th className="px-8 py-6 text-center">Status</th>
-                  <th className="px-8 py-6 text-right">Actions</th>
+                  <th className="px-6 py-4 text-center">Status</th>
+                  <th className="px-6 py-4 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/30">
                 {loading ? (
                   <tr>
-                    <td colSpan={5} className="px-8 py-20 text-center">
+                    <td colSpan={5} className="px-6 py-16 text-center">
                       <div className="flex flex-col items-center gap-4">
-                        <RefreshCcw className="animate-spin text-accent" size={40} />
-                        <span className="text-muted font-bold tracking-widest text-sm uppercase">Synchronizing Citizens...</span>
+                        <RefreshCcw className="animate-spin text-accent" size={32} />
+                        <span className="text-muted font-bold tracking-widest text-xs uppercase">Synchronizing Citizens...</span>
                       </div>
                     </td>
                   </tr>
                 ) : users.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-8 py-20 text-center text-muted">
+                    <td colSpan={5} className="px-6 py-16 text-center text-muted">
                       No citizens found matching your criteria
                     </td>
                   </tr>
                 ) : (
                   users.map((u) => (
-                    <motion.tr 
+                    <motion.tr
                       key={u.id}
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       className="hover:bg-accent/5 transition-colors group"
                     >
-                      <td className="px-6 py-6">
-                        <input 
-                          type="checkbox" 
+                      <td className="px-6 py-4">
+                        <input
+                          type="checkbox"
                           checked={selectedUserIds.includes(u.id)}
                           onChange={() => toggleSelectUser(u.id)}
-                          className="w-5 h-5 rounded border-border bg-background-secondary text-accent focus:ring-accent"
+                          className="w-4 h-4 rounded border-border bg-background-secondary text-accent focus:ring-accent"
                         />
                       </td>
-                      <td className="px-8 py-6">
+                      <td className="px-6 py-4">
                         <div className="flex items-center gap-4">
                           <div className="relative">
-                            <img 
-                              src={u.avatar_url || `https://ui-avatars.com/api/?name=${u.username}&background=random`} 
+                            <img
+                              src={u.avatar_url || `https://ui-avatars.com/api/?name=${u.username}&background=random`}
                               alt={u.username}
-                              className="w-14 h-14 rounded-2xl object-cover border-2 border-border group-hover:border-accent/50 transition-all"
+                              className="w-10 h-10 rounded-xl object-cover border-2 border-border group-hover:border-accent/50 transition-all"
                             />
-                            {u.is_ghost && <div className="absolute -top-1 -right-1 p-1 bg-red-500 rounded-lg text-white"><Ghost size={12} /></div>}
+                            {u.is_ghost && <div className="absolute -top-1 -right-1 p-1 bg-red-500 rounded-lg text-white"><Ghost size={10} /></div>}
                           </div>
                           <div>
-                            <div className="font-black text-lg text-foreground leading-tight group-hover:text-accent transition-colors">
+                            <div className="font-black text-sm text-foreground leading-tight group-hover:text-accent transition-colors">
                               {u.full_name || u.username}
                             </div>
-                            <div className="text-sm text-muted">@{u.username}</div>
-                            <div className="mt-1 inline-flex px-2 py-0.5 bg-background-secondary rounded-lg text-[10px] uppercase font-bold text-accent tracking-tighter">
+                            <div className="text-xs text-muted">@{u.username}</div>
+                            <div className="mt-1 inline-flex px-1.5 py-0.5 bg-background-secondary rounded-lg text-[9px] uppercase font-bold text-accent tracking-tighter">
                               {u.role}
                             </div>
                           </div>
                         </div>
                       </td>
-                      <td className="px-8 py-6 text-sm">
+                      <td className="px-6 py-4 text-xs">
                         <div className="flex flex-col gap-1.5">
                           <div className="flex items-center gap-2 text-foreground font-medium">
-                            <Mail size={14} className="text-muted" />
+                            <Mail size={12} className="text-muted" />
                             {/* Email extracted from metadata if possible, else hidden */}
                             <span className="text-muted/50 italic text-xs">Private Maildrop</span>
                           </div>
                           <div className="flex items-center gap-2 text-muted-light text-xs uppercase font-bold tracking-wider">
-                            <Calendar size={12} />
+                            <Calendar size={10} />
                             Born: {format(new Date(u.created_at), 'dd MMM yyyy')}
                           </div>
                         </div>
                       </td>
-                      <td className="px-8 py-6">
+                      <td className="px-6 py-4">
                         <div className="flex items-center justify-center gap-6">
                           <div className="text-center">
-                            <div className="text-xl font-black text-foreground">{u.posts_count}</div>
-                            <div className="text-[10px] uppercase font-bold text-muted-light">Posts</div>
+                            <div className="text-lg font-black text-foreground">{u.posts_count}</div>
+                            <div className="text-[9px] uppercase font-bold text-muted-light">Posts</div>
                           </div>
                           <div className="w-px h-6 bg-border/50" />
                           <div className="text-center">
-                            <div className="text-xl font-black text-foreground">{u.purges_count}</div>
-                            <div className="text-[10px] uppercase font-bold text-muted-light">Purges</div>
+                            <div className="text-lg font-black text-foreground">{u.purges_count}</div>
+                            <div className="text-[9px] uppercase font-bold text-muted-light">Purges</div>
                           </div>
                         </div>
                       </td>
-                      <td className="px-8 py-6 text-center">
-                        <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all ${
-                          u.is_ghost 
-                            ? 'bg-red-500/10 text-red-500 border-red-500/20 shadow-[0_0_15px_-5px_#ef4444]' 
+                      <td className="px-6 py-4 text-center">
+                        <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border transition-all ${
+                          u.is_ghost
+                            ? 'bg-red-500/10 text-red-500 border-red-500/20 shadow-[0_0_15px_-5px_#ef4444]'
                             : 'bg-green-500/10 text-green-500 border-green-500/20 shadow-[0_0_15px_-5px_#22c55e]'
                         }`}>
                           {u.is_ghost ? 'GHOSTED' : 'ACTIVE'}
                         </span>
                       </td>
-                      <td className="px-8 py-6 text-right">
+                      <td className="px-6 py-4 text-right">
                         <div className="flex items-center justify-end gap-2">
-                          <button 
+                          <button
                             onClick={() => setSelectedUser(u)}
-                            className="p-3 bg-card border border-border rounded-xl text-muted hover:text-accent hover:border-accent/40 transition-all"
+                            className="p-2 bg-card border border-border rounded-lg text-muted hover:text-accent hover:border-accent/40 transition-all"
                             title="Edit User"
                           >
-                            <Edit2 size={18} />
+                            <Edit2 size={16} />
                           </button>
-                          <button 
+                          <button
                             onClick={() => handleGhostToggle(u)}
-                            className={`p-3 border rounded-xl transition-all ${
-                              u.is_ghost 
-                                ? 'bg-green-500/10 text-green-500 border-green-500/20 hover:bg-green-500 hover:text-white' 
+                            className={`p-2 border rounded-lg transition-all ${
+                              u.is_ghost
+                                ? 'bg-green-500/10 text-green-500 border-green-500/20 hover:bg-green-500 hover:text-white'
                                 : 'bg-red-500/10 text-red-500 border-red-500/20 hover:bg-red-500 hover:text-white'
                             }`}
                             title={u.is_ghost ? "Unghost User" : "Ghost User"}
                           >
-                            {u.is_ghost ? <UserCheck size={18} /> : <UserX size={18} />}
+                            {u.is_ghost ? <UserCheck size={16} /> : <UserX size={16} />}
                           </button>
                         </div>
                       </td>
@@ -1149,27 +1046,27 @@ const SuperAdmin: React.FC = () => {
           </div>
 
           {/* Pagination */}
-          <div className="p-8 border-t border-border flex items-center justify-between bg-accent/5">
-            <p className="text-sm font-medium text-muted">
+          <div className="p-5 border-t border-border flex items-center justify-between bg-accent/5">
+            <p className="text-xs font-medium text-muted">
               Showing <span className="text-foreground">{users.length}</span> of {stats?.totalUsers || 0} Citizens
             </p>
             <div className="flex items-center gap-2">
-              <button 
+              <button
                 onClick={() => setPage(p => Math.max(1, p - 1))}
                 disabled={page === 1}
-                className="p-3 bg-card border border-border rounded-xl text-muted hover:text-accent disabled:opacity-30 disabled:hover:text-muted transition-all"
+                className="p-2 bg-card border border-border rounded-xl text-muted hover:text-accent disabled:opacity-30 disabled:hover:text-muted transition-all"
               >
-                <ChevronLeft size={20} />
+                <ChevronLeft size={16} />
               </button>
-              <div className="flex items-center px-4 font-bold text-sm">
+              <div className="flex items-center px-3 font-bold text-xs">
                 Page <span className="text-accent mx-1.5">{page}</span> of {totalPages}
               </div>
-              <button 
+              <button
                 onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                 disabled={page === totalPages}
-                className="p-3 bg-card border border-border rounded-xl text-muted hover:text-accent disabled:opacity-30 disabled:hover:text-muted transition-all"
+                className="p-2 bg-card border border-border rounded-xl text-muted hover:text-accent disabled:opacity-30 disabled:hover:text-muted transition-all"
               >
-                <ChevronRight size={20} />
+                <ChevronRight size={16} />
               </button>
             </div>
           </div>
@@ -1178,41 +1075,41 @@ const SuperAdmin: React.FC = () => {
     ) : activeTab === 'logs' ? (
           /* Logs Table Container */
           <div className="space-y-8">
-            <div className="bg-card/50 backdrop-blur-xl border border-border rounded-3xl overflow-hidden shadow-theme-xl">
+            <div className="bg-card/50 backdrop-blur-xl border border-border rounded-2xl overflow-hidden shadow-theme-lg">
               <div className="overflow-x-auto">
               <table className="w-full border-collapse">
                 <thead>
-                  <tr className="bg-accent/5 text-muted uppercase text-xs font-black tracking-[0.2em] border-b border-border">
-                    <th className="px-8 py-6 text-left">Supervisor</th>
-                    <th className="px-8 py-6 text-left">Action</th>
-                    <th className="px-8 py-6 text-left">Target ID</th>
-                    <th className="px-8 py-6 text-left">Metadata</th>
-                    <th className="px-8 py-6 text-right">Timestamp</th>
+                  <tr className="bg-accent/5 text-muted uppercase text-xs font-black tracking-[0.15em] border-b border-border">
+                    <th className="px-6 py-4 text-left">Supervisor</th>
+                    <th className="px-6 py-4 text-left">Action</th>
+                    <th className="px-6 py-4 text-left">Target ID</th>
+                    <th className="px-6 py-4 text-left">Metadata</th>
+                    <th className="px-6 py-4 text-right">Timestamp</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/30">
                   {loading ? (
                     <tr>
-                      <td colSpan={5} className="px-8 py-20 text-center">
+                      <td colSpan={5} className="px-6 py-16 text-center">
                         <div className="flex flex-col items-center gap-4">
-                          <RefreshCcw className="animate-spin text-accent" size={40} />
-                          <span className="text-muted font-bold tracking-widest text-sm uppercase">Retrieving Audit Logs...</span>
+                          <RefreshCcw className="animate-spin text-accent" size={32} />
+                          <span className="text-muted font-bold tracking-widest text-xs uppercase">Retrieving Audit Logs...</span>
                         </div>
                       </td>
                     </tr>
                   ) : auditLogs.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="px-8 py-20 text-center text-muted">
+                      <td colSpan={5} className="px-6 py-16 text-center text-muted">
                         No logs recorded yet
                       </td>
                     </tr>
                   ) : (
                     auditLogs.map((log) => (
                       <tr key={log.id} className="hover:bg-accent/5 transition-colors group">
-                        <td className="px-8 py-6">
+                        <td className="px-6 py-4">
                           <div className="flex items-center gap-3">
-                            <img 
-                              src={log.profiles?.avatar_url || `https://ui-avatars.com/api/?name=${log.profiles?.username}&background=random`} 
+                            <img
+                              src={log.profiles?.avatar_url || `https://ui-avatars.com/api/?name=${log.profiles?.username}&background=random`}
                               className="w-10 h-10 rounded-xl"
                             />
                             <div>
@@ -1221,7 +1118,7 @@ const SuperAdmin: React.FC = () => {
                             </div>
                           </div>
                         </td>
-                        <td className="px-8 py-6">
+                        <td className="px-6 py-4">
                           <span className={`px-3 py-1 rounded-lg text-xs font-bold ${
                             log.action.includes('DELETE') ? 'bg-red-500/10 text-red-500' :
                             log.action.includes('UPDATE') ? 'bg-blue-500/10 text-blue-500' :
@@ -1230,13 +1127,13 @@ const SuperAdmin: React.FC = () => {
                             {log.action}
                           </span>
                         </td>
-                        <td className="px-8 py-6 font-mono text-xs text-muted-light truncate max-w-[120px]">
+                        <td className="px-6 py-4 font-mono text-xs text-muted-light truncate max-w-[120px]">
                           {log.target_id}
                         </td>
-                        <td className="px-8 py-6 text-xs text-muted leading-tight">
+                        <td className="px-6 py-4 text-xs text-muted leading-tight">
                           {JSON.stringify(log.details)}
                         </td>
-                        <td className="px-8 py-6 text-right text-sm text-foreground font-medium">
+                        <td className="px-6 py-4 text-right text-xs text-foreground font-medium">
                           {format(new Date(log.created_at), 'HH:mm:ss')}
                           <div className="text-[10px] text-muted-light tracking-widest uppercase">
                             {format(new Date(log.created_at), 'dd MMM yyyy')}
@@ -1249,67 +1146,67 @@ const SuperAdmin: React.FC = () => {
               </table>
             </div>
 
-            <div className="p-8 border-t border-border flex items-center justify-between bg-accent/5">
-              <p className="text-sm font-medium text-muted">
+            <div className="p-5 border-t border-border flex items-center justify-between bg-accent/5">
+              <p className="text-xs font-medium text-muted">
                 Audit Log History
               </p>
               <div className="flex items-center gap-2">
-                <button 
+                <button
                   onClick={() => setLogPage(p => Math.max(1, p - 1))}
                   disabled={logPage === 1}
-                  className="p-3 bg-card border border-border rounded-xl text-muted hover:text-accent disabled:opacity-30 disabled:hover:text-muted transition-all"
+                  className="p-2 bg-card border border-border rounded-xl text-muted hover:text-accent disabled:opacity-30 disabled:hover:text-muted transition-all"
                 >
-                  <ChevronLeft size={20} />
+                  <ChevronLeft size={16} />
                 </button>
-                <div className="flex items-center px-4 font-bold text-sm">
+                <div className="flex items-center px-3 font-bold text-xs">
                   Page <span className="text-accent mx-1.5">{logPage}</span> of {totalLogPages}
                 </div>
-                <button 
+                <button
                   onClick={() => setLogPage(p => Math.min(totalLogPages, p + 1))}
                   disabled={logPage === totalLogPages}
-                  className="p-3 bg-card border border-border rounded-xl text-muted hover:text-accent disabled:opacity-30 disabled:hover:text-muted transition-all"
+                  className="p-2 bg-card border border-border rounded-xl text-muted hover:text-accent disabled:opacity-30 disabled:hover:text-muted transition-all"
                 >
-                  <ChevronRight size={20} />
+                  <ChevronRight size={16} />
                 </button>
               </div>
             </div>
           </div>
         </div>
-      ) : (
+       ) : (
           /* System Health Container */
           <div className="space-y-8">
-            <div className="bg-card/50 backdrop-blur-xl border border-border rounded-3xl overflow-hidden shadow-theme-xl">
+            <div className="bg-card/50 backdrop-blur-xl border border-border rounded-2xl overflow-hidden shadow-theme-lg">
               <div className="overflow-x-auto">
               <table className="w-full border-collapse">
                 <thead>
-                  <tr className="bg-accent/5 text-muted uppercase text-xs font-black tracking-[0.2em] border-b border-border">
-                    <th className="px-8 py-6 text-left">Level</th>
-                    <th className="px-8 py-6 text-left">Error Message</th>
-                    <th className="px-8 py-6 text-left">Endpoint</th>
-                    <th className="px-8 py-6 text-left">Stack</th>
-                    <th className="px-8 py-6 text-right">Timestamp</th>
+                  <tr className="bg-accent/5 text-muted uppercase text-xs font-black tracking-[0.15em] border-b border-border">
+                    <th className="px-6 py-4 text-left">Level</th>
+                    <th className="px-6 py-4 text-left">Error Message</th>
+                    <th className="px-6 py-4 text-left">Endpoint</th>
+                    <th className="px-6 py-4 text-left">Stack</th>
+                    <th className="px-6 py-4 text-right">Timestamp</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/30">
                   {loading ? (
                     <tr>
-                      <td colSpan={5} className="px-8 py-20 text-center">
+                      <td colSpan={5} className="px-6 py-16 text-center">
                         <div className="flex flex-col items-center gap-4">
-                          <RefreshCcw className="animate-spin text-accent" size={40} />
-                          <span className="text-muted font-bold tracking-widest text-sm uppercase">Checking System Health...</span>
+                          <RefreshCcw className="animate-spin text-accent" size={32} />
+                          <span className="text-muted font-bold tracking-widest text-xs uppercase">Checking System Health...</span>
                         </div>
                       </td>
                     </tr>
                   ) : systemLogs.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="px-8 py-20 text-center text-muted">
+                      <td colSpan={5} className="px-6 py-16 text-center text-muted">
                         No system errors reported. Dashboard Optimal.
                       </td>
                     </tr>
                   ) : (
                     systemLogs.map((log) => (
                       <tr key={log.id} className="hover:bg-accent/5 transition-colors group">
-                        <td className="px-8 py-6">
+                        <td className="px-6 py-4">
                           <span className={`px-3 py-1 rounded-lg text-xs font-bold ${
                             log.level === 'CRITICAL' ? 'bg-red-500 text-white shadow-lg shadow-red-500/20' :
                             log.level === 'ERROR' ? 'bg-red-500/10 text-red-500' :
@@ -1318,7 +1215,7 @@ const SuperAdmin: React.FC = () => {
                             {log.level}
                           </span>
                         </td>
-                        <td className="px-8 py-6 max-w-md">
+                        <td className="px-6 py-4 max-w-md">
                           <div className="font-bold text-foreground truncate" title={log.message}>
                             {log.message}
                           </div>
@@ -1327,21 +1224,21 @@ const SuperAdmin: React.FC = () => {
                             {log.profiles?.username && <span>• @{log.profiles.username}</span>}
                           </div>
                         </td>
-                        <td className="px-8 py-6">
+                        <td className="px-6 py-4">
                           <div className="flex items-center gap-2">
                              <span className="px-2 py-0.5 bg-accent/10 rounded text-[10px] font-black text-accent">{log.method}</span>
                              <span className="text-xs font-mono text-muted truncate max-w-[150px]">{log.path}</span>
                           </div>
                         </td>
-                        <td className="px-8 py-6">
-                           <button 
+                        <td className="px-6 py-4">
+                           <button
                             onClick={() => alert(log.stack)}
                             className="text-[10px] font-bold text-accent hover:underline uppercase tracking-widest"
                            >
                             View Stack
                            </button>
                         </td>
-                        <td className="px-8 py-6 text-right text-sm text-foreground font-medium">
+                        <td className="px-6 py-4 text-right text-xs text-foreground font-medium">
                           {format(new Date(log.created_at), 'HH:mm:ss')}
                           <div className="text-[10px] text-muted-light tracking-widest uppercase">
                             {format(new Date(log.created_at), 'dd MMM yyyy')}
@@ -1354,27 +1251,27 @@ const SuperAdmin: React.FC = () => {
               </table>
             </div>
 
-            <div className="p-8 border-t border-border flex items-center justify-between bg-accent/5">
-              <p className="text-sm font-medium text-muted">
+            <div className="p-5 border-t border-border flex items-center justify-between bg-accent/5">
+              <p className="text-xs font-medium text-muted">
                 System Incident Logs
               </p>
               <div className="flex items-center gap-2">
-                <button 
+                <button
                   onClick={() => setSystemPage(p => Math.max(1, p - 1))}
                   disabled={systemPage === 1}
-                  className="p-3 bg-card border border-border rounded-xl text-muted hover:text-accent disabled:opacity-30 disabled:hover:text-muted transition-all"
+                  className="p-2 bg-card border border-border rounded-xl text-muted hover:text-accent disabled:opacity-30 disabled:hover:text-muted transition-all"
                 >
-                  <ChevronLeft size={20} />
+                  <ChevronLeft size={16} />
                 </button>
-                <div className="flex items-center px-4 font-bold text-sm">
+                <div className="flex items-center px-3 font-bold text-xs">
                   Page <span className="text-accent mx-1.5">{systemPage}</span> of {totalSystemPages}
                 </div>
-                <button 
+                <button
                   onClick={() => setSystemPage(p => Math.min(totalSystemPages, p + 1))}
                   disabled={systemPage === totalSystemPages}
-                  className="p-3 bg-card border border-border rounded-xl text-muted hover:text-accent disabled:opacity-30 disabled:hover:text-muted transition-all"
+                  className="p-2 bg-card border border-border rounded-xl text-muted hover:text-accent disabled:opacity-30 disabled:hover:text-muted transition-all"
                 >
-                  <ChevronRight size={20} />
+                  <ChevronRight size={16} />
                 </button>
               </div>
             </div>
@@ -1384,18 +1281,18 @@ const SuperAdmin: React.FC = () => {
 
 
         {/* Audit Log Hint */}
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.5 }}
-          className="mt-10 p-6 bg-accent/5 border border-accent/10 rounded-3xl flex items-start gap-4"
+          className="mt-10 p-4 bg-accent/5 border border-accent/10 rounded-2xl flex items-start gap-4"
         >
-          <div className="p-2 bg-accent/10 rounded-xl text-accent mt-1">
-            <AlertCircle size={20} />
+          <div className="p-1.5 bg-accent/10 rounded-lg text-accent mt-1">
+            <AlertCircle size={16} />
           </div>
           <div>
-            <h4 className="font-bold text-foreground">Audit Logging Active</h4>
-            <p className="text-sm text-muted-light leading-relaxed max-w-2xl">
+            <h4 className="font-bold text-foreground text-xs">Audit Logging Active</h4>
+            <p className="text-xs text-muted-light leading-relaxed max-w-2xl">
               All administrative actions including password resets, profile updates, and status changes are being recorded with timestamp, IP address, and supervisor ID. Security is our top priority.
             </p>
           </div>
@@ -1403,71 +1300,71 @@ const SuperAdmin: React.FC = () => {
 
       </div>
 
-      {/* Bulk Actions Floating Bar */}
-      <AnimatePresence>
-        {selectedUserIds.length > 0 && (
-          <motion.div 
-            initial={{ y: 100, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: 100, opacity: 0 }}
-            className="fixed bottom-10 left-1/2 -translate-x-1/2 z-50 w-full max-w-2xl px-4"
-          >
-            <div className="bg-popover border border-accent/20 rounded-3xl p-4 shadow-[0_20px_50px_rgba(0,0,0,0.5)] flex items-center justify-between gap-4 backdrop-blur-xl">
-              <div className="flex items-center gap-4 px-4 border-r border-border mr-2">
-                <div className="bg-accent text-white w-10 h-10 rounded-xl flex items-center justify-center font-black">
-                  {selectedUserIds.length}
+        {/* Bulk Actions Floating Bar */}
+        <AnimatePresence>
+          {selectedUserIds.length > 0 && (
+            <motion.div
+              initial={{ y: 100, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 100, opacity: 0 }}
+              className="fixed bottom-10 left-1/2 -translate-x-1/2 z-50 w-full max-w-2xl px-4"
+            >
+              <div className="bg-popover border border-accent/20 rounded-2xl p-3 shadow-[0_15px_40px_rgba(0,0,0,0.5)] flex items-center justify-between gap-4 backdrop-blur-xl">
+                <div className="flex items-center gap-4 px-4 border-r border-border mr-2">
+                  <div className="bg-accent text-white w-8 h-8 rounded-lg flex items-center justify-center font-black text-xs">
+                    {selectedUserIds.length}
+                  </div>
+                  <div>
+                    <div className="text-foreground font-bold text-xs">Selected</div>
+                    <div className="text-muted text-[10px] uppercase font-bold">Citizens</div>
+                  </div>
                 </div>
-                <div>
-                  <div className="text-foreground font-bold text-sm">Selected</div>
-                  <div className="text-muted text-[10px] uppercase font-bold">Citizens</div>
-                </div>
-              </div>
-              
-              <div className="flex items-center gap-2 flex-1">
-                <button 
-                  onClick={() => handleBulkGhost(true)}
-                  className="flex-1 p-3 bg-red-500/10 text-red-500 rounded-xl font-bold text-xs uppercase hover:bg-red-500 hover:text-white transition-all flex items-center justify-center gap-2"
-                >
-                  <Ghost size={16} /> Bulk Ghost
-                </button>
-                <button 
-                  onClick={handleBulkResetPassword}
-                  className="flex-1 p-3 bg-blue-500/10 text-blue-500 rounded-xl font-bold text-xs uppercase hover:bg-blue-500 hover:text-white transition-all flex items-center justify-center gap-2"
-                >
-                  <Lock size={16} /> Bulk Pass
-                </button>
-                <button 
-                  onClick={() => exportToCSV(users.filter(u => selectedUserIds.includes(u.id)), 'selected_citizens')}
-                  className="p-3 bg-accent/10 text-accent rounded-xl font-bold text-xs uppercase hover:bg-accent hover:text-white transition-all flex items-center justify-center gap-2"
-                  title="Export Selected to CSV"
-                >
-                  <Download size={16} />
-                </button>
-                <button 
-                  onClick={() => handleBulkGhost(false)}
-                  className="flex-1 p-3 bg-green-500/10 text-green-500 rounded-xl font-bold text-xs uppercase hover:bg-green-500 hover:text-white transition-all flex items-center justify-center gap-2"
-                >
-                  <UserCheck size={16} /> Bulk Active
-                </button>
-                <button 
-                  onClick={handleBulkDelete}
-                  className="p-3 bg-card border border-border text-red-500 rounded-xl font-bold text-xs uppercase hover:bg-red-500 hover:text-white transition-all flex items-center justify-center gap-2"
-                  title="Bulk Permanent Delete"
-                >
-                  <Trash2 size={16} />
-                </button>
-              </div>
 
-              <button 
-                onClick={() => setSelectedUserIds([])}
-                className="p-2 text-muted hover:text-foreground transition-colors mr-2"
-              >
-                <X size={20} />
-              </button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+                <div className="flex items-center gap-2 flex-1">
+                  <button
+                    onClick={() => handleBulkGhost(true)}
+                    className="flex-1 p-2 bg-red-500/10 text-red-500 rounded-lg font-bold text-xs uppercase hover:bg-red-500 hover:text-white transition-all flex items-center justify-center gap-2"
+                  >
+                    <Ghost size={14} /> Bulk Ghost
+                  </button>
+                  <button
+                    onClick={handleBulkResetPassword}
+                    className="flex-1 p-2 bg-blue-500/10 text-blue-500 rounded-lg font-bold text-xs uppercase hover:bg-blue-500 hover:text-white transition-all flex items-center justify-center gap-2"
+                  >
+                    <Lock size={14} /> Bulk Pass
+                  </button>
+                  <button
+                    onClick={() => exportToCSV(users.filter(u => selectedUserIds.includes(u.id)), 'selected_citizens')}
+                    className="p-2 bg-accent/10 text-accent rounded-lg font-bold text-xs uppercase hover:bg-accent hover:text-white transition-all flex items-center justify-center gap-2"
+                    title="Export Selected to CSV"
+                  >
+                    <Download size={14} />
+                  </button>
+                  <button
+                    onClick={() => handleBulkGhost(false)}
+                    className="flex-1 p-2 bg-green-500/10 text-green-500 rounded-lg font-bold text-xs uppercase hover:bg-green-500 hover:text-white transition-all flex items-center justify-center gap-2"
+                  >
+                    <UserCheck size={14} /> Bulk Active
+                  </button>
+                  <button
+                    onClick={handleBulkDelete}
+                    className="p-2 bg-card border border-border text-red-500 rounded-lg font-bold text-xs uppercase hover:bg-red-500 hover:text-white transition-all flex items-center justify-center gap-2"
+                    title="Bulk Permanent Delete"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+
+                <button
+                  onClick={() => setSelectedUserIds([])}
+                  className="p-2 text-muted hover:text-foreground transition-colors mr-2"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
       {/* Edit Modal */}
       <AnimatePresence>
@@ -1478,15 +1375,6 @@ const SuperAdmin: React.FC = () => {
             onUpdate={handleUpdateUser}
             onResetPassword={handleResetPassword}
             onDelete={handleDeleteUser}
-          />
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {showAddModal && (
-          <AddUserModal 
-            onClose={() => setShowAddModal(false)}
-            onCreate={handleCreateUser}
           />
         )}
       </AnimatePresence>
