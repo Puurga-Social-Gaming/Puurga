@@ -38,7 +38,7 @@ interface PostProps {
 const Post: React.FC<PostProps> = ({ post, onUpdate, variant = 'feed' }) => {
   // Variant-based styling
   const containerClasses = {
-    feed: 'py-1',
+    feed: 'py-3',
     card: 'p-1.5 rounded-xl border border-border shadow-theme-sm hover:shadow-theme-md transition-shadow',
     compact: 'py-0.5',
   };
@@ -219,10 +219,10 @@ const Post: React.FC<PostProps> = ({ post, onUpdate, variant = 'feed' }) => {
         className={containerClasses[variant]}
       >
         {/* Card */}
-        <div className="rounded-xl bg-card/50 backdrop-blur-sm border border-border/40 shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden">
+        <div className="rounded-2xl bg-card backdrop-blur-sm border border-border/50 shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden">
 
           {/* Header row */}
-          <div className="flex items-center gap-2 px-3 pt-2.5 pb-0">
+          <div className="flex items-center gap-3 px-4 pt-3 pb-0">
             <Link to={`/profile/${post.user.username}`} className="shrink-0">
               <Avatar
                 src={post.user.avatar || '/default-avatar.png'}
@@ -235,16 +235,16 @@ const Post: React.FC<PostProps> = ({ post, onUpdate, variant = 'feed' }) => {
             </Link>
 
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1.5">
                 <Link
                   to={`/profile/${post.user.username}`}
-                  className="font-semibold text-[12.5px] leading-tight text-foreground hover:text-accent hover:underline truncate"
+                  className="font-semibold text-[13px] leading-tight text-foreground hover:text-accent hover:underline truncate"
                 >
                   {post.user.name}
                 </Link>
                 {STATE_ICONS[authorState]}
               </div>
-              <p className="text-[10px] text-muted/60 leading-none mt-0.5">
+              <p className="text-[11px] text-muted/60 leading-none mt-0.5">
                 {formatDistanceToNow(new Date(post.createdAt), { addSuffix: true })}
               </p>
             </div>
@@ -290,7 +290,7 @@ const Post: React.FC<PostProps> = ({ post, onUpdate, variant = 'feed' }) => {
           </div>
 
           {/* Content */}
-          <div className="px-3 pt-2 pb-0">
+          <div className="px-4 pt-2.5 pb-0">
             <AnimatePresence mode="wait">
               {isEditing ? (
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
@@ -380,12 +380,12 @@ const Post: React.FC<PostProps> = ({ post, onUpdate, variant = 'feed' }) => {
                 case 'rows': return 'grid-cols-1';
                 case 'columns': return 'grid-cols-2 gap-1';
                 case 'grid':
-                default: return 'grid-cols-2 sm:grid-cols-3 gap-1';
+                default: return 'grid-cols-2 gap-1';
               }
             };
 
             const getMediaClasses = (isSingle: boolean, isVideo: boolean, layout?: string) => {
-              if (isSingle) return isVideo ? 'aspect-video w-full max-h-[240px] sm:max-h-[300px] object-cover' : 'aspect-[4/5] w-full max-h-[240px] sm:max-h-[300px] object-cover';
+              if (isSingle) return isVideo ? 'aspect-video w-full max-h-[400px] sm:max-h-[500px] object-cover' : 'aspect-[4/5] w-full max-h-[400px] sm:max-h-[500px] object-cover';
               const mediaLayout = layout || 'grid';
               switch (mediaLayout) {
                 case 'rows': return isVideo ? 'h-[18vh] sm:h-[22vh] max-h-[220px] w-full object-cover' : 'h-[18vh] sm:h-[22vh] max-h-[220px] w-full object-cover';
@@ -404,12 +404,12 @@ const Post: React.FC<PostProps> = ({ post, onUpdate, variant = 'feed' }) => {
               <motion.div
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
-                className={`mt-2 grid gap-0.5 overflow-hidden ${getGridClasses()}`}
+                className={`mt-2.5 grid gap-0.5 overflow-hidden rounded-xl ${getGridClasses()}`}
               >
                 {mediaToShow.map((mediaUrl, index) => {
                   const isVideo = isVideoUrl(mediaUrl);
                   return (
-                    <div key={index} className="relative overflow-hidden">
+                    <div key={index} className="relative overflow-hidden rounded-lg">
                       {isVideo ? (
                         <div className="cursor-pointer" onClick={() => handleVideoClick(mediaUrl)}>
                           <SupabaseVideo
@@ -418,7 +418,7 @@ const Post: React.FC<PostProps> = ({ post, onUpdate, variant = 'feed' }) => {
                             muted={playingVideoId !== mediaUrl}
                             playsInline={true}
                             autoPlay={playingVideoId === mediaUrl}
-                            className={`transition-opacity duration-150 ${getMediaClasses(media.length === 1, true, post.media_layout)}`}
+                            className={`transition-opacity duration-150 rounded-lg ${getMediaClasses(media.length === 1, true, post.media_layout)}`}
                           />
                           {playingVideoId !== mediaUrl && (
                             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
@@ -433,7 +433,7 @@ const Post: React.FC<PostProps> = ({ post, onUpdate, variant = 'feed' }) => {
                           <SupabaseImage
                             src={mediaUrl}
                             alt={`Post image ${index + 1}`}
-                            className={`transition-opacity duration-150 hover:opacity-95 ${getMediaClasses(media.length === 1, false, post.media_layout)}`}
+                            className={`transition-opacity duration-150 hover:opacity-95 rounded-lg ${getMediaClasses(media.length === 1, false, post.media_layout)}`}
                           />
                         </div>
                       )}
@@ -456,7 +456,7 @@ const Post: React.FC<PostProps> = ({ post, onUpdate, variant = 'feed' }) => {
                     {media.slice(2).map((mediaUrl, index) => {
                       const isVideo = isVideoUrl(mediaUrl);
                       return (
-                        <motion.div key={index + 2} initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="relative overflow-hidden">
+                        <motion.div key={index + 2} initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="relative overflow-hidden rounded-lg">
                           {isVideo ? (
                             <div className="cursor-pointer" onClick={() => handleVideoClick(mediaUrl)}>
                               <SupabaseVideo
@@ -465,7 +465,7 @@ const Post: React.FC<PostProps> = ({ post, onUpdate, variant = 'feed' }) => {
                                 muted={playingVideoId !== mediaUrl}
                                 playsInline={true}
                                 autoPlay={playingVideoId === mediaUrl}
-                                className={`${getMediaClasses(false, true, post.media_layout)}`}
+                                className={`rounded-lg ${getMediaClasses(false, true, post.media_layout)}`}
                               />
                               {playingVideoId !== mediaUrl && (
                                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
@@ -477,7 +477,7 @@ const Post: React.FC<PostProps> = ({ post, onUpdate, variant = 'feed' }) => {
                             </div>
                           ) : (
                             <div onClick={() => handleMediaClick(mediaUrl, false)} className="cursor-pointer">
-                              <SupabaseImage src={mediaUrl} alt={`Post image ${index + 3}`} className={`${getMediaClasses(false, false, post.media_layout)}`} />
+                              <SupabaseImage src={mediaUrl} alt={`Post image ${index + 3}`} className={`rounded-lg ${getMediaClasses(false, false, post.media_layout)}`} />
                             </div>
                           )}
                         </motion.div>
@@ -490,27 +490,27 @@ const Post: React.FC<PostProps> = ({ post, onUpdate, variant = 'feed' }) => {
           })()}
 
           {/* Action bar */}
-          <div className="flex items-center justify-between px-2 py-1.5 mt-1 border-t border-border/20">
-            <div className="flex items-center gap-0.5">
+          <div className="flex items-center justify-between px-3 py-2 mt-2 border-t border-border/20">
+            <div className="flex items-center gap-1">
               <PostReactions postId={post.id} initialReactions={post.reactions || {}} onReactionChange={handleReactionChange} />
               <motion.button
                 whileTap={{ scale: 0.92 }}
                 onClick={handleCommentClick}
-                className={`h-6 px-2 flex items-center gap-1 rounded-full text-muted hover:text-accent transition-all hover:bg-accent/8 ${showComments ? 'text-accent bg-accent/8' : ''}`}
+                className={`h-7 px-2.5 flex items-center gap-1.5 rounded-full text-muted hover:text-accent transition-all hover:bg-accent/8 ${showComments ? 'text-accent bg-accent/8' : ''}`}
                 type="button"
               >
-                <MessageCircle size={13} className={showComments ? 'fill-accent/20' : ''} />
-                <span className="text-[11px] font-medium tabular-nums">{commentCount}</span>
+                <MessageCircle size={14} className={showComments ? 'fill-accent/20' : ''} />
+                <span className="text-[11.5px] font-medium tabular-nums">{commentCount}</span>
               </motion.button>
             </div>
 
-            <div className="flex items-center gap-0.5">
+            <div className="flex items-center gap-1">
               <ShareButton postId={post.id} postContent={post.content} postAuthor={post.user.name} postAuthorAvatar={post.user.avatar} />
               <motion.button
                 whileTap={{ scale: 0.92 }}
                 onClick={handlePurgeClick}
                 disabled={isPurging}
-                className={`h-6 px-2 flex items-center gap-1 rounded-full transition-all ${isPurged ? 'text-accent bg-accent/8' : 'text-muted hover:text-red-400 hover:bg-red-400/8'
+                className={`h-7 px-2.5 flex items-center gap-1.5 rounded-full transition-all ${isPurged ? 'text-accent bg-accent/8' : 'text-muted hover:text-red-400 hover:bg-red-400/8'
                   } ${isPurging ? 'opacity-50 cursor-not-allowed' : ''}`}
                 title="Purge post"
               >
@@ -519,7 +519,7 @@ const Post: React.FC<PostProps> = ({ post, onUpdate, variant = 'feed' }) => {
                   alt="Purge"
                   className={`w-3.5 h-3.5 transition-all ${isPurging ? 'animate-pulse' : ''} ${isPurged ? 'drop-shadow-[0_0_6px_rgba(var(--accent-rgb),0.5)]' : 'grayscale'}`}
                 />
-                <span className="text-[11px] font-medium tabular-nums">{localPurges}</span>
+                <span className="text-[11.5px] font-medium tabular-nums">{localPurges}</span>
               </motion.button>
             </div>
           </div>
@@ -533,7 +533,7 @@ const Post: React.FC<PostProps> = ({ post, onUpdate, variant = 'feed' }) => {
                 animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
                 transition={{ duration: 0.18 }}
-                className="border-t border-border/20 px-2 pb-2 pt-1"
+                className="border-t border-border/20 px-4 pb-3 pt-2"
               >
                 <CommentSection
                   postId={post.id}

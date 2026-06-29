@@ -277,6 +277,23 @@ wsManager.initialize(server);
 import { InactivityService } from './services/inactivityService';
 void InactivityService.startScheduler(24);
 
+// Start alliance loyalty decay scheduler (runs every 24 hours)
+import { AllianceEngine } from './services/social/alliance-engine';
+setInterval(() => {
+  console.log('Running daily alliance loyalty decay...');
+  AllianceEngine.processDailyLoyaltyDecay().catch(err => {
+    console.error('Error processing daily loyalty decay:', err);
+  });
+}, 24 * 60 * 60 * 1000); // Every 24 hours
+
+// Run loyalty decay once on startup (after 5 seconds delay)
+setTimeout(() => {
+  console.log('Running initial alliance loyalty decay...');
+  AllianceEngine.processDailyLoyaltyDecay().catch(err => {
+    console.error('Error processing initial loyalty decay:', err);
+  });
+}, 5000);
+
 // Export wsManager for use in other modules
 export { wsManager };
 

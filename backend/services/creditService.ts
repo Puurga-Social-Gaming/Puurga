@@ -2,7 +2,7 @@ import { supabaseAdmin } from '../config/supabase';
 import { getCreditSchemaSupport } from '../lib/creditSchema';
 import { wsManager } from '../websocketManager';
 
-export type CreditSource = 'post' | 'like' | 'comment' | 'game' | 'inactivity' | 'login' | 'daily_bonus' | 'recovery_bonus';
+export type CreditSource = 'post' | 'like' | 'comment' | 'game' | 'inactivity' | 'login' | 'daily_bonus' | 'recovery_bonus' | 'redeem_user' | 'redeem_friend' | 'refund';
 
 const CREDIT_CONFIG = {
   AWARD_CREATE_POST: 5,

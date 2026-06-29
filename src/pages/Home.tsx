@@ -612,30 +612,32 @@ export default function Home() {
 
       {/* Main content */}
       <div className="w-full px-3 sm:px-6 relative">
-        {/* Mobile Layout */}
-        <div className="lg:hidden">
-          {loading && posts.length === 0 ? (
-            <div className="py-20 flex justify-center">
-              <div className="w-8 h-8 border-4 border-accent border-t-transparent rounded-full animate-spin" />
-            </div>
-          ) : error ? (
-            <div className="bg-red-500/10 border border-red-500/50 text-red-500 p-4 rounded-xl text-center">
-              {error}
-            </div>
-          ) : (
-            <>
-              <PostList
-                posts={posts}
-                onPostUpdate={handlePostUpdate}
-              />
-              {isLoadingMore && hasMore && (
-                <div className="py-6 flex justify-center pb-20">
-                  <div className="w-6 h-6 border-3 border-accent border-t-transparent rounded-full animate-spin" />
-                </div>
-              )}
-              <div ref={sentinelRef} className="h-8" />
-            </>
-          )}
+        {/* Feed Container - Centered with controlled width */}
+        <div className="mx-auto w-full max-w-[600px] sm:max-w-[650px] md:max-w-[700px] lg:max-w-[650px] xl:max-w-[600px]">
+          {/* Mobile Layout */}
+          <div className="lg:hidden">
+            {loading && posts.length === 0 ? (
+              <div className="py-20 flex justify-center">
+                <div className="w-8 h-8 border-4 border-accent border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : error ? (
+              <div className="bg-red-500/10 border border-red-500/50 text-red-500 p-4 rounded-xl text-center">
+                {error}
+              </div>
+            ) : (
+              <>
+                <PostList
+                  posts={posts}
+                  onPostUpdate={handlePostUpdate}
+                />
+                {isLoadingMore && hasMore && (
+                  <div className="py-6 flex justify-center pb-20">
+                    <div className="w-6 h-6 border-3 border-accent border-t-transparent rounded-full animate-spin" />
+                  </div>
+                )}
+                <div ref={sentinelRef} className="h-8" />
+              </>
+            )}
 
             {/* Mobile Sidebar Drawer */}
             {createPortal(
@@ -838,6 +840,7 @@ export default function Home() {
               <div ref={sentinelRef} className="h-8" />
             </>
           )}
+        </div>
         </div>
       </div>
 

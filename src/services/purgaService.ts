@@ -65,7 +65,7 @@ export const getGhostedFriends = async (): Promise<GhostedFriend[]> => {
 
 export const redeemFriend = async (friendId: string): Promise<{ success: boolean; newCredits: number }> => {
   try {
-    const response = await api.post(`/friends/${friendId}/redeem`);
+    const response = await api.post(`/redeem/friends/${friendId}/redeem`);
     return response.data;
   } catch (error) {
     console.error('Error redeeming friend:', error);

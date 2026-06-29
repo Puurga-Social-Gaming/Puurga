@@ -20,7 +20,7 @@ const PostList: React.FC<PostListProps> = ({ posts, onPostUpdate }) => {
   }
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-4">
       {posts.map((post) => (
         <PostComponent
           key={post.id}
