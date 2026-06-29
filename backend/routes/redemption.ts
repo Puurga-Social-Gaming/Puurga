@@ -367,7 +367,7 @@ router.get('/friend-stats', auth, async (req: AuthRequest, res) => {
         fullName: profile.full_name,
         username: profile.username,
         avatarUrl: normalizeImageUrl(profile.avatar_url),
-        isGhost,
+        isGhosted,
         purgeCount,
         ghostedAt,
         dangerLevel: isGhosted ? 'ghosted' : purgeCount >= 15 ? 'critical' : purgeCount >= 10 ? 'high' : purgeCount >= 5 ? 'medium' : 'low',
