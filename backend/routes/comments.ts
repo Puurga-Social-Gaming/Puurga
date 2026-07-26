@@ -7,6 +7,7 @@ import { PURGE_THRESHOLD } from '../constants/purgeConstants';
 import { CreditService } from '../services/creditService';
 import { NotificationService } from '../services/notificationService';
 import { validateNotGhosted } from '../middleware/restrictGhosted';
+import { areBlocked, getBidirectionalBlockedIds } from '../utils/friendRelations';
 
 const router = express.Router();
 
@@ -14,6 +15,7 @@ const router = express.Router();
 router.get('/posts/:postId/comments', auth, async (req: AuthRequest, res) => {
   try {
     const { postId } = req.params;
+    const viewerId = req.user?.id;
 
     // Fetch comments for the post
     const { data: comments, error: commentsError } = await supabase
@@ -25,7 +27,20 @@ router.get('/posts/:postId/comments', auth, async (req: AuthRequest, res) => {
 
     if (commentsError) throw commentsError;
 
-    const safeComments = comments || [];
+    let safeComments = comments || [];
+    if (safeComments.length === 0) {
+      return res.json([]);
+    }
+
+    // Hide comments from blocked users (either direction)
+    if (viewerId) {
+      const blocked = await getBidirectionalBlockedIds(viewerId);
+      if (blocked.length > 0) {
+        const blockedSet = new Set(blocked);
+        safeComments = safeComments.filter((c) => !blockedSet.has(c.user_id));
+      }
+    }
+
     if (safeComments.length === 0) {
       return res.json([]);
     }
@@ -44,19 +59,67 @@ router.get('/posts/:postId/comments', auth, async (req: AuthRequest, res) => {
     const profileMap = new Map();
     (profiles || []).forEach(p => profileMap.set(p.id, p));
 
-    // Map comments with user data
-    const mappedComments = safeComments.map(comment => ({
-      id: comment.id,
-      content: comment.content,
-      createdAt: comment.created_at,
-      updatedAt: comment.updated_at || comment.created_at,
-      user: {
-        id: comment.user_id,
-        name: profileMap.get(comment.user_id)?.full_name || 'Unknown User',
-        username: profileMap.get(comment.user_id)?.username || 'unknown',
-        avatar: normalizeImageUrl(profileMap.get(comment.user_id)?.avatar_url) || '',
-      },
-    }));
+    // Map comments with user data + like counts + purge counts
+    const commentIds = safeComments.map((c) => c.id);
+    const likesByComment = new Map<string, { count: number; likedByMe: boolean }>();
+    if (commentIds.length > 0) {
+      const { data: likeRows, error: likesError } = await supabase
+        .from('comment_likes')
+        .select('comment_id, user_id')
+        .in('comment_id', commentIds);
+
+      if (!likesError && likeRows) {
+        for (const row of likeRows) {
+          const prev = likesByComment.get(row.comment_id) || { count: 0, likedByMe: false };
+          prev.count += 1;
+          if (viewerId && row.user_id === viewerId) prev.likedByMe = true;
+          likesByComment.set(row.comment_id, prev);
+        }
+      }
+    }
+
+    const purgesByComment = new Map<string, { count: number; purgedByMe: boolean }>();
+    if (commentIds.length > 0) {
+      const { data: purgeRows } = await supabase
+        .from('purges')
+        .select('target_id, actor_id')
+        .eq('target_type', 'comment')
+        .in('target_id', commentIds);
+      if (purgeRows) {
+        for (const row of purgeRows) {
+          const prev = purgesByComment.get(row.target_id) || { count: 0, purgedByMe: false };
+          prev.count += 1;
+          if (viewerId && row.actor_id === viewerId) prev.purgedByMe = true;
+          purgesByComment.set(row.target_id, prev);
+        }
+      }
+    }
+
+    const mappedComments = safeComments.map((comment) => {
+      const likes = likesByComment.get(comment.id) || { count: 0, likedByMe: false };
+      const purges = purgesByComment.get(comment.id) || { count: 0, purgedByMe: false };
+      const createdAt = comment.created_at;
+      const updatedAt = comment.updated_at || comment.created_at;
+      return {
+        id: comment.id,
+        content: comment.content,
+        createdAt,
+        updatedAt,
+        isEdited: Boolean(updatedAt && createdAt && updatedAt !== createdAt),
+        parentId: comment.parent_id || null,
+        language: comment.language || 'en',
+        likes: likes.count,
+        likedByMe: likes.likedByMe,
+        purges: purges.count,
+        purgedByMe: purges.purgedByMe,
+        user: {
+          id: comment.user_id,
+          name: profileMap.get(comment.user_id)?.full_name || 'Unknown User',
+          username: profileMap.get(comment.user_id)?.username || 'unknown',
+          avatar: normalizeImageUrl(profileMap.get(comment.user_id)?.avatar_url) || '',
+        },
+      };
+    });
 
     res.json(mappedComments);
   } catch (error) {
@@ -69,7 +132,7 @@ router.get('/posts/:postId/comments', auth, async (req: AuthRequest, res) => {
 router.post('/posts/:postId/comments', auth, validateNotGhosted, async (req: AuthRequest, res) => {
   try {
     const { postId } = req.params;
-    const { content } = req.body;
+    const { content, parentId, language: bodyLanguage } = req.body;
     const userId = req.user?.id;
 
     if (!userId) {
@@ -96,19 +159,120 @@ router.post('/posts/:postId/comments', auth, validateNotGhosted, async (req: Aut
       return res.status(404).json({ error: 'Post not found' });
     }
 
-    // Create the comment
-    const { data: comment, error: commentError } = await supabase
-      .from('comments')
-      .insert({
-        post_id: postId,
-        user_id: userId,
-        content: content.trim(),
-        created_at: new Date().toISOString(),
-      })
-      .select()
-      .single();
+    if (await areBlocked(userId, post.user_id)) {
+      return res.status(403).json({
+        error: 'Cannot comment due to a block',
+        code: 'USER_BLOCKED',
+      });
+    }
 
-    if (commentError) throw commentError;
+    const requestedParentId: string | null = parentId || req.body?.parent_id || null;
+    let replyNotifyUserId: string | null = null;
+    let resolvedParentId: string | null = null;
+
+    if (requestedParentId) {
+      // Walk up to the principal (root) comment so all secondary replies nest under it
+      type CommentParentRow = {
+        id: string;
+        user_id: string;
+        post_id: string;
+        parent_id?: string | null;
+      };
+
+      let currentId: string | null = requestedParentId;
+      let guard = 0;
+      let firstParent: CommentParentRow | null = null;
+
+      while (currentId && guard < 5) {
+        guard += 1;
+        const lookupId = currentId;
+        const { data, error: rowError } = await supabase
+          .from('comments')
+          .select('id, user_id, post_id, parent_id')
+          .eq('id', lookupId)
+          .maybeSingle();
+
+        const row = data as CommentParentRow | null;
+
+        if (rowError || !row || row.post_id !== postId) {
+          // Column parent_id may be absent — validate without it once
+          if (guard === 1) {
+            const retry = await supabase
+              .from('comments')
+              .select('id, user_id, post_id')
+              .eq('id', requestedParentId)
+              .maybeSingle();
+            if (retry.error || !retry.data || retry.data.post_id !== postId) {
+              return res.status(400).json({ error: 'Invalid parent comment' });
+            }
+            firstParent = retry.data as CommentParentRow;
+            resolvedParentId = retry.data.id;
+            replyNotifyUserId = retry.data.user_id;
+          }
+          break;
+        }
+
+        if (!firstParent) {
+          firstParent = row;
+          replyNotifyUserId = row.user_id;
+        }
+
+        if (!row.parent_id) {
+          resolvedParentId = row.id;
+          break;
+        }
+        currentId = row.parent_id;
+      }
+
+      if (!resolvedParentId) {
+        return res.status(400).json({ error: 'Invalid parent comment' });
+      }
+    }
+
+    const insertPayload: Record<string, unknown> = {
+      post_id: postId,
+      user_id: userId,
+      content: content.trim(),
+      created_at: new Date().toISOString(),
+    };
+    if (resolvedParentId) insertPayload.parent_id = resolvedParentId;
+    if (bodyLanguage) insertPayload.language = String(bodyLanguage).split(/[-_]/)[0];
+
+    // Create the comment — if parent_id column missing, fail clearly (do not orphan replies)
+    let comment: any = null;
+    {
+      const { data, error: commentError } = await supabase
+        .from('comments')
+        .insert(insertPayload)
+        .select()
+        .single();
+
+      if (commentError) {
+        const code = (commentError as any).code;
+        const msg = String(commentError.message || '');
+        if (resolvedParentId && (code === '42703' || /parent_id/i.test(msg))) {
+          return res.status(503).json({
+            error: 'Comment replies require migration 20260724_comment_replies.sql',
+            code: 'PARENT_ID_MISSING',
+          });
+        }
+        if (code === '42703' || /language/i.test(msg)) {
+          const softPayload = { ...insertPayload };
+          delete softPayload.language;
+          const { data: fallback, error: fallbackError } = await supabase
+            .from('comments')
+            .insert(softPayload)
+            .select()
+            .single();
+          if (fallbackError) throw fallbackError;
+          comment = fallback;
+        } else {
+          throw commentError;
+        }
+      } else {
+        comment = data;
+      }
+    }
 
     // Award credits for comments
     const canComment = await CreditService.checkAndIncrementCommentCount(userId);
@@ -134,6 +298,20 @@ router.post('/posts/:postId/comments', auth, validateNotGhosted, async (req: Aut
     if (post.user_id !== userId) {
       await NotificationService.comment(userId, post.user_id, postId, comment.id, content.trim());
     }
+    // Notify parent comment author on reply
+    if (replyNotifyUserId && replyNotifyUserId !== userId && replyNotifyUserId !== post.user_id) {
+      try {
+        await NotificationService.comment(
+          userId,
+          replyNotifyUserId,
+          postId,
+          comment.id,
+          content.trim()
+        );
+      } catch {
+        // non-fatal
+      }
+    }
 
     // Return formatted comment
     res.status(201).json({
@@ -141,6 +319,13 @@ router.post('/posts/:postId/comments', auth, validateNotGhosted, async (req: Aut
       content: comment.content,
       createdAt: comment.created_at,
       updatedAt: comment.created_at,
+      isEdited: false,
+      parentId: comment.parent_id || resolvedParentId || null,
+      language: comment.language || bodyLanguage || 'en',
+      likes: 0,
+      likedByMe: false,
+      purges: 0,
+      purgedByMe: false,
       user: {
         id: userId,
         name: profile?.full_name || 'Unknown User',
@@ -212,12 +397,14 @@ router.put('/comments/:id', auth, async (req: AuthRequest, res) => {
       });
     }
 
-    // Update the comment
+    // Update the comment — always bump updated_at so clients can show "edited"
     console.log('Updating comment...');
+    const updatedAt = new Date().toISOString();
     const { data: updatedComment, error: updateError } = await supabase
       .from('comments')
       .update({
         content: content.trim(),
+        updated_at: updatedAt,
       })
       .eq('id', id)
       .select()
@@ -230,13 +417,91 @@ router.put('/comments/:id', auth, async (req: AuthRequest, res) => {
       throw updateError;
     }
 
-    res.json(updatedComment);
+    res.json({
+      id: updatedComment.id,
+      content: updatedComment.content,
+      createdAt: updatedComment.created_at,
+      updatedAt: updatedComment.updated_at || updatedAt,
+      isEdited: true,
+    });
   } catch (error: any) {
     console.error('Error updating comment:', error);
     res.status(500).json({
       error: 'Failed to update comment',
       details: error?.message || 'Unknown error'
     });
+  }
+});
+
+// POST /api/comments/:id/like — toggle like on a comment
+router.post('/comments/:id/like', auth, validateNotGhosted, async (req: AuthRequest, res) => {
+  try {
+    const { id: commentId } = req.params;
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const { data: comment, error: commentError } = await supabase
+      .from('comments')
+      .select('id, user_id, post_id')
+      .eq('id', commentId)
+      .single();
+
+    if (commentError || !comment) {
+      return res.status(404).json({ error: 'Comment not found' });
+    }
+
+    if (await areBlocked(userId, comment.user_id)) {
+      return res.status(403).json({ error: 'Cannot like due to a block', code: 'USER_BLOCKED' });
+    }
+
+    const { data: existing } = await supabase
+      .from('comment_likes')
+      .select('id')
+      .eq('comment_id', commentId)
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    let liked = false;
+    if (existing?.id) {
+      const { error: delError } = await supabase
+        .from('comment_likes')
+        .delete()
+        .eq('id', existing.id);
+      if (delError) {
+        if (delError.code === '42P01') {
+          return res.status(503).json({ error: 'Comment likes not available yet. Run migration 20260716_comment_likes.sql' });
+        }
+        throw delError;
+      }
+      liked = false;
+    } else {
+      const { error: insertError } = await supabase.from('comment_likes').insert({
+        comment_id: commentId,
+        user_id: userId,
+        created_at: new Date().toISOString(),
+      });
+      if (insertError) {
+        if (insertError.code === '42P01') {
+          return res.status(503).json({ error: 'Comment likes not available yet. Run migration 20260716_comment_likes.sql' });
+        }
+        throw insertError;
+      }
+      liked = true;
+    }
+
+    const { count } = await supabase
+      .from('comment_likes')
+      .select('*', { count: 'exact', head: true })
+      .eq('comment_id', commentId);
+
+    res.json({
+      liked,
+      likes: count || 0,
+      commentId,
+    });
+  } catch (error) {
+    console.error('Error toggling comment like:', error);
+    res.status(500).json({ error: 'Failed to like comment' });
   }
 });
 

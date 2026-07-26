@@ -4,6 +4,7 @@ import { Phone, Video, X, PhoneCall } from 'lucide-react';
 import { useUser } from '../../context/UserContext';
 import { supabase } from '../../lib/supabaseClient';
 import Avatar from '../Avatar';
+import ProfileLink from '../Profile/ProfileLink';
 
 interface CallInvite {
   id: string;
@@ -29,7 +30,11 @@ const CallNotification: React.FC<CallNotificationProps> = ({
 }) => {
   const { user } = useUser();
   const [pendingInvite, setPendingInvite] = useState<CallInvite | null>(null);
-  const [callerInfo, setCallerInfo] = useState<{ full_name: string; avatar_url: string | null } | null>(null);
+  const [callerInfo, setCallerInfo] = useState<{
+    full_name: string;
+    username?: string | null;
+    avatar_url: string | null;
+  } | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -51,7 +56,7 @@ const CallNotification: React.FC<CallNotificationProps> = ({
 
             const { data: callerData } = await supabase
               .from('profiles')
-              .select('full_name, avatar_url')
+              .select('full_name, username, avatar_url')
               .eq('id', invite.caller_id)
               .single();
 
@@ -95,7 +100,7 @@ const CallNotification: React.FC<CallNotificationProps> = ({
           .from('call_invites')
           .update({ status: 'missed', ended_at: new Date().toISOString() })
           .eq('id', pendingInvite.id);
-      }, 30000);
+      }, 45000);
 
       return () => clearTimeout(timeout);
     }
@@ -134,13 +139,15 @@ const CallNotification: React.FC<CallNotificationProps> = ({
       >
         <div className="flex items-center gap-4">
           <div className="relative">
-            <Avatar
-              src={callerInfo?.avatar_url || ''}
-              alt={callerInfo?.full_name || 'Caller'}
-              size="lg"
-              userId={pendingInvite.caller_id}
-              showOnlineStatus
-            />
+            <ProfileLink username={callerInfo?.username} className="rounded-full block">
+              <Avatar
+                src={callerInfo?.avatar_url || ''}
+                alt={callerInfo?.full_name || 'Caller'}
+                size="lg"
+                userId={pendingInvite.caller_id}
+                showOnlineStatus
+              />
+            </ProfileLink>
             <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-accent rounded-full flex items-center justify-center animate-pulse">
               {pendingInvite.call_type === 'video' ? (
                 <Video size={12} className="text-black" />
@@ -150,9 +157,9 @@ const CallNotification: React.FC<CallNotificationProps> = ({
             </div>
           </div>
           <div className="flex-1">
-            <h4 className="font-semibold text-foreground">
+            <ProfileLink username={callerInfo?.username} className="font-semibold text-foreground hover:text-accent block">
               {callerInfo?.full_name || 'Someone'}
-            </h4>
+            </ProfileLink>
             <p className="text-sm text-muted">
               Incoming {pendingInvite.call_type} call
             </p>

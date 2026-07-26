@@ -3,12 +3,12 @@ import { Shield, Lock, Eye, AlertTriangle } from 'lucide-react';
 
 const Security: React.FC = () => {
   return (
-    <div className="min-h-screen bg-[var(--bg)] text-[var(--fg)] p-8">
-      <div className="max-w-4xl mx-auto">
-        <div className="text-center mb-12">
-          <Shield className="w-16 h-16 text-accent mx-auto mb-4" />
-          <h1 className="text-4xl font-bold mb-4">Security at Puurga</h1>
-          <p className="text-xl text-gray-400">We take your security seriously</p>
+    <div className="w-full text-foreground space-y-8">
+      <div className="w-full">
+        <div className="page-header text-center items-center mb-10">
+          <Shield className="w-14 h-14 text-accent mx-auto mb-2" />
+          <h1 className="page-title">Security at Puurga</h1>
+          <p className="page-subtitle text-base">We take your security seriously</p>
         </div>
 
         <div className="grid md:grid-cols-2 gap-8 mb-12">

@@ -6,8 +6,19 @@ import { normalizeImageUrl } from '../utils/url';
 import { validateNotGhosted } from '../middleware/restrictGhosted';
 import path from 'path';
 import crypto from 'crypto';
+import { wsManager } from '../websocketManager';
 
 const router = express.Router();
+
+async function getGroupMemberIds(groupId: string, excludeUserId?: string): Promise<string[]> {
+  const { data } = await supabase
+    .from('group_members')
+    .select('user_id')
+    .eq('group_id', groupId);
+  return (data || [])
+    .map((m) => m.user_id as string)
+    .filter((uid) => uid && uid !== excludeUserId);
+}
 
 const generateInviteCode = (): string => {
   return crypto.randomBytes(3).toString('hex');
@@ -187,6 +198,23 @@ router.post('/', auth, async (req: AuthRequest, res) => {
       return res.status(400).json({ error: 'Group name is required' });
     }
 
+    // Max 3 groups per user (as admin/creator or member)
+    const { count: ownedCount, error: ownedErr } = await supabase
+      .from('group_members')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', userId);
+
+    if (ownedErr) {
+      console.warn('Group count check warning:', ownedErr.message);
+    } else if ((ownedCount || 0) >= 3) {
+      return res.status(400).json({
+        error: 'You can be in a maximum of 3 groups',
+        code: 'GROUP_LIMIT',
+      });
+    }
+
+    const inviteCode = Math.random().toString(36).substring(2, 10).toLowerCase();
+
     const { data: group, error } = await supabase
       .from('groups')
       .insert({
@@ -194,31 +222,70 @@ router.post('/', auth, async (req: AuthRequest, res) => {
         description: description?.trim() || null,
         is_private: is_private || false,
         created_by: userId,
-        credits: 0
+        credits: 0,
+        invite_code: inviteCode,
       })
       .select()
       .single();
 
     if (error) {
+      // Retry without invite_code if column missing
+      if ((error as any).code === '42703' || /invite_code/i.test(error.message || '')) {
+        const retry = await supabase
+          .from('groups')
+          .insert({
+            name: name.trim(),
+            description: description?.trim() || null,
+            is_private: is_private || false,
+            created_by: userId,
+            credits: 0,
+          })
+          .select()
+          .single();
+        if (retry.error) {
+          console.error('Supabase error creating group:', retry.error);
+          return res.status(500).json({ error: 'Failed to create group', details: retry.error.message });
+        }
+        const { error: memberError } = await supabase.from('group_members').insert({
+          group_id: retry.data.id,
+          user_id: userId,
+          role: 'admin',
+        });
+        if (memberError) {
+          await supabase.from('groups').delete().eq('id', retry.data.id);
+          return res.status(500).json({ error: 'Failed to add you as group admin', details: memberError.message });
+        }
+        return res.status(201).json({ ...retry.data, is_member: true, user_role: 'admin', member_count: 1 });
+      }
+
       console.error('Supabase error creating group:', error);
       return res.status(500).json({ error: 'Failed to create group', details: error.message });
     }
 
-    // Add creator as admin member
+    // Add creator as admin — must succeed or roll back
     const { error: memberError } = await supabase
       .from('group_members')
       .insert({
         group_id: group.id,
         user_id: userId,
-        role: 'admin'
+        role: 'admin',
       });
 
     if (memberError) {
       console.error('Supabase error adding member:', memberError);
-      // Don't fail the whole request, group was created
+      await supabase.from('groups').delete().eq('id', group.id);
+      return res.status(500).json({
+        error: 'Failed to add you as group admin',
+        details: memberError.message,
+      });
     }
 
-    res.status(201).json(group);
+    res.status(201).json({
+      ...group,
+      is_member: true,
+      user_role: 'admin',
+      member_count: 1,
+    });
   } catch (error: any) {
     console.error('Error creating group:', error);
     res.status(500).json({ error: 'Failed to create group', details: error?.message });
@@ -258,6 +325,32 @@ router.post('/:id/join', auth, validateNotGhosted, async (req: AuthRequest, res)
 
     if (existingMember) {
       return res.status(400).json({ error: 'Already a member of this group' });
+    }
+
+    // Max 3 members per group
+    const { count: memberCount } = await supabase
+      .from('group_members')
+      .select('*', { count: 'exact', head: true })
+      .eq('group_id', id);
+
+    if ((memberCount || 0) >= 3) {
+      return res.status(400).json({
+        error: 'This group is full (max 3 members)',
+        code: 'GROUP_FULL',
+      });
+    }
+
+    // Max 3 groups per user
+    const { count: userGroups } = await supabase
+      .from('group_members')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', userId);
+
+    if ((userGroups || 0) >= 3) {
+      return res.status(400).json({
+        error: 'You can be in a maximum of 3 groups',
+        code: 'GROUP_LIMIT',
+      });
     }
 
     // Add user to group
@@ -315,6 +408,30 @@ router.post('/join', auth, validateNotGhosted, async (req: AuthRequest, res) => 
 
     if (existingMember) {
       return res.status(400).json({ error: 'Already a member of this group' });
+    }
+
+    const { count: memberCount } = await supabase
+      .from('group_members')
+      .select('*', { count: 'exact', head: true })
+      .eq('group_id', group.id);
+
+    if ((memberCount || 0) >= 3) {
+      return res.status(400).json({
+        error: 'This group is full (max 3 members)',
+        code: 'GROUP_FULL',
+      });
+    }
+
+    const { count: userGroups } = await supabase
+      .from('group_members')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', userId);
+
+    if ((userGroups || 0) >= 3) {
+      return res.status(400).json({
+        error: 'You can be in a maximum of 3 groups',
+        code: 'GROUP_LIMIT',
+      });
     }
 
     // Add user to group
@@ -698,7 +815,6 @@ router.get('/:id/messages', auth, async (req: AuthRequest, res) => {
     const userId = req.user?.id;
     const { limit = 50, before } = req.query;
 
-    // Check if user is a member
     const { data: membership } = await supabase
       .from('group_members')
       .select('id')
@@ -722,30 +838,60 @@ router.get('/:id/messages', auth, async (req: AuthRequest, res) => {
     }
 
     const { data: messages, error } = await query;
-
     if (error) throw error;
 
-    // Get sender profiles
+    const chronological = [...(messages || [])].reverse();
+    const messageIds = chronological.map((m) => m.id);
+
+    const reactionsByMessage = new Map<string, Record<string, { count: number; reacted_by_me: boolean }>>();
+    const readCounts = new Map<string, number>();
+
+    if (messageIds.length > 0) {
+      const [{ data: reactionRows }, { data: readRows }] = await Promise.all([
+        supabase.from('group_message_reactions').select('message_id, user_id, emoji').in('message_id', messageIds),
+        supabase.from('group_message_reads').select('message_id').in('message_id', messageIds),
+      ]);
+
+      (reactionRows || []).forEach((r: any) => {
+        if (!reactionsByMessage.has(r.message_id)) reactionsByMessage.set(r.message_id, {});
+        const bucket = reactionsByMessage.get(r.message_id)!;
+        if (!bucket[r.emoji]) bucket[r.emoji] = { count: 0, reacted_by_me: false };
+        bucket[r.emoji].count += 1;
+        if (r.user_id === userId) bucket[r.emoji].reacted_by_me = true;
+      });
+
+      (readRows || []).forEach((r: any) => {
+        readCounts.set(r.message_id, (readCounts.get(r.message_id) || 0) + 1);
+      });
+    }
+
     const messagesWithProfiles = await Promise.all(
-      (messages || []).map(async (message) => {
+      chronological.map(async (message: any) => {
         const { data: sender } = await supabase
           .from('profiles')
           .select('username, full_name, avatar_url')
           .eq('id', message.sender_id)
           .single();
 
+        const isDeleted = Boolean(message.is_deleted);
         return {
           ...message,
-          sender: sender ? {
-            ...sender,
-            avatar_url: normalizeImageUrl(sender.avatar_url)
-          } : null
+          content: isDeleted ? null : message.content,
+          images: isDeleted ? [] : (message.images || message.media || []),
+          media: isDeleted ? [] : (message.images || message.media || []),
+          reactions: reactionsByMessage.get(message.id) || {},
+          read_count: readCounts.get(message.id) || 0,
+          sender: sender
+            ? {
+                ...sender,
+                avatar_url: normalizeImageUrl(sender.avatar_url),
+              }
+            : null,
         };
       })
     );
 
-    // Return in chronological order
-    res.json(messagesWithProfiles.reverse());
+    res.json(messagesWithProfiles);
   } catch (error) {
     console.error('Error fetching messages:', error);
     res.status(500).json({ error: 'Failed to fetch messages' });
@@ -753,24 +899,30 @@ router.get('/:id/messages', auth, async (req: AuthRequest, res) => {
 });
 
 // POST /api/groups/:id/messages - Send a message to group
-router.post('/:id/messages', auth, async (req: AuthRequest, res) => {
+router.post('/:id/messages', auth, validateNotGhosted, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
     const userId = req.user?.id;
-    const { content } = req.body;
+    const { content, media, images, language: bodyLanguage } = req.body;
+    const mediaUrls = Array.isArray(images) ? images : Array.isArray(media) ? media : [];
 
     if (!userId) {
       return res.status(401).json({ error: 'User not authenticated' });
     }
 
-    if (!content?.trim()) {
-      return res.status(400).json({ error: 'Message content is required' });
+    const hasContent = typeof content === 'string' && content.trim().length > 0;
+    if (!hasContent && mediaUrls.length === 0) {
+      return res.status(400).json({ error: 'Message content or media required' });
     }
 
-    // Check if user is a member
+    const { TranslationService } = await import('../services/translationService');
+    const sourceLanguage = TranslationService.normalizeLang(
+      bodyLanguage || (await TranslationService.getUserLanguage(userId))
+    );
+
     const { data: membership } = await supabase
       .from('group_members')
-      .select('id')
+      .select('id, muted')
       .eq('group_id', id)
       .eq('user_id', userId)
       .single();
@@ -778,39 +930,225 @@ router.post('/:id/messages', auth, async (req: AuthRequest, res) => {
     if (!membership) {
       return res.status(403).json({ error: 'Must be a member to send messages' });
     }
+    if (membership.muted) {
+      return res.status(403).json({ error: 'You are muted in this group' });
+    }
 
-    const { data: message, error } = await supabase
+    const insertPayload: any = {
+      group_id: id,
+      sender_id: userId,
+      content: hasContent ? content.trim() : '',
+      language: sourceLanguage,
+      created_at: new Date().toISOString(),
+    };
+    if (mediaUrls.length > 0) {
+      insertPayload.images = mediaUrls;
+    }
+
+    let { data: message, error } = await supabase
       .from('group_messages')
-      .insert({
-        group_id: id,
-        sender_id: userId,
-        content: content.trim()
-      })
+      .insert(insertPayload)
       .select()
       .single();
 
+    if (error && (error.code === '42703' || error.message?.includes('language'))) {
+      delete insertPayload.language;
+      const retry = await supabase.from('group_messages').insert(insertPayload).select().single();
+      message = retry.data;
+      error = retry.error;
+    }
+
     if (error) throw error;
 
-    // Get sender profile
     const { data: sender } = await supabase
       .from('profiles')
       .select('username, full_name, avatar_url')
       .eq('id', userId)
       .single();
 
-    res.status(201).json({
+    const messageLanguage = TranslationService.normalizeLang(
+      (message as any).language || sourceLanguage
+    );
+
+    const baseFormatted = {
       ...message,
-      sender: sender ? {
-        ...sender,
-        avatar_url: normalizeImageUrl(sender.avatar_url)
-      } : null
-    });
+      language: messageLanguage,
+      images: message.images || mediaUrls,
+      media: message.images || mediaUrls,
+      reactions: {},
+      read_count: 0,
+      sender: sender
+        ? {
+            ...sender,
+            avatar_url: normalizeImageUrl(sender.avatar_url),
+          }
+        : null,
+    };
+
+    const memberIds = await getGroupMemberIds(id, userId);
+    await Promise.all(
+      memberIds.map(async (memberId) => {
+        let translated_content: string | null = null;
+        let translated_language: string | null = null;
+        if (hasContent) {
+          try {
+            const result = await TranslationService.translateForRecipient({
+              sourceType: 'group_message',
+              sourceId: message.id,
+              content: message.content,
+              sourceLanguage: messageLanguage,
+              recipientId: memberId,
+            });
+            translated_content = result.translatedContent;
+            translated_language = result.translatedLanguage;
+          } catch {
+            /* ignore */
+          }
+        }
+        wsManager.broadcastToUsers([memberId], {
+          type: 'group_message',
+          payload: {
+            groupId: id,
+            message: {
+              ...baseFormatted,
+              translated_content,
+              translated_language,
+            },
+          },
+        });
+      })
+    );
+
+    res.status(201).json(baseFormatted);
   } catch (error) {
     console.error('Error sending message:', error);
     res.status(500).json({ error: 'Failed to send message' });
   }
 });
 
+const GROUP_REACTION_EMOJIS = ['❤️', '👍', '🔥', '😂', '😮', '🎉'];
+
+router.post('/:id/messages/:messageId/reactions', auth, async (req: AuthRequest, res) => {
+  try {
+    const { id, messageId } = req.params;
+    const userId = req.user?.id;
+    const emoji = typeof req.body?.emoji === 'string' ? req.body.emoji.trim() : '';
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+    if (!GROUP_REACTION_EMOJIS.includes(emoji)) {
+      return res.status(400).json({ error: 'Invalid emoji', allowed: GROUP_REACTION_EMOJIS });
+    }
+
+    const { data: membership } = await supabase
+      .from('group_members')
+      .select('id')
+      .eq('group_id', id)
+      .eq('user_id', userId)
+      .single();
+    if (!membership) return res.status(403).json({ error: 'Not a member' });
+
+    const { data: existing } = await supabase
+      .from('group_message_reactions')
+      .select('id')
+      .eq('message_id', messageId)
+      .eq('user_id', userId)
+      .eq('emoji', emoji)
+      .maybeSingle();
+
+    if (existing) {
+      await supabase.from('group_message_reactions').delete().eq('id', existing.id);
+    } else {
+      await supabase.from('group_message_reactions').delete().eq('message_id', messageId).eq('user_id', userId);
+      await supabase.from('group_message_reactions').insert({
+        message_id: messageId,
+        user_id: userId,
+        emoji,
+      });
+    }
+
+    const { data: rows } = await supabase
+      .from('group_message_reactions')
+      .select('emoji, user_id')
+      .eq('message_id', messageId);
+
+    const reactions: Record<string, { count: number; reacted_by_me: boolean }> = {};
+    (rows || []).forEach((r: any) => {
+      if (!reactions[r.emoji]) reactions[r.emoji] = { count: 0, reacted_by_me: false };
+      reactions[r.emoji].count += 1;
+      if (r.user_id === userId) reactions[r.emoji].reacted_by_me = true;
+    });
+
+    const memberIds = await getGroupMemberIds(id);
+    wsManager.broadcastToUsers(memberIds, {
+      type: 'group_message_reaction',
+      payload: { groupId: id, messageId, reactions },
+    });
+
+    res.json({ messageId, reactions });
+  } catch (error) {
+    console.error('Error reacting to group message:', error);
+    res.status(500).json({ error: 'Failed to react' });
+  }
+});
+
+router.put('/:id/messages/read', auth, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const { data: membership } = await supabase
+      .from('group_members')
+      .select('id')
+      .eq('group_id', id)
+      .eq('user_id', userId)
+      .single();
+    if (!membership) return res.status(403).json({ error: 'Not a member' });
+
+    const { data: recent } = await supabase
+      .from('group_messages')
+      .select('id')
+      .eq('group_id', id)
+      .neq('sender_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(50);
+
+    if (recent && recent.length > 0) {
+      const rows = recent.map((m) => ({
+        message_id: m.id,
+        user_id: userId,
+        read_at: new Date().toISOString(),
+      }));
+      await supabase.from('group_message_reads').upsert(rows, {
+        onConflict: 'message_id,user_id',
+      });
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error marking group messages read:', error);
+    res.status(500).json({ error: 'Failed to mark read' });
+  }
+});
+
+router.post('/:id/typing', auth, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user?.id;
+    const { isTyping } = req.body;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const memberIds = await getGroupMemberIds(id, userId);
+    wsManager.broadcastToUsers(memberIds, {
+      type: 'group_typing',
+      payload: { groupId: id, userId, isTyping: !!isTyping },
+    });
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to send typing' });
+  }
+});
+
+// POST /api/groups/:id/members/:memberId/mute - Mute a member (admin/moderator only)
 // POST /api/groups/:id/members/:memberId/mute - Mute a member (admin/moderator only)
 router.post('/:id/members/:memberId/mute', auth, async (req: AuthRequest, res) => {
   try {

@@ -5,6 +5,7 @@ import { AlertTriangle, Ghost, Coins, RotateCcw, Clock } from 'lucide-react';
 import { getGhostedFriends, redeemFriend, GhostedFriend } from '../../services/purgaService';
 import { useUser } from '../../context/UserContext';
 import { toast } from 'react-hot-toast';
+import ProfileLink from '../Profile/ProfileLink';
 
 const PurgeDashboard: React.FC = () => {
   const { t } = useTranslation();
@@ -13,8 +14,9 @@ const PurgeDashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [redeemingId, setRedeemingId] = useState<string | null>(null);
 
-  const userCredits = (user as any)?.credits ?? 0;
-  const purgeRisk = Math.min(100, Math.max(0, (user as any)?.purgeRisk ?? 0));
+  const userCredits = Number((user as any)?.credits ?? 0) || 0;
+  const rawRisk = Number((user as any)?.purgeRisk ?? (user as any)?.inactivityLevel ?? 0);
+  const purgeRisk = Math.min(100, Math.max(0, Number.isFinite(rawRisk) ? rawRisk : 0));
 
   useEffect(() => {
     const fetchGhostedFriends = async () => {
@@ -74,13 +76,13 @@ const PurgeDashboard: React.FC = () => {
   };
 
   return (
-    <div className="mb-3">
-      <div className="flex items-center justify-between mb-3 px-1">
-        <h2 className="text-sm font-bold text-foreground flex items-center gap-2">
-          <AlertTriangle size={16} className="text-muted" />
-          {t('rightSidebar.purgeRisk') || 'Purge Risk'}
+    <div className="mb-3 min-w-0 overflow-hidden">
+      <div className="flex items-center justify-between gap-2 mb-3 min-w-0">
+        <h2 className="text-sm font-bold text-foreground flex items-center gap-1.5 min-w-0 truncate">
+          <AlertTriangle size={14} className="text-muted shrink-0" />
+          <span className="truncate">{t('rightSidebar.purgeRisk', 'Purge Risk')}</span>
         </h2>
-        <span className={`text-[10px] uppercase tracking-wide px-2 py-1 rounded-full ${
+        <span className={`text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded-full shrink-0 ${
           purgeRisk < 25 ? 'bg-card-hover text-muted' :
           purgeRisk < 50 ? 'bg-accent/10 text-foreground/70' :
           purgeRisk < 75 ? 'bg-accent/20 text-foreground' :
@@ -132,7 +134,7 @@ const PurgeDashboard: React.FC = () => {
               className="flex items-center justify-between p-2 rounded-lg hover:bg-card-hover transition-all group"
             >
               <div className="flex items-center gap-2 min-w-0 flex-1">
-                <div className="w-8 h-8 rounded-full bg-accent/10 flex items-center justify-center text-sm">
+                <ProfileLink username={friend.username} className="w-8 h-8 rounded-full bg-accent/10 flex items-center justify-center text-sm shrink-0 overflow-hidden">
                   {friend.avatar ? (
                     <img
                       src={friend.avatar}
@@ -142,9 +144,11 @@ const PurgeDashboard: React.FC = () => {
                   ) : (
                     <Ghost size={14} className="text-muted" />
                   )}
-                </div>
+                </ProfileLink>
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm text-foreground truncate">{friend.name}</p>
+                  <ProfileLink username={friend.username} className="text-sm text-foreground truncate hover:text-accent block">
+                    {friend.name}
+                  </ProfileLink>
                   <div className="flex items-center gap-2 text-[10px] text-muted">
                     <Clock size={10} />
                     <span>{formatDuration(friend.purgeDuration)}</span>

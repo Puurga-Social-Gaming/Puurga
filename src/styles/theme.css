@@ -55,14 +55,18 @@
   /* Silver Ring */
   --radius: 0.75rem;
   /* 12px */
+  --radius-button: 0.875rem;
+  /* Soft rounded buttons in light mode */
 
-  /* Modern Floating Shadows - Enhanced for depth with more spread and prominence */
-  --shadow-sm: 0 4px 12px rgba(0, 0, 0, 0.18), 0 2px 6px rgba(0, 0, 0, 0.12);
-  --shadow-md: 0 8px 16px -2px rgba(0, 0, 0, 0.22), 0 4px 8px -2px rgba(0, 0, 0, 0.15);
-  --shadow-lg: 0 16px 32px -4px rgba(0, 0, 0, 0.25), 0 8px 16px -4px rgba(0, 0, 0, 0.18);
-  --shadow-xl: 0 32px 48px -6px rgba(0, 0, 0, 0.3), 0 12px 20px -6px rgba(0, 0, 0, 0.15);
-  --shadow-float: 0 32px 48px -8px rgba(0, 0, 0, 0.35), 0 16px 24px -8px rgba(0, 0, 0, 0.2);
-  --shadow-button: 0 8px 20px rgba(0, 0, 0, 0.25);
+  /* Shadows — light mode stays flat & clean (borders do the work) */
+  --shadow-sm: none;
+  --shadow-md: 0 2px 8px rgba(15, 23, 42, 0.06);
+  --shadow-lg: 0 8px 24px rgba(15, 23, 42, 0.08);
+  --shadow-xl: 0 12px 32px rgba(15, 23, 42, 0.1);
+  --shadow-float: 0 8px 24px rgba(15, 23, 42, 0.08);
+  --shadow-button: none;
+  --shadow-text: none;
+  --shadow-image: none;
 
   /* Overlay */
   --overlay: rgba(0, 0, 0, 0.5);
@@ -246,32 +250,33 @@ body {
   box-shadow: var(--shadow-button);
 }
 
-/* Button floating effect for light mode */
+/* Button floating effect — light mode stays flat */
 .btn-float {
-  box-shadow: var(--shadow-float);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: none;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 
 .btn-float:hover {
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-lg);
+  transform: none;
+  box-shadow: none;
 }
 
 .btn-float:active {
-  transform: translateY(0);
-  box-shadow: var(--shadow-sm);
+  transform: none;
+  box-shadow: none;
 }
 
-/* Card with elevation */
+/* Card with elevation — borders only in light mode */
 .card-elevated {
   background-color: rgb(var(--card));
   border: 1px solid rgb(var(--border));
-  box-shadow: var(--shadow-md);
+  box-shadow: none;
   border-radius: var(--radius);
 }
 
 .card-elevated:hover {
-  box-shadow: var(--shadow-lg);
+  box-shadow: none;
+  background-color: rgb(var(--card-hover));
 }
 
 /* Primary button with glow effect - handled in index.css to avoid conflicts */
@@ -314,37 +319,42 @@ body {
    ======================================== */
 
 
-/* ========================================
-   PREMIUM LIGHT MODE STYLES (DEFAULTS)
-   Modern, clean, floating aesthetic
-   ======================================== */
+/* Light mode — soft rounded corners on buttons (keep pills circular) */
+html:not(.dark) button:not(.rounded-full):not([class*="rounded-full"]),
+html:not(.dark) input[type="button"]:not(.rounded-full),
+html:not(.dark) input[type="submit"]:not(.rounded-full),
+html:not(.dark) .btn-primary,
+html:not(.dark) .btn-accent,
+html:not(.dark) .btn-float {
+  border-radius: var(--radius-button, 0.875rem);
+}
 
-/* Enhanced card with 'floating' feel for light mode - Better depth and contrast */
+html:not(.dark) button.rounded-full,
+html:not(.dark) button[class*="rounded-full"],
+html:not(.dark) a.rounded-full,
+html:not(.dark) [class*="rounded-full"] {
+  border-radius: 9999px;
+}
+
 .card-gradient {
-  background: white;
+  background: rgb(var(--card));
   border: 1px solid rgb(var(--border));
-  box-shadow:
-    0 4px 8px rgba(0, 0, 0, 0.1),
-    0 2px 4px rgba(0, 0, 0, 0.06);
+  box-shadow: none;
   border-radius: var(--radius);
-  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 
 .card-gradient:hover {
-  transform: translateY(-3px);
-  box-shadow:
-    0 12px 24px rgba(0, 0, 0, 0.15),
-    0 6px 12px rgba(0, 0, 0, 0.1);
+  background: rgb(var(--card-hover));
   border-color: rgb(var(--highlight));
+  box-shadow: none;
+  transform: none;
 }
 
-/* Card with inner glow (subtle border highlight in light mode) */
 .card-glow {
-  background: white;
+  background: rgb(var(--card));
   border: 1px solid rgb(var(--border));
-  box-shadow:
-    0 2px 4px rgba(0, 0, 0, 0.05),
-    0 4px 12px rgba(156, 163, 175, 0.15);
+  box-shadow: none;
   border-radius: var(--radius);
 }
 
@@ -362,48 +372,47 @@ body {
   color: rgb(var(--fg));
 }
 
-/* Make images pop with stronger shadow for better depth */
+/* No decorative image / heading shadows in light mode */
 img.rounded-full,
 img.rounded-lg,
 img.rounded-xl {
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2), 0 1px 3px rgba(0, 0, 0, 0.1);
+  box-shadow: none;
 }
 
-/* Enhanced text shadow for headings in light mode - more depth */
 h1, h2, h3, h4, h5, h6 {
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+  text-shadow: none;
 }
 
-/* Enhanced silver accent button with stronger colors and shadows (Light Mode) */
 .btn-accent {
   background: linear-gradient(135deg, #6B7280 0%, #4B5563 100%);
   color: white;
   border: none;
-  box-shadow: 0 6px 16px rgba(107, 114, 128, 0.4), 0 1px 3px rgba(0, 0, 0, 0.1);
-  transition: all 0.2s ease;
+  border-radius: var(--radius-button, 0.875rem);
+  box-shadow: none;
+  transition: background 0.2s ease, opacity 0.2s ease;
   font-weight: 600;
 }
 
 .btn-accent:hover {
   background: linear-gradient(135deg, #4B5563 0%, #374151 100%);
   color: white;
-  transform: translateY(-2px);
-  box-shadow: 0 8px 20px rgba(107, 114, 128, 0.6), 0 2px 4px rgba(0, 0, 0, 0.15);
+  transform: none;
+  box-shadow: none;
+  opacity: 0.95;
 }
 
 .btn-accent:active {
-  transform: translateY(0);
-  box-shadow: 0 4px 12px rgba(107, 114, 128, 0.3), 0 1px 2px rgba(0, 0, 0, 0.08);
+  transform: none;
+  box-shadow: none;
+  opacity: 0.9;
 }
 
 /* Nav item active state (Light Mode) - Silver highlight */
 .nav-active {
   background: rgb(var(--highlight-light));
-  /* Light silver tint */
-  border-left: 3px solid rgb(var(--accent));
-  /* Silver left border */
+  border-left-color: rgb(var(--accent));
   color: rgb(var(--fg));
-  box-shadow: inset 0 1px 3px rgba(156, 163, 175, 0.2);
+  box-shadow: none;
 }
 
 
@@ -490,7 +499,7 @@ h1, h2, h3, h4, h5, h6 {
 /* Nav item active state */
 .dark .nav-active {
   background: rgba(245, 245, 245, 0.1);
-  border-left: 3px solid #f5f5f5;
+  border-left-color: #f5f5f5;
   color: #f5f5f5;
 }
 
@@ -499,9 +508,24 @@ h1, h2, h3, h4, h5, h6 {
   color: #ffffff;
 }
 
-/* Text shadow for headings in light mode - adds depth */
-h1, h2, h3, h4, h5, h6 {
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+.dark h1, .dark h2, .dark h3, .dark h4, .dark h5, .dark h6 {
+  text-shadow: none;
+}
+
+.dark .btn-float {
+  box-shadow: var(--shadow-sm);
+}
+
+.dark .btn-float:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.dark .card-elevated {
+  box-shadow: var(--shadow-sm);
+}
+
+.dark .card-elevated:hover {
+  box-shadow: var(--shadow-md);
 }
 
 /* Override any component that might have white/light borders */

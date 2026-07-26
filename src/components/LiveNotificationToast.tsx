@@ -5,6 +5,7 @@ import {
   AtSign, Share2, Eye, ThumbsDown, MessageSquare, Ghost, Star, Award
 } from 'lucide-react';
 import Avatar from './Avatar';
+import ProfileLink from './Profile/ProfileLink';
 import { NotificationType } from '../types/notification';
 
 interface LiveNotificationToastProps {
@@ -93,20 +94,25 @@ export const LiveNotificationToast: React.FC<LiveNotificationToastProps> = ({
     >
       <div className="flex items-start gap-3">
         <div className="flex-shrink-0">
-          <Avatar
-            src={notification.fromUser.avatar}
-            alt={notification.fromUser.name}
-            size="sm"
-            showBorder={false}
-          />
+          <ProfileLink username={notification.fromUser.username} className="rounded-full inline-block">
+            <Avatar
+              src={notification.fromUser.avatar}
+              alt={notification.fromUser.name}
+              size="sm"
+              showBorder={false}
+            />
+          </ProfileLink>
         </div>
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
             {getNotificationIcon(notification.type)}
-            <span className="text-sm font-medium text-foreground truncate">
+            <ProfileLink
+              username={notification.fromUser.username}
+              className="text-sm font-medium text-foreground truncate hover:text-accent"
+            >
               {notification.fromUser.name}
-            </span>
+            </ProfileLink>
           </div>
 
           <p className="text-sm text-muted mb-2">
@@ -123,7 +129,7 @@ export const LiveNotificationToast: React.FC<LiveNotificationToastProps> = ({
               </button>
               <button
                 onClick={() => onAction('decline')}
-                className="px-3 py-1 bg-accent text-white text-xs rounded-md hover:opacity-90 transition-colors"
+                className="px-3 py-1 bg-accent text-black text-xs rounded-md hover:opacity-90 transition-colors"
               >
                 Decline
               </button>

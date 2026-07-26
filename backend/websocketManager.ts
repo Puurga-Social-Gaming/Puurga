@@ -1,7 +1,6 @@
 import { WebSocket, WebSocketServer } from 'ws';
 import { Server } from 'http';
 import { IncomingMessage } from 'http';
-import url from 'url';
 import jwt from 'jsonwebtoken';
 import { supabase } from './config/supabase';
 
@@ -27,14 +26,16 @@ interface NewMessagePayload {
 
 interface MessageReadPayload {
   conversationId: string;
-  messageId: string;
-  userId: string;
+  userId: string; // who read the messages
+  readAt: string;
+  messageIds?: string[];
 }
 
 interface TypingPayload {
   conversationId: string;
   userId: string;
   isTyping: boolean;
+  text?: string;
 }
 
 type NotificationType =
@@ -128,9 +129,44 @@ interface AllianceUpdatePayload {
   partnerUsername?: string;
 }
 
+interface MessageEditedPayload {
+  conversationId: string;
+  messageId: string;
+  content: string;
+  isEdited: boolean;
+  editedAt: string;
+}
+
+interface MessageDeletedPayload {
+  conversationId: string;
+  messageId: string;
+  isDeleted: boolean;
+  deletedAt: string;
+}
+
+interface MessageReactionPayload {
+  conversationId: string;
+  messageId: string;
+  reactions: Record<string, { count: number; reacted_by_me: boolean }>;
+}
+
+interface GroupMessagePayload {
+  groupId: string;
+  message: Record<string, unknown>;
+}
+
+interface MatchFoundPayload {
+  matchId: string;
+  gameId: string;
+  opponentId: string;
+  opponentUsername?: string;
+}
+
 interface WebSocketMessage {
-  type: 'new_message' | 'message_read' | 'typing' | 'notification' | 'user_online' | 'user_offline' | 'credit_update' | 'profile_update' | 'credits_updated' | 'survival_update' | 'alliance_update';
-  payload: NewMessagePayload | MessageReadPayload | TypingPayload | NotificationPayload | OnlineStatusPayload | CreditUpdatePayload | ProfileUpdatePayload | CreditsUpdatedPayload | SurvivalUpdatePayload | AllianceUpdatePayload;
+  type: 'new_message' | 'message_edited' | 'message_deleted' | 'message_hidden' | 'message_read' | 'message_reaction' | 'typing' | 'draft_started' | 'draft_updated' | 'draft_stopped' | 'draft_sent' | 'group_message' | 'group_message_reaction' | 'group_typing' | 'notification' | 'user_online' | 'user_offline' | 'credit_update' | 'profile_update' | 'credits_updated' | 'survival_update' | 'alliance_update' | 'match_found' | 'call_invite_update'
+    | 'challenge_sent' | 'challenge_received' | 'challenge_accepted' | 'challenge_declined' | 'challenge_started' | 'challenge_finished' | 'challenge_reward'
+    | 'friend_started_game' | 'friend_left_game' | 'leaderboard_updated';
+  payload: any;
 }
 
 class WebSocketManager {
@@ -153,9 +189,14 @@ class WebSocketManager {
       return;
     }
 
-    this.wss = new WebSocketServer({ server });
+    this.wss = new WebSocketServer({
+      server,
+      path: '/ws',
+      // Accept local Vite / production origins without rejecting handshake
+      verifyClient: () => true,
+    });
     this.setupWebSocket();
-    console.log('✅ WebSocket server initialized');
+    console.log('✅ WebSocket server initialized (path: /ws)');
   }
 
   private setupWebSocket() {
@@ -164,9 +205,13 @@ class WebSocketManager {
     this.wss.on('connection', async (ws: WebSocket, req: IncomingMessage) => {
       const wsClient = ws as WebSocketClient;
       try {
-        // Get token from query params
-        const { query } = url.parse(req.url || '', true);
-        const token = query.token as string;
+        let token = '';
+        try {
+          const requestUrl = new URL(req.url || '/ws', 'http://localhost');
+          token = requestUrl.searchParams.get('token') || '';
+        } catch {
+          token = '';
+        }
 
         if (!token) {
           wsClient.close(1008, 'Authentication required');
@@ -204,7 +249,7 @@ class WebSocketManager {
             .from('profiles')
             .select('show_online_status')
             .eq('id', userId)
-            .single();
+            .maybeSingle();
           currentUserAllowsOnlineStatus = currentProfile?.show_online_status !== false;
         } catch (error) {
           console.error('Error checking current user online status setting:', error);
@@ -220,7 +265,7 @@ class WebSocketManager {
                 .from('profiles')
                 .select('show_online_status')
                 .eq('id', onlineUserId)
-                .single();
+                .maybeSingle();
 
               if (profile?.show_online_status !== false) {
                 const statusMessage: WebSocketMessage = {
@@ -270,7 +315,11 @@ class WebSocketManager {
 
       } catch (error) {
         console.error('WebSocket connection error:', error);
-        wsClient.close(1008, 'Authentication failed');
+        try {
+          wsClient.close(1008, 'Authentication failed');
+        } catch {
+          // ignore
+        }
       }
     });
   }

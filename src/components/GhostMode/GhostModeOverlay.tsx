@@ -75,12 +75,12 @@ const GhostModeOverlay: React.FC<GhostModeOverlayProps> = ({ purgeCount, ghosted
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.2 } }}
-                className="max-w-md w-full bg-gradient-to-br from-[#0b0b0b] to-black border border-white/10 rounded-2xl p-8 shadow-2xl shadow-black/60 relative"
+                className="max-w-md w-full bg-card border border-border rounded-2xl p-8 shadow-theme-xl relative"
               >
                 {/* Close/Dismiss Button */}
                 <button
                   onClick={() => setDismissed(true)}
-                  className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors"
+                  className="absolute top-4 right-4 text-muted hover:text-foreground transition-colors"
                   aria-label="Dismiss Instructions"
                 >
                   <X size={24} />
@@ -98,47 +98,47 @@ const GhostModeOverlay: React.FC<GhostModeOverlayProps> = ({ purgeCount, ghosted
                       repeat: Infinity,
                       ease: "easeInOut"
                     }}
-                    className="bg-white/5 border border-white/10 p-6 rounded-full"
+                    className="bg-background border border-border p-6 rounded-full"
                   >
-                    <Ghost size={64} className="text-gray-200" />
+                    <Ghost size={64} className="text-foreground/80" />
                   </motion.div>
                 </div>
 
                 {/* Title */}
-                <h1 className="text-3xl font-black tracking-tighter uppercase italic text-center text-white mb-2">
+                <h1 className="text-3xl font-black tracking-tighter uppercase italic text-center text-foreground mb-2">
                   Ghost Mode
                 </h1>
 
                 {/* Warning */}
                 <div className="flex items-center justify-center gap-2 mb-6">
-                  <AlertTriangle size={20} className="text-gray-400" />
-                  <p className="text-gray-400 text-sm">Account Frozen</p>
+                  <AlertTriangle size={20} className="text-muted" />
+                  <p className="text-muted text-sm">Account Frozen</p>
                 </div>
 
                 {/* Message */}
-                <div className="bg-white/5 border border-white/10 rounded-xl p-4 mb-6">
-                  <p className="text-gray-200/80 text-center text-sm leading-relaxed">
-                    Your account has been <span className="text-white font-semibold">frozen</span> after receiving{' '}
-                    <span className="text-red-300 font-bold">{purgeCount} purges</span> from other users.
+                <div className="bg-background border border-border rounded-xl p-4 mb-6">
+                  <p className="text-muted text-center text-sm leading-relaxed">
+                    Your account has been <span className="text-foreground font-semibold">frozen</span> after receiving{' '}
+                    <span className="text-red-400 font-bold">{purgeCount} purges</span> from other users.
                   </p>
                 </div>
 
                 {/* Stats */}
                 <div className="grid grid-cols-2 gap-4 mb-6">
-                  <div className="bg-white/5 border border-white/10 rounded-xl p-3">
-                    <p className="text-gray-400 text-xs mb-1">Purge Count</p>
-                    <p className="text-white text-xl font-black">{purgeCount}</p>
+                  <div className="bg-background border border-border rounded-xl p-3">
+                    <p className="text-muted text-xs mb-1">Purge Count</p>
+                    <p className="text-foreground text-xl font-black">{purgeCount}</p>
                   </div>
-                  <div className="bg-white/5 border border-white/10 rounded-xl p-3">
-                    <p className="text-gray-400 text-xs mb-1">Status</p>
-                    <p className="text-white text-xl font-black">Ghosted</p>
+                  <div className="bg-background border border-border rounded-xl p-3">
+                    <p className="text-muted text-xs mb-1">Status</p>
+                    <p className="text-foreground text-xl font-black">Ghosted</p>
                   </div>
                 </div>
 
                 {/* Restrictions */}
-                <div className="bg-white/5 border border-white/10 rounded-xl p-4 mb-6">
-                  <h3 className="text-white font-semibold mb-2 text-sm">Restrictions:</h3>
-                  <ul className="text-gray-200/80 text-xs space-y-1">
+                <div className="bg-background border border-border rounded-xl p-4 mb-6">
+                  <h3 className="text-foreground font-semibold mb-2 text-sm">Restrictions:</h3>
+                  <ul className="text-muted text-xs space-y-1">
                     <li>Cannot create posts</li>
                     <li>Cannot comment or react</li>
                     <li>Cannot send messages</li>
@@ -148,13 +148,13 @@ const GhostModeOverlay: React.FC<GhostModeOverlayProps> = ({ purgeCount, ghosted
                 </div>
 
                 {/* Redemption Info */}
-                <div className="bg-gradient-to-r from-orange-900/20 to-yellow-900/20 border border-orange-500/20 rounded-xl p-4 mb-6">
+                <div className="bg-amber-500/10 border border-amber-500/25 rounded-xl p-4 mb-6">
                   <div className="flex items-center gap-2 mb-2">
-                    <Coins size={20} className="text-orange-400" />
-                    <h3 className="text-gray-300 font-semibold text-sm">How to Get Redeemed:</h3>
+                    <Coins size={20} className="text-amber-500" />
+                    <h3 className="text-foreground font-semibold text-sm">How to Get Redeemed:</h3>
                   </div>
-                  <p className="text-gray-400 text-xs leading-relaxed">
-                    Another user with <span className="text-orange-400 font-semibold">100+ credits</span> can redeem your account.
+                  <p className="text-muted text-xs leading-relaxed">
+                    Another user with <span className="text-amber-500 font-semibold">100+ credits</span> can redeem your account.
                     Ask a friend to visit your profile and use their credits to restore your account.
                   </p>
                 </div>
@@ -162,13 +162,13 @@ const GhostModeOverlay: React.FC<GhostModeOverlayProps> = ({ purgeCount, ghosted
                 {/* Enter Ghost World Button */}
                 <button
                   onClick={() => setDismissed(true)}
-                  className="w-full bg-white/10 hover:bg-white/15 text-white py-3 rounded-xl font-black uppercase tracking-widest transition-colors mb-4"
+                  className="w-full bg-foreground text-background hover:opacity-90 py-3 rounded-xl font-black uppercase tracking-widest transition-opacity mb-4"
                 >
                   Enter Ghost World (View Only)
                 </button>
 
                 {/* Footer */}
-                <p className="text-center text-gray-600 text-xs">
+                <p className="text-center text-muted text-xs">
                   Ghosted on {new Date(ghostedAt).toLocaleDateString()}
                 </p>
               </motion.div>

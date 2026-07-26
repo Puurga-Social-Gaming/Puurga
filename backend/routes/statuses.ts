@@ -5,6 +5,7 @@ import { supabase } from '../config/supabase';
 import { normalizeImageUrl } from '../utils/url';
 import path from 'path';
 import fs from 'fs';
+import { getBidirectionalBlockedIds, getMutedIds } from '../utils/friendRelations';
 
 const router = express.Router();
 
@@ -118,7 +119,7 @@ router.get('/feed', auth, async (req: AuthRequest, res) => {
     }
 
     // Filter statuses by privacy settings
-    const filteredStatuses = (statuses || []).filter(status => {
+    let filteredStatuses = (statuses || []).filter(status => {
       if (!status.user_id) return false;
       
       const storyPrivacy = (profilesMap.get(status.user_id) as any)?.story_privacy || 'everyone';
@@ -129,6 +130,16 @@ router.get('/feed', auth, async (req: AuthRequest, res) => {
       
       return true;
     });
+
+    // Hide muted + blocked authors
+    const [blockedIds, mutedIds] = await Promise.all([
+      getBidirectionalBlockedIds(currentUserId),
+      getMutedIds(currentUserId),
+    ]);
+    const hidden = new Set([...blockedIds, ...mutedIds]);
+    if (hidden.size > 0) {
+      filteredStatuses = filteredStatuses.filter((s) => !hidden.has(s.user_id));
+    }
 
     if (filteredStatuses.length === 0) return res.json([]);
 

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
 import { Globe, ChevronRight } from 'lucide-react';
+import { detectLocaleLanguage } from '../../i18n/detectLocaleLanguage';
 
 const LANGUAGES = [
   { code: 'en', name: 'English', nativeName: 'English' },
@@ -18,7 +19,12 @@ const LANGUAGES = [
 const LanguageScreen: React.FC = () => {
   const navigate = useNavigate();
   const { t, i18n } = useTranslation();
-  const [selectedLang, setSelectedLang] = useState<string | null>(null);
+  const detected = (() => {
+    const current = (i18n.language || '').split('-')[0];
+    if (LANGUAGES.some((l) => l.code === current)) return current;
+    return detectLocaleLanguage();
+  })();
+  const [selectedLang, setSelectedLang] = useState<string>(detected);
 
   const handleLanguageSelect = async (langCode: string) => {
     setSelectedLang(langCode);
@@ -26,8 +32,10 @@ const LanguageScreen: React.FC = () => {
     localStorage.setItem('i18nextLng', langCode);
   };
 
-  const handleContinue = () => {
-    if (!selectedLang) return;
+  const handleContinue = async () => {
+    const lang = selectedLang || detectLocaleLanguage();
+    await i18n.changeLanguage(lang);
+    localStorage.setItem('i18nextLng', lang);
     localStorage.setItem('hasSeenIntro', 'true');
     navigate('/onboarding/welcome');
   };

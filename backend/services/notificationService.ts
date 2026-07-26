@@ -1,6 +1,7 @@
 import { supabase } from '../config/supabase';
 import { wsManager } from '../websocketManager';
 import { normalizeImageUrl } from '../utils/url';
+import { areBlocked } from '../utils/friendRelations';
 
 export type NotificationType =
   // Social
@@ -23,6 +24,8 @@ export type NotificationType =
   | 'reward_reminder'
   | 'tournament_reminder'
   | 'challenge'
+  | 'game_score'
+  | 'game_high_score'
   // System
   | 'welcome'
   | 'verification'
@@ -71,6 +74,8 @@ const TITLE_MAP: Record<string, string> = {
   reward_reminder: 'Reward Available',
   tournament_reminder: 'Tournament Reminder',
   challenge: 'New Challenge',
+  game_score: 'Game Activity',
+  game_high_score: 'New High Score',
   welcome: 'Welcome to Puurga',
   verification: 'Verify Your Account',
   security_alert: 'Security Alert',
@@ -94,6 +99,9 @@ export class NotificationService {
 
       // Skip self-notifications
       if (senderId && senderId === receiverId) return null;
+
+      // Skip notifications between blocked users
+      if (senderId && (await areBlocked(senderId, receiverId))) return null;
 
       // Check user notification preferences before creating
       const allowed = await this.checkPreference(receiverId, type);
@@ -220,7 +228,14 @@ export class NotificationService {
   private static getCategory(type: NotificationType): string | null {
     const social = ['like', 'dislike', 'comment', 'reply', 'mention', 'follow', 'follow_accepted', 'share', 'profile_visit'];
     const messaging = ['message', 'group_message', 'message_reaction', 'missed_call'];
-    const gaming = ['resume_game', 'reward_reminder', 'tournament_reminder', 'challenge'];
+    const gaming = [
+      'resume_game',
+      'reward_reminder',
+      'tournament_reminder',
+      'challenge',
+      'game_score',
+      'game_high_score',
+    ];
     const system = ['welcome', 'verification', 'security_alert', 'maintenance'];
 
     if (social.includes(type)) return 'social';
@@ -240,6 +255,7 @@ export class NotificationService {
       message_reaction: 'message_reactions', missed_call: 'missed_calls',
       resume_game: 'resume_game', reward_reminder: 'reward_reminders',
       tournament_reminder: 'tournament_reminders', challenge: 'challenges',
+      game_score: 'game_scores', game_high_score: 'game_high_scores',
       welcome: 'welcome', verification: 'verification',
       security_alert: 'security_alerts', maintenance: 'maintenance',
     };
@@ -330,8 +346,72 @@ export class NotificationService {
     return this.create({ type: 'tournament_reminder', receiverId: userId, metadata });
   }
 
-  static async challenge(senderId: string, receiverId: string, gameId: string): Promise<any> {
-    return this.create({ type: 'challenge', senderId, receiverId, gameId });
+  static async challenge(
+    senderId: string,
+    receiverId: string,
+    gameId: string,
+    metadata?: Record<string, any>
+  ): Promise<any> {
+    return this.create({
+      type: 'challenge',
+      senderId,
+      receiverId,
+      gameId,
+      title: 'Game Challenge',
+      message: 'challenged you to a game',
+      metadata: { gameId, action: 'challenge', ...metadata },
+    });
+  }
+
+  /** Notify friends that a player finished a game / set a high score */
+  static async gameActivity(
+    playerId: string,
+    opts: {
+      gameId: string;
+      gameName?: string;
+      score?: number;
+      pointsEarned?: number;
+      isHighScore?: boolean;
+    }
+  ): Promise<any[]> {
+    const { getAcceptedFriendIds } = await import('../utils/friendRelations');
+    const friendIds = await getAcceptedFriendIds(playerId);
+    if (!friendIds.length) return [];
+
+    const gameLabel = opts.gameName || opts.gameId || 'a game';
+    const type: NotificationType = opts.isHighScore ? 'game_high_score' : 'game_score';
+    let message = `finished ${gameLabel}`;
+    if (typeof opts.pointsEarned === 'number' && opts.pointsEarned > 0) {
+      message = `finished ${gameLabel} and earned ${opts.pointsEarned} points`;
+    } else if (typeof opts.score === 'number') {
+      message = `scored ${opts.score.toLocaleString()} in ${gameLabel}`;
+    }
+    if (opts.isHighScore) {
+      message = `set a new high score in ${gameLabel}${
+        typeof opts.score === 'number' ? ` (${opts.score.toLocaleString()})` : ''
+      }`;
+    }
+
+    const results: any[] = [];
+    for (const friendId of friendIds.slice(0, 40)) {
+      const n = await this.create({
+        type,
+        senderId: playerId,
+        receiverId: friendId,
+        gameId: opts.gameId,
+        title: opts.isHighScore ? 'New High Score' : 'Game Activity',
+        message,
+        metadata: {
+          gameId: opts.gameId,
+          gameName: gameLabel,
+          score: opts.score,
+          pointsEarned: opts.pointsEarned,
+          isHighScore: Boolean(opts.isHighScore),
+        },
+      });
+      if (n) results.push(n);
+    }
+    return results;
   }
 
   // ── System Notifications ──────────────────────────────────

@@ -8,6 +8,8 @@ import './styles/leaflet.css';
 import './styles/theme.css';
 // Initialize font-size scaling from persisted user preference
 import './store/fontSizeStore';
+// Initialize desktop width preference (80% / 100%) — desktop only via CSS
+import './store/desktopWidthStore';
 import { ThemeProvider } from './context/ThemeContext';
 import { prefetchIntroVideoUrl } from './services/introVideoService';
 

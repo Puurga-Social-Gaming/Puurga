@@ -1,0 +1,12 @@
+ALTER TABLE profiles
+  ADD COLUMN IF NOT EXISTS e2e_public_key TEXT;
+
+ALTER TABLE messages
+  ADD COLUMN IF NOT EXISTS is_encrypted BOOLEAN DEFAULT false,
+  ADD COLUMN IF NOT EXISTS ciphertext TEXT;
+
+CREATE TABLE IF NOT EXISTS user_crypto_keys (
+  user_id UUID PRIMARY KEY REFERENCES profiles(id) ON DELETE CASCADE,
+  public_key TEXT NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);

@@ -21,6 +21,8 @@ export interface Post {
     name: string;
     username: string;
     avatar: string;
+    certificationSlug?: string | null;
+    logoCertified?: boolean;
   };
   likes: number;
   liked?: boolean;

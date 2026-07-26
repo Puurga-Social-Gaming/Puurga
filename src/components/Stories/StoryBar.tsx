@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Plus, Image as ImageIcon, Loader2 } from 'lucide-react';
 
 import Avatar from '../Avatar';
+import ProfileLink from '../Profile/ProfileLink';
 import api from '../../api/api';
 import { toast } from 'react-hot-toast';
 import { useUser } from '../../context/UserContext';
@@ -213,9 +214,13 @@ const StoryBar: React.FC<StoryBarProps> = ({ onStoryClick, onAddStoryClick }) =>
                   </div>
                 )}
               </div>
-              <span className="text-sm text-gray-400 truncate w-full text-center">
+              <ProfileLink
+                username={story.User.username}
+                className="text-sm text-gray-400 truncate w-full text-center hover:text-accent"
+                stopPropagation
+              >
                 {story.User.name.split(' ')[0]}
-              </span>
+              </ProfileLink>
             </div>
           ))
         )}
@@ -233,10 +238,10 @@ const StoryBar: React.FC<StoryBarProps> = ({ onStoryClick, onAddStoryClick }) =>
       {/* Create Story Modal - Inline */}
       {creating && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80">
-          <div className="bg-[#1a1a1a] rounded-xl p-4 w-[90%] max-w-md">
+          <div className="bg-card border border-border rounded-xl p-4 w-[90%] max-w-md shadow-theme-xl">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold text-white">Create Story</h3>
-              <button onClick={() => setCreating(false)} className="text-gray-400 hover:text-white">
+              <h3 className="text-lg font-bold text-foreground">Create Story</h3>
+              <button onClick={() => setCreating(false)} className="text-muted hover:text-foreground">
                 <Plus size={20} className="rotate-45" />
               </button>
             </div>

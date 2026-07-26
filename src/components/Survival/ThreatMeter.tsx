@@ -29,7 +29,7 @@ const ThreatMeter: React.FC<ThreatMeterProps> = ({ threatLevel, size = 'md', sho
       <div className={`flex-1 ${heights[size]} rounded-full bg-border/40 overflow-hidden`}>
         <motion.div
           initial={{ width: 0 }}
-          animate={{ width: `${threatLevel}%` }}
+          animate={{ width: `${Math.min(100, Math.max(0, Number(threatLevel) || 0))}%` }}
           transition={{ duration: 0.5, ease: 'easeOut' }}
           className={`h-full rounded-full ${tier.color}`}
         />

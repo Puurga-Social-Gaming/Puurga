@@ -6,6 +6,7 @@ import api from '../../api/api';
 import { useUser } from '../../context/UserContext';
 import { toast } from 'react-hot-toast';
 import Avatar from '../Avatar';
+import ProfileLink from '../Profile/ProfileLink';
 import { DEFAULT_IMAGES } from '../../constants/defaultImages';
 import type { EmojiClickData, Theme } from 'emoji-picker-react';
 
@@ -327,11 +328,11 @@ const getStatusRingColor = (status: Status) => {
   const getGradientForStatus = (status: Status) => STATUS_GRADIENTS[(status.gradientIndex ?? 0) % STATUS_GRADIENTS.length];
 
   return (
-    <div className="mb-2 flex justify-center">
-      <div className="w-full max-w-3xl px-4">
+    <div className="mb-2 w-full">
+      <div className="w-full">
         <div className="flex items-center justify-center gap-3">
           {/* Status circles scrolling area */}
-          <div className="flex gap-3 sm:gap-4 overflow-x-auto pb-2 scrollbar-hide px-1">
+          <div className="flex gap-3 sm:gap-4 overflow-x-auto pb-2 scrollbar-hide">
             {/* Add Status Button with Profile Picture */}
             <button
               onClick={() => setIsCreating(true)}
@@ -417,9 +418,13 @@ const getStatusRingColor = (status: Status) => {
                   </div>
                 )}
               </div>
-              <span className="text-[10px] text-muted mt-1 truncate w-full text-center group-hover:text-foreground transition-colors">
+              <ProfileLink
+                username={status.User.username}
+                className="text-[10px] text-muted mt-1 truncate w-full text-center group-hover:text-foreground transition-colors hover:text-accent"
+                stopPropagation
+              >
                 {status.User.name.split(' ')[0]}
-              </span>
+              </ProfileLink>
             </button>
           ))}
         </div>
@@ -629,18 +634,18 @@ const getStatusRingColor = (status: Status) => {
               {/* User info header - overlay */}
               <div className="absolute top-4 sm:top-5 left-0 right-0 z-20 flex items-center justify-between px-3 sm:px-4 pt-2">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-full overflow-hidden ring-1 ring-white/30">
+                  <ProfileLink username={selectedStatus.User.username} className="w-8 h-8 rounded-full overflow-hidden ring-1 ring-white/30 block">
                     <Avatar
                       src={selectedStatus.User.avatar || DEFAULT_IMAGES.avatar}
                       alt={selectedStatus.User.name}
                       size="sm"
                       className="w-full h-full"
                     />
-                  </div>
+                  </ProfileLink>
                   <div className="flex items-center gap-2">
-                    <span className="text-white text-sm font-semibold drop-shadow-lg">
+                    <ProfileLink username={selectedStatus.User.username} className="text-white text-sm font-semibold drop-shadow-lg no-underline hover:no-underline">
                       {selectedStatus.User.name}
-                    </span>
+                    </ProfileLink>
                     <span className="text-white/60 text-xs drop-shadow-lg">
                       {getTimeAgo(selectedStatus.createdAt)}
                     </span>

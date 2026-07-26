@@ -4,7 +4,29 @@ import { websocketService } from '../services/websocketService';
 interface UseWebSocketOptions {
   onNotification?: (notification: any) => void;
   onMessage?: (message: any) => void;
-  onTyping?: (payload: { conversationId: string; userId: string; isTyping: boolean }) => void;
+  onMessageEdited?: (payload: {
+    conversationId: string;
+    messageId: string;
+    content: string;
+    isEdited: boolean;
+    editedAt: string;
+    translatedContent?: string | null;
+    translatedLanguage?: string | null;
+    language?: string | null;
+  }) => void;
+  onMessageDeleted?: (payload: { conversationId: string; messageId: string; isDeleted: boolean; deletedAt: string; scope?: 'me' | 'everyone' }) => void;
+  onMessageHidden?: (payload: { conversationId: string; messageId: string; deletedAt?: string; scope?: 'me' }) => void;
+  onMessageReaction?: (payload: { conversationId: string; messageId: string; reactions: Record<string, { count: number; reacted_by_me: boolean }> }) => void;
+  onMessageRead?: (payload: { conversationId: string; userId: string; readAt: string; messageIds?: string[] }) => void;
+  onGroupMessage?: (payload: any) => void;
+  onGroupMessageReaction?: (payload: { groupId: string; messageId: string; reactions: Record<string, { count: number; reacted_by_me: boolean }> }) => void;
+  onGroupTyping?: (payload: { groupId: string; userId: string; isTyping: boolean }) => void;
+  onMatchFound?: (payload: any) => void;
+  onTyping?: (payload: { conversationId: string; userId: string; isTyping: boolean; text?: string }) => void;
+  onDraftStarted?: (payload: { conversationId: string; userId: string; text?: string }) => void;
+  onDraftUpdated?: (payload: { conversationId: string; userId: string; text?: string }) => void;
+  onDraftStopped?: (payload: { conversationId: string; userId: string }) => void;
+  onDraftSent?: (payload: { conversationId: string; userId: string }) => void;
   onUserStatusChange?: (status: { userId: string; isOnline: boolean }) => void;
   onCreditUpdate?: (payload: { userId: string; credits: number; change?: number; source?: string }) => void;
   onProfileUpdate?: (payload: { userId: string; isGhost: boolean; purgeCount?: number }) => void;
@@ -34,8 +56,73 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
       unsubscribers.push(unsubscribe);
     }
 
+    if (options.onMessageEdited) {
+      const unsubscribe = websocketService.on('message_edited', options.onMessageEdited);
+      unsubscribers.push(unsubscribe);
+    }
+
+    if (options.onMessageDeleted) {
+      const unsubscribe = websocketService.on('message_deleted', options.onMessageDeleted);
+      unsubscribers.push(unsubscribe);
+    }
+
+    if (options.onMessageHidden) {
+      const unsubscribe = websocketService.on('message_hidden', options.onMessageHidden);
+      unsubscribers.push(unsubscribe);
+    }
+
+    if (options.onMessageReaction) {
+      const unsubscribe = websocketService.on('message_reaction', options.onMessageReaction);
+      unsubscribers.push(unsubscribe);
+    }
+
+    if (options.onMessageRead) {
+      const unsubscribe = websocketService.on('message_read', options.onMessageRead);
+      unsubscribers.push(unsubscribe);
+    }
+
+    if (options.onGroupMessage) {
+      const unsubscribe = websocketService.on('group_message', options.onGroupMessage);
+      unsubscribers.push(unsubscribe);
+    }
+
+    if (options.onGroupMessageReaction) {
+      const unsubscribe = websocketService.on('group_message_reaction', options.onGroupMessageReaction);
+      unsubscribers.push(unsubscribe);
+    }
+
+    if (options.onGroupTyping) {
+      const unsubscribe = websocketService.on('group_typing', options.onGroupTyping);
+      unsubscribers.push(unsubscribe);
+    }
+
+    if (options.onMatchFound) {
+      const unsubscribe = websocketService.on('match_found', options.onMatchFound);
+      unsubscribers.push(unsubscribe);
+    }
+
     if (options.onTyping) {
       const unsubscribe = websocketService.on('typing', options.onTyping);
+      unsubscribers.push(unsubscribe);
+    }
+
+    if (options.onDraftStarted) {
+      const unsubscribe = websocketService.on('draft_started', options.onDraftStarted);
+      unsubscribers.push(unsubscribe);
+    }
+
+    if (options.onDraftUpdated) {
+      const unsubscribe = websocketService.on('draft_updated', options.onDraftUpdated);
+      unsubscribers.push(unsubscribe);
+    }
+
+    if (options.onDraftStopped) {
+      const unsubscribe = websocketService.on('draft_stopped', options.onDraftStopped);
+      unsubscribers.push(unsubscribe);
+    }
+
+    if (options.onDraftSent) {
+      const unsubscribe = websocketService.on('draft_sent', options.onDraftSent);
       unsubscribers.push(unsubscribe);
     }
 
@@ -69,7 +156,7 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
     unsubscribersRef.current = unsubscribers;
 
     return cleanup;
-  }, [options.onNotification, options.onMessage, options.onTyping, options.onUserStatusChange, options.onCreditUpdate, options.onProfileUpdate, options.onSurvivalUpdate, options.onConnectionChange, cleanup]);
+  }, [options.onNotification, options.onMessage, options.onMessageEdited, options.onMessageDeleted, options.onMessageHidden, options.onMessageReaction, options.onMessageRead, options.onGroupMessage, options.onGroupMessageReaction, options.onGroupTyping, options.onMatchFound, options.onTyping, options.onDraftStarted, options.onDraftUpdated, options.onDraftStopped, options.onDraftSent, options.onUserStatusChange, options.onCreditUpdate, options.onProfileUpdate, options.onSurvivalUpdate, options.onConnectionChange, cleanup]);
 
   return {
     isConnected: websocketService.isConnected(),

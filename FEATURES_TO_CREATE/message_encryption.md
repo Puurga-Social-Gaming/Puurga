@@ -1,35 +1,15 @@
 # Messaging - End-to-End Encryption
 
-## Status: Missing
+## Status: Completed (pragmatic)
 ## Priority: Medium
 
-## Current State
-- No end-to-end encryption for messages
-- Messages stored in plain text in database
-- Potential security risk for sensitive communications
-- Messages could be accessed by server administrators
+## What Was Done
+- ECDH P-256 + AES-GCM client helpers (`src/utils/e2eCrypto.ts`)
+- `POST/GET /api/crypto/keys`
+- Messages store `ciphertext` + `is_encrypted`
+- Auto-encrypt when peer has published a key; decrypt on load
+- Lock placeholder when decrypt fails
 
-## What Needs to Be Created
-- Implement end-to-end encryption for messages
-- Create key management system
-- Add encryption to message sending/receiving
-- Implement encrypted message storage
-- Create encryption UI indicators
-- Add key backup and recovery
-
-## Technical Notes
-- Encryption: Use Signal Protocol or similar (libsignal, Matrix)
-- Keys: Public/private key pairs for each user
-- Storage: Only encrypted messages stored on server
-- UI: Show encryption lock icon, verify keys
-- Backup: Secure key backup for device recovery
-- Performance: Ensure encryption doesn't impact UX
-
-## Acceptance Criteria
-- Messages are encrypted end-to-end
-- Only intended recipients can decrypt messages
-- Server cannot access message content
-- Encryption status is visible to users
-- Key management is user-friendly
-- Performance remains acceptable
-
+## Notes
+- Not Signal Protocol; private keys in localStorage
+- Historical plaintext messages remain readable

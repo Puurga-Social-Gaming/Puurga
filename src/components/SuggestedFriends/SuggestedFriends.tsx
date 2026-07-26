@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import { UserPlus, Clock, UserCheck } from 'lucide-react';
 import api from '../../api/api';
 import { toast } from 'react-hot-toast';
 import type { AxiosError } from 'axios';
 import { useMessages } from '../../context/MessagesContext';
+import { DEFAULT_IMAGES } from '../../constants/defaultImages';
+import ProfileLink from '../Profile/ProfileLink';
 
 interface ApiError {
   message: string;
@@ -23,7 +25,6 @@ const SuggestedFriends: React.FC = () => {
   const [suggestions, setSuggestions] = useState<SuggestedUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const navigate = useNavigate();
   const location = useLocation();
   const { onlineUsers } = useMessages();
 
@@ -133,24 +134,28 @@ const SuggestedFriends: React.FC = () => {
           <div key={user.id} className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <div className="relative">
-                <img
-                  src={user.avatar || '/default-avatar.png'}
-                  alt={user.name}
-                  className="w-10 h-10 rounded-full object-cover cursor-pointer"
-                  onClick={() => navigate(`/profile/${user.username}`)}
-                />
+                <ProfileLink username={user.username} className="rounded-full block">
+                  <img
+                    src={user.avatar || DEFAULT_IMAGES.avatar}
+                    alt={user.name}
+                    className="w-10 h-10 rounded-full object-cover"
+                    onError={(e) => {
+                      e.currentTarget.onerror = null;
+                      e.currentTarget.src = DEFAULT_IMAGES.avatar;
+                    }}
+                  />
+                </ProfileLink>
                 {onlineUsers.some(u => u.id === user.id) && (
                   <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-[var(--card)]" title="Online" />
                 )}
               </div>
               <div className="min-w-0">
-                <span
-                  className="text-[var(--fg)] font-medium cursor-pointer hover:underline block truncate"
-                  onClick={() => navigate(`/profile/${user.username}`)}
-                >
+                <ProfileLink username={user.username} className="text-[var(--fg)] font-medium block truncate hover:text-accent">
                   {user.name}
-                </span>
-                <p className="text-[var(--muted)] text-xs truncate">@{user.username}</p>
+                </ProfileLink>
+                <ProfileLink username={user.username} className="text-[var(--muted)] text-xs truncate hover:text-accent block">
+                  @{user.username}
+                </ProfileLink>
               </div>
             </div>
             {user.requestStatus === 'pending' ? (

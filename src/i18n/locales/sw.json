@@ -12,6 +12,19 @@
         "siswatiDisclaimer": "Ubora wa tafsiriwa unaweza kutofautiana",
         "continue": "Endelea"
     },
+    "search": {
+        "placeholder": "Tafuta marafiki na machapisho…",
+        "searching": "Inatafuta…",
+        "people": "Watu",
+        "posts": "Machapisho",
+        "friend": "Rafiki",
+        "withMedia": "Media",
+        "noResults": "Hakuna matokeo",
+        "tryDifferent": "Jaribu jina au neno lingine",
+        "failed": "Utafutaji umeshindikana. Jaribu tena.",
+        "clear": "Futa utafutaji",
+        "hint": "↑↓ kusogeza · Enter kufungua · Esc kufunga"
+    },
     "onboarding": {
         "selectLanguage": "Chagua lugha",
         "intro": {
@@ -82,7 +95,11 @@
         "language": "Lugha",
         "selectLanguage": "Chagua lugha unayopenda",
         "lightMode": "Hali ya mwanga",
-        "darkMode": "Hali ya giza"
+        "darkMode": "Hali ya giza",
+        "alwaysTranslateMessages": "Tafsiri ujumbe kila wakati",
+        "alwaysTranslateMessagesDesc": "Ujumbe unaoingia unaonekana kwa lugha yako. Gusa kuona asili.",
+        "liveTypingPreview": "Shiriki mwonekano wa kuandika moja kwa moja",
+        "liveTypingPreviewDesc": "Ruhusu watu kwenye mazungumzo kuona rasimu yako kwa muda halisi kabla ya kutuma."
     },
     "posts": {
         "noPostsToDisplay": "Hakuna machapisho ya kuonyesha",
@@ -176,6 +193,7 @@
         "gallery": "Galeria",
         "puurgas": "Puurgas",
         "gaming": "Michezo",
+        "verified": "Uthibitisho",
         "settings": "Mipangilio",
         "changeCover": "Badilisha jalada",
         "gamingStats": "Takwimu za mchezo",
@@ -224,6 +242,12 @@
     "post": {
         "editPost": "Hariri chapisho",
         "deletePost": "Futa chapisho",
+        "dontLike": "Sipendi hii",
+        "dontLikeDone": "Chapisho limefichwa kutoka kwa feed yako",
+        "cannotPurgeOwn": "Huwezi kuondoa chapisho lako mwenyewe",
+        "alreadyPurged": "Tayari umeondoa chapisho hili",
+        "purgeFailed": "Imeshindwa kuondoa chapisho",
+        "background": "Mandhari",
         "save": "Hifadhi",
         "cancel": "Ghairi",
         "readMore": "Soma zaidi",

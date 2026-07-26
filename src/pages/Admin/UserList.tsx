@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../lib/axios';
 import Avatar from '../../components/Avatar';
+import ProfileLink from '../../components/Profile/ProfileLink';
 import { toast } from 'react-hot-toast';
 import { Trash2, Lock, Unlock } from 'lucide-react';
 import { useUser, User } from '../../context/UserContext';
@@ -109,13 +110,13 @@ const UserList: React.FC = () => {
   };
 
   return (
-    <div className="p-4">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-white">All Users</h1>
+    <div className="w-full space-y-6">
+      <div className="flex justify-between items-center gap-3">
+        <h1 className="page-title text-2xl">All Users</h1>
         <button
           onClick={handleResetAllPasswords}
           disabled={isResetting}
-          className={`px-4 py-2 rounded-lg bg-orange-500 text-white hover:bg-orange-600 transition-colors ${isResetting ? 'opacity-50 cursor-not-allowed' : ''
+          className={`px-4 py-2 rounded-lg bg-orange-600 text-white hover:bg-orange-500 transition-colors cursor-pointer ${isResetting ? 'opacity-50 cursor-not-allowed' : ''
             }`}
         >
           {isResetting ? 'Resetting Passwords...' : 'Reset All Passwords'}
@@ -125,29 +126,35 @@ const UserList: React.FC = () => {
         {users.map(user => (
           <div
             key={user.id}
-            className={`bg-[#1a1a1a] p-4 rounded-lg ${user.isBlocked ? 'opacity-75' : ''}`}
+            className={`bg-card border border-border p-4 rounded-xl hover:bg-card-hover transition-colors ${user.isBlocked ? 'opacity-75' : ''}`}
           >
             <div className="flex items-center gap-4">
-              <Avatar src={user.avatar || undefined} alt={user.name} size="md" />
+              <ProfileLink username={user.username} className="rounded-full shrink-0">
+                <Avatar src={user.avatar || undefined} alt={user.name} size="md" />
+              </ProfileLink>
               <div className="flex-1">
                 <div className="flex justify-between items-start">
                   <div>
                     <div className="flex items-center gap-2">
-                      <h2 className="text-white font-semibold">{user.name}</h2>
+                      <ProfileLink username={user.username} className="text-foreground font-semibold hover:text-accent">
+                        {user.name}
+                      </ProfileLink>
                       {user.isBlocked && (
                         <span className="text-xs bg-red-500 text-white px-2 py-0.5 rounded">Blocked</span>
                       )}
                     </div>
-                    <p className="text-gray-400">@{user.username}</p>
-                    <p className="text-gray-400">{user.email}</p>
-                    <p className="text-gray-400">Role: {user.role}</p>
+                    <ProfileLink username={user.username} className="text-muted hover:text-accent block">
+                      @{user.username}
+                    </ProfileLink>
+                    <p className="text-muted">{user.email}</p>
+                    <p className="text-muted">Role: {user.role}</p>
                     <div className="flex gap-4 mt-2">
-                      <p className="text-gray-500 text-sm">Posts: {user.postCount || 0}</p>
-                      <p className="text-gray-500 text-sm">Total Likes: {user.totalLikes || 0}</p>
+                      <p className="text-muted text-sm">Posts: {user.postCount || 0}</p>
+                      <p className="text-muted text-sm">Total Likes: {user.totalLikes || 0}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <p className="text-gray-500 text-sm">
+                    <p className="text-muted text-sm">
                       Joined: {formatDate(user.createdAt)}
                     </p>
                     {canManageUser(user) && (
@@ -155,7 +162,7 @@ const UserList: React.FC = () => {
                         <button
                           onClick={() => handleToggleBlock(user.id, user.isBlocked || false)}
                           disabled={actionInProgress === user.id}
-                          className="p-2 text-gray-400 hover:text-white rounded-lg hover:bg-[#2d2d2d] transition-colors"
+                          className="p-2 text-muted hover:text-foreground rounded-lg hover:bg-card-hover transition-colors cursor-pointer"
                           title={user.isBlocked ? 'Unblock User' : 'Block User'}
                         >
                           {user.isBlocked ? <Unlock size={18} /> : <Lock size={18} />}
@@ -163,7 +170,7 @@ const UserList: React.FC = () => {
                         <button
                           onClick={() => handleDeleteUser(user.id)}
                           disabled={actionInProgress === user.id}
-                          className="p-2 text-red-400 hover:text-red-500 rounded-lg hover:bg-[#2d2d2d] transition-colors"
+                          className="p-2 text-red-400 hover:text-red-500 rounded-lg hover:bg-card-hover transition-colors cursor-pointer"
                           title="Delete User"
                         >
                           <Trash2 size={18} />

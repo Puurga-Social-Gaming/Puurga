@@ -2,7 +2,7 @@ import { supabaseAdmin } from '../config/supabase';
 import { getCreditSchemaSupport } from '../lib/creditSchema';
 import { wsManager } from '../websocketManager';
 
-export type CreditSource = 'post' | 'like' | 'comment' | 'game' | 'inactivity' | 'login' | 'daily_bonus' | 'recovery_bonus' | 'redeem_user' | 'redeem_friend' | 'refund';
+export type CreditSource = 'post' | 'like' | 'comment' | 'game' | 'inactivity' | 'login' | 'daily_bonus' | 'recovery_bonus' | 'redeem_user' | 'redeem_friend' | 'refund' | 'transfer' | 'package' | 'GAME_CHALLENGE' | 'certification';
 
 const CREDIT_CONFIG = {
   AWARD_CREATE_POST: 5,
@@ -45,9 +45,11 @@ export class CreditService {
       }
 
       const currentBalance = Number((profile as { purga_points?: number }).purga_points ?? 0);
-      
-      const wouldExceedCap = (currentBalance + amount) > CREDIT_CONFIG.DAILY_CREDIT_CAP;
-      const cappedAmount = wouldExceedCap 
+
+      // Competitive pots / escrow refunds must never hit the daily earn cap
+      const skipCap = source === 'GAME_CHALLENGE' || source === 'refund' || source === 'transfer';
+      const wouldExceedCap = !skipCap && (currentBalance + amount) > CREDIT_CONFIG.DAILY_CREDIT_CAP;
+      const cappedAmount = wouldExceedCap
         ? Math.max(0, CREDIT_CONFIG.DAILY_CREDIT_CAP - currentBalance)
         : amount;
 
@@ -112,7 +114,10 @@ export class CreditService {
       }
 
       const currentBalance = Number(profile.purga_points ?? 0);
-      const newBalance = Math.max(0, currentBalance - amount);
+      if (currentBalance < amount) {
+        return { success: false, newBalance: currentBalance };
+      }
+      const newBalance = currentBalance - amount;
 
       await supabaseAdmin
         .from('profiles')

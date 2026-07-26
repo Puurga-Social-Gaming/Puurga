@@ -12,12 +12,12 @@ router.get('/state', auth, async (req: AuthRequest, res) => {
     let state = await SurvivalEngine.getState(userId);
 
     if (!state) {
-      await SurvivalEngine.recalculate(userId);
-      state = await SurvivalEngine.getState(userId);
+      // New accounts / missing trigger rows — create SAFE defaults
+      state = await SurvivalEngine.ensureState(userId);
     }
 
     if (!state) {
-      return res.status(404).json({ error: 'Survival state not found' });
+      return res.status(500).json({ error: 'Failed to initialize survival state' });
     }
 
     res.json(state);

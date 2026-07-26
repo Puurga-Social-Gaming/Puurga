@@ -42,9 +42,15 @@ export const getGameStats = async (): Promise<GameStats[]> => {
 export const getCurrentlyPlaying = async (): Promise<PlayingUser[]> => {
   try {
     const response = await api.get('/games/playing');
-    return response.data || [];
+    return (response.data || []).map((u: any) => ({
+      id: u.id,
+      username: u.username,
+      avatar: u.avatar,
+      name: u.name,
+      currentGame: u.currentGame || u.gameTitle,
+      gameStartedAt: u.gameStartedAt || u.startedAt,
+    }));
   } catch (error: any) {
-    // Don't log error for this - it's expected to return empty if no one is playing
     if (error.response?.status === 404) {
       return [];
     }
@@ -56,9 +62,8 @@ export const getCurrentlyPlaying = async (): Promise<PlayingUser[]> => {
 export const getGhostedFriends = async (): Promise<GhostedFriend[]> => {
   try {
     const response = await api.get('/redeem/ghosted-friends');
-    return response.data;
-  } catch (error) {
-    console.error('Error fetching ghosted friends:', error);
+    return response.data || [];
+  } catch {
     return [];
   }
 };

@@ -6,6 +6,7 @@ import { useUser } from '../../context/UserContext';
 import { useCredits } from '../../hooks/useCredits';
 import { PURGE_THRESHOLD } from '../../constants/purgeConstants';
 import toast from 'react-hot-toast';
+import ProfileLink from '../Profile/ProfileLink';
 
 interface PurgeActivity {
   id: string;
@@ -290,17 +291,23 @@ const PurgasTab: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {redemptionNeeded.map((friend) => (
               <div key={friend.id} className="bg-card p-4 rounded-lg border border-red-500/30 flex items-center gap-4">
-                <img
-                  src={friend.avatar}
-                  alt={friend.name}
-                  className="w-12 h-12 rounded-full border-2 border-red-500/30 object-cover"
-                />
+                <ProfileLink username={friend.username} className="rounded-full shrink-0">
+                  <img
+                    src={friend.avatar}
+                    alt={friend.name}
+                    className="w-12 h-12 rounded-full border-2 border-red-500/30 object-cover"
+                  />
+                </ProfileLink>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <p className="text-foreground font-bold truncate">{friend.name}</p>
+                    <ProfileLink username={friend.username} className="text-foreground font-bold truncate hover:text-accent">
+                      {friend.name}
+                    </ProfileLink>
                     <span className="text-[10px] bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded-full">Ghosted</span>
                   </div>
-                  <p className="text-xs text-muted truncate">@{friend.username}</p>
+                  <ProfileLink username={friend.username} className="text-xs text-muted truncate hover:text-accent block">
+                    @{friend.username}
+                  </ProfileLink>
                   <p className="text-[10px] text-muted mt-1">Ghosted {friend.daysPurged} days ago</p>
                 </div>
                 <div className="text-right">
@@ -365,7 +372,7 @@ const PurgasTab: React.FC = () => {
               >
                 <div className="flex items-start gap-3">
                   {/* Profile Avatar */}
-                  <div className="flex-shrink-0">
+                  <ProfileLink username={profile?.username} className="flex-shrink-0 rounded-full">
                     {profile?.avatar ? (
                       <img
                         src={profile.avatar}
@@ -377,17 +384,17 @@ const PurgasTab: React.FC = () => {
                         <User className="w-6 h-6 text-muted" />
                       </div>
                     )}
-                  </div>
+                  </ProfileLink>
 
                   {/* Content */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <span className="font-semibold text-foreground">
+                      <ProfileLink username={profile?.username} className="font-semibold text-foreground hover:text-accent">
                         {profile?.name || 'Unknown User'}
-                      </span>
-                      <span className="text-muted text-sm">
+                      </ProfileLink>
+                      <ProfileLink username={profile?.username} className="text-muted text-sm hover:text-accent">
                         @{profile?.username || 'unknown'}
-                      </span>
+                      </ProfileLink>
                       <span className="text-muted text-xs">•</span>
                       <div className="flex items-center gap-1 text-muted text-xs">
                         <Calendar className="w-3 h-3" />
@@ -399,11 +406,18 @@ const PurgasTab: React.FC = () => {
                     <p className="text-sm text-muted mb-2">
                       {activeTab === 'given' ? (
                         <>
-                          You purged <span className="text-orange-500">@{profile?.username}</span>'s post
+                          You purged{' '}
+                          <ProfileLink username={profile?.username} className="text-orange-500 inline">
+                            @{profile?.username}
+                          </ProfileLink>
+                          's post
                         </>
                       ) : (
                         <>
-                          <span className="text-red-500">@{profile?.username}</span> purged your post
+                          <ProfileLink username={profile?.username} className="text-red-500 inline">
+                            @{profile?.username}
+                          </ProfileLink>{' '}
+                          purged your post
                         </>
                       )}
                     </p>

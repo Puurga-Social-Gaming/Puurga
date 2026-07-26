@@ -635,21 +635,21 @@ const PathOfTheWatchman = () => {
     );
 
     return (
-        <div className="flex flex-col items-center justify-center min-h-screen p-4 font-sans select-none relative" style={{ backgroundColor: COLORS.bg, color: COLORS.text }}>
+        <div className="flex flex-col items-center justify-center w-full font-sans select-none relative bg-background text-foreground">
 
             {/* Back Button and Balance (Integrated from Platform) */}
             <div className="w-full max-w-[800px] mb-6 flex justify-between items-center z-10">
                 <button
                     onClick={() => navigate('/puurga-games')}
-                    className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#1a1a1a] hover:bg-[#2a2a2a] border border-gray-800 transition-all hover:scale-105 text-white"
+                    className="flex items-center gap-2 px-4 py-2 rounded-xl bg-card hover:bg-card-hover border border-border transition-all hover:scale-105 text-foreground"
                 >
                     <ArrowLeft size={16} />
                     <span className="font-bold text-xs uppercase tracking-widest">{t('games.watchman.back')}</span>
                 </button>
 
-                <div className="flex items-center gap-2 px-4 py-2 bg-[#1a1a1a] border border-gray-800 rounded-full">
+                <div className="flex items-center gap-2 px-4 py-2 bg-card border border-border rounded-full">
                     <Coins className="text-yellow-500 w-4 h-4" />
-                    <span className="font-bold text-sm text-white">{userBalance.toLocaleString()} CR</span>
+                    <span className="font-bold text-sm text-foreground">{userBalance.toLocaleString()} CR</span>
                 </div>
             </div>
 

@@ -3,6 +3,7 @@ import { supabase } from '../config/supabase';
 import { supabaseAuth as auth, AuthRequest } from '../middleware/supabaseAuth';
 import { NotificationService } from '../services/notificationService';
 import { normalizeImageUrl } from '../utils/url';
+import { getBidirectionalBlockedIds } from '../utils/friendRelations';
 
 const router = express.Router();
 
@@ -37,9 +38,20 @@ router.get('/', auth, async (req: AuthRequest, res) => {
       return res.json({ notifications: [], total: 0, page, limit });
     }
 
+    // Hide notifications from blocked users (either direction)
+    const blockedIds = await getBidirectionalBlockedIds(req.user.id);
+    const blockedSet = new Set(blockedIds);
+    const visibleNotifications = blockedSet.size
+      ? safeNotifications.filter((n: any) => !n.sender_id || !blockedSet.has(n.sender_id))
+      : safeNotifications;
+
+    if (visibleNotifications.length === 0) {
+      return res.json({ notifications: [], total: 0, page, limit });
+    }
+
     // Collect unique sender_ids
     const senderIds = Array.from(new Set(
-      safeNotifications.map(n => n.sender_id).filter(Boolean)
+      visibleNotifications.map((n: any) => n.sender_id).filter(Boolean)
     ));
 
     // Fetch sender profiles
@@ -65,7 +77,7 @@ router.get('/', auth, async (req: AuthRequest, res) => {
     }
 
     // Map notifications with fromUser object
-    const mapped = safeNotifications.map(n => {
+    const mapped = visibleNotifications.map((n: any) => {
       const sender = profileMap.get(n.sender_id as string);
       const read = (n.read ?? n.is_read ?? false) as boolean;
       return {
@@ -95,7 +107,7 @@ router.get('/', auth, async (req: AuthRequest, res) => {
       };
     });
 
-    res.json({ notifications: mapped, total: count || 0, page, limit });
+    res.json({ notifications: mapped, total: mapped.length, page, limit });
   } catch (error) {
     console.error('Error fetching notifications:', error);
     res.status(500).json({ error: 'Failed to fetch notifications' });
@@ -248,10 +260,10 @@ router.post('/push/unsubscribe', auth, async (req: AuthRequest, res) => {
 function getTypesForCategory(category: string): string[] {
   const map: Record<string, string[]> = {
     all: [],
-    social: ['like', 'dislike', 'comment', 'reply', 'mention', 'follow', 'follow_accepted', 'share', 'profile_visit'],
+    social: ['like', 'dislike', 'comment', 'reply', 'mention', 'follow', 'follow_accepted', 'share', 'profile_visit', 'friend_request', 'friend_request_accepted', 'friend_ghosted', 'redemption', 'redemption_contribution', 'purge'],
     messaging: ['message', 'group_message', 'message_reaction', 'missed_call'],
-    gaming: ['resume_game', 'reward_reminder', 'tournament_reminder', 'challenge', 'redemption', 'redemption_contribution'],
-    system: ['welcome', 'verification', 'security_alert', 'maintenance', 'friend_ghosted', 'purge'],
+    gaming: ['resume_game', 'reward_reminder', 'tournament_reminder', 'challenge'],
+    system: ['welcome', 'verification', 'security_alert', 'maintenance'],
   };
   return map[category] || [];
 }

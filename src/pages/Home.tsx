@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { useTranslation } from 'react-i18next';
 import { useUser } from '../context/UserContext';
 import { useNavigate } from 'react-router-dom';
 import { Post, ReactionCount } from '../types';
@@ -8,16 +7,20 @@ import PostList from '../components/Post/PostList';
 import StatusBar from '../components/StatusBar/StatusBar';
 import NewGamePromoBanner from '../components/Games/NewGamePromoBanner';
 import api from '../api/api';
-import { toast } from 'react-hot-toast';
 import { supabase } from '../lib/supabaseClient';
 import FloatingCreateButton from '../components/Post/FloatingCreateButton';
 import PullToRefresh from '../components/PullToRefresh/PullToRefresh';
+import Spinner from '../components/Spinner';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 import RedeemUserButton from '../components/GhostMode/RedeemUserButton';
+import { DEFAULT_IMAGES } from '../constants/defaultImages';
+import ProfileLink from '../components/Profile/ProfileLink';
 
+
+import { parseMediaUrls } from '../utils/mediaUrls';
 
 // Safe helpers to coerce unknown values without using 'any'
 const asString = (v: unknown, fallback = ''): string =>
@@ -49,11 +52,20 @@ function mapBackendPost(post: unknown): Post {
         name: (userObj.full_name as string) || (userObj.name as string) || '',
         username: (userObj.username as string) || '',
         avatar: (userObj.avatar_url as string) || (userObj.avatar as string) || '',
+        certificationSlug:
+          ((userObj as any).certificationSlug as string) ||
+          ((userObj as any).certification_slug as string) ||
+          null,
+        logoCertified: Boolean(
+          (userObj as any).logoCertified ?? (userObj as any).logo_certified
+        ),
       } : {
         id: (p.user_id as string) || (p.userId as string) || '',
         name: '',
         username: '',
         avatar: '',
+        certificationSlug: null,
+        logoCertified: false,
       },
       likes: (p.likes as number) || 0,
       liked: (p.liked as boolean) || false,
@@ -82,14 +94,15 @@ function mapBackendPost(post: unknown): Post {
       visibility: (p.visibility as 'friends' | 'public' | 'private') || 'public',
       background_index: (p.background_index as number) || 0,
       // Ensure images array is clean and valid
-      images: typeof p.media_url === 'string'
-        ? (p.media_url as string)
-          .split(',')
-          .map((s) => (typeof s === 'string' ? s.trim() : ''))
-          .filter((s) => !!s)
-        : Array.isArray(p.images)
-          ? (p.images as string[]).map((s) => (typeof s === 'string' ? s.trim() : '')).filter((s) => !!s)
-          : [],
+      images: Array.isArray(p.images) && (p.images as unknown[]).length > 0
+        ? (p.images as string[]).map((s) => (typeof s === 'string' ? s.trim() : '')).filter((s) => !!s)
+        : parseMediaUrls(
+            typeof p.media_url === 'string'
+              ? (p.media_url as string)
+              : Array.isArray(p.media_url)
+                ? (p.media_url as string[])
+                : null
+          ),
       location:
         typeof p.location === 'object' && p.location !== null
           ? {
@@ -136,12 +149,10 @@ function mapBackendPost(post: unknown): Post {
 }
 
 export default function Home() {
-  const { t } = useTranslation();
   const { user, updateUser } = useUser();
   const navigate = useNavigate();
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [ghostedFriends, setGhostedFriends] = useState<any[]>([]);
@@ -152,7 +163,10 @@ export default function Home() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isStatusViewerOpen, setIsStatusViewerOpen] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [loadMoreError, setLoadMoreError] = useState(false);
   const sentinelRef = useRef<HTMLDivElement>(null);
+  const feedFetchGen = useRef(0);
+  const feedRetryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Games data
   const games = [
@@ -228,7 +242,7 @@ export default function Home() {
   // Fetch user points
   useEffect(() => {
     const fetchUserPoints = async () => {
-      if (!user) return;
+      if (!user?.id) return;
       try {
         const response = await api.get('/users/points');
         if (response.data.supported && response.data.points !== null) {
@@ -240,7 +254,7 @@ export default function Home() {
     };
 
     fetchUserPoints();
-  }, [user]);
+  }, [user?.id]);
 
   // Rotate game tips every 30 seconds
   useEffect(() => {
@@ -262,8 +276,7 @@ export default function Home() {
     try {
       const response = await api.get('/redeem/ghosted-friends');
       setGhostedFriends(response.data || []);
-    } catch (error) {
-      console.error('Error fetching ghosted friends:', error);
+    } catch {
       setGhostedFriends([]);
     } finally {
       setGhostedFriendsLoading(false);
@@ -273,7 +286,7 @@ export default function Home() {
   // Fetch ghosted friends
   useEffect(() => {
     fetchGhostedFriends();
-  }, [user]);
+  }, [user?.id]);
 
   // Refresh user stats from API
   const refreshUserStats = async () => {
@@ -315,9 +328,72 @@ export default function Home() {
     }
   });
 
+  const fetchPosts = async (pageNum: number, attempt = 0) => {
+    const gen = ++feedFetchGen.current;
+    const limit = 10;
+    const maxAttempts = 6;
+
+    if (pageNum === 1) {
+      setLoading(true);
+    } else {
+      setLoadMoreError(false);
+    }
+
+    try {
+      const response = await api.get(`/posts/feed?page=${pageNum}&limit=${limit}`);
+      if (gen !== feedFetchGen.current) return;
+
+      const data = Array.isArray(response.data) ? response.data : (response.data?.data ?? []);
+      const mappedPosts = (Array.isArray(data) ? data : []).map(mapBackendPost);
+
+      setHasMore(mappedPosts.length >= limit);
+
+      setPosts((prev) => {
+        if (pageNum === 1) return mappedPosts;
+        const existingIds = new Set(prev.map((p) => p.id));
+        const uniqueNewPosts = mappedPosts.filter((p) => !existingIds.has(p.id));
+        return [...prev, ...uniqueNewPosts];
+      });
+
+      setPage(pageNum);
+      setLoadMoreError(false);
+      setLoading(false);
+      setIsLoadingMore(false);
+    } catch {
+      if (gen !== feedFetchGen.current) return;
+
+      if (pageNum === 1) {
+        // Never show "Failed to fetch posts" — keep spinner and retry quietly
+        setLoading(true);
+        if (attempt < maxAttempts - 1) {
+          const delay = Math.min(800 * Math.pow(2, attempt), 8000);
+          feedRetryTimer.current = setTimeout(() => {
+            void fetchPosts(1, attempt + 1);
+          }, delay);
+          return;
+        }
+        // Keep trying in background without surfacing an error banner
+        feedRetryTimer.current = setTimeout(() => {
+          void fetchPosts(1, 0);
+        }, 10000);
+        return;
+      }
+
+      setLoadMoreError(true);
+      setIsLoadingMore(false);
+    }
+  };
+
   // Initial fetch
   useEffect(() => {
-    fetchPosts(1);
+    void fetchPosts(1);
+    return () => {
+      feedFetchGen.current += 1;
+      if (feedRetryTimer.current) {
+        clearTimeout(feedRetryTimer.current);
+        feedRetryTimer.current = null;
+      }
+    };
   }, []);
 
   // Subscription for new posts
@@ -331,14 +407,8 @@ export default function Home() {
           schema: 'public',
           table: 'posts'
         },
-        async (payload: unknown) => {
-          console.log('New post received:', payload);
-          // When a new post comes in, we want to show it immediately.
-          // Since the payload doesn't contain the joined user info, 
-          // we fetch the latest feed to ensure consistency.
-          // Optimization: fetch just the new post if we implement a get-single-post endpoint,
-          // but for now, refreshing page 1 is safest and fetches the new post at the top.
-          fetchPosts(1);
+        async () => {
+          void fetchPosts(1);
         }
       )
       .subscribe();
@@ -348,72 +418,24 @@ export default function Home() {
     };
   }, []);
 
-  const fetchPosts = async (pageNum: number) => {
-    console.log('[Infinite Scroll] fetchPosts called:', { pageNum, hasMore, isLoadingMore });
-    try {
-      setLoading(true);
-      const limit = 10;
-
-      const response = await api.get(`/posts/feed?page=${pageNum}&limit=${limit}`);
-      const data = Array.isArray(response.data) ? response.data : (response.data?.data ?? []);
-
-      const mappedPosts = (Array.isArray(data) ? data : []).map(mapBackendPost);
-      console.log('[Infinite Scroll] Fetched posts:', mappedPosts.length, 'Page:', pageNum, 'Expected:', limit);
-
-      if (mappedPosts.length < limit) {
-        setHasMore(false);
-        console.log('[Infinite Scroll] No more posts available, set hasMore to false');
-      } else {
-        setHasMore(true);
-        console.log('[Infinite Scroll] More posts available, set hasMore to true');
-      }
-
-      setPosts(prev => {
-        // If refreshing page 1, replace. Otherwise append.
-        if (pageNum === 1) {
-          console.log('[Infinite Scroll] Replacing posts with page 1 data');
-          return mappedPosts;
-        }
-
-        // Prevent duplicates when appending
-        const existingIds = new Set(prev.map(p => p.id));
-        const uniqueNewPosts = mappedPosts.filter(p => !existingIds.has(p.id));
-        console.log('[Infinite Scroll] Appending posts:', uniqueNewPosts.length, 'Total posts after append:', prev.length + uniqueNewPosts.length);
-        return [...prev, ...uniqueNewPosts];
-      });
-
-      setPage(pageNum);
-      setError(null);
-    } catch (err) {
-      console.error('[Infinite Scroll] Error fetching posts:', err);
-      if (pageNum === 1) {
-        setError(t('posts.failedToFetch'));
-      } else {
-        toast.error(t('posts.failedToLoadMore'));
-      }
-    } finally {
-      setLoading(false);
-      setIsLoadingMore(false);
-      console.log('[Infinite Scroll] fetchPosts completed');
+  const handleLoadMore = () => {
+    if (hasMore && !isLoadingMore && !loadMoreError) {
+      setIsLoadingMore(true);
+      fetchPosts(page + 1);
     }
   };
 
-  const handleLoadMore = () => {
-    console.log('[Infinite Scroll] handleLoadMore called:', { hasMore, isLoadingMore, page });
-    if (hasMore && !isLoadingMore) {
-      console.log('[Infinite Scroll] Starting load more for page:', page + 1);
-      setIsLoadingMore(true);
-      fetchPosts(page + 1);
-    } else {
-      console.log('[Infinite Scroll] Cannot load more:', { hasMore, isLoadingMore });
-    }
+  const handleRetryLoadMore = () => {
+    setLoadMoreError(false);
+    setIsLoadingMore(true);
+    fetchPosts(page + 1);
   };
 
   // Infinite scroll with Intersection Observer
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting && hasMore && !isLoadingMore && !loading) {
+        if (entries[0].isIntersecting && hasMore && !isLoadingMore && !loading && !loadMoreError) {
           handleLoadMore();
         }
       },
@@ -434,7 +456,7 @@ export default function Home() {
         observer.unobserve(sentinel);
       }
     };
-  }, [hasMore, isLoadingMore, loading, page]);
+  }, [hasMore, isLoadingMore, loading, page, loadMoreError]);
 
   const handlePostCreated = async (newPost: unknown) => {
     const mapped = mapBackendPost(newPost);
@@ -454,9 +476,13 @@ export default function Home() {
     }
   };
 
-  const handlePostUpdate = async (updatedPost: Post) => {
-    setPosts(prevPosts =>
-      prevPosts.map(post =>
+  const handlePostUpdate = async (updatedPost: Post & { deleted?: boolean; hidden?: boolean }) => {
+    if (updatedPost.deleted || updatedPost.hidden) {
+      setPosts((prevPosts) => prevPosts.filter((post) => post.id !== updatedPost.id));
+      return;
+    }
+    setPosts((prevPosts) =>
+      prevPosts.map((post) =>
         post.id === updatedPost.id ? { ...post, ...updatedPost } : post
       )
     );
@@ -467,7 +493,7 @@ export default function Home() {
     <PullToRefresh onRefresh={() => fetchPosts(1)}>
     <div className="relative w-full">
       {/* Status Bar — scrolls with content, hides under the fixed header */}
-      <div className="w-full px-3 sm:px-6 pt-4 pb-2">
+      <div className="w-full pb-2">
         <NewGamePromoBanner className="mb-3" />
         <StatusBar onViewerStateChange={setIsStatusViewerOpen} />
 
@@ -610,19 +636,15 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Main content */}
-      <div className="w-full px-3 sm:px-6 relative">
-        {/* Feed Container - Centered with controlled width */}
-        <div className="mx-auto w-full max-w-[600px] sm:max-w-[650px] md:max-w-[700px] lg:max-w-[650px] xl:max-w-[600px]">
+      {/* Main content — fills column (20px side padding from Layout) */}
+      <div className="w-full relative">
+        <div className="w-full">
           {/* Mobile Layout */}
           <div className="lg:hidden">
             {loading && posts.length === 0 ? (
-              <div className="py-20 flex justify-center">
-                <div className="w-8 h-8 border-4 border-accent border-t-transparent rounded-full animate-spin" />
-              </div>
-            ) : error ? (
-              <div className="bg-red-500/10 border border-red-500/50 text-red-500 p-4 rounded-xl text-center">
-                {error}
+              <div className="py-20 flex flex-col items-center justify-center gap-3">
+                <Spinner size="md" className="text-accent" />
+                <p className="text-xs text-muted">Loading posts…</p>
               </div>
             ) : (
               <>
@@ -631,8 +653,29 @@ export default function Home() {
                   onPostUpdate={handlePostUpdate}
                 />
                 {isLoadingMore && hasMore && (
-                  <div className="py-6 flex justify-center pb-20">
-                    <div className="w-6 h-6 border-3 border-accent border-t-transparent rounded-full animate-spin" />
+                  <div className="py-8 flex flex-col items-center justify-center gap-2 pb-24">
+                    <Spinner size="sm" className="text-accent" />
+                    <p className="text-[11px] text-muted font-medium tracking-wide">
+                      Loading more posts…
+                    </p>
+                  </div>
+                )}
+                {!isLoadingMore && hasMore && !loadMoreError && (
+                  <div className="py-3 flex justify-center pb-16">
+                    <p className="text-[10px] text-muted/70 uppercase tracking-wider">
+                      Scroll for more
+                    </p>
+                  </div>
+                )}
+                {loadMoreError && (
+                  <div className="py-4 flex justify-center pb-16">
+                    <button
+                      type="button"
+                      onClick={handleRetryLoadMore}
+                      className="px-4 py-2 rounded-full bg-accent text-black text-sm font-medium hover:bg-accent/90"
+                    >
+                      Retry loading posts
+                    </button>
                   </div>
                 )}
                 <div ref={sentinelRef} className="h-8" />
@@ -660,7 +703,7 @@ export default function Home() {
                      animate={{ x: 0 }}
                      exit={{ x: '100%' }}
                      transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-                     className="fixed right-0 top-0 bottom-0 w-48 z-[55] lg:hidden overflow-hidden bg-background"
+                     className="fixed right-0 top-0 bottom-0 w-40 z-[55] lg:hidden overflow-hidden bg-background"
                    >
                      <div
                        className="h-full overflow-y-auto scrollbar-hide pt-14 pb-4"
@@ -763,18 +806,26 @@ export default function Home() {
                             <div className="space-y-1">
                               {ghostedFriends.map((friend) => (
                                 <div key={friend.id} className="flex flex-col items-center p-2 hover:bg-gray-100/10 dark:hover:bg-white/5 rounded-lg transition-colors border border-transparent hover:border-red-500/20">
-                                  <div className="relative">
+                                  <ProfileLink username={friend.username} className="relative rounded-full">
                                     <img
-                                      src={friend.avatarUrl || friend.avatar || '/default-avatar.png'}
+                                      src={friend.avatarUrl || friend.avatar || DEFAULT_IMAGES.avatar}
                                       alt={friend.name || friend.fullName}
                                       className="w-10 h-10 rounded-full object-cover ring-2 ring-red-500/30"
+                                      onError={(e) => {
+                                        e.currentTarget.onerror = null;
+                                        e.currentTarget.src = DEFAULT_IMAGES.avatar;
+                                      }}
                                     />
                                     <div className="absolute -top-1 -right-1 bg-gradient-to-r from-red-500 to-orange-500 text-white text-[8px] rounded-full w-4 h-4 flex items-center justify-center font-bold shadow-lg border border-background">
                                       {friend.purgeCount || 0}
                                     </div>
-                                  </div>
-                                  <p className="text-[10px] font-bold text-foreground mt-1 text-center truncate w-full">{friend.name || friend.fullName}</p>
-                                  <p className="text-[9px] text-muted text-center truncate w-full">@{friend.username}</p>
+                                  </ProfileLink>
+                                  <ProfileLink username={friend.username} className="text-[10px] font-bold text-foreground mt-1 text-center truncate w-full hover:text-accent">
+                                    {friend.name || friend.fullName}
+                                  </ProfileLink>
+                                  <ProfileLink username={friend.username} className="text-[9px] text-muted text-center truncate w-full hover:text-accent">
+                                    @{friend.username}
+                                  </ProfileLink>
                                   <div className="mt-2 w-full">
                                     <RedeemUserButton
                                       userId={friend.id}
@@ -819,12 +870,9 @@ export default function Home() {
         {/* Desktop Layout */}
         <div className="hidden lg:block">
           {loading && posts.length === 0 ? (
-            <div className="py-20 flex justify-center">
-              <div className="w-8 h-8 border-4 border-accent border-t-transparent rounded-full animate-spin" />
-            </div>
-          ) : error ? (
-            <div className="bg-red-500/10 border border-red-500/50 text-red-500 p-4 rounded-xl text-center">
-              {error}
+            <div className="py-20 flex flex-col items-center justify-center gap-3">
+              <Spinner size="md" className="text-accent" />
+              <p className="text-xs text-muted">Loading posts…</p>
             </div>
           ) : (
             <>
@@ -833,8 +881,29 @@ export default function Home() {
                 onPostUpdate={handlePostUpdate}
               />
               {isLoadingMore && hasMore && (
-                <div className="py-6 flex justify-center pb-20">
-                  <div className="w-6 h-6 border-3 border-accent border-t-transparent rounded-full animate-spin" />
+                <div className="py-8 flex flex-col items-center justify-center gap-2 pb-24">
+                  <Spinner size="sm" className="text-accent" />
+                  <p className="text-[11px] text-muted font-medium tracking-wide">
+                    Loading more posts…
+                  </p>
+                </div>
+              )}
+              {!isLoadingMore && hasMore && !loadMoreError && (
+                <div className="py-3 flex justify-center pb-16">
+                  <p className="text-[10px] text-muted/70 uppercase tracking-wider">
+                    Scroll for more
+                  </p>
+                </div>
+              )}
+              {loadMoreError && (
+                <div className="py-4 flex justify-center pb-16">
+                  <button
+                    type="button"
+                    onClick={handleRetryLoadMore}
+                    className="px-4 py-2 rounded-full bg-accent text-black text-sm font-medium hover:bg-accent/90"
+                  >
+                    Retry loading posts
+                  </button>
                 </div>
               )}
               <div ref={sentinelRef} className="h-8" />

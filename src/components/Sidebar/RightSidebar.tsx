@@ -2,16 +2,26 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../../api/api';
-import { User, Users, Bell, Gamepad2, BarChart3, HelpCircle, Settings, ShieldCheck, LogOut, ChevronDown, Shield, AlertTriangle, Skull, Ghost, Flame } from 'lucide-react';
+import {
+  User,
+  Users,
+  Bell,
+  Gamepad2,
+  BarChart3,
+  HelpCircle,
+  Settings,
+  ShieldCheck,
+  ChevronDown,
+  PenSquare,
+  UsersRound,
+} from 'lucide-react';
 import { useUser } from '../../context/UserContext';
 import { toast } from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 import QuickActions from './QuickActions';
 import GamingDashboard from './GamingDashboard';
 import PurgeDashboard from './PurgeDashboard';
-import { useSurvival } from '../../context/SurvivalContext';
-import { SurvivalNotifications, ThreatMeter } from '../Survival';
-import { SURVIVAL_STATE_COLORS, SURVIVAL_STATE_LABELS, SurvivalState } from '../../types/survival';
+import { DEFAULT_IMAGES } from '../../constants/defaultImages';
 
 interface UserStats {
   posts: number;
@@ -28,25 +38,25 @@ const RightSidebar: React.FC = () => {
   const [stats, setStats] = useState<UserStats>({
     posts: 0,
     following: 0,
-    followers: 0
+    followers: 0,
   });
   const [loading, setLoading] = useState(true);
   const [showMore, setShowMore] = useState(false);
 
   useEffect(() => {
     const fetchUserStats = async () => {
-      if (!user) return;
+      if (!user?.id) return;
       try {
         const response = await api.get(`/users/${user.id}/stats`);
         setStats(response.data);
-      } catch (error) {
-        console.error('Error fetching user stats:', error);
+      } catch {
+        // Soft-fail — keep zeros, never spam console / break Home
       } finally {
         setLoading(false);
       }
     };
     fetchUserStats();
-  }, [user]);
+  }, [user?.id]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -57,17 +67,6 @@ const RightSidebar: React.FC = () => {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
-
-  const { survivalState, loading: survivalLoading } = useSurvival();
-  const state = (survivalState?.current_survival_state || 'SAFE') as SurvivalState;
-
-  const STATE_ICONS: Record<string, React.ReactNode> = {
-    SAFE: <Shield size={14} />,
-    WARNING: <AlertTriangle size={14} />,
-    HUNTED: <Flame size={14} />,
-    COLLAPSING: <Skull size={14} />,
-    GHOSTED: <Ghost size={14} />,
-  };
 
   const isSuperAdmin = user?.role === 'super_admin' || user?.role === 'superadmin';
 
@@ -85,208 +84,197 @@ const RightSidebar: React.FC = () => {
   };
 
   const moreOptions = [
-    { icon: <Bell size={16} />, label: 'Notifications', to: '/notifications' },
-    { icon: <Gamepad2 size={16} />, label: 'Games', to: '/puurga-games' },
-    { icon: <BarChart3 size={16} />, label: 'Dashboard', to: '/puurga-dashboard' },
-    { icon: <HelpCircle size={16} />, label: 'Help', to: '/help' },
-    { icon: <Settings size={16} />, label: 'Settings', to: '/settings' },
+    { icon: <Bell size={16} />, label: t('rightSidebar.notifications', 'Notifications'), to: '/notifications' },
+    { icon: <Gamepad2 size={16} />, label: t('navigation.games', 'Games'), to: '/puurga-games' },
+    { icon: <BarChart3 size={16} />, label: t('navigation.dashboard', 'Dashboard'), to: '/puurga-dashboard' },
+    { icon: <HelpCircle size={16} />, label: t('navigation.help', 'Help'), to: '/help' },
+    { icon: <Settings size={16} />, label: t('rightSidebar.settings', 'Settings'), to: '/settings' },
   ];
 
   if (isSuperAdmin) {
-    moreOptions.push({ icon: <ShieldCheck size={16} />, label: 'Super Admin', to: '/super-admin' });
+    moreOptions.push({
+      icon: <ShieldCheck size={16} />,
+      label: t('navigation.superAdmin', 'Super Admin'),
+      to: '/super-admin',
+    });
   }
 
-
   if (!user) return null;
+
+  const quickLinks = [
+    {
+      to: '/home',
+      icon: PenSquare,
+      label: t('rightSidebar.createPost', 'Create Post'),
+    },
+    {
+      to: '/groups',
+      icon: UsersRound,
+      label: t('rightSidebar.exploreGroups', 'Explore Groups'),
+    },
+    {
+      to: '/notifications',
+      icon: Bell,
+      label: t('rightSidebar.notifications', 'Notifications'),
+    },
+    {
+      to: '/settings',
+      icon: Settings,
+      label: t('rightSidebar.settings', 'Settings'),
+    },
+  ];
 
   return (
     <motion.div
       initial={{ opacity: 0, x: 10 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ duration: 0.5 }}
-      className="flex flex-col overflow-hidden"
+      className="right-sidebar flex flex-col overflow-x-hidden min-w-0 w-full"
     >
-      {/* Quick Actions Section */}
-      <div className="mb-3">
-        <div className="flex items-center justify-between mb-2 px-1">
-          <h2 className="text-sm font-bold text-foreground">{t('rightSidebar.quickActions')}</h2>
-          <QuickActions />
+      <div className="mb-3 min-w-0">
+        <div className="flex items-center justify-between gap-2 mb-2 min-w-0">
+          <h2 className="text-sm font-bold text-foreground truncate min-w-0">
+            {t('rightSidebar.quickActions', 'Quick Actions')}
+          </h2>
+          <div className="shrink-0">
+            <QuickActions />
+          </div>
         </div>
-        <div className="grid grid-cols-2 gap-1.5">
-          <Link to="/home" className="px-3 py-2.5 rounded-lg bg-card hover:bg-highlight-light text-foreground shadow-theme-sm hover:shadow-theme-md transition-all text-xs font-medium text-center truncate border border-border hover:border-highlight">
-            {t('rightSidebar.createPost')}
-          </Link>
-          <Link to="/groups" className="px-3 py-2.5 rounded-lg bg-card hover:bg-highlight-light text-foreground transition-all text-xs font-medium text-center truncate border border-border hover:border-highlight shadow-theme-sm hover:shadow-theme-md">
-            {t('rightSidebar.exploreGroups')}
-          </Link>
-          <Link to="/notifications" className="px-3 py-2.5 rounded-lg bg-card hover:bg-highlight-light text-foreground transition-all text-xs font-medium text-center truncate border border-border hover:border-highlight shadow-theme-sm hover:shadow-theme-md">
-            {t('rightSidebar.notifications')}
-          </Link>
-          <Link to="/settings" className="px-3 py-2.5 rounded-lg bg-card hover:bg-highlight-light text-foreground transition-all text-xs font-medium text-center truncate border border-border hover:border-highlight shadow-theme-sm hover:shadow-theme-md">
-            {t('rightSidebar.settings')}
-          </Link>
+        <div className="rs-quick-grid grid grid-cols-2 gap-1.5 min-w-0">
+          {quickLinks.map(({ to, icon: Icon, label }) => (
+            <Link
+              key={to}
+              to={to}
+              title={label}
+              className="rs-quick-btn min-w-0 flex flex-col items-center justify-center gap-1 px-1.5 py-2.5 rounded-xl bg-card hover:bg-highlight-light text-foreground transition-colors border border-border hover:border-highlight"
+            >
+              <Icon size={15} className="text-muted shrink-0" />
+              <span className="text-[10px] font-medium text-center leading-tight line-clamp-2 w-full break-words">
+                {label}
+              </span>
+            </Link>
+          ))}
         </div>
       </div>
 
-      {/* User Profile Summary */}
-      <div className="mb-3">
-        <h2 className="text-sm font-bold text-foreground mb-3 px-1">{t('rightSidebar.myProfile')}</h2>
+      <div className="mb-3 min-w-0">
+        <h2 className="text-sm font-bold text-foreground mb-2 truncate">
+          {t('rightSidebar.myProfile', 'My Profile')}
+        </h2>
         <Link
           to="/profile"
-          className="flex items-center space-x-3 hover:bg-highlight-light p-2 rounded-lg transition-colors group shadow-theme-sm hover:shadow-theme-md"
+          className="flex items-center gap-2.5 hover:bg-highlight-light p-2 rounded-xl transition-colors group border border-transparent hover:border-border min-w-0"
         >
           <img
-            src={user.avatar || '/default-avatar.png'}
+            src={user.avatar || DEFAULT_IMAGES.avatar}
             alt={user.name}
-            className="w-10 h-10 rounded-full object-cover flex-shrink-0 border-2 border-highlight"
-            onError={(e) => { e.currentTarget.src = '/default-avatar.png'; }}
+            className="w-9 h-9 rounded-full object-cover shrink-0 border border-border"
+            onError={(e) => {
+              if (e.currentTarget.src !== DEFAULT_IMAGES.avatar) {
+                e.currentTarget.src = DEFAULT_IMAGES.avatar;
+              }
+            }}
           />
-          <div className="min-w-0 flex-1">
-            <p className="font-semibold text-foreground truncate group-hover:text-accent transition-colors">{user.name}</p>
+          <div className="min-w-0 flex-1 overflow-hidden">
+            <p className="font-semibold text-sm text-foreground truncate group-hover:text-accent transition-colors">
+              {user.name}
+            </p>
             <p className="text-muted text-xs truncate">@{user.username}</p>
           </div>
         </Link>
 
-        {/* Stats Section */}
         {loading ? (
-          <div className="flex justify-between text-sm text-muted animate-pulse mt-4">
-            <div className="h-4 w-16 bg-card-hover rounded"></div>
-            <div className="h-4 w-16 bg-card-hover rounded"></div>
-            <div className="h-4 w-16 bg-card-hover rounded"></div>
+          <div className="flex justify-between text-sm text-muted animate-pulse mt-3 gap-1">
+            <div className="h-10 flex-1 bg-card-hover rounded-xl" />
+            <div className="h-10 flex-1 bg-card-hover rounded-xl" />
+            <div className="h-10 flex-1 bg-card-hover rounded-xl" />
           </div>
         ) : (
-          <div className="grid grid-cols-3 gap-2 text-xs mt-3">
-            <div className="text-center p-2 bg-card rounded-lg shadow-theme-sm border border-border hover:shadow-theme-md transition-shadow">
-              <p className="text-muted text-[10px] uppercase tracking-wide">{t('rightSidebar.stats.posts')}</p>
-              <p className="text-foreground font-bold">{stats.posts}</p>
-            </div>
-            <div className="text-center p-2 bg-card rounded-lg shadow-theme-sm border border-border hover:shadow-theme-md transition-shadow">
-              <p className="text-muted text-[10px] uppercase tracking-wide">{t('rightSidebar.stats.following')}</p>
-              <p className="text-foreground font-bold">{stats.following}</p>
-            </div>
-            <div className="text-center p-2 bg-card rounded-lg shadow-theme-sm border border-border hover:shadow-theme-md transition-shadow">
-              <p className="text-muted text-[10px] uppercase tracking-wide">{t('rightSidebar.stats.followers')}</p>
-              <p className="text-foreground font-bold">{stats.followers}</p>
-            </div>
+          <div className="grid grid-cols-3 gap-1 mt-2.5 min-w-0">
+            {[
+              { label: t('rightSidebar.stats.posts', 'Posts'), value: stats.posts },
+              { label: t('rightSidebar.stats.following', 'Following'), value: stats.following },
+              { label: t('rightSidebar.stats.followers', 'Followers'), value: stats.followers },
+            ].map((s) => (
+              <div
+                key={s.label}
+                className="min-w-0 text-center px-1 py-2 bg-card rounded-xl border border-border"
+              >
+                <p className="text-muted text-[9px] uppercase tracking-wide truncate leading-none mb-1">
+                  {s.label}
+                </p>
+                <p className="text-foreground font-bold text-sm tabular-nums leading-none">{s.value}</p>
+              </div>
+            ))}
           </div>
         )}
 
-        <div className="mt-3 space-y-1">
+        <div className="mt-2 space-y-0.5 min-w-0">
           <Link
             to="/profile"
-            className="flex items-center gap-2 px-3 py-2 text-foreground/80 hover:text-foreground hover:bg-highlight-light rounded-lg transition-colors text-sm shadow-theme-sm hover:shadow-theme-md border border-transparent hover:border-highlight"
+            className="flex items-center gap-2 px-2.5 py-2 text-foreground/80 hover:text-foreground hover:bg-highlight-light rounded-xl transition-colors text-xs border border-transparent hover:border-border min-w-0"
           >
-            <User size={16} />
-            <span>{t('rightSidebar.viewFullProfile')}</span>
+            <User size={14} className="shrink-0" />
+            <span className="truncate">{t('rightSidebar.viewFullProfile', 'View Full Profile')}</span>
           </Link>
           <Link
             to="/connections"
-            className="flex items-center gap-2 px-3 py-2 text-foreground/80 hover:text-foreground hover:bg-highlight-light rounded-lg transition-colors text-sm shadow-theme-sm hover:shadow-theme-md border border-transparent hover:border-highlight"
+            className="flex items-center gap-2 px-2.5 py-2 text-foreground/80 hover:text-foreground hover:bg-highlight-light rounded-xl transition-colors text-xs border border-transparent hover:border-border min-w-0"
           >
-            <Users size={16} />
-            <span>{t('rightSidebar.myConnections')}</span>
+            <Users size={14} className="shrink-0" />
+            <span className="truncate">{t('rightSidebar.myConnections', 'My Connections')}</span>
           </Link>
         </div>
       </div>
 
-      {/* Survival Status Section */}
-      {!survivalLoading && survivalState && (
-        <div className="mb-3">
-          <h2 className="text-sm font-bold text-foreground mb-2 px-1">Survival Status</h2>
-          <div className="bg-card rounded-lg border border-border/60 p-2.5 space-y-2">
-            <div className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px] font-semibold ${SURVIVAL_STATE_COLORS[state]}`}>
-              {STATE_ICONS[state]}
-              <span>{SURVIVAL_STATE_LABELS[state]}</span>
-            </div>
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between text-[10px]">
-                <span className="text-muted/70">Reputation</span>
-                <span className={`font-semibold ${survivalState.reputation_score > 60 ? 'text-accent' : 'text-red-400'}`}>
-                  {survivalState.reputation_score}
-                </span>
-              </div>
-              <div className="flex items-center justify-between text-[10px]">
-                <span className="text-muted/70">Threat</span>
-                <span className="font-semibold text-muted">{survivalState.threat_level}%</span>
-              </div>
-              <ThreatMeter threatLevel={survivalState.threat_level} />
-              <div className="flex items-center justify-between text-[10px]">
-                <span className="text-muted/70">Purges</span>
-                <span className="font-semibold text-muted tabular-nums">{survivalState.purge_count}</span>
-              </div>
-              {survivalState.social_rank !== 'UNKNOWN' && (
-                <div className="flex items-center justify-between text-[10px]">
-                  <span className="text-muted/70">Rank</span>
-                  <span className="font-semibold text-accent">{survivalState.social_rank}</span>
-                </div>
-              )}
-              {survivalState.inactivity_level > 0 && (
-                <div className="flex items-center gap-1 text-[10px] text-amber-400">
-                  <AlertTriangle size={10} />
-                  <span>Inactive: Level {survivalState.inactivity_level}</span>
-                </div>
-              )}
-            </div>
-          </div>
-          <SurvivalNotifications />
-        </div>
-      )}
-
-      {/* Gaming Dashboard */}
       <GamingDashboard />
-
-      {/* Purge Dashboard */}
       <PurgeDashboard />
 
-      {/* More Options */}
-      <div className="mb-3" ref={moreRef}>
-        <h2 className="text-sm font-bold text-foreground mb-3 px-1">More</h2>
+      <div className="mb-3 min-w-0" ref={moreRef}>
+        <h2 className="text-sm font-bold text-foreground mb-2 truncate">More</h2>
         <button
+          type="button"
           onClick={() => setShowMore(!showMore)}
-          className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg bg-card hover:bg-highlight-light text-foreground shadow-theme-sm hover:shadow-theme-md transition-all text-sm font-medium border border-border hover:border-highlight"
+          className="w-full flex items-center justify-between gap-2 px-2.5 py-2 rounded-xl bg-card hover:bg-highlight-light text-foreground transition-colors text-xs font-medium border border-border hover:border-highlight min-w-0"
         >
-          <span>More options</span>
-          <ChevronDown size={15} className={`transition-transform duration-200 ${showMore ? 'rotate-180' : ''}`} />
+          <span className="truncate">More options</span>
+          <ChevronDown
+            size={14}
+            className={`shrink-0 transition-transform duration-200 ${showMore ? 'rotate-180' : ''}`}
+          />
         </button>
-
         <AnimatePresence>
           {showMore && (
-            <>
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95, y: -8 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95, y: -8 }}
-                transition={{ duration: 0.15 }}
-                className="mt-1 bg-card border border-border rounded-lg shadow-lg overflow-hidden"
-              >
-                <div className="py-1">
-                  {moreOptions.map((option) => (
-                    <Link
-                      key={option.to}
-                      to={option.to}
-                      onClick={() => setShowMore(false)}
-                      className="flex items-center gap-3 px-3 py-2.5 text-sm text-foreground hover:bg-card-hover transition-colors"
-                    >
-                      <span className="text-muted">{option.icon}</span>
-                      <span>{option.label}</span>
-                    </Link>
-                  ))}
-                  <div className="border-t border-border my-1 mx-3" />
-                  <button
-                    onClick={handleLogout}
-                    className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-red-500 hover:bg-red-500/10 transition-colors"
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="overflow-hidden"
+            >
+              <div className="mt-1.5 space-y-0.5 rounded-xl border border-border bg-card p-1">
+                {moreOptions.map((opt) => (
+                  <Link
+                    key={opt.to}
+                    to={opt.to}
+                    onClick={() => setShowMore(false)}
+                    className="flex items-center gap-2 px-2.5 py-2 rounded-lg text-xs text-foreground hover:bg-highlight-light transition-colors min-w-0"
                   >
-                    <LogOut size={16} />
-                    <span>Logout</span>
-                  </button>
-                </div>
-              </motion.div>
-              <div className="fixed inset-0 z-0" onClick={() => setShowMore(false)} />
-            </>
+                    <span className="shrink-0 text-muted">{opt.icon}</span>
+                    <span className="truncate">{opt.label}</span>
+                  </Link>
+                ))}
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-xs text-red-500 hover:bg-red-500/10 transition-colors"
+                >
+                  <span className="truncate">Logout</span>
+                </button>
+              </div>
+            </motion.div>
           )}
         </AnimatePresence>
       </div>
-
     </motion.div>
   );
 };

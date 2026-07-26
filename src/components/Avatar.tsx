@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { OnlineStatusIndicator } from './OnlineStatusIndicator';
 import AvatarViewer from './AvatarViewer';
+import { DEFAULT_IMAGES } from '../constants/defaultImages';
 
-const DEFAULT_AVATAR = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgdmlld0JveD0iMCAwIDIwMCAyMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjIwMCIgaGVpZ2h0PSIyMDAiIGZpbGw9IiMyZDJkMmQiLz48Y2lyY2xlIGN4PSIxMDAiIGN5PSI4NSIgcj0iMzUiIGZpbGw9IiM0MDQwNDAiLz48cGF0aCBkPSJNMTYwIDE2NWMwLTMzLjEzNy0yNi44NjMtNjAtNjAtNjBzLTYwIDI2Ljg2My02MCA2MCIgc3Ryb2tlPSIjNDA0MDQwIiBzdHJva2Utd2lkdGg9IjEyIi8+PC9zdmc+';
+const DEFAULT_AVATAR = DEFAULT_IMAGES.avatar;
 
 interface AvatarProps {
   src?: string;
@@ -28,6 +29,12 @@ const Avatar: React.FC<AvatarProps> = ({
   expandOnTap = false
 }) => {
   const [isViewerOpen, setIsViewerOpen] = useState(false);
+  const [failed, setFailed] = useState(false);
+
+  // Reset failure state when a new src arrives
+  useEffect(() => {
+    setFailed(false);
+  }, [src]);
 
   const sizeClasses = {
     sm: 'w-8 h-8',
@@ -36,8 +43,11 @@ const Avatar: React.FC<AvatarProps> = ({
     xl: 'w-20 h-20'
   };
 
-  const handleError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
-    e.currentTarget.src = DEFAULT_AVATAR;
+  const resolvedSrc = (!src || failed) ? DEFAULT_AVATAR : src;
+
+  const handleError = () => {
+    // Avoid infinite reload loop when the fallback itself fails or a broken URL is reused
+    if (!failed) setFailed(true);
   };
 
   const handleAvatarClick = (e: React.MouseEvent) => {
@@ -54,7 +64,7 @@ const Avatar: React.FC<AvatarProps> = ({
   return (
     <div className="relative inline-block">
       <img
-        src={src || DEFAULT_AVATAR}
+        src={resolvedSrc}
         alt={alt}
         onError={handleError}
         onClick={handleAvatarClick}
@@ -69,7 +79,7 @@ const Avatar: React.FC<AvatarProps> = ({
       )}
       {expandOnTap && (
         <AvatarViewer
-          src={src || DEFAULT_AVATAR}
+          src={resolvedSrc}
           alt={alt}
           isOpen={isViewerOpen}
           onClose={() => setIsViewerOpen(false)}

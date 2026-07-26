@@ -4,6 +4,12 @@ import { useUser } from '../../context/UserContext';
 import { toast } from 'react-hot-toast';
 import { DEFAULT_IMAGES } from '../../constants/defaultImages';
 import api from '../../lib/axios';
+import {
+  BIO_MAX_LENGTH,
+  bioCounterClass,
+  bioRemaining,
+  clampBio,
+} from '../../utils/bioLimits';
 
 const ProfileSettings: React.FC = () => {
   const { user, updateUser } = useUser();
@@ -31,7 +37,7 @@ const ProfileSettings: React.FC = () => {
         name: user.name || '',
         username: user.username || '',
         email: user.email || '',
-        bio: user.bio || '',
+        bio: clampBio(user.bio || ''),
         location: user.location || '',
         website: user.website || ''
       }));
@@ -42,7 +48,7 @@ const ProfileSettings: React.FC = () => {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
-      [name]: value
+      [name]: name === 'bio' ? clampBio(value) : value
     }));
     setIsEditing(true);
   };
@@ -325,13 +331,20 @@ const ProfileSettings: React.FC = () => {
 
         {/* Bio */}
         <div className="space-y-2">
-          <label className="block text-sm font-medium text-gray-300">Bio</label>
+          <div className="flex items-center justify-between gap-3">
+            <label className="block text-sm font-medium text-gray-300">Bio</label>
+            <span className={`text-[11px] tabular-nums ${bioCounterClass(bioRemaining(formData.bio.length))}`}>
+              {bioRemaining(formData.bio.length)} / {BIO_MAX_LENGTH}
+            </span>
+          </div>
           <textarea
             name="bio"
             value={formData.bio}
             onChange={handleInputChange}
-            rows={3}
-            className="w-full bg-[#2d2d2d] text-white rounded-lg px-4 py-2 focus:ring-2 focus:ring-orange-500"
+            rows={4}
+            maxLength={BIO_MAX_LENGTH}
+            placeholder="Write a short bio (max 300 characters)…"
+            className="w-full bg-[#2d2d2d] text-white rounded-lg px-4 py-2 focus:ring-2 focus:ring-orange-500 resize-none leading-relaxed"
           />
         </div>
 

@@ -12,6 +12,7 @@ import sw from './locales/sw.json';
 import zh from './locales/zh.json';
 import ar from './locales/ar.json';
 import hi from './locales/hi.json';
+import { detectLocaleLanguage, SUPPORTED_LANGUAGES } from './detectLocaleLanguage';
 
 const resources = {
     en: { translation: en },
@@ -26,20 +27,45 @@ const resources = {
     hi: { translation: hi },
 };
 
+/** Custom detector: country/locale → language (only used when no saved preference) */
+const countryLocaleDetector = {
+    name: 'countryLocale',
+    lookup() {
+        try {
+            return detectLocaleLanguage();
+        } catch {
+            return undefined;
+        }
+    },
+    cacheUserLanguage() {
+        // i18next localStorage detector handles caching after first resolve
+    },
+};
+
+const languageDetector = new LanguageDetector();
+languageDetector.addDetector(countryLocaleDetector);
+
 i18n
-    .use(LanguageDetector)
+    .use(languageDetector)
     .use(initReactI18next)
     .init({
         resources,
         fallbackLng: 'en',
-        supportedLngs: ['en', 'fr', 'zu', 'ss', 'es', 'pt', 'sw', 'zh', 'ar', 'hi'],
+        supportedLngs: [...SUPPORTED_LANGUAGES],
+        nonExplicitSupportedLngs: true,
         interpolation: {
             escapeValue: false,
         },
         detection: {
-            order: ['localStorage', 'navigator'],
+            // Saved choice first; then country/locale; then raw navigator
+            order: ['localStorage', 'countryLocale', 'navigator'],
             caches: ['localStorage'],
             lookupLocalStorage: 'i18nextLng',
+            convertDetectedLanguage: (lng: string) => {
+                const base = (lng || 'en').split('-')[0].toLowerCase();
+                if (base === 'zh') return 'zh';
+                return (SUPPORTED_LANGUAGES as readonly string[]).includes(base) ? base : 'en';
+            },
         },
     });
 

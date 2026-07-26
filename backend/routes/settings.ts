@@ -26,8 +26,10 @@ const getDefaultSettings = (role: string = 'user') => {
     // Display & Accessibility
     darkMode: true,
     language: 'en',
-    fontSize: 'medium',
+    fontSize: 'large',
     highContrast: false,
+    alwaysTranslateMessages: true,
+    liveTypingPreview: true,
 
     // Content & Feed
     autoplayVideos: true,

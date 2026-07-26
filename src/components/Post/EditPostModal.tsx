@@ -1,16 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
-
-const BACKGROUND_PRESETS = [
-  { type: 'none', label: 'None', value: 0, class: 'bg-transparent border-2 border-dashed border-border' },
-  { type: 'color', label: 'Warm', value: 1, class: 'bg-orange-100' },
-  { type: 'color', label: 'Cool', value: 2, class: 'bg-blue-100' },
-  { type: 'color', label: 'Nature', value: 3, class: 'bg-green-100' },
-  { type: 'color', label: 'Sunset', value: 4, class: 'bg-yellow-100' },
-  { type: 'gradient', label: 'Ocean', value: 5, class: 'bg-gradient-to-br from-blue-500 to-purple-600' },
-  { type: 'gradient', label: 'Sunrise', value: 6, class: 'bg-gradient-to-br from-pink-500 to-orange-500' },
-  { type: 'gradient', label: 'Forest', value: 7, class: 'bg-gradient-to-br from-green-500 to-teal-600' },
-];
+import { BACKGROUND_PRESETS, getPostBackgroundPreset } from '../../constants/postBackgrounds';
 
 interface EditPostModalProps {
   isOpen: boolean;
@@ -40,20 +30,20 @@ const EditPostModal: React.FC<EditPostModalProps> = ({
 
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setContent(e.target.value);
-    setIsEdited(e.target.value.trim() !== initialContent);
+    setIsEdited(
+      e.target.value.trim() !== initialContent || backgroundIndex !== initialBackgroundIndex
+    );
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!content.trim() || content === initialContent) return;
+    if (!content.trim()) return;
+    if (content === initialContent && backgroundIndex === initialBackgroundIndex) return;
 
     setIsSaving(true);
     try {
-      await onSave(content, backgroundIndex);
-      setIsEdited(false);
+      await onSave(content.trim(), backgroundIndex);
       onClose();
-    } catch (error) {
-      console.error('Failed to update post:', error);
     } finally {
       setIsSaving(false);
     }
@@ -61,82 +51,79 @@ const EditPostModal: React.FC<EditPostModalProps> = ({
 
   if (!isOpen) return null;
 
+  const preset = getPostBackgroundPreset(backgroundIndex);
+
   return (
-    <div className="fixed inset-0 bg-foreground/50 flex items-center justify-center z-modal">
-      <div className="bg-card rounded-xl w-full max-w-lg mx-4 overflow-hidden border border-border">
-        <div className="flex items-center justify-between p-4 border-b border-border">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50">
+      <div className="bg-card border border-border rounded-2xl w-full max-w-lg shadow-xl overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border">
           <h2 className="text-lg font-semibold text-foreground">Edit Post</h2>
           <button
+            type="button"
             onClick={onClose}
-            className="text-muted hover:text-foreground transition-colors"
+            className="p-1.5 rounded-full text-muted hover:text-foreground hover:bg-card-hover"
           >
-            <X size={20} />
+            <X size={18} />
           </button>
         </div>
 
-          <form onSubmit={handleSubmit} className="p-4">
-          <textarea
-            value={content}
-            onChange={handleChange}
-            className="w-full bg-input text-foreground rounded-lg p-4 min-h-[150px] resize-none focus:ring-2 focus:ring-accent focus:outline-none border border-input-border"
-            placeholder="What's happening?"
-            autoFocus
-          />
-
-          {/* Background Picker */}
-          <div className="mt-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-medium text-muted">Background</span>
-              <button
-                type="button"
-                onClick={() => setBackgroundIndex(0)}
-                className={`text-xs px-2 py-1 rounded ${
-                  backgroundIndex === 0 ? 'text-accent font-semibold' : 'text-muted hover:text-foreground'
-                } transition-colors`}
-              >
-                None
-              </button>
-            </div>
-            <div className="flex gap-1.5 mt-1.5">
-              {BACKGROUND_PRESETS.slice(1).map((preset) => (
+        <form onSubmit={handleSubmit} className="p-4 space-y-3">
+          <div>
+            <p className="text-[10px] font-medium uppercase tracking-wider text-muted mb-1.5">
+              Background
+            </p>
+            <div className="grid grid-cols-8 gap-1.5 max-h-28 overflow-y-auto">
+              {BACKGROUND_PRESETS.map((item) => (
                 <button
-                  key={preset.value}
+                  key={item.value}
                   type="button"
                   onClick={() => {
-                    setBackgroundIndex(preset.value);
-                    setIsEdited(true);
+                    setBackgroundIndex(item.value);
+                    setIsEdited(
+                      content.trim() !== initialContent || item.value !== initialBackgroundIndex
+                    );
                   }}
-                  className={`w-7 h-7 rounded-lg ${preset.class} hover:scale-110 transition-transform ${
-                    preset.value === backgroundIndex ? 'ring-2 ring-accent ring-offset-1 ring-offset-card' : ''
+                  className={`aspect-square rounded-md ${item.swatchClass || item.class} ${
+                    item.value === backgroundIndex
+                      ? 'ring-2 ring-accent'
+                      : 'ring-1 ring-black/5'
                   }`}
-                  title={preset.label}
-                />
+                  title={item.label}
+                  aria-label={item.label}
+                >
+                  {item.type === 'none' && <X size={12} className="mx-auto text-muted" />}
+                </button>
               ))}
             </div>
           </div>
 
-          <div className="flex items-center justify-between mt-4">
-            <span className="text-sm text-muted">
+          <div className={`rounded-xl p-3 min-h-[120px] ${preset.class}`}>
+            <textarea
+              value={content}
+              onChange={handleChange}
+              className={`w-full bg-transparent border-none resize-none focus:outline-none text-sm min-h-[100px] ${preset.textClass}`}
+              rows={5}
+            />
+          </div>
+
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-muted">
               {isEdited ? 'Post edited' : 'No changes made yet'}
             </span>
-            <div className="flex gap-3">
+            <div className="flex gap-2">
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 text-muted hover:text-foreground transition-colors"
+                className="px-3 py-1.5 text-sm text-muted hover:text-foreground rounded-lg"
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                disabled={!content.trim() || isSaving}
-                className={`px-4 py-2 rounded-lg ${
-                  content.trim() && !isSaving
-                    ? 'bg-accent text-black hover:opacity-90'
-                    : 'bg-accent/50 text-background cursor-not-allowed'
-                } transition-colors`}
+                disabled={isSaving || !content.trim() || !isEdited}
+                className="px-4 py-1.5 text-sm font-medium bg-accent text-black rounded-lg disabled:opacity-40"
               >
-                {isSaving ? 'Updating...' : 'Update Post'}
+                {isSaving ? 'Saving…' : 'Save'}
               </button>
             </div>
           </div>

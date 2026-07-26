@@ -5,10 +5,10 @@ This directory contains files for features that are partially implemented (85-95
 ## Files by Category and Priority
 
 ### HIGH PRIORITY
-- `dashboard_real_stats.md` - Replace hardcoded dashboard stats with real data
-- `messaging_editing_deletion.md` - Implement message editing and deletion
+- ~~`dashboard_real_stats.md`~~ ✅ Completed — real stats via `/api/dashboard/stats`
+- ~~`messaging_editing_deletion.md`~~ ✅ Completed
+- ~~`social_blocked_muted.md`~~ ✅ Completed — block/mute + enforcement across modules
 - `games_integrated_slots.md` - Complete Purga Rift and Cyber Runner games
-- `social_blocked_muted.md` - Implement user blocking and muting
 
 ### MEDIUM PRIORITY
 - `ghost_mode_ghosted_friends_list.md` - Complete ghosted friends list UI

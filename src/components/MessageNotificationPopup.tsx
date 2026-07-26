@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, MessageCircle } from 'lucide-react';
 import Avatar from './Avatar';
+import ProfileLink from './Profile/ProfileLink';
 
 interface IncomingMessage {
   id: string;
@@ -62,17 +63,14 @@ const MessageNotificationPopup: React.FC<MessageNotificationPopupProps> = ({
 
         <div className="p-4">
           <div className="flex items-start gap-3">
-            <button
-              onClick={onClick}
-              className="flex-shrink-0"
-            >
+            <ProfileLink username={message.senderUsername} className="flex-shrink-0 rounded-full">
               <Avatar
                 src={message.senderAvatar}
                 alt={message.senderName}
                 size="lg"
                 showBorder={true}
               />
-            </button>
+            </ProfileLink>
 
             <div className="flex-1 min-w-0 cursor-pointer" onClick={onClick}>
               <div className="flex items-center gap-2 mb-1">
@@ -82,9 +80,9 @@ const MessageNotificationPopup: React.FC<MessageNotificationPopupProps> = ({
                 </span>
               </div>
 
-              <h4 className="font-semibold text-foreground text-base truncate">
+              <ProfileLink username={message.senderUsername} className="font-semibold text-foreground text-base truncate hover:text-accent block">
                 {message.senderName}
-              </h4>
+              </ProfileLink>
               <p className="text-sm text-muted line-clamp-2 mt-1">
                 {message.content}
               </p>

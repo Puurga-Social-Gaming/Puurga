@@ -8,9 +8,23 @@
         "edit": "Modifier",
         "viewOriginal": "Voir l'original",
         "viewTranslated": "Voir la traduction",
-        "translationDisclaimer": "Traduit du {{language}}",
+        "translationDisclaimer": "Traduit de {{language}}",
+        "translationFailed": "Déjà dans ta langue",
         "siswatiDisclaimer": "La qualité de la traduction peut varier",
         "continue": "Continuer"
+    },
+    "search": {
+        "placeholder": "Rechercher amis & publications…",
+        "searching": "Recherche…",
+        "people": "Personnes",
+        "posts": "Publications",
+        "friend": "Ami",
+        "withMedia": "Média",
+        "noResults": "Aucun résultat",
+        "tryDifferent": "Essayez un autre nom ou mot-clé",
+        "failed": "Échec de la recherche. Réessayez.",
+        "clear": "Effacer la recherche",
+        "hint": "↑↓ pour naviguer · Entrée pour ouvrir · Esc pour fermer"
     },
 "onboarding": {
         "selectLanguage": "Choisir la langue",
@@ -82,7 +96,11 @@
         "language": "Langue",
         "selectLanguage": "Sélectionnez votre langue préférée",
         "lightMode": "Mode clair",
-        "darkMode": "Mode sombre"
+        "darkMode": "Mode sombre",
+        "alwaysTranslateMessages": "Toujours traduire les messages",
+        "alwaysTranslateMessagesDesc": "Les messages reçus apparaissent dans votre langue. Touchez pour voir l'original.",
+        "liveTypingPreview": "Partager l’aperçu de frappe en direct",
+        "liveTypingPreviewDesc": "Permet aux personnes de la conversation de voir votre brouillon en temps réel avant l’envoi."
     },
     "posts": {
         "noPostsToDisplay": "Aucun post à afficher",
@@ -164,7 +182,9 @@
             "posts": "Posts",
             "following": "Abonnements",
             "followers": "Abonnés"
-        }
+        },
+        "gamingArena": "Arène de jeux",
+        "purgeRisk": "Risque de purge"
     },
     "profile": {
         "learnMore": "En savoir plus",
@@ -176,6 +196,7 @@
         "gallery": "Galerie",
         "puurgas": "Puurgas",
         "gaming": "Jeux",
+        "verified": "Certifié",
         "settings": "Paramètres",
         "changeCover": "Changer la couverture",
         "gamingStats": "Statistiques de jeu",
@@ -224,6 +245,14 @@
     "post": {
         "editPost": "Modifier le post",
         "deletePost": "Supprimer le post",
+        "dontLike": "Je n'aime pas",
+        "dontLikeDone": "Post masqué de ton fil",
+        "purgeDone": "Purge comptabilisée",
+        "purgeThreshold": "Ce post a été purgé {{count}} fois.",
+        "cannotPurgeOwn": "Tu ne peux pas purger tes propres posts",
+        "alreadyPurged": "Tu as déjà purgé ce post",
+        "purgeFailed": "Échec de la purge",
+        "background": "Fond",
         "save": "Enregistrer",
         "cancel": "Annuler",
         "readMore": "Lire plus",
@@ -259,6 +288,28 @@
         "rejectSuccess": "Demande d'ami refusée",
         "rejectFailed": "Échec du refus de la demande d'ami"
     },
+    "comments": {
+        "loading": "Chargement des commentaires…",
+        "empty": "Aucun commentaire",
+        "placeholder": "Écrire un commentaire…",
+        "send": "Envoyer",
+        "added": "Commentaire ajouté",
+        "addFailed": "Échec de l'ajout du commentaire",
+        "updated": "Commentaire mis à jour",
+        "updateFailed": "Échec de la mise à jour",
+        "deleted": "Commentaire supprimé",
+        "deleteConfirm": "Supprimer ce commentaire ?",
+        "deleteFailed": "Échec de la suppression",
+        "likeFailed": "Échec du like",
+        "reply": "Répondre",
+        "replyPlaceholder": "Répondre à {{name}}…",
+        "replyAdded": "Réponse ajoutée",
+        "replyFailed": "Échec de la réponse",
+        "purge": "Purger",
+        "purgeFailed": "Échec de la purge",
+        "purgedHidden": "Commentaire purgé",
+        "edited": "modifié"
+    },
     "messages": {
         "messages": "Messages",
         "newConversation": "Nouvelle conversation",
@@ -276,7 +327,14 @@
         "welcomeToMessages": "Bienvenue dans Messages",
         "welcomeDescription": "Sélectionnez une conversation dans la barre latérale ou démarrez-en une nouvelle pour commencer à discuter.",
         "failedToStart": "Échec du démarrage de la conversation",
-        "failedToSend": "Échec de l'envoi du message"
+        "failedToSend": "Échec de l'envoi du message",
+        "decryptUnavailable": "Message indisponible sur cet appareil",
+        "newMessage": "Nouveau message",
+        "mediaMessage": "📎 Média",
+        "edited": "modifié",
+        "edit": "Modifier",
+        "delete": "Supprimer",
+        "messageDeleted": "Message supprimé"
     },
     "games": {
         "arena": "Arène",
@@ -346,5 +404,27 @@
         "continue": "Continuer",
         "exit": "Sortir",
         "retry": "Réessayer"
+    },
+    "connections": {
+        "title": "Mes connexions",
+        "subtitle": "Amis, abonnés, demandes et suggestions",
+        "friends": "Amis",
+        "followers": "Abonnés",
+        "following": "Abonnements",
+        "pending": "En attente",
+        "suggested": "Suggestions",
+        "search": "Rechercher…",
+        "empty": "Personne ici pour le moment",
+        "emptyHint": "Essayez un autre onglet ou envoyez une demande",
+        "accept": "Accepter",
+        "cancel": "Annuler",
+        "add": "Ajouter",
+        "unfriend": "Retirer",
+        "loadError": "Impossible de charger les connexions",
+        "accepted": "Demande acceptée",
+        "rejected": "Demande refusée",
+        "cancelled": "Demande annulée",
+        "unfriended": "Ami retiré",
+        "requestSent": "Demande envoyée"
     }
 }

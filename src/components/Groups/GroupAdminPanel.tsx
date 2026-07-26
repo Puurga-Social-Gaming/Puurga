@@ -15,6 +15,7 @@ import {
 import api from '../../lib/axios';
 import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
+import ProfileLink from '../Profile/ProfileLink';
 
 interface Member {
   id: string;
@@ -248,22 +249,26 @@ const GroupAdminPanel: React.FC<GroupAdminPanelProps> = ({
               className="flex items-center justify-between p-3 bg-gray-900/50 rounded-lg"
             >
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-gray-700 flex items-center justify-center overflow-hidden">
+                <ProfileLink username={member.profile.username} className="w-10 h-10 rounded-full bg-gray-700 flex items-center justify-center overflow-hidden shrink-0">
                   {member.profile.avatar_url ? (
                     <img src={member.profile.avatar_url} alt={member.profile.full_name} className="w-full h-full object-cover" />
                   ) : (
                     <span className="text-white font-semibold">{member.profile.full_name.charAt(0)}</span>
                   )}
-                </div>
+                </ProfileLink>
                 <div>
                   <div className="flex items-center gap-2">
-                    <p className="text-sm font-medium text-white">{member.profile.full_name}</p>
+                    <ProfileLink username={member.profile.username} className="text-sm font-medium text-white hover:text-accent">
+                      {member.profile.full_name}
+                    </ProfileLink>
                     <span className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs border ${getRoleBadgeColor(member.role)}`}>
                       {getRoleIcon(member.role)}
                       {member.role}
                     </span>
                   </div>
-                  <p className="text-xs text-gray-400">@{member.profile.username}</p>
+                  <ProfileLink username={member.profile.username} className="text-xs text-gray-400 hover:text-accent block">
+                    @{member.profile.username}
+                  </ProfileLink>
                   {member.muted && (
                     <p className="text-xs text-red-400 mt-1">🔇 Muted</p>
                   )}

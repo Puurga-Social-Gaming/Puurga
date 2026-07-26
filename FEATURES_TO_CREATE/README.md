@@ -5,7 +5,8 @@ This directory contains files for features that are completely missing or broken
 ## Files by Category and Priority
 
 ### HIGH PRIORITY
-- `video_calls_configuration.md` - Configure Zego Cloud credentials for video calls
+- ~~`video_calls_configuration.md`~~ ✅ Completed (hardened)
+- ~~`player_challenges.md`~~ ✅ Core implemented — apply `20260716_game_challenges.sql`
 
 ### MEDIUM PRIORITY
 - `game_servers_infrastructure.md` - Create dedicated game server architecture

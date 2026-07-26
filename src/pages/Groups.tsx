@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Users, Lock, Globe, TrendingUp, Plus, Shield, Heart, AlertTriangle, Check, X } from 'lucide-react';
+import { Users, Lock, Globe, TrendingUp, Plus, Shield, Heart, AlertTriangle, Check, X, Star } from 'lucide-react';
 import { motion } from 'framer-motion';
 import api from '../api/api';
 import toast from 'react-hot-toast';
@@ -9,6 +9,8 @@ import Button from '../components/ui/Button';
 import { useSurvival } from '../context/SurvivalContext';
 import { Alliance, PendingAllianceRequest } from '../types/survival';
 import Avatar from '../components/Avatar';
+import ProfileLink from '../components/Profile/ProfileLink';
+import { DEFAULT_IMAGES } from '../constants/defaultImages';
 
 interface Group {
   id: string;
@@ -163,16 +165,14 @@ const Groups: React.FC = () => {
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
-      className="flex flex-1 flex-col min-h-0 bg-background overflow-y-auto h-full w-full"
+      className="w-full space-y-6"
     >
-      <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
-
         {/* Header */}
         <div className="flex items-center justify-between gap-3">
-          <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Groups</h1>
+          <h1 className="page-title">Groups</h1>
           <button
             onClick={handleCreateGroup}
-            className="px-3 py-2 bg-[var(--accent)] text-[var(--fg)] rounded-lg hover:opacity-90 transition-colors flex items-center gap-2 text-sm font-medium flex-shrink-0 shadow-md"
+            className="px-3 py-2 bg-foreground text-background rounded-xl hover:opacity-90 transition-colors flex items-center gap-2 text-sm font-medium flex-shrink-0 shadow-theme-sm"
           >
             <Plus size={16} />
             <span className="hidden sm:inline">Create Group</span>
@@ -181,7 +181,7 @@ const Groups: React.FC = () => {
         </div>
 
         {/* Filter Pills — horizontally scrollable on mobile */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0">
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide">
           {(['all', 'my-groups', 'my-alliances', 'public', 'private'] as const).map((f) => (
             <FilterButton
               key={f}
@@ -346,9 +346,10 @@ const Groups: React.FC = () => {
                       onClick={() => navigate(`/groups/${group.id}`)}
                     >
                       <img
-                        src={group.profile_image_url || '/default-avatar.png'}
+                        src={group.profile_image_url || DEFAULT_IMAGES.avatar}
                         alt={group.name}
                         className="w-10 h-10 rounded-lg object-cover bg-card-secondary flex-shrink-0"
+                        onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = DEFAULT_IMAGES.avatar; }}
                       />
                       <div className="min-w-0">
                         <p className="font-semibold text-foreground text-sm truncate">{group.name}</p>
@@ -374,7 +375,6 @@ const Groups: React.FC = () => {
             )}
           </div>
         )}
-      </div>
 
       <CreateGroupModal
         isOpen={isCreateModalOpen}
@@ -418,9 +418,10 @@ const GroupCardMobile: React.FC<{ group: Group; onJoin: (id: string) => void }> 
         {/* Profile Avatar overlapping cover */}
         <div className="absolute -bottom-5 left-3">
           <img
-            src={group.profile_image_url || '/default-avatar.png'}
+            src={group.profile_image_url || DEFAULT_IMAGES.avatar}
             alt={group.name}
             className="w-10 h-10 rounded-lg object-cover bg-card border-2 border-border shadow-md"
+            onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = DEFAULT_IMAGES.avatar; }}
           />
         </div>
         {/* Private/Public badge */}
@@ -435,10 +436,21 @@ const GroupCardMobile: React.FC<{ group: Group; onJoin: (id: string) => void }> 
 
       {/* Info */}
       <div className="p-2.5 pt-6">
-        <h3 className="text-sm font-bold text-foreground truncate leading-tight">{group.name}</h3>
+        <h3 className="text-sm font-bold text-foreground truncate leading-tight flex items-center gap-1">
+          <span className="truncate">{group.name}</span>
+          {group.user_role === 'admin' && (
+            <span
+              className="inline-flex items-center gap-0.5 shrink-0 px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-500 border border-amber-500/30 text-[9px] font-bold uppercase"
+              title="You are admin"
+            >
+              <Star size={9} className="fill-amber-500" />
+              Admin
+            </span>
+          )}
+        </h3>
         <div className="flex items-center gap-1 mt-1">
           <Users size={10} className="text-muted" />
-          <span className="text-[10px] text-muted">{group.member_count.toLocaleString()} members</span>
+          <span className="text-[10px] text-muted">{group.member_count}/3 members</span>
         </div>
         {group.description && (
           <p className="text-[10px] text-muted mt-1 line-clamp-2 leading-tight">{group.description}</p>
@@ -454,6 +466,15 @@ const GroupCardMobile: React.FC<{ group: Group; onJoin: (id: string) => void }> 
               className="w-full text-xs"
             >
               View
+            </Button>
+          ) : group.member_count >= 3 ? (
+            <Button
+              variant="default"
+              size="sm"
+              disabled
+              className="w-full text-xs opacity-60"
+            >
+              Full
             </Button>
           ) : (
             <Button
@@ -491,15 +512,27 @@ const GroupCard: React.FC<{ group: Group; onJoin: (id: string) => void }> = ({ g
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
         <div className="absolute bottom-[-28px] left-4">
           <img
-            src={group.profile_image_url || '/default-avatar.png'}
+            src={group.profile_image_url || DEFAULT_IMAGES.avatar}
             alt={group.name}
             className="w-16 h-16 rounded-xl object-cover bg-card border-4 border-card transition-transform duration-300 group-hover:scale-110"
+            onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = DEFAULT_IMAGES.avatar; }}
           />
         </div>
       </div>
       <div className="p-4 pt-10">
-        <h3 className="font-bold text-foreground truncate">{group.name}</h3>
-        <p className="text-xs text-muted mb-3">{group.member_count} members</p>
+        <h3 className="font-bold text-foreground truncate flex items-center gap-1.5">
+          <span className="truncate">{group.name}</span>
+          {group.user_role === 'admin' && (
+            <span
+              className="inline-flex items-center gap-0.5 shrink-0 px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-500 border border-amber-500/30 text-[10px] font-bold uppercase"
+              title="You are admin"
+            >
+              <Star size={10} className="fill-amber-500" />
+              Admin
+            </span>
+          )}
+        </h3>
+        <p className="text-xs text-muted mb-3">{group.member_count}/3 members</p>
         <p className="text-sm text-muted-light h-10 overflow-hidden text-ellipsis">{group.description || 'No description.'}</p>
         <div className="flex items-center justify-between mt-3 text-xs text-muted">
           <div className="flex items-center gap-1">
@@ -515,6 +548,15 @@ const GroupCard: React.FC<{ group: Group; onJoin: (id: string) => void }> = ({ g
             className="w-full mt-4"
           >
             View
+          </Button>
+        ) : group.member_count >= 3 ? (
+          <Button
+            variant="default"
+            size="md"
+            disabled
+            className="w-full mt-4 opacity-60"
+          >
+            Group full (3/3)
           </Button>
         ) : (
           <Button
@@ -570,13 +612,19 @@ const AllianceRequestCardMobile: React.FC<{
   return (
     <div className="bg-card rounded-xl p-3 border border-amber-500/30 shadow-theme-sm">
       <div className="flex items-start gap-3">
-        <Avatar src={request.avatar || undefined} alt={request.username} size="sm" />
+        <ProfileLink username={request.username} className="rounded-full shrink-0">
+          <Avatar src={request.avatar || undefined} alt={request.username} size="sm" />
+        </ProfileLink>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1 mb-1">
             <Shield className="w-3 h-3 text-amber-400" />
-            <h3 className="text-sm font-bold text-foreground truncate">{request.name}</h3>
+            <ProfileLink username={request.username} className="text-sm font-bold text-foreground truncate hover:text-accent">
+              {request.name}
+            </ProfileLink>
           </div>
-          <p className="text-xs text-muted mb-2">@{request.username}</p>
+          <ProfileLink username={request.username} className="text-xs text-muted mb-2 hover:text-accent block">
+            @{request.username}
+          </ProfileLink>
           <div className="flex gap-2">
             <button
               onClick={() => onAccept(request.id)}
@@ -624,10 +672,16 @@ const AllianceCardMobile: React.FC<{
   return (
     <div className={`bg-card rounded-xl p-3 border ${getStatusColor(alliance.allianceStatus)} shadow-theme-sm`}>
       <div className="flex flex-col gap-2">
-        <Avatar src={alliance.avatar || undefined} alt={alliance.username} size="md" className="mx-auto" />
+        <ProfileLink username={alliance.username} className="rounded-full mx-auto">
+          <Avatar src={alliance.avatar || undefined} alt={alliance.username} size="md" className="mx-auto" />
+        </ProfileLink>
         <div className="text-center">
-          <h3 className="text-sm font-bold text-foreground truncate">{alliance.name}</h3>
-          <p className="text-xs text-muted">@{alliance.username}</p>
+          <ProfileLink username={alliance.username} className="text-sm font-bold text-foreground truncate hover:text-accent block">
+            {alliance.name}
+          </ProfileLink>
+          <ProfileLink username={alliance.username} className="text-xs text-muted hover:text-accent block">
+            @{alliance.username}
+          </ProfileLink>
         </div>
         <div className="flex items-center justify-center gap-2 text-xs">
           <Heart className={`w-3 h-3 ${getLoyaltyColor(alliance.loyaltyScore)}`} />
@@ -677,12 +731,18 @@ const AllianceCardDesktop: React.FC<{
   return (
     <div className={`p-4 rounded-lg border ${getStatusColor(alliance.allianceStatus)} backdrop-blur-sm`}>
       <div className="flex items-start gap-3">
-        <Avatar src={alliance.avatar || undefined} alt={alliance.username} size="md" />
+        <ProfileLink username={alliance.username} className="rounded-full shrink-0">
+          <Avatar src={alliance.avatar || undefined} alt={alliance.username} size="md" />
+        </ProfileLink>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
-            <h3 className="font-semibold text-foreground truncate">{alliance.name}</h3>
+            <ProfileLink username={alliance.username} className="font-semibold text-foreground truncate hover:text-accent">
+              {alliance.name}
+            </ProfileLink>
           </div>
-          <p className="text-sm text-muted mb-2">@{alliance.username}</p>
+          <ProfileLink username={alliance.username} className="text-sm text-muted mb-2 hover:text-accent block">
+            @{alliance.username}
+          </ProfileLink>
           <div className="flex items-center gap-4 text-xs">
             <div className="flex items-center gap-1">
               <Heart className={`w-3 h-3 ${getLoyaltyColor(alliance.loyaltyScore)}`} />

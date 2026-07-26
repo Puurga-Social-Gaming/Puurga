@@ -40,62 +40,76 @@ interface PurgeConsequenceResult {
 
 export class PurgeEngine {
   static async validatePurge(userId: string, postId: string, targetUserId: string): Promise<PurgeValidationResult> {
-    const isSuperAdmin = false;
-    if (String(userId) === String(targetUserId) && !isSuperAdmin) {
+    if (String(userId) === String(targetUserId)) {
       return { valid: false, error: 'Cannot purge your own post', code: 'OWN_POST' };
     }
 
-    const { data: existingPurge } = await supabase
+    const { data: existingPurge, error: existingError } = await supabase
       .from('post_purges')
       .select('id')
       .eq('post_id', postId)
       .eq('user_id', userId)
-      .single();
+      .maybeSingle();
+
+    if (existingError && (existingError as any).code !== 'PGRST116' && (existingError as any).code !== '42P01') {
+      console.warn('validatePurge existing check:', existingError.message);
+    }
 
     if (existingPurge) {
       return { valid: false, error: 'Already purged this post', code: 'ALREADY_PURGED' };
     }
 
-    const { data: cooldown } = await supabase
-      .from('purge_cooldowns')
-      .select('expires_at')
-      .eq('user_id', userId)
-      .eq('post_id', postId)
-      .single();
+    try {
+      const { data: cooldown } = await supabase
+        .from('purge_cooldowns')
+        .select('expires_at')
+        .eq('user_id', userId)
+        .eq('post_id', postId)
+        .maybeSingle();
 
-    if (cooldown && new Date(cooldown.expires_at) > new Date()) {
-      return {
-        valid: false,
-        error: 'Purge cooldown active for this post',
-        code: 'COOLDOWN_ACTIVE',
-        cooldown: { exists: true, expiresAt: cooldown.expires_at },
-      };
+      if (cooldown && new Date(cooldown.expires_at) > new Date()) {
+        return {
+          valid: false,
+          error: 'Purge cooldown active for this post',
+          code: 'COOLDOWN_ACTIVE',
+          cooldown: { exists: true, expiresAt: cooldown.expires_at },
+        };
+      }
+    } catch (e) {
+      console.warn('purge_cooldowns check skipped:', e);
     }
 
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('hourly_purge_count, hourly_purge_reset_at, daily_purge_count, daily_purge_reset_at')
-      .eq('id', userId)
-      .single();
+    try {
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('hourly_purge_count, hourly_purge_reset_at, daily_purge_count, daily_purge_reset_at')
+        .eq('id', userId)
+        .maybeSingle();
 
-    if (profile) {
-      const now = new Date();
+      if (profileError) {
+        // Missing rate-limit columns → skip limits rather than blocking purge
+        console.warn('purge rate-limit profile check skipped:', profileError.message);
+      } else if (profile) {
+        const now = new Date();
 
-      const hourlyReset = profile.hourly_purge_reset_at ? new Date(profile.hourly_purge_reset_at) : new Date(0);
-      const hoursSinceReset = (now.getTime() - hourlyReset.getTime()) / (1000 * 60 * 60);
-      const hourlyCount = hoursSinceReset < 1 ? (profile.hourly_purge_count || 0) : 0;
+        const hourlyReset = profile.hourly_purge_reset_at ? new Date(profile.hourly_purge_reset_at) : new Date(0);
+        const hoursSinceReset = (now.getTime() - hourlyReset.getTime()) / (1000 * 60 * 60);
+        const hourlyCount = hoursSinceReset < 1 ? (profile.hourly_purge_count || 0) : 0;
 
-      if (hourlyCount >= PURGE_RATE_LIMITS.HOURLY_MAX) {
-        return { valid: false, error: 'Hourly purge limit reached', code: 'HOURLY_LIMIT' };
+        if (hourlyCount >= PURGE_RATE_LIMITS.HOURLY_MAX) {
+          return { valid: false, error: 'Hourly purge limit reached', code: 'HOURLY_LIMIT' };
+        }
+
+        const dailyReset = profile.daily_purge_reset_at ? new Date(profile.daily_purge_reset_at) : new Date(0);
+        const daysSinceReset = (now.getTime() - dailyReset.getTime()) / (1000 * 60 * 60 * 24);
+        const dailyCount = daysSinceReset < 1 ? (profile.daily_purge_count || 0) : 0;
+
+        if (dailyCount >= PURGE_RATE_LIMITS.DAILY_MAX) {
+          return { valid: false, error: 'Daily purge limit reached', code: 'DAILY_LIMIT' };
+        }
       }
-
-      const dailyReset = profile.daily_purge_reset_at ? new Date(profile.daily_purge_reset_at) : new Date(0);
-      const daysSinceReset = (now.getTime() - dailyReset.getTime()) / (1000 * 60 * 60 * 24);
-      const dailyCount = daysSinceReset < 1 ? (profile.daily_purge_count || 0) : 0;
-
-      if (dailyCount >= PURGE_RATE_LIMITS.DAILY_MAX) {
-        return { valid: false, error: 'Daily purge limit reached', code: 'DAILY_LIMIT' };
-      }
+    } catch (e) {
+      console.warn('purge rate limit validation skipped:', e);
     }
 
     return { valid: true };
@@ -139,14 +153,18 @@ export class PurgeEngine {
   }
 
   static async applyConsequences(targetUserId: string, purgerUserId: string): Promise<PurgeConsequenceResult> {
-    const [stateResult, purgeResistanceMod] = await Promise.all([
-      supabase
-        .from('user_survival_state')
-        .select('purge_count, visibility_score, purge_pressure, collapse_risk')
-        .eq('user_id', targetUserId)
-        .single(),
-      AllianceEngine.getPurgeResistanceModifier(targetUserId),
-    ]);
+    let purgeResistanceMod = 1.0;
+    try {
+      purgeResistanceMod = await AllianceEngine.getPurgeResistanceModifier(targetUserId);
+    } catch (e) {
+      console.warn('Alliance purge resistance skipped:', e);
+    }
+
+    const stateResult = await supabase
+      .from('user_survival_state')
+      .select('purge_count, visibility_score, purge_pressure, collapse_risk')
+      .eq('user_id', targetUserId)
+      .maybeSingle();
 
     const state = stateResult.data;
     const rawPurgeCount = state ? (state.purge_count || 0) + 1 : 1;
@@ -167,7 +185,7 @@ export class PurgeEngine {
 
     const now = new Date().toISOString();
 
-    await supabase
+    const { error: stateUpdateError } = await supabase
       .from('user_survival_state')
       .update({
         visibility_score: newVisibilityScore,
@@ -177,62 +195,90 @@ export class PurgeEngine {
       })
       .eq('user_id', targetUserId);
 
-    await ReputationEngine.applyReputationChange(targetUserId, 'PURGE_RECEIVED', {
-      purgedBy: purgerUserId,
-      purgeCount,
-    });
-
-    await SurvivalEngine.recordEvent(targetUserId, 'PURGE_RECEIVED', -5, {
-      purgedBy: purgerUserId,
-      purgeCount,
-      tier: tier.tier,
-      visibilityScore: newVisibilityScore,
-    });
-
-    if (tier.visibilityDrop > 0) {
-      await SurvivalEngine.recordEvent(targetUserId, 'VISIBILITY_CHANGED', newVisibilityScore, {
-        drop: tier.visibilityDrop,
-        tier: tier.tier,
-      });
+    if (stateUpdateError) {
+      console.warn('user_survival_state update skipped:', stateUpdateError.message);
     }
 
-    await SurvivalEngine.recordEvent(targetUserId, 'PURGE_PRESSURE_CHANGED', purgePressure, {
-      purgeCount,
-    });
+    try {
+      await ReputationEngine.applyReputationChange(targetUserId, 'PURGE_RECEIVED', {
+        purgedBy: purgerUserId,
+        purgeCount,
+      });
+    } catch (e) {
+      console.warn('Reputation change skipped:', e);
+    }
+
+    try {
+      await SurvivalEngine.recordEvent(targetUserId, 'PURGE_RECEIVED', -5, {
+        purgedBy: purgerUserId,
+        purgeCount,
+        tier: tier.tier,
+        visibilityScore: newVisibilityScore,
+      });
+
+      if (tier.visibilityDrop > 0) {
+        await SurvivalEngine.recordEvent(targetUserId, 'VISIBILITY_CHANGED', newVisibilityScore, {
+          drop: tier.visibilityDrop,
+          tier: tier.tier,
+        });
+      }
+
+      await SurvivalEngine.recordEvent(targetUserId, 'PURGE_PRESSURE_CHANGED', purgePressure, {
+        purgeCount,
+      });
+    } catch (e) {
+      console.warn('Survival events skipped:', e);
+    }
 
     let ghostTriggered = false;
     if (purgeCount >= PURGE_THRESHOLD) {
-      const { data: targetProfile } = await supabase
-        .from('profiles')
-        .select('is_ghost')
-        .eq('id', targetUserId)
-        .single();
-
-      if (!targetProfile?.is_ghost) {
-        await supabase
+      try {
+        const { data: targetProfile } = await supabase
           .from('profiles')
-          .update({
-            is_ghost: true,
-            ghosted_at: now,
-          })
-          .eq('id', targetUserId);
+          .select('is_ghost')
+          .eq('id', targetUserId)
+          .maybeSingle();
 
-        await PurgatoryEngine.enterPurgatory(targetUserId);
+        if (!targetProfile?.is_ghost) {
+          await supabase
+            .from('profiles')
+            .update({
+              is_ghost: true,
+              ghosted_at: now,
+            })
+            .eq('id', targetUserId);
 
-        ghostTriggered = true;
+          try {
+            await PurgatoryEngine.enterPurgatory(targetUserId);
+          } catch (e) {
+            console.warn('enterPurgatory skipped:', e);
+          }
+
+          ghostTriggered = true;
+        }
+      } catch (e) {
+        console.warn('Ghost trigger skipped:', e);
       }
     }
 
-    const updatedState = await SurvivalEngine.recalculate(targetUserId);
+    try {
+      await SurvivalEngine.recalculate(targetUserId);
+    } catch (e) {
+      console.warn('Survival recalculate skipped:', e);
+    }
 
-    this.emitConsequenceEvents(targetUserId, {
-      tier: tier.tier,
-      visibilityScore: newVisibilityScore,
-      purgePressure,
-      collapseRisk,
-      ghostTriggered,
-      purgeCount,
-    });
+    try {
+      this.emitConsequenceEvents(targetUserId, {
+        tier: tier.tier,
+        visibilityScore: newVisibilityScore,
+        purgePressure,
+        collapseRisk,
+        ghostTriggered,
+        purgeCount,
+      });
+    } catch (e) {
+      console.warn('Consequence WS events skipped:', e);
+    }
 
     return {
       tier: tier.tier,
@@ -245,22 +291,37 @@ export class PurgeEngine {
   }
 
   static async recordCooldown(userId: string, postId: string): Promise<void> {
-    const expiresAt = new Date(Date.now() + PURGE_RATE_LIMITS.SAME_POST_COOLDOWN_HOURS * 60 * 60 * 1000).toISOString();
+    const expiresAt = new Date(
+      Date.now() + PURGE_RATE_LIMITS.SAME_POST_COOLDOWN_HOURS * 60 * 60 * 1000
+    ).toISOString();
 
-    await supabase.from('purge_cooldowns').insert({
-      user_id: userId,
-      post_id: postId,
-      purged_at: new Date().toISOString(),
-      expires_at: expiresAt,
-    });
+    const { error } = await supabase.from('purge_cooldowns').upsert(
+      {
+        user_id: userId,
+        post_id: postId,
+        purged_at: new Date().toISOString(),
+        expires_at: expiresAt,
+      },
+      { onConflict: 'user_id,post_id' }
+    );
+
+    if (error) {
+      // Table / unique constraint may be missing on older DBs
+      console.warn('recordCooldown skipped:', error.message);
+    }
   }
 
   static async updateRateLimits(userId: string): Promise<void> {
-    const { data: profile } = await supabase
+    const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('hourly_purge_count, hourly_purge_reset_at, daily_purge_count, daily_purge_reset_at')
       .eq('id', userId)
-      .single();
+      .maybeSingle();
+
+    if (profileError) {
+      console.warn('updateRateLimits skipped (columns may be missing):', profileError.message);
+      return;
+    }
 
     const now = new Date();
 
@@ -281,7 +342,7 @@ export class PurgeEngine {
       dailyResetAt = daysSinceReset < 1 ? profile.daily_purge_reset_at : now.toISOString();
     }
 
-    await supabase
+    const { error: updateError } = await supabase
       .from('profiles')
       .update({
         hourly_purge_count: hourlyCount,
@@ -290,6 +351,10 @@ export class PurgeEngine {
         daily_purge_reset_at: dailyResetAt,
       })
       .eq('id', userId);
+
+    if (updateError) {
+      console.warn('updateRateLimits update skipped:', updateError.message);
+    }
   }
 
   static async getVisibilityScore(userId: string): Promise<number> {

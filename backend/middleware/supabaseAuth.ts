@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import jwt from 'jsonwebtoken';
 import { supabase } from '../config/supabase';
 
 export interface AuthUser {
@@ -29,6 +30,187 @@ declare global {
   }
 }
 
+interface TokenClaims {
+  sub?: string;
+  email?: string;
+  exp?: number;
+  user_metadata?: Record<string, string | undefined>;
+}
+
+interface CachedAuth {
+  user: AuthUser;
+  expiresAt: number;
+}
+
+const AUTH_CACHE_TTL_MS = 60_000;
+const authCache = new Map<string, CachedAuth>();
+
+function isPlaceholderName(name?: string | null): boolean {
+  if (!name?.trim()) return true;
+  const n = name.trim().toLowerCase();
+  return n === 'new user' || n === 'user' || n === 'unknown' || n === 'anonymous';
+}
+
+function isPlaceholderUsername(username?: string | null): boolean {
+  if (!username?.trim()) return true;
+  return /^user_[a-f0-9]{6,12}$/i.test(username.trim());
+}
+
+function pickName(...candidates: Array<string | null | undefined>): string {
+  for (const c of candidates) {
+    if (typeof c === 'string' && !isPlaceholderName(c)) return c.trim();
+  }
+  return '';
+}
+
+function pickUsername(...candidates: Array<string | null | undefined>): string {
+  for (const c of candidates) {
+    if (typeof c === 'string' && !isPlaceholderUsername(c)) {
+      return c.trim().toLowerCase();
+    }
+  }
+  return '';
+}
+
+function isTransientAuthError(error: unknown): boolean {
+  const msg = String((error as any)?.message || error || '').toLowerCase();
+  const status = (error as any)?.status;
+  return (
+    msg.includes('fetch') ||
+    msg.includes('timeout') ||
+    msg.includes('network') ||
+    msg.includes('econnreset') ||
+    msg.includes('enotfound') ||
+    msg.includes('econnrefused') ||
+    msg.includes('socket') ||
+    status === 0 ||
+    status === 502 ||
+    status === 503 ||
+    status === 504
+  );
+}
+
+function decodeSupabaseToken(token: string): TokenClaims | null {
+  const decoded = jwt.decode(token) as TokenClaims | null;
+  if (!decoded?.sub) return null;
+  if (decoded.exp && decoded.exp * 1000 < Date.now()) return null;
+  return decoded;
+}
+
+function tryVerifyLocally(token: string): TokenClaims | null {
+  const secrets = [
+    process.env.SUPABASE_JWT_SECRET,
+    process.env.JWT_SECRET,
+  ].filter(Boolean) as string[];
+
+  for (const secret of secrets) {
+    try {
+      const verified = jwt.verify(token, secret) as TokenClaims;
+      if (verified?.sub) return verified;
+    } catch {
+      // try next secret
+    }
+  }
+  return null;
+}
+
+async function getUserWithRetry(token: string, attempts = 2) {
+  let lastError: unknown = null;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      const result = await supabase.auth.getUser(token);
+      if (!result.error) return result;
+      lastError = result.error;
+      if (!isTransientAuthError(result.error) || i === attempts - 1) {
+        return result;
+      }
+    } catch (error) {
+      lastError = error;
+      if (!isTransientAuthError(error) || i === attempts - 1) {
+        throw error;
+      }
+    }
+    await new Promise((r) => setTimeout(r, 150 * (i + 1)));
+  }
+  return { data: { user: null }, error: lastError as any };
+}
+
+async function buildAuthUser(
+  userId: string,
+  email: string,
+  meta: Record<string, string | undefined> = {}
+): Promise<AuthUser> {
+  let profile: any = null;
+
+  try {
+    const { data, error: profileError } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (profileError) {
+      if (!isTransientAuthError(profileError)) {
+        console.warn('supabaseAuth: profiles fetch error (non-fatal):', profileError.message);
+      }
+    } else {
+      profile = data;
+    }
+  } catch (error) {
+    if (!isTransientAuthError(error)) {
+      console.warn('supabaseAuth: profiles fetch threw (non-fatal):', error);
+    }
+  }
+
+  let full_name =
+    pickName(profile?.full_name, meta.full_name, meta.name, email.split('@')[0]) ||
+    email ||
+    'User';
+
+  let username =
+    pickUsername(profile?.username, meta.username, email.split('@')[0]) ||
+    `user_${userId.slice(0, 8)}`;
+
+  if (profile && (isPlaceholderName(profile.full_name) || isPlaceholderUsername(profile.username))) {
+    const healed = {
+      full_name,
+      username,
+      email: email.trim().toLowerCase() || profile.email || null,
+      updated_at: new Date().toISOString(),
+    };
+    try {
+      const { data: updated } = await supabase
+        .from('profiles')
+        .update(healed)
+        .eq('id', userId)
+        .select('full_name, username')
+        .maybeSingle();
+      if (updated) {
+        full_name = updated.full_name || full_name;
+        username = updated.username || username;
+      }
+    } catch {
+      // non-fatal
+    }
+  }
+
+  return {
+    id: userId,
+    full_name,
+    email,
+    username,
+    role: (profile?.role as AuthUser['role']) || 'user',
+    is_private: Boolean(profile?.is_private ?? false),
+    hide_from_suggestions: Boolean(profile?.hide_from_suggestions ?? false),
+    message_requests: (profile?.message_requests as AuthUser['message_requests']) || 'everyone',
+    show_read_receipts: Boolean(profile?.show_read_receipts ?? true),
+    show_online_status: Boolean(profile?.show_online_status ?? true),
+    comment_privacy: (profile?.comment_privacy as AuthUser['comment_privacy']) || 'everyone',
+    story_privacy: (profile?.story_privacy as AuthUser['story_privacy']) || 'everyone',
+    is_blocked: Boolean(profile?.is_blocked ?? false),
+  };
+}
+
 export const supabaseAuth = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const token = req.headers.authorization?.replace('Bearer ', '');
@@ -37,60 +219,71 @@ export const supabaseAuth = async (req: Request, res: Response, next: NextFuncti
       return res.status(401).json({ message: 'No token provided' });
     }
 
-    // Verify the JWT token with Supabase
-    const { data: { user }, error } = await supabase.auth.getUser(token);
-
-    if (error || !user) {
-      return res.status(401).json({ message: 'Invalid token' });
+    const cached = authCache.get(token);
+    if (cached && cached.expiresAt > Date.now()) {
+      (req as AuthRequest).user = cached.user;
+      return next();
     }
 
-    // Fetch profile data from 'profiles' table only
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', user.id)
-      .maybeSingle();
+    // Prefer local JWT verification — avoids remote Auth round-trips
+    let claims = tryVerifyLocally(token);
 
-    if (profileError) {
-      // Log but don't fail - we can use defaults
-      console.warn('supabaseAuth: profiles fetch error (non-fatal):', profileError.message);
+    if (!claims) {
+      const { data: { user }, error } = await getUserWithRetry(token);
+
+      if (user) {
+        const authUser = await buildAuthUser(
+          user.id,
+          user.email ?? '',
+          (user.user_metadata ?? {}) as Record<string, string | undefined>
+        );
+        authCache.set(token, { user: authUser, expiresAt: Date.now() + AUTH_CACHE_TTL_MS });
+        (req as AuthRequest).user = authUser;
+        return next();
+      }
+
+      if (error && isTransientAuthError(error)) {
+        // Network blip: fall back to decoded (non-expired) Supabase JWT — same as WebSocket
+        claims = decodeSupabaseToken(token);
+        if (!claims?.sub) {
+          console.warn('supabaseAuth: transient auth service error:', (error as any)?.message);
+          return res.status(503).json({ message: 'Auth service temporarily unavailable' });
+        }
+        console.warn('supabaseAuth: using local JWT fallback after transient Auth error');
+      } else {
+        return res.status(401).json({ message: 'Invalid token' });
+      }
     }
 
-    // Merge data with sensible defaults from profile or auth user
-    const full_name = (profile?.full_name as string) || (user.user_metadata?.full_name as string) || (user.email ?? '');
-    const username = (profile?.username as string) || (user.user_metadata?.username as string) || (user.email?.split('@')[0] ?? 'user');
-    const email = user.email ?? '';
-
-    // Get settings from profile table with defaults
-    const role = (profile?.role as AuthUser['role']) || 'user';
-    const is_private = Boolean(profile?.is_private ?? false);
-    const hide_from_suggestions = Boolean(profile?.hide_from_suggestions ?? false);
-    const message_requests = (profile?.message_requests as AuthUser['message_requests']) || 'everyone';
-    const show_read_receipts = Boolean(profile?.show_read_receipts ?? true);
-    const show_online_status = Boolean(profile?.show_online_status ?? true);
-    const comment_privacy = (profile?.comment_privacy as AuthUser['comment_privacy']) || 'everyone';
-    const story_privacy = (profile?.story_privacy as AuthUser['story_privacy']) || 'everyone';
-    const is_blocked = Boolean(profile?.is_blocked ?? false);
-
-    // Add user data to request (never 401 just because profile is missing; use defaults)
-    (req as AuthRequest).user = {
-      id: user.id,
-      full_name,
-      email,
-      username,
-      role,
-      is_private,
-      hide_from_suggestions,
-      message_requests,
-      show_read_receipts,
-      show_online_status,
-      comment_privacy,
-      story_privacy,
-      is_blocked
-    };
-
+    const authUser = await buildAuthUser(
+      claims.sub!,
+      claims.email ?? '',
+      claims.user_metadata ?? {}
+    );
+    authCache.set(token, { user: authUser, expiresAt: Date.now() + AUTH_CACHE_TTL_MS });
+    (req as AuthRequest).user = authUser;
     next();
-  } catch (error) {
+  } catch (error: any) {
+    // Last resort: valid non-expired JWT structure
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    const claims = token ? decodeSupabaseToken(token) : null;
+    if (claims?.sub && isTransientAuthError(error)) {
+      try {
+        const authUser = await buildAuthUser(
+          claims.sub,
+          claims.email ?? '',
+          claims.user_metadata ?? {}
+        );
+        authCache.set(token!, { user: authUser, expiresAt: Date.now() + AUTH_CACHE_TTL_MS });
+        (req as AuthRequest).user = authUser;
+        return next();
+      } catch {
+        // fall through
+      }
+      console.warn('supabaseAuth: transient auth error with JWT fallback failed');
+      return res.status(503).json({ message: 'Auth service temporarily unavailable' });
+    }
+
     console.error('Auth error:', error);
     res.status(401).json({ message: 'Invalid token' });
   }

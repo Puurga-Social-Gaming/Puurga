@@ -27,7 +27,7 @@ const QuickActions: React.FC = () => {
     <div className="relative" ref={dropdownRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center justify-center w-10 h-10 rounded-full bg-card border border-border hover:bg-highlight-light shadow-theme-sm hover:shadow-theme-md transition-all"
+        className="flex items-center justify-center w-8 h-8 rounded-full bg-card border border-border hover:bg-highlight-light transition-colors shrink-0"
         aria-label="Quick actions"
         title="Options"
       >
@@ -38,7 +38,7 @@ const QuickActions: React.FC = () => {
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-56 bg-card border border-border rounded-lg shadow-theme-md overflow-hidden z-50">
+        <div className="absolute right-0 mt-2 w-56 bg-card border border-border rounded-lg overflow-hidden z-50 shadow-theme-md">
           {/* Theme Toggle */}
           <div className="p-2">
             <button

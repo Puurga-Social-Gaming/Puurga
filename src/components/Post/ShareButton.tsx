@@ -7,13 +7,15 @@ interface ShareButtonProps {
   postContent: string;
   postAuthor: string;
   postAuthorAvatar?: string;
+  postImages?: string[];
 }
 
 const ShareButton: React.FC<ShareButtonProps> = ({ 
   postId, 
   postContent, 
   postAuthor,
-  postAuthorAvatar
+  postAuthorAvatar,
+  postImages = [],
 }) => {
   const [showShareModal, setShowShareModal] = useState(false);
 
@@ -33,6 +35,7 @@ const ShareButton: React.FC<ShareButtonProps> = ({
         postContent={postContent}
         postAuthor={postAuthor}
         postAuthorAvatar={postAuthorAvatar}
+        postImages={postImages}
       />
     </div>
   );

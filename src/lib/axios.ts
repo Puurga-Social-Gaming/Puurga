@@ -1,5 +1,4 @@
 import axios from 'axios';
-import { toast } from 'react-hot-toast';
 import { supabase } from './supabaseClient';
 
 interface EnhancedError extends Error {
@@ -79,15 +78,42 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
-    console.error('❌ Response error:', {
-      message: error.message,
-      status: error.response?.status,
-      data: error.response?.data,
-    });
+    const status = error.response?.status as number | undefined;
+    const authHeader = error.config?.headers?.Authorization || error.config?.headers?.authorization;
+    const tokenWasSent = typeof authHeader === 'string' && authHeader.startsWith('Bearer ');
+    const isUnauthenticated401 = status === 401 && !tokenWasSent;
+    const isTransient =
+      !error.response ||
+      status === 502 ||
+      status === 503 ||
+      status === 504;
 
-    // Network / server-unreachable
+    // Expected business locks (e.g. low credits) — not hard failures
+    const isExpectedBusiness =
+      status === 403 &&
+      /credits|not allowed|forbidden|blocked|privacy/i.test(
+        String(error.response?.data?.error || error.response?.data?.message || '')
+      );
+
+    if (isTransient || isExpectedBusiness || isUnauthenticated401) {
+      // Soft / retryable / expected — keep console calm
+      if (import.meta.env.DEV && !isUnauthenticated401) {
+        console.warn(isExpectedBusiness ? 'ℹ️ Expected API response:' : '⏳ Transient API issue:', {
+          url: error.config?.url,
+          status: status ?? 'network',
+          message: error.response?.data?.error || error.response?.data?.message || error.message,
+        });
+      }
+    } else {
+      console.error('❌ Response error:', {
+        message: error.message,
+        status,
+        data: error.response?.data,
+      });
+    }
+
+    // Network / server-unreachable — no toast spam; callers handle retry UX
     if (!error.response) {
-      toast.error('Network error - Please check if the server is running');
       return Promise.reject(new Error('Network error - Please check if the server is running'));
     }
 
@@ -98,9 +124,9 @@ api.interceptors.response.use(
     //  3. Avoid calling refreshSession if we can see the current session is fine
     //     (the 401 might come from Supabase rate-limiting our own refresh calls)
     if (error.response?.status === 401 && !error.config?._retry) {
-      const tokenWasSent = !!(error.config?.headers?.['Authorization']);
-
-      if (tokenWasSent) {
+      if (!tokenWasSent) {
+        // Expected on login/onboarding — no session yet
+      } else {
         error.config._retry = true;
 
         // First: check if the Supabase SDK already has a valid session (no
@@ -117,29 +143,22 @@ api.interceptors.response.use(
           }
           if (session?.access_token) {
             // We already had the same token and the server still 401'd —
-            // not a token-staleness issue; don't nuke the session
-            console.warn('🔒 Server 401 with valid token — not forcing logout');
+            // often a transient Supabase auth outage; don't nuke the session
+            console.warn('🔒 Server 401 with valid session — not forcing logout');
+          } else {
+            console.log('🔒 No valid session — clearing and redirecting to login');
+            _cachedToken = null;
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            supabase.auth.signOut().catch((e: any) => console.error('SignOut error', e)).finally(() => {
+              window.location.href = '/login';
+            });
+            return Promise.reject(new Error('Session expired. Please login again.'));
           }
         } catch (sessionErr) {
           console.warn('getSession failed during 401 recovery:', sessionErr);
         }
-
-        // Only force logout if we truly have no valid session at all
-        const { data: { session: currentSession } } = await supabase.auth.getSession().catch(() => ({ data: { session: null } }));
-        if (!currentSession) {
-          console.log('🔒 No valid session — clearing and redirecting to login');
-          _cachedToken = null;
-          localStorage.removeItem('token');
-          localStorage.removeItem('user');
-          supabase.auth.signOut().catch((e: any) => console.error('SignOut error', e)).finally(() => {
-            window.location.href = '/login';
-          });
-          return Promise.reject(new Error('Session expired. Please login again.'));
-        }
       }
-
-      // No token was sent — don't redirect (login page, public route, etc.)
-      console.warn('401 received — no token was sent, skipping logout');
     }
 
     // ── Enhance and forward all other errors ──────────────────────────────────

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
@@ -10,6 +10,8 @@ import {
   AlertTriangle, Mail, Shield, Wrench, Ghost, Star, Flame
 } from 'lucide-react';
 import Avatar from '../../components/Avatar';
+import ProfileLink from '../../components/Profile/ProfileLink';
+import MessageRingtoneSettings from '../../components/Messages/MessageRingtoneSettings';
 import { DEFAULT_IMAGES } from '../../constants/defaultImages';
 import { useNotifications } from '../../context/NotificationsContext';
 import { Notification, NotificationType, FILTER_CATEGORIES, getNotificationCategory } from '../../types/notification';
@@ -79,8 +81,14 @@ function Phone(props: any) {
 const Notifications: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { notifications, dismissNotifications } = useNotifications();
+  const { notifications, dismissNotifications, markAsRead, markAllAsRead, unreadCount } = useNotifications();
   const [activeFilter, setActiveFilter] = useState<FilterCategory>('all');
+
+  useEffect(() => {
+    if (unreadCount > 0) {
+      void markAllAsRead();
+    }
+  }, [unreadCount, markAllAsRead]);
 
   const filteredNotifications = useMemo(() => {
     if (activeFilter === 'all') return notifications;
@@ -122,9 +130,11 @@ const Notifications: React.FC = () => {
 
   const handleNotificationClick = async (notification: Notification) => {
     try {
-      await dismissNotifications([notification.id]);
+      if (!notification.read) {
+        await markAsRead([notification.id]);
+      }
     } catch (error) {
-      console.error('Failed to dismiss notification:', error);
+      console.error('Failed to mark notification as read:', error);
     }
 
     const { type, data, fromUser } = notification;
@@ -136,7 +146,7 @@ const Notifications: React.FC = () => {
     } else if (['message', 'group_message', 'message_reaction'].includes(type) && data?.conversationId) {
       navigate(`/messages?conversation=${data.conversationId}`);
     } else if (type === 'challenge' && data?.gameId) {
-      navigate('/games');
+      navigate(`/puurga-games?play=${data.gameId}`);
     } else if (type === 'redemption' || type === 'redemption_contribution' || type === 'friend_ghosted') {
       navigate('/puurga-dashboard');
     } else if (fromUser?.username) {
@@ -146,9 +156,9 @@ const Notifications: React.FC = () => {
 
   const handleViewProfile = async (username: string, notificationId: string) => {
     try {
-      await dismissNotifications([notificationId]);
+      await markAsRead([notificationId]);
     } catch (error) {
-      console.error('Failed to dismiss notification:', error);
+      console.error('Failed to mark notification as read:', error);
     }
     navigate(`/profile/${username}`);
   };
@@ -207,31 +217,35 @@ const Notifications: React.FC = () => {
 
     if (notification.type === 'friend_request') {
       return (
-        <div key={notification.id} className={`p-4 sm:p-5 rounded-lg card-gradient border border-border min-h-[56px] ${notification.read ? '' : `border-l-4 ${borderColor}`}`}>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Avatar src={fromUser.avatar || DEFAULT_IMAGES.avatar} alt={fromUser.name} size="md" />
-              <div>
-                <p className="text-foreground">
-                  <span className="font-semibold">{fromUser.name || t('notifications.someone')}</span>
+        <div key={notification.id} className={`rounded-2xl card-gradient border border-border bg-card/80 p-4 sm:p-5 shadow-theme-sm ${notification.read ? '' : `border-l-4 ${borderColor}`}`}>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3 min-w-0">
+              <ProfileLink username={fromUser.username} className="shrink-0 rounded-full">
+                <Avatar src={fromUser.avatar || DEFAULT_IMAGES.avatar} alt={fromUser.name} size="md" />
+              </ProfileLink>
+              <div className="min-w-0">
+                <p className="text-foreground leading-6">
+                  <ProfileLink username={fromUser.username} className="font-semibold hover:text-accent">
+                    {fromUser.name || t('notifications.someone')}
+                  </ProfileLink>
                   <span className="text-muted"> {getNotificationText(notification.type)}</span>
                 </p>
-                <p className="text-sm text-muted-light">{formatDate(notification.createdAt)}</p>
+                <p className="mt-1 text-xs text-muted-light uppercase tracking-wide">{formatDate(notification.createdAt)}</p>
               </div>
             </div>
-            <div className="flex items-center gap-2 flex-shrink-0">
+            <div className="flex flex-wrap items-center gap-2 flex-shrink-0">
               {data.friendRequestId && (
                 <>
                   <button
                     onClick={() => handleAcceptFriendRequest(data.friendRequestId!, notification.id)}
-                    className="flex items-center gap-1 px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white rounded-lg text-sm transition-colors"
+                    className="inline-flex min-h-[42px] items-center gap-1.5 rounded-xl bg-green-500 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-green-600"
                   >
                     <UserCheck size={14} />
                     <span className="hidden sm:inline">{t('notifications.accept')}</span>
                   </button>
                   <button
                     onClick={() => handleRejectFriendRequest(data.friendRequestId!, notification.id)}
-                    className="flex items-center gap-1 px-3 py-1.5 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-lg text-sm transition-colors"
+                    className="inline-flex min-h-[42px] items-center gap-1.5 rounded-xl bg-red-500/15 px-3 py-2 text-sm font-medium text-red-400 transition-colors hover:bg-red-500/25"
                   >
                     <UserX size={14} />
                     <span className="hidden sm:inline">{t('notifications.decline')}</span>
@@ -241,7 +255,7 @@ const Notifications: React.FC = () => {
               {fromUser.username && (
                 <button
                   onClick={() => handleViewProfile(fromUser.username, notification.id)}
-                  className="px-3 py-1 bg-background-secondary hover:bg-background-tertiary text-foreground rounded-lg text-sm min-w-[44px] min-h-[44px] flex items-center justify-center"
+                  className="inline-flex min-h-[42px] items-center justify-center rounded-xl border border-border bg-background px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-card-hover"
                 >
                   {t('notifications.viewProfile')}
                 </button>
@@ -256,39 +270,46 @@ const Notifications: React.FC = () => {
       <div
         key={notification.id}
         onClick={() => handleNotificationClick(notification)}
-        className={`p-4 sm:p-5 rounded-lg cursor-pointer card-gradient border border-border min-h-[56px] ${notification.read ? '' : `border-l-4 ${borderColor}`}`}
+        className={`cursor-pointer rounded-2xl border border-border bg-card/80 p-4 sm:p-5 shadow-theme-sm transition-colors hover:bg-card ${notification.read ? '' : `border-l-4 ${borderColor}`}`}
       >
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3 min-w-0">
             <div className="relative">
-              <Avatar src={fromUser.avatar || DEFAULT_IMAGES.avatar} alt={fromUser.name} size="md" />
+              <ProfileLink username={fromUser.username} className="rounded-full inline-block">
+                <Avatar src={fromUser.avatar || DEFAULT_IMAGES.avatar} alt={fromUser.name} size="md" />
+              </ProfileLink>
               {(notification.type === 'like' || notification.type === 'message_reaction') && (
                 <div className="absolute -bottom-1 -right-1 bg-pink-500 rounded-full p-1">
                   <Heart size={12} className="text-white fill-white" />
                 </div>
               )}
               {(notification.type === 'comment' || notification.type === 'reply') && (
-                <div className="absolute -bottom-1 -right-1 bg-white rounded-full p-1">
+                <div className="absolute -bottom-1 -right-1 bg-card border border-border rounded-full p-1">
                   <MessageCircle size={12} className="text-black" />
                 </div>
               )}
             </div>
-            <div className="min-w-0">
-              <p className="text-foreground flex items-center gap-2">
-                <span className="font-semibold">{fromUser.name || t('notifications.someone')}</span>
+            <div className="min-w-0 flex-1">
+              <p className="flex flex-wrap items-center gap-2 text-foreground">
+                <ProfileLink username={fromUser.username} className="font-semibold hover:text-accent">
+                  {fromUser.name || t('notifications.someone')}
+                </ProfileLink>
                 {NOTIFICATION_ICONS[notification.type]}
+                {!notification.read && (
+                  <span className="inline-flex h-2.5 w-2.5 rounded-full bg-accent" />
+                )}
               </p>
-              <p className="text-muted text-sm">{getNotificationText(notification.type)}</p>
+              <p className="mt-1 text-sm text-muted">{getNotificationText(notification.type)}</p>
               {notification.title && (
-                <p className="text-foreground text-sm font-medium mt-0.5">{notification.title}</p>
+                <p className="mt-1 text-sm font-medium text-foreground">{notification.title}</p>
               )}
-              <p className="text-sm text-muted-light">{formatDate(notification.createdAt)}</p>
+              <p className="mt-2 text-xs uppercase tracking-wide text-muted-light">{formatDate(notification.createdAt)}</p>
             </div>
           </div>
           {fromUser.username && (
             <button
               onClick={(e) => { e.stopPropagation(); handleViewProfile(fromUser.username, notification.id); }}
-              className="px-3 py-1 bg-background-secondary hover:bg-background-tertiary text-foreground rounded-lg text-sm min-w-[44px] min-h-[44px] flex items-center justify-center"
+              className="inline-flex min-h-[42px] items-center justify-center rounded-xl border border-border bg-background px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-card-hover"
             >
               View Profile
             </button>
@@ -299,31 +320,49 @@ const Notifications: React.FC = () => {
   };
 
   return (
-    <div className="h-screen bg-background flex flex-col">
-      <div className="sticky top-0 z-10 bg-background border-b border-border">
-        <div className="max-w-4xl mx-auto p-4 sm:p-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div>
-                <h1 className="text-xl sm:text-2xl font-bold text-foreground">{t('notifications.notifications')}</h1>
-                {filteredNotifications.filter(n => !n.read).length > 0 && (
-                  <p className="text-sm text-muted">{filteredNotifications.filter(n => !n.read).length} {t('notifications.unread')}</p>
-                )}
+    <div className="w-full flex flex-col">
+      <div className="sticky top-0 z-10 bg-background/90 backdrop-blur-md border-b border-border -mx-[var(--page-shell-pad-x,20px)] px-[var(--page-shell-pad-x,20px)]">
+        <div className="py-4 sm:py-5">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-border bg-card shadow-theme-sm">
+                <Bell size={20} className="text-accent" />
               </div>
+              <div className="min-w-0">
+                <h1 className="page-title text-xl sm:text-2xl">{t('notifications.notifications')}</h1>
+                <p className="text-sm text-muted">
+                  {unreadCount > 0 ? `${unreadCount} ${t('notifications.unread')}` : t('notifications.interactionPrompt')}
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {notifications.some((n) => !n.read) && (
+                <button
+                  type="button"
+                  onClick={() => void markAllAsRead()}
+                  className="inline-flex min-h-[42px] items-center justify-center rounded-xl border border-border bg-card px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-card-hover"
+                >
+                  Mark all as read
+                </button>
+              )}
+              <MessageRingtoneSettings
+                title="Notification ringtone"
+                description="Plays when a new notification arrives"
+              />
             </div>
           </div>
         </div>
 
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 pb-3">
-          <div className="flex overflow-x-auto gap-2 scrollbar-hide -mx-4 px-4 sm:-mx-6 sm:px-6">
+        <div className="pb-3">
+          <div className="flex overflow-x-auto gap-2 scrollbar-hide">
             {FILTER_CATEGORIES.map((filter) => (
               <button
                 key={filter.id}
                 onClick={() => setActiveFilter(filter.id as FilterCategory)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all duration-200 min-h-[44px] ${
+                className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all duration-200 min-h-[44px] border ${
                   activeFilter === filter.id
-                    ? 'bg-gray-700 text-white'
-                    : 'bg-background-secondary text-muted hover:bg-background-tertiary'
+                    ? 'bg-foreground text-background border-foreground'
+                    : 'bg-card text-muted border-border hover:bg-card-hover hover:text-foreground'
                 }`}
               >
                 <span>{filter.label}</span>
@@ -333,21 +372,21 @@ const Notifications: React.FC = () => {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto">
-        <div className="max-w-4xl mx-auto p-4 sm:p-6">
+      <div className="py-4 sm:py-6">
           <div className="space-y-3">
             {filteredNotifications.length === 0 ? (
-              <div className="text-center text-muted py-16 bg-card rounded-xl shadow-theme-sm">
-                <Bell size={48} className="mx-auto mb-4 text-muted-light" />
-                <p className="text-lg">{t('notifications.noNotificationsYet')}</p>
-                <p className="text-sm text-muted-light mt-1">{t('notifications.interactionPrompt')}</p>
+              <div className="rounded-3xl border border-border bg-card/70 px-6 py-16 text-center text-muted shadow-theme-sm">
+                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-border bg-background">
+                  <Bell size={28} className="text-muted-light" />
+                </div>
+                <p className="text-lg font-semibold text-foreground">{t('notifications.noNotificationsYet')}</p>
+                <p className="mt-1 text-sm text-muted-light">{t('notifications.interactionPrompt')}</p>
               </div>
             ) : (
               filteredNotifications.map(notification => renderNotification(notification))
             )}
           </div>
         </div>
-      </div>
     </div>
   );
 };

@@ -38,6 +38,7 @@ import redemptionRoutes from './routes/redemption';
 import testGhostModeRoutes from './routes/testGhostMode';
 import creditsRoutes from './routes/credits';
 import gamesRoutes from './routes/games';
+import translateRoutes from './routes/translate';
 import purgingRoutes from './routes/purging';
 import purgesRoutes from './routes/purges';
 import purgatoryRoutes from './routes/purgatory';
@@ -47,6 +48,13 @@ import superadminRoutes from './routes/superadmin';
 import mediaRoutes from './routes/media';
 import securityRoutes from './routes/security';
 import linksRoutes from './routes/links';
+import searchRoutes from './routes/search';
+import dashboardRoutes from './routes/dashboard';
+import socialRoutes from './routes/social';
+import callsRoutes from './routes/calls';
+import matchmakingRoutes from './routes/matchmaking';
+import cryptoRoutes from './routes/crypto';
+import certificationsRoutes from './routes/certifications';
 import { errorHandler } from './middleware/errorHandler';
 import { PushNotificationService } from './services/pushNotificationService';
 
@@ -239,6 +247,7 @@ app.use('/api/purging', purgingRoutes);
 
 // Use games routes
 app.use('/api/games', gamesRoutes);
+app.use('/api/translate', translateRoutes);
 
 // Use purges routes (Phase 2 purge engine)
 app.use('/api/purges', purgesRoutes);
@@ -263,6 +272,13 @@ app.use('/api/media', mediaRoutes);
 
 // Use links routes
 app.use('/api/links', linksRoutes);
+app.use('/api/search', searchRoutes);
+app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/social', socialRoutes);
+app.use('/api/calls', callsRoutes);
+app.use('/api/matchmaking', matchmakingRoutes);
+app.use('/api/crypto', cryptoRoutes);
+app.use('/api/certifications', certificationsRoutes);
 
 // Global Error Handler (Must be last)
 app.use(errorHandler);

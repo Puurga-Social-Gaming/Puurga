@@ -2,6 +2,7 @@ import express from 'express';
 import { supabase } from '../config/supabase';
 import { supabaseAuth as auth, AuthRequest } from '../middleware/supabaseAuth';
 import { normalizeImageUrl } from '../utils/url';
+import { getAcceptedFriendIds, removeFriendship } from '../utils/friendRelations';
 
 const router = express.Router();
 
@@ -186,32 +187,15 @@ router.get('/accepted', auth, async (req: AuthRequest, res) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    // Get all friends where user is either user_id or friend_id
-    const { data: friends, error: friendsError } = await supabase
-      .from('friends')
-      .select('user_id_1, user_id_2')
-      .or(`user_id_1.eq.${user.id},user_id_2.eq.${user.id}`);
-
-    if (friendsError) {
-      if ((friendsError as any).code === '42P01' || (friendsError as any).code === '42703') {
-        return res.json([]);
-      }
-      throw friendsError;
-    }
-
-    // Get the IDs of the user's friends (exclude self)
-    const friendIds = (friends || [])
-      .map((f: any) => f.user_id_1 === user.id ? f.user_id_2 : f.user_id_1)
-      .filter((id: string) => id !== user.id);
-
+    const friendIds = await getAcceptedFriendIds(user.id);
     if (friendIds.length === 0) return res.json([]);
 
-    // Fetch user info for all friends, only those who are online
+    // Fetch user info for all friends
     const { data: users, error: userError } = await supabase
       .from('profiles')
       .select('id, full_name, username, avatar_url')
       .in('id', friendIds)
-      .limit(50);
+      .limit(150);
 
     if (userError) {
       if ((userError as any).code === '42P01' || (userError as any).code === '42703') {
@@ -289,6 +273,153 @@ router.get('/stats', auth, async (req: AuthRequest, res) => {
   } catch (error) {
     console.error('Error fetching friends stats:', error);
     res.status(500).json({ error: 'Failed to fetch friends stats' });
+  }
+});
+
+// Outgoing pending friend requests (sent by me)
+router.get('/requests/outgoing', auth, async (req: AuthRequest, res) => {
+  try {
+    const { user } = req;
+    if (!user) return res.status(401).json({ error: 'Unauthorized' });
+
+    const { data: requests, error } = await supabase
+      .from('friend_requests')
+      .select('id, receiver_id, profiles:receiver_id(id, full_name, username, avatar_url)')
+      .eq('sender_id', user.id)
+      .eq('status', 'pending');
+
+    if (error) {
+      if ((error as any).code === '42P01' || (error as any).code === '42703') {
+        return res.json([]);
+      }
+      throw error;
+    }
+
+    res.json(
+      (requests || []).map((r: any) => ({
+        id: r.id,
+        receiver_id: r.receiver_id,
+        name: r.profiles?.full_name || 'Unknown',
+        username: r.profiles?.username || 'user',
+        avatar: normalizeImageUrl(r.profiles?.avatar_url),
+      }))
+    );
+  } catch (error) {
+    console.error('Error fetching outgoing requests:', error);
+    res.status(500).json({ error: 'Failed to fetch outgoing requests' });
+  }
+});
+
+// Followers list
+router.get('/followers', auth, async (req: AuthRequest, res) => {
+  try {
+    const { user } = req;
+    if (!user) return res.status(401).json({ error: 'Unauthorized' });
+
+    const { data, error } = await supabase
+      .from('followers')
+      .select('follower_id, profiles:follower_id(id, full_name, username, avatar_url)')
+      .eq('following_id', user.id)
+      .limit(200);
+
+    if (error) {
+      if ((error as any).code === '42P01' || (error as any).code === '42703') {
+        // Fallback: friends count as followers
+        const friendIds = await getAcceptedFriendIds(user.id);
+        if (friendIds.length === 0) return res.json([]);
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('id, full_name, username, avatar_url')
+          .in('id', friendIds)
+          .limit(200);
+        return res.json(
+          (profiles || []).map((u: any) => ({
+            id: u.id,
+            name: u.full_name,
+            username: u.username,
+            avatar: normalizeImageUrl(u.avatar_url),
+          }))
+        );
+      }
+      throw error;
+    }
+
+    res.json(
+      (data || []).map((row: any) => ({
+        id: row.profiles?.id || row.follower_id,
+        name: row.profiles?.full_name || 'Unknown',
+        username: row.profiles?.username || 'user',
+        avatar: normalizeImageUrl(row.profiles?.avatar_url),
+      }))
+    );
+  } catch (error) {
+    console.error('Error fetching followers:', error);
+    res.status(500).json({ error: 'Failed to fetch followers' });
+  }
+});
+
+// Following list
+router.get('/following', auth, async (req: AuthRequest, res) => {
+  try {
+    const { user } = req;
+    if (!user) return res.status(401).json({ error: 'Unauthorized' });
+
+    const { data, error } = await supabase
+      .from('followers')
+      .select('following_id, profiles:following_id(id, full_name, username, avatar_url)')
+      .eq('follower_id', user.id)
+      .limit(200);
+
+    if (error) {
+      if ((error as any).code === '42P01' || (error as any).code === '42703') {
+        const friendIds = await getAcceptedFriendIds(user.id);
+        if (friendIds.length === 0) return res.json([]);
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('id, full_name, username, avatar_url')
+          .in('id', friendIds)
+          .limit(200);
+        return res.json(
+          (profiles || []).map((u: any) => ({
+            id: u.id,
+            name: u.full_name,
+            username: u.username,
+            avatar: normalizeImageUrl(u.avatar_url),
+          }))
+        );
+      }
+      throw error;
+    }
+
+    res.json(
+      (data || []).map((row: any) => ({
+        id: row.profiles?.id || row.following_id,
+        name: row.profiles?.full_name || 'Unknown',
+        username: row.profiles?.username || 'user',
+        avatar: normalizeImageUrl(row.profiles?.avatar_url),
+      }))
+    );
+  } catch (error) {
+    console.error('Error fetching following:', error);
+    res.status(500).json({ error: 'Failed to fetch following' });
+  }
+});
+
+// Unfriend
+router.delete('/:friendId', auth, async (req: AuthRequest, res) => {
+  try {
+    const { user } = req;
+    const { friendId } = req.params;
+    if (!user) return res.status(401).json({ error: 'Unauthorized' });
+    if (!friendId || friendId === user.id) {
+      return res.status(400).json({ error: 'Invalid friend id' });
+    }
+
+    await removeFriendship(user.id, friendId);
+    res.json({ success: true, message: 'Friend removed' });
+  } catch (error) {
+    console.error('Error removing friend:', error);
+    res.status(500).json({ error: 'Failed to remove friend' });
   }
 });
 

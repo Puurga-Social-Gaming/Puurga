@@ -15,7 +15,7 @@ const LogoutButton: React.FC = () => {
   return (
     <button
       onClick={handleLogout}
-      className="w-full flex items-center space-x-3 p-3 rounded-lg hover:bg-[#1a1a1a] text-white transition-colors"
+      className="w-full flex items-center space-x-3 p-3 rounded-lg hover:bg-card-hover text-foreground transition-colors"
     >
       <LogOut size={24} />
       <span className="font-medium">Logout</span>
