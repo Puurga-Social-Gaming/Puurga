@@ -1,34 +1,18 @@
 # Dashboard - Real Statistics
 
-## Status: Partially Implemented
+## Status: Completed
 ## Priority: High
 
 ## Current State
-- Dashboard page exists with glassmorphism design
-- Most stats are hardcoded placeholders
-- Purga Credits is dynamic (from useCredits hook)
-- Other stats: Total Followers (1.2K), Engagement Rate (4.8%), Active Conversations (24), Notifications (12) - all hardcoded
-
-## What Needs to Be Fixed
-- Replace hardcoded stats with real data
-- Implement real follower count
-- Implement real engagement rate calculation
-- Implement real active conversations count
-- Implement real notifications count
-- Add data fetching and integration
-
-## Technical Notes
-- Location: /src/pages/Dashboard.tsx
-- Hook: useCredits works correctly for credits
-- Database: Query actual data for each stat
-- API: May need endpoints for dashboard stats
-- Calculations: Engagement rate formula needed
+- `/api/dashboard/stats` returns real friends, engagement, conversations, notifications, credits
+- `PuurgaDashboard` and legacy `Dashboard` consume that API
+- Challenges are progress-based from live stats (no mock toggle / fake credit awards)
+- Leaderboard shows real credits + purge streak (no Math.random)
 
 ## Acceptance Criteria
-- All dashboard stats show real data
-- Follower count is accurate
-- Engagement rate is calculated correctly
-- Active conversations count is real
-- Notifications count is accurate
-- Data updates in real-time or on refresh
-
+- [x] Dashboard stats show real data
+- [x] Friend/follower count is accurate (friends graph)
+- [x] Engagement rate is calculated from likes/comments/purges
+- [x] Active conversations count is real
+- [x] Notifications count is accurate
+- [x] Fake leaderboard noise removed

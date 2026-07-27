@@ -30,8 +30,65 @@ interface SurvivalStateResult {
   last_purge_at: string | null;
 }
 
+/** True once we know user_survival_state is missing on this DB (migration not applied). */
+let survivalSchemaMissing = false;
+let survivalSchemaMissingLogged = false;
+
+function isMissingRelationError(error: { code?: string; message?: string } | null | undefined): boolean {
+  if (!error) return false;
+  return error.code === '42P01' || Boolean(error.message?.includes('does not exist'));
+}
+
+function defaultSurvivalState(userId: string): SurvivalStateResult {
+  const now = new Date().toISOString();
+  return {
+    id: `temp-${userId}`,
+    user_id: userId,
+    reputation_score: 100,
+    survival_score: 100,
+    threat_level: 0,
+    purge_count: 0,
+    survived_purges: 0,
+    redemption_count: 0,
+    ghost_status: false,
+    inactivity_level: 0,
+    warning_level: 0,
+    social_rank: 'UNKNOWN',
+    current_survival_state: 'SAFE',
+    last_active_at: now,
+    last_state_change_at: now,
+    created_at: now,
+    updated_at: now,
+    visibility_score: 100,
+    purge_pressure: 0,
+    collapse_risk: 0,
+    last_purge_at: null,
+  };
+}
+
+function markSchemaMissing(context: string): void {
+  survivalSchemaMissing = true;
+  if (!survivalSchemaMissingLogged) {
+    survivalSchemaMissingLogged = true;
+    console.warn(
+      `[Survival] Schema missing (${context}). Apply backend/scripts/apply-survival-schema.sql in the Supabase SQL editor. Returning SAFE defaults until then.`
+    );
+  }
+}
+
 export class SurvivalEngine {
   static async recalculate(userId: string): Promise<SurvivalStateResult | null> {
+    if (survivalSchemaMissing) {
+      return defaultSurvivalState(userId);
+    }
+
+    // Ensure row exists before engines try to update it
+    await this.ensureState(userId);
+
+    if (survivalSchemaMissing) {
+      return defaultSurvivalState(userId);
+    }
+
     const [repResult, threatResult, stateResult, inactivityResult] = await Promise.all([
       ReputationEngine.calculateReputation(userId),
       ThreatEngine.calculateThreatLevel(userId),
@@ -84,35 +141,112 @@ export class SurvivalEngine {
     return result;
   }
 
+  static async ensureState(userId: string): Promise<SurvivalStateResult | null> {
+    if (survivalSchemaMissing) {
+      return defaultSurvivalState(userId);
+    }
+
+    const existing = await this.getState(userId);
+    if (existing) return existing;
+    if (survivalSchemaMissing) {
+      return defaultSurvivalState(userId);
+    }
+
+    const now = new Date().toISOString();
+    const defaults = {
+      user_id: userId,
+      reputation_score: 100,
+      survival_score: 100,
+      threat_level: 0,
+      purge_count: 0,
+      survived_purges: 0,
+      redemption_count: 0,
+      ghost_status: false,
+      inactivity_level: 0,
+      warning_level: 0,
+      social_rank: 'UNKNOWN',
+      current_survival_state: 'SAFE' as SurvivalState,
+      last_active_at: now,
+      last_state_change_at: now,
+      visibility_score: 100,
+      purge_pressure: 0,
+      collapse_risk: 0,
+    };
+
+    const { data, error } = await supabase
+      .from('user_survival_state')
+      .upsert(defaults, { onConflict: 'user_id' })
+      .select('*')
+      .single();
+
+    if (error) {
+      if (isMissingRelationError(error)) {
+        markSchemaMissing('ensureState upsert');
+        return defaultSurvivalState(userId);
+      }
+      console.error('Failed to ensure survival state:', error);
+      return defaultSurvivalState(userId);
+    }
+
+    return data as SurvivalStateResult;
+  }
+
   static async getState(userId: string): Promise<SurvivalStateResult | null> {
-    const { data: state } = await supabase
+    if (survivalSchemaMissing) {
+      return defaultSurvivalState(userId);
+    }
+
+    const { data: state, error } = await supabase
       .from('user_survival_state')
       .select('*')
       .eq('user_id', userId)
-      .single();
+      .maybeSingle();
+
+    if (error) {
+      if (isMissingRelationError(error)) {
+        markSchemaMissing('getState');
+        return defaultSurvivalState(userId);
+      }
+      console.error('Error fetching survival state:', error);
+      return null;
+    }
 
     return state as SurvivalStateResult | null;
   }
 
   static async getHistory(userId: string, limit: number = 30): Promise<any[]> {
-    const { data: history } = await supabase
+    if (survivalSchemaMissing) return [];
+
+    const { data: history, error } = await supabase
       .from('survival_history')
       .select('*')
       .eq('user_id', userId)
       .order('recorded_at', { ascending: false })
       .limit(limit);
 
+    if (error && isMissingRelationError(error)) {
+      markSchemaMissing('getHistory');
+      return [];
+    }
+
     return history || [];
   }
 
   static async getNotifications(userId: string): Promise<any[]> {
-    const { data: events } = await supabase
+    if (survivalSchemaMissing) return [];
+
+    const { data: events, error } = await supabase
       .from('survival_events')
       .select('*')
       .eq('user_id', userId)
       .in('event_type', ['INACTIVITY_WARNING', 'STATE_CHANGED', 'REPUTATION_GAIN', 'REPUTATION_LOSS', 'GHOST_ENTERED', 'GHOST_EXITED'])
       .order('created_at', { ascending: false })
       .limit(20);
+
+    if (error && isMissingRelationError(error)) {
+      markSchemaMissing('getNotifications');
+      return [];
+    }
 
     return events || [];
   }
@@ -123,12 +257,52 @@ export class SurvivalEngine {
     eventValue: number = 0,
     metadata?: Record<string, any>
   ): Promise<void> {
-    await supabase.from('survival_events').insert({
+    if (survivalSchemaMissing) return;
+
+    const { error } = await supabase.from('survival_events').insert({
       user_id: userId,
       event_type: eventType,
       event_value: eventValue,
       metadata: metadata ? JSON.stringify(metadata) : '{}',
     });
+
+    if (error && isMissingRelationError(error)) {
+      markSchemaMissing('recordEvent');
+    }
+  }
+
+  /**
+   * Gaming emits GAME_PLAYER_BANKRUPT — Survival alone decides Ghost / Purgatory.
+   * Does not let the games layer mutate profiles.is_ghost directly.
+   */
+  static async handleGamePlayerBankrupt(
+    userId: string,
+    meta?: { reason?: string; challengeId?: string; message?: string }
+  ): Promise<SurvivalStateResult | null> {
+    await this.recordEvent(userId, 'GAME_PLAYER_BANKRUPT', 0, meta || {});
+
+    // Raise threat pressure via recalculation; StateEngine / ThreatEngine react to low engagement + events
+    const state = await this.recalculate(userId);
+
+    // If already critically low survival, Survival may already have ghost_status true.
+    // Soft notify via WS only — no direct profile purge write from games.
+    if (state) {
+      this.emitWebSocketEvents(userId, state);
+    }
+
+    // Mark purge event processed when table exists
+    try {
+      const { supabaseAdmin } = await import('../../config/supabase');
+      await supabaseAdmin
+        .from('game_purge_events')
+        .update({ processed: true, processed_at: new Date().toISOString() })
+        .eq('user_id', userId)
+        .eq('processed', false);
+    } catch {
+      // ignore
+    }
+
+    return state;
   }
 
   private static calculateSurvivalScore(

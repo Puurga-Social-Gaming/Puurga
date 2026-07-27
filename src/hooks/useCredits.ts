@@ -137,8 +137,27 @@ export const useCredits = () => {
             await deductPenalty(Math.abs(result.net), `${params.gameId} session penalty`);
         }
 
+        // Social competition: notify friends about the session (non-blocking)
+        try {
+            const highKey = `puurga_high_${params.gameId}`;
+            const prevHigh = Number(localStorage.getItem(highKey) || 0);
+            const isHighScore = params.score > prevHigh;
+            if (isHighScore) localStorage.setItem(highKey, String(params.score));
+
+            await api.post('/games/session-complete', {
+                gameId: params.gameId,
+                gameName: params.gameId,
+                score: params.score,
+                // Credits already applied client-side — don't double-award on server
+                pointsEarned: 0,
+                isHighScore,
+            });
+        } catch (e) {
+            console.warn('Game activity notify skipped:', e);
+        }
+
         return result;
-    }, [addCredits]);
+    }, [addCredits, deductPenalty]);
 
     /**
      * Fetch credits from backend and sync local state

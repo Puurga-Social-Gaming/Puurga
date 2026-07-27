@@ -6,6 +6,7 @@ import { wsManager } from '../websocketManager';
 import { createNotification } from './createNotification';
 import { PurgatoryEngine } from '../services/survival/purgatory-engine';
 import { CreditService } from '../services/creditService';
+import { isTransientError } from '../utils/transientError';
 
 const router = express.Router();
 
@@ -206,6 +207,15 @@ router.get('/ghosted-friends', auth, async (req: AuthRequest, res) => {
         .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
     ]);
 
+    if (friendsRes.error && isTransientError(friendsRes.error)) {
+      console.warn('ghosted-friends: friends lookup transient — returning []');
+      return res.json([]);
+    }
+    if (requestsRes.error && isTransientError(requestsRes.error)) {
+      console.warn('ghosted-friends: friend_requests lookup transient — returning []');
+      return res.json([]);
+    }
+
     const friendIdsFromTable = (friendsRes.data || [])
       .map((f: any) => f.user_id_1 === userId ? f.user_id_2 : f.user_id_1);
 
@@ -219,15 +229,41 @@ router.get('/ghosted-friends', auth, async (req: AuthRequest, res) => {
       return res.json([]);
     }
 
-    // Get profiles of friends
-    const { data: friendProfiles, error: profilesError } = await supabase
+    // Profiles: prefer ghost columns; fall back if schema incomplete / network blip
+    let friendProfiles: Array<{
+      id: string;
+      full_name?: string | null;
+      username?: string | null;
+      avatar_url?: string | null;
+      is_ghost?: boolean | null;
+      purge_count?: number | null;
+      ghosted_at?: string | null;
+    }> = [];
+
+    const fullProfiles = await supabase
       .from('profiles')
       .select('id, full_name, username, avatar_url, is_ghost, purge_count, ghosted_at')
       .in('id', friendIds);
 
-    if (profilesError) {
-      console.error('Error fetching friend profiles:', profilesError);
-      return res.json([]);
+    if (fullProfiles.error) {
+      const msg = fullProfiles.error.message || '';
+      const missingCol =
+        fullProfiles.error.code === '42703' || /column .* does not exist/i.test(msg);
+      if (missingCol) {
+        const basic = await supabase
+          .from('profiles')
+          .select('id, full_name, username, avatar_url')
+          .in('id', friendIds);
+        friendProfiles = (basic.data as typeof friendProfiles) || [];
+      } else if (isTransientError(fullProfiles.error)) {
+        console.warn('ghosted-friends: profiles transient — returning []');
+        return res.json([]);
+      } else {
+        console.error('Error fetching friend profiles:', fullProfiles.error);
+        return res.json([]);
+      }
+    } else {
+      friendProfiles = (fullProfiles.data as typeof friendProfiles) || [];
     }
 
     // Get survival states to check purgatory status (new system)
@@ -236,12 +272,12 @@ router.get('/ghosted-friends', auth, async (req: AuthRequest, res) => {
       .select('user_id, purgatory_status, purgatory_entered_at, purge_count')
       .in('user_id', friendIds);
 
-    if (survivalError && survivalError.code !== '42P01') {
+    if (survivalError && survivalError.code !== '42P01' && !isTransientError(survivalError)) {
       console.error('Error fetching survival states:', survivalError);
     }
 
     // Create maps for quick lookup
-    const profileMap = new Map((friendProfiles || []).map(p => [p.id, p]));
+    const profileMap = new Map(friendProfiles.map(p => [p.id, p]));
     const survivalMap = new Map((survivalStates || []).map(s => [s.user_id, s]));
 
     // Filter ghosted friends (either old is_ghost or new purgatory_status)
@@ -270,7 +306,7 @@ router.get('/ghosted-friends', auth, async (req: AuthRequest, res) => {
       const daysGhosted = ghostedAt
         ? Math.floor((Date.now() - new Date(ghostedAt).getTime()) / (1000 * 60 * 60 * 24))
         : 0;
-      const creditsRequired = 50 + (purgeCount * 10) + (daysGhosted * 5);
+      const creditsRequired = 50 + (Number(purgeCount) * 10) + (daysGhosted * 5);
 
       return {
         id: friendId,
@@ -284,11 +320,11 @@ router.get('/ghosted-friends', auth, async (req: AuthRequest, res) => {
       };
     });
 
-    res.json(formattedFriends);
+    return res.json(formattedFriends);
 
   } catch (error) {
     console.error('Error fetching ghosted friends:', error);
-    res.json([]); // Return empty array instead of error to prevent UI crashes
+    return res.json([]); // Never 500 — keep Home / PurgeDashboard calm
   }
 });
 
@@ -367,7 +403,7 @@ router.get('/friend-stats', auth, async (req: AuthRequest, res) => {
         fullName: profile.full_name,
         username: profile.username,
         avatarUrl: normalizeImageUrl(profile.avatar_url),
-        isGhost,
+        isGhost: isGhosted,
         purgeCount,
         ghostedAt,
         dangerLevel: isGhosted ? 'ghosted' : purgeCount >= 15 ? 'critical' : purgeCount >= 10 ? 'high' : purgeCount >= 5 ? 'medium' : 'low',
@@ -402,53 +438,127 @@ router.get('/friend-stats', auth, async (req: AuthRequest, res) => {
 router.get('/status/:userId', auth, async (req: AuthRequest, res) => {
   try {
     const { userId } = req.params;
-
-    // Check both old system (profiles) and new system (user_survival_state)
-    const [profileRes, survivalRes] = await Promise.all([
-      supabase
-        .from('profiles')
-        .select('is_ghost, purge_count, ghosted_at, full_name')
-        .eq('id', userId)
-        .single(),
-      supabase
-        .from('user_survival_state')
-        .select('purgatory_status, purgatory_entered_at, purge_count')
-        .eq('user_id', userId)
-        .single()
-    ]);
-
-    if (profileRes.error || !profileRes.data) {
-      return res.status(404).json({ error: 'User not found' });
+    if (!userId) {
+      return res.status(400).json({ error: 'userId required' });
     }
 
-    const profile = profileRes.data;
-    const survival = survivalRes.data;
+    // Profiles: prefer ghost columns; fall back if schema is incomplete
+    let profile: {
+      full_name?: string | null;
+      is_ghost?: boolean | null;
+      purge_count?: number | null;
+      ghosted_at?: string | null;
+    } | null = null;
 
-    // Check old system (is_ghost) or new system (purgatory_status)
+    const fullProfile = await supabase
+      .from('profiles')
+      .select('is_ghost, purge_count, ghosted_at, full_name')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (fullProfile.error) {
+      const code = (fullProfile.error as { code?: string }).code;
+      const msg = fullProfile.error.message || '';
+      // Missing column(s) — retry with minimal select
+      if (code === '42703' || msg.includes('does not exist')) {
+        const basic = await supabase
+          .from('profiles')
+          .select('full_name')
+          .eq('id', userId)
+          .maybeSingle();
+        if (basic.error || !basic.data) {
+          // Soft defaults — never break Home shell
+          return res.json({
+            isGhost: false,
+            purgeCount: 0,
+            ghostedAt: null,
+            userName: null,
+            redemptionCost: 50,
+          });
+        }
+        profile = basic.data;
+      } else if (code === 'PGRST116') {
+        return res.json({
+          isGhost: false,
+          purgeCount: 0,
+          ghostedAt: null,
+          userName: null,
+          redemptionCost: 50,
+        });
+      } else {
+        console.warn('Error checking ghost status (profile):', fullProfile.error);
+        return res.json({
+          isGhost: false,
+          purgeCount: 0,
+          ghostedAt: null,
+          userName: null,
+          redemptionCost: 50,
+        });
+      }
+    } else if (!fullProfile.data) {
+      return res.json({
+        isGhost: false,
+        purgeCount: 0,
+        ghostedAt: null,
+        userName: null,
+        redemptionCost: 50,
+      });
+    } else {
+      profile = fullProfile.data;
+    }
+
+    // Survival table may be missing — treat as soft optional
+    let survival: {
+      purgatory_status?: boolean | null;
+      purgatory_entered_at?: string | null;
+      purge_count?: number | null;
+    } | null = null;
+
+    const survivalRes = await supabase
+      .from('user_survival_state')
+      .select('purgatory_status, purgatory_entered_at, purge_count')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (!survivalRes.error) {
+      survival = survivalRes.data;
+    } else {
+      const code = (survivalRes.error as { code?: string }).code;
+      const msg = survivalRes.error.message || '';
+      if (code !== '42P01' && code !== 'PGRST116' && !msg.includes('does not exist')) {
+        console.warn('Ghost status survival lookup warning:', survivalRes.error.message);
+      }
+    }
+
     const isGhostedOld = profile.is_ghost === true;
     const isGhostedNew = survival?.purgatory_status === true;
     const isGhost = isGhostedOld || isGhostedNew;
 
     const purgeCount = survival?.purge_count || profile.purge_count || 0;
-    const ghostedAt = survival?.purgatory_entered_at || profile.ghosted_at;
+    const ghostedAt = survival?.purgatory_entered_at || profile.ghosted_at || null;
 
-    // Calculate credits required
     const daysGhosted = ghostedAt
       ? Math.floor((Date.now() - new Date(ghostedAt).getTime()) / (1000 * 60 * 60 * 24))
       : 0;
-    const creditsRequired = 50 + (purgeCount * 10) + (daysGhosted * 5);
+    const creditsRequired = 50 + (Number(purgeCount) * 10) + (daysGhosted * 5);
 
-    res.json({
+    return res.json({
       isGhost,
-      purgeCount,
+      purgeCount: Number(purgeCount) || 0,
       ghostedAt,
       userName: profile.full_name,
-      redemptionCost: creditsRequired
+      redemptionCost: creditsRequired,
     });
-
   } catch (error) {
     console.error('Error checking ghost status:', error);
-    res.status(500).json({ error: 'Failed to check ghost status' });
+    // Never break the app shell — return safe defaults
+    return res.json({
+      isGhost: false,
+      purgeCount: 0,
+      ghostedAt: null,
+      userName: null,
+      redemptionCost: 50,
+    });
   }
 });
 

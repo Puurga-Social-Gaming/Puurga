@@ -1,5 +1,6 @@
 {
   "watch": ["**/*.ts"],
+  "ext": "ts,js,json",
   "ignore": ["node_modules"],
   "exec": "npx ts-node ./server.ts"
 }

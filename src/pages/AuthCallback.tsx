@@ -6,6 +6,7 @@ import { ensureOAuthProfile } from '../services/oauthProfileService';
 import { useUser } from '../context/UserContext';
 import LoadingScreen from '../components/Loading/LoadingScreen';
 import { preloadPosts } from '../utils/preloadPosts';
+import { normalizeAppUser } from '../utils/userProfile';
 
 const AuthCallback: React.FC = () => {
   const navigate = useNavigate();
@@ -47,16 +48,21 @@ const AuthCallback: React.FC = () => {
         if (profileError) throw profileError;
 
         if (profile) {
-          setUser({
-            id: profile.id,
-            name: profile.full_name ?? profile.name ?? '',
-            username: profile.username ?? '',
-            email: session.user.email ?? profile.email ?? '',
-            avatar: profile.avatar_url ?? null,
-            createdAt: profile.created_at ?? new Date().toISOString(),
-            credits: profile.credits ?? 0,
-          });
-          localStorage.setItem('user', JSON.stringify(profile));
+          const normalized = normalizeAppUser(
+            { ...profile, email: session.user.email ?? profile.email },
+            session.user.email,
+          );
+          setUser(normalized);
+          localStorage.setItem(
+            'user',
+            JSON.stringify({
+              ...profile,
+              full_name: normalized.name,
+              name: normalized.name,
+              username: normalized.username,
+              email: normalized.email,
+            }),
+          );
         }
 
         preloadPosts();

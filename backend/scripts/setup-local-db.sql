@@ -1,0 +1,2 @@
+-- Run as superuser: psql postgres -f scripts/setup-local-db.sql
+-- Replace placeholders before running or use setupLocalDb.sh

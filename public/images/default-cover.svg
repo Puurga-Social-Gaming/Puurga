@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="480" viewBox="0 0 1600 480" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1600" y2="480" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#1a1d24"/>
+      <stop offset="45%" stop-color="#2a303c"/>
+      <stop offset="100%" stop-color="#1c2430"/>
+    </linearGradient>
+    <linearGradient id="glow1" x1="200" y1="80" x2="700" y2="400" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#9CA3AF" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#9CA3AF" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="glow2" x1="1100" y1="40" x2="1500" y2="420" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#64748B" stop-opacity="0.4"/>
+      <stop offset="100%" stop-color="#64748B" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="orb" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(1280 120) rotate(90) scale(220)">
+      <stop stop-color="#CBD5E1" stop-opacity="0.25"/>
+      <stop offset="1" stop-color="#CBD5E1" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1600" height="480" fill="url(#bg)"/>
+  <circle cx="280" cy="200" r="180" fill="url(#glow1)"/>
+  <circle cx="1280" cy="120" r="220" fill="url(#orb)"/>
+  <path d="M0 360C220 300 420 420 640 360C860 300 1040 400 1260 340C1420 300 1520 320 1600 300V480H0V360Z" fill="url(#glow2)" opacity="0.45"/>
+  <path d="M0 400C180 370 360 430 540 390C760 340 920 430 1140 380C1320 340 1460 370 1600 350V480H0V400Z" fill="#0F172A" fill-opacity="0.35"/>
+</svg>

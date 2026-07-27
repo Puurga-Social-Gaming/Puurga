@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { useWebSocket } from '../hooks/useWebSocket';
+import { useUser } from './UserContext';
 import api from '../lib/axios';
 import type {
   UserSurvivalState,
@@ -70,6 +71,7 @@ interface SurvivalProviderProps {
 }
 
 export const SurvivalProvider: React.FC<SurvivalProviderProps> = ({ children }) => {
+  const { user, loading: userLoading } = useUser();
   const [survivalState, setSurvivalState] = useState<UserSurvivalState | null>(null);
   const [publicStates, setPublicStates] = useState<Map<string, SurvivalPublicState>>(new Map());
   const [loading, setLoading] = useState(true);
@@ -82,8 +84,14 @@ export const SurvivalProvider: React.FC<SurvivalProviderProps> = ({ children }) 
       const response = await api.get('/survival/state');
       setSurvivalState(response.data);
     } catch (err: any) {
-      setError(err?.response?.data?.error || 'Failed to fetch survival state');
-      console.error('Error fetching survival state:', err);
+      const status = err?.response?.status;
+      const message = err?.response?.data?.error || 'Failed to fetch survival state';
+      // Missing state / unauthenticated — avoid noisy console spam
+      if (status !== 404 && status !== 401) {
+        console.error('Error fetching survival state:', err);
+      }
+      setError(message);
+      setSurvivalState(null);
     } finally {
       setLoading(false);
     }
@@ -103,8 +111,12 @@ export const SurvivalProvider: React.FC<SurvivalProviderProps> = ({ children }) 
     try {
       const response = await api.get('/survival/notifications');
       return response.data;
-    } catch (err) {
-      console.error('Error fetching survival notifications:', err);
+    } catch (err: any) {
+      const status = err?.response?.status;
+      // Auth blips / missing survival schema — empty list is fine
+      if (status !== 503 && status !== 404) {
+        console.error('Error fetching survival notifications:', err);
+      }
       return [];
     }
   }, []);
@@ -161,9 +173,15 @@ export const SurvivalProvider: React.FC<SurvivalProviderProps> = ({ children }) 
   const getRedemptionRequests = useCallback(async (): Promise<RedemptionRequest[]> => {
     try {
       const response = await api.get('/purgatory/requests');
-      return response.data;
-    } catch (err) {
-      console.error('Error fetching redemption requests:', err);
+      return Array.isArray(response.data) ? response.data : [];
+    } catch (err: any) {
+      // Expected when credits are low / feature locked — keep console quiet
+      if (err?.status === 403 || err?.response?.status === 403) {
+        return [];
+      }
+      if (import.meta.env.DEV) {
+        console.warn('Redemption requests unavailable:', err?.message || err);
+      }
       return [];
     }
   }, []);
@@ -288,8 +306,15 @@ export const SurvivalProvider: React.FC<SurvivalProviderProps> = ({ children }) 
   });
 
   useEffect(() => {
+    if (userLoading) return;
+    if (!user) {
+      setSurvivalState(null);
+      setError(null);
+      setLoading(false);
+      return;
+    }
     refresh();
-  }, [refresh]);
+  }, [user, userLoading, refresh]);
 
   return (
     <SurvivalContext.Provider

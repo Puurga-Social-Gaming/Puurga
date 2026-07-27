@@ -604,47 +604,61 @@ export default function RedemptionGame() {
     );
 
     return (
-        <div className="min-h-screen bg-background text-foreground font-sans flex justify-center">
-            <div className="w-full max-w-lg bg-card min-h-screen shadow-theme-2xl relative overflow-hidden flex flex-col border-x border-border">
-
-                {/* App Bar */}
-                <div className="p-4 flex items-center justify-between bg-card/80 backdrop-blur border-b border-border sticky top-0 z-50">
-                    <div className="flex items-center gap-2">
-                        <Link to="/puurga-games">
-                            <ArrowLeft className="w-6 h-6 text-foreground hover:text-accent transition-colors" />
-                        </Link>
-                        <Shield className="w-6 h-6 text-accent" />
-                        <h1 className="font-bold text-lg tracking-tight text-foreground">Redemption</h1>
-                    </div>
-                    <div className="flex gap-3 text-xs font-mono text-muted">
-                        <span className="flex items-center gap-1"><Zap className="w-3 h-3 text-accent" /> {balance}</span>
-                    </div>
-                </div>
-
-                {/* Content Area */}
-                <div className="flex-1 p-4 overflow-y-auto pb-20 scrollbar-hide">
-                    {view === 'dashboard' && renderDashboard()}
-                    {view === 'game' && renderGame()}
-                    {view === 'summary' && renderSummary()}
-                    {view === 'shop' && renderShop()}
-                </div>
-
-                {/* Bottom Nav */}
-                <div className="border-t border-border bg-card p-2 flex justify-around items-center text-muted">
-                    <button className={`p-2 rounded-lg flex flex-col items-center gap-1 ${view === 'dashboard' ? 'text-accent' : 'hover:text-foreground'}`} onClick={() => setView('dashboard')}>
-                        <Shield className="w-5 h-5" />
-                        <span className="text-[10px] font-medium">Home</span>
-                    </button>
-                    <button className={`p-2 rounded-lg flex flex-col items-center gap-1 ${view === 'shop' ? 'text-accent' : 'hover:text-foreground'}`} onClick={() => setView('shop')}>
-                        <Users className="w-5 h-5" />
-                        <span className="text-[10px] font-medium">Redeem</span>
-                    </button>
-                    <Link to="/puurga-games" className="p-2 rounded-lg flex flex-col items-center gap-1 hover:text-foreground">
+        <div className="w-full text-foreground flex flex-col pb-4">
+            {/* App Bar — horizontal padding comes from Layout page-shell */}
+            <div className="pb-3 mb-1 flex items-center justify-between border-b border-border sticky top-0 z-40 bg-background/90 backdrop-blur-md">
+                <div className="flex items-center gap-2.5 min-w-0">
+                    <Link
+                        to="/puurga-games"
+                        className="p-1.5 -ml-1.5 rounded-xl text-muted hover:text-foreground hover:bg-card-hover transition-colors shrink-0"
+                    >
                         <ArrowLeft className="w-5 h-5" />
-                        <span className="text-[10px] font-medium">Exit</span>
                     </Link>
+                    <div className="w-9 h-9 rounded-xl bg-card border border-border flex items-center justify-center shadow-theme-sm shrink-0">
+                        <Shield className="w-4 h-4 text-accent" />
+                    </div>
+                    <div className="min-w-0">
+                        <h1 className="font-bold text-lg tracking-tight text-foreground leading-tight">Redemption</h1>
+                        <p className="text-[11px] text-muted">Paths of restoration</p>
+                    </div>
                 </div>
+                <div className="flex items-center gap-1.5 text-xs font-mono text-muted bg-card border border-border rounded-full px-2.5 py-1.5 shadow-theme-sm shrink-0">
+                    <Zap className="w-3.5 h-3.5 text-accent" />
+                    <span className="tabular-nums text-foreground font-semibold">{balance}</span>
+                </div>
+            </div>
 
+            <div className="flex-1 py-4">
+                {view === 'dashboard' && renderDashboard()}
+                {view === 'game' && renderGame()}
+                {view === 'summary' && renderSummary()}
+                {view === 'shop' && renderShop()}
+            </div>
+
+            <div className="sticky bottom-20 lg:bottom-0 z-30 mt-2 border-t border-border bg-background/95 backdrop-blur-md py-2 flex justify-around items-center text-muted">
+                <button
+                    type="button"
+                    className={`p-2 rounded-xl flex flex-col items-center gap-1 min-w-[4.5rem] transition-colors ${view === 'dashboard' ? 'text-foreground bg-card border border-border' : 'hover:text-foreground'}`}
+                    onClick={() => setView('dashboard')}
+                >
+                    <Shield className="w-5 h-5" />
+                    <span className="text-[10px] font-medium">Home</span>
+                </button>
+                <button
+                    type="button"
+                    className={`p-2 rounded-xl flex flex-col items-center gap-1 min-w-[4.5rem] transition-colors ${view === 'shop' ? 'text-foreground bg-card border border-border' : 'hover:text-foreground'}`}
+                    onClick={() => setView('shop')}
+                >
+                    <Users className="w-5 h-5" />
+                    <span className="text-[10px] font-medium">Redeem</span>
+                </button>
+                <Link
+                    to="/puurga-games"
+                    className="p-2 rounded-xl flex flex-col items-center gap-1 min-w-[4.5rem] hover:text-foreground transition-colors"
+                >
+                    <ArrowLeft className="w-5 h-5" />
+                    <span className="text-[10px] font-medium">Exit</span>
+                </Link>
             </div>
         </div>
     );

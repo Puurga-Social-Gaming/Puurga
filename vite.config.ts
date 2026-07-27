@@ -23,7 +23,7 @@ export default defineConfig({
         ws: false,
       },
       '/ws': {
-        target: 'ws://localhost:3005',
+        target: 'http://localhost:3005',
         ws: true,
         changeOrigin: true,
         secure: false,

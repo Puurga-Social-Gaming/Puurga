@@ -3,6 +3,7 @@ import { supabase } from '../config/supabase';
 import { supabaseAuth as auth, AuthRequest } from '../middleware/supabaseAuth';
 import { createNotification } from './createNotification';
 import { validateNotGhosted } from '../middleware/restrictGhosted';
+import { areBlocked, syncMutualFollows } from '../utils/friendRelations';
 
 const router = express.Router();
 
@@ -32,6 +33,13 @@ router.post('/send', auth, validateNotGhosted, async (req: AuthRequest, res) => 
 
     if (user.id === receiverId) {
       return res.status(400).json({ message: 'Cannot send friend request to yourself' });
+    }
+
+    if (await areBlocked(user.id, receiverId)) {
+      return res.status(403).json({
+        error: 'Cannot send friend request due to a block',
+        code: 'USER_BLOCKED',
+      });
     }
 
     // Check if they're already friends
@@ -93,6 +101,8 @@ router.post('/send', auth, validateNotGhosted, async (req: AuthRequest, res) => 
           if (friendshipError) {
             console.error('Error creating friendship:', friendshipError);
           }
+
+          await syncMutualFollows(user.id, receiverId);
 
           // Notify the original sender that their request was accepted
           await createNotification({
@@ -271,19 +281,47 @@ router.post('/:requestId/accept', auth, async (req: AuthRequest, res) => {
 
     if (updateError) throw updateError;
 
-    // Create friendship (bidirectional entry)
-    const { error: friendshipError } = await supabase
-      .from('friends')
-      .insert({
+    // Create friendship — try both historical column layouts
+    const createdAt = new Date().toISOString();
+    let friendshipError = (
+      await supabase.from('friends').insert({
         user_id_1: request.sender_id,
         user_id_2: request.receiver_id,
-        created_at: new Date().toISOString()
-      });
+        created_at: createdAt,
+      })
+    ).error;
+
+    if (friendshipError && (friendshipError.code === '42703' || /user_id_1|column/i.test(friendshipError.message || ''))) {
+      friendshipError = (
+        await supabase.from('friends').insert({
+          user_id: request.sender_id,
+          friend_id: request.receiver_id,
+          created_at: createdAt,
+        })
+      ).error;
+    }
 
     if (friendshipError) {
       console.error('Error creating friendship:', friendshipError);
-      // Don't throw - the request was still accepted
+      // Don't throw - the request was still accepted (listed via accepted requests fallback)
     }
+
+    // Also mirror into friendships table if it exists (statuses / auth use it)
+    const { error: friendshipsMirrorError } = await supabase.from('friendships').insert({
+      user_id: request.sender_id,
+      friend_id: request.receiver_id,
+      status: 'accepted',
+      created_at: createdAt,
+    });
+    if (
+      friendshipsMirrorError &&
+      friendshipsMirrorError.code !== '42P01' &&
+      friendshipsMirrorError.code !== '42703'
+    ) {
+      console.warn('friendships mirror insert:', friendshipsMirrorError.message);
+    }
+
+    await syncMutualFollows(request.sender_id, request.receiver_id);
 
     // Notify the sender that their request was accepted
     await createNotification({
@@ -297,6 +335,48 @@ router.post('/:requestId/accept', auth, async (req: AuthRequest, res) => {
   } catch (error) {
     console.error('Error accepting friend request:', error);
     res.status(500).json({ error: 'Failed to accept friend request' });
+  }
+});
+
+// Cancel an outgoing pending friend request (sender only)
+router.delete('/:requestId/cancel', auth, async (req: AuthRequest, res) => {
+  try {
+    const { user } = req;
+    const { requestId } = req.params;
+
+    if (!user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { data: request, error: fetchError } = await supabase
+      .from('friend_requests')
+      .select('*')
+      .eq('id', requestId)
+      .single();
+
+    if (fetchError || !request) {
+      return res.status(404).json({ error: 'Friend request not found' });
+    }
+
+    if (request.sender_id !== user.id) {
+      return res.status(403).json({ error: 'You can only cancel requests you sent' });
+    }
+
+    if (request.status !== 'pending') {
+      return res.status(400).json({ error: 'Only pending requests can be cancelled' });
+    }
+
+    const { error: deleteError } = await supabase
+      .from('friend_requests')
+      .delete()
+      .eq('id', requestId);
+
+    if (deleteError) throw deleteError;
+
+    res.json({ message: 'Friend request cancelled', status: 'none' });
+  } catch (error) {
+    console.error('Error cancelling friend request:', error);
+    res.status(500).json({ error: 'Failed to cancel friend request' });
   }
 });
 

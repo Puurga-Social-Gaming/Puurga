@@ -12,6 +12,7 @@ import { PURGE_THRESHOLD } from '../constants/purgeConstants';
 import { createNotification } from './createNotification';
 import { validateNotGhosted } from '../middleware/restrictGhosted';
 import { NotificationService } from '../services/notificationService';
+import { serializeMediaUrls, parseMediaUrls } from '../utils/mediaUrls';
 
 const router = express.Router();
 
@@ -102,9 +103,12 @@ router.get('/profile', auth, async (req: AuthRequest, res) => {
     const credits = Number(profile.purga_points ?? profile.credits ?? 0);
 
     // Return profile with both snake_case and camelCase for compatibility
+    // Prefer auth-resolved name/username (middleware heals "New User" placeholders)
     const responseData = {
       ...profile,
-      name: profile.full_name,
+      full_name: user.full_name || profile.full_name,
+      username: user.username || profile.username,
+      name: user.full_name || profile.full_name,
       avatar: normalizeImageUrl(profile.avatar_url),
       avatar_url: normalizeImageUrl(profile.avatar_url),
       coverPhoto: normalizeImageUrl(profile.cover_photo),
@@ -112,6 +116,10 @@ router.get('/profile', auth, async (req: AuthRequest, res) => {
       email: user.email,
       credits,
       purga_points: credits,
+      certification_slug: profile.certification_slug || null,
+      certificationSlug: profile.certification_slug || null,
+      logo_certified: Boolean(profile.logo_certified),
+      logoCertified: Boolean(profile.logo_certified),
       account_status: profile.account_status || (profile.is_restricted ? 'restricted' : 'active'),
       inactivity_level: profile.inactivity_level || 0,
       last_active_at: profile.last_active_at || profile.last_seen,
@@ -378,6 +386,10 @@ router.put('/profile', auth, async (req: AuthRequest, res) => {
       storyPrivacy
     } = req.body;
 
+    if (typeof bio === 'string' && bio.length > 300) {
+      return res.status(400).json({ error: 'Bio must be 300 characters or less' });
+    }
+
     // Check if username is being changed and if it's already taken
     console.log('Update profile request:', {
       currentId: id,
@@ -417,7 +429,7 @@ router.put('/profile', auth, async (req: AuthRequest, res) => {
     // Update the rest of the profile in the profiles table
     const updateData: any = {
       full_name: name,
-      bio,
+      bio: typeof bio === 'string' ? bio.slice(0, 300) : bio,
       location,
       website,
       occupation,
@@ -823,7 +835,12 @@ router.post('/posts', auth, validateNotGhosted, async (req: AuthRequest, res) =>
       return res.status(400).json({ error: 'Post must have text or media' });
     }
 
-    const media_url = Array.isArray(images) ? images.join(',') : images || null;
+    const mediaList = Array.isArray(images)
+      ? images.filter((u: unknown) => typeof u === 'string' && u.trim())
+      : typeof images === 'string' && images.trim()
+        ? [images.trim()]
+        : [];
+    const media_url = serializeMediaUrls(mediaList);
     
     // SAFE INSERT: Only use columns guaranteed to exist in the posts table
     const safePostData: any = {
@@ -887,7 +904,21 @@ router.post('/posts', auth, validateNotGhosted, async (req: AuthRequest, res) =>
     await CreditService.updateLastActiveAt(user_id);
 
     console.log('Post created successfully:', createdPost.id);
-    res.json(createdPost);
+    const responseImages = parseMediaUrls(createdPost.media_url || media_url)
+      .map((url) => normalizeImageUrl(url))
+      .filter(Boolean);
+
+    res.json({
+      ...createdPost,
+      images: responseImages,
+      comments: 0,
+      user: {
+        id: user_id,
+        name: '',
+        username: '',
+        avatar: '',
+      },
+    });
   } catch (error) {
     console.error('Unexpected error creating post:', error);
     res.status(500).json({ error: 'Internal server error', details: error instanceof Error ? error.message : 'Unknown error' });
@@ -1044,7 +1075,15 @@ router.get('/:id/stats', auth, async (req: AuthRequest, res) => {
       .select('id')
       .eq('user_id', userId);
     if (postsError) {
-      if ((postsError as any).code === '42P01' || (postsError as any).code === '42703') {
+      const code = (postsError as any).code;
+      const msg = String((postsError as any).message || (postsError as any).details || '').toLowerCase();
+      if (
+        code === '42P01' ||
+        code === '42703' ||
+        msg.includes('fetch failed') ||
+        msg.includes('timeout') ||
+        msg.includes('network')
+      ) {
         return res.json({ followers: 0, following: 0, posts: 0, puurgas: 0 });
       }
       throw postsError;
@@ -1052,31 +1091,41 @@ router.get('/:id/stats', auth, async (req: AuthRequest, res) => {
 
     const postIds: string[] = (posts || []).map((p: { id: string }) => p.id);
 
-    // Followers: Friends where this user accepted the request (user_id_2)
-    const { count: followersCount, error: followersError } = await supabase
-      .from('friends')
+    // Prefer followers table (mutual follows). Fallback to friends graph.
+    let followersCount = 0;
+    let followingCount = 0;
+
+    const followersQ = await supabase
+      .from('followers')
       .select('*', { count: 'exact', head: true })
-      .eq('user_id_2', userId);
+      .eq('following_id', userId);
 
-    if (followersError) {
-      if ((followersError as any).code === '42P01' || (followersError as any).code === '42703') {
-        // Table doesn't exist?
-      } else {
-        throw followersError;
-      }
-    }
+    if (!followersQ.error) {
+      followersCount = followersQ.count || 0;
+      const followingQ = await supabase
+        .from('followers')
+        .select('*', { count: 'exact', head: true })
+        .eq('follower_id', userId);
+      followingCount = followingQ.error ? 0 : followingQ.count || 0;
+    } else {
+      // Fallback: friends graph (directional columns)
+      const { count: fbFollowers } = await supabase
+        .from('friends')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id_2', userId);
+      const { count: fbFollowing } = await supabase
+        .from('friends')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id_1', userId);
+      followersCount = fbFollowers || 0;
+      followingCount = fbFollowing || 0;
 
-    // Following: Friends where this user sent the request (user_id_1)
-    const { count: followingCount, error: followingError } = await supabase
-      .from('friends')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id_1', userId);
-
-    if (followingError) {
-      if ((followingError as any).code === '42P01' || (followingError as any).code === '42703') {
-        // Table doesn't exist?
-      } else {
-        throw followingError;
+      // If directional counts look empty but friendships exist, use mutual friends count
+      if (!followersCount && !followingCount) {
+        const { getAcceptedFriendIds } = await import('../utils/friendRelations');
+        const friendIds = await getAcceptedFriendIds(userId);
+        followersCount = friendIds.length;
+        followingCount = friendIds.length;
       }
     }
 
@@ -1104,9 +1153,10 @@ router.get('/:id/stats', auth, async (req: AuthRequest, res) => {
       posts: (posts || []).length,
       puurgas,
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error fetching user stats:', error);
-    res.status(500).json({ error: 'Failed to fetch user stats' });
+    // Soft-fail — sidebar stats must never break Home
+    return res.json({ followers: 0, following: 0, posts: 0, puurgas: 0 });
   }
 });
 
@@ -1334,6 +1384,10 @@ router.get('/profile/:username_or_id', auth, async (req: AuthRequest, res) => {
       hasPendingRequest: hasPendingRequest,
       is_private: profile.is_private,
       isPrivate: profile.is_private,
+      certification_slug: profile.certification_slug || null,
+      certificationSlug: profile.certification_slug || null,
+      logo_certified: Boolean(profile.logo_certified),
+      logoCertified: Boolean(profile.logo_certified),
     });
   } catch (error) {
     console.error('Error fetching user profile:', error);
@@ -1390,6 +1444,7 @@ router.get('/:username/posts', auth, async (req: AuthRequest, res) => {
 
         // Check if current user liked the post
         let liked = false;
+        let purged = false;
         if (currentUserId) {
           const { data: userLike } = await supabase
             .from('likes')
@@ -1398,6 +1453,14 @@ router.get('/:username/posts', auth, async (req: AuthRequest, res) => {
             .eq('user_id', currentUserId)
             .maybeSingle();
           liked = !!userLike;
+
+          const { data: userPurge } = await supabase
+            .from('post_purges')
+            .select('id')
+            .eq('post_id', post.id)
+            .eq('user_id', currentUserId)
+            .maybeSingle();
+          purged = !!userPurge;
         }
 
         // Process media URL
@@ -1418,6 +1481,9 @@ router.get('/:username/posts', auth, async (req: AuthRequest, res) => {
           comments: commentCount || 0,
           comment_count: commentCount || 0,
           liked: liked,
+          purges: post.purge_count || 0,
+          purge_count: post.purge_count || 0,
+          purged,
         };
       })
     );

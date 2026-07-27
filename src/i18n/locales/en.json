@@ -7,10 +7,24 @@
         "delete": "Delete",
         "edit": "Edit",
         "viewOriginal": "View original",
-        "viewTranslated": "View translated",
+        "viewTranslated": "Translate",
         "translationDisclaimer": "Translated from {{language}}",
+        "translationFailed": "Already in your language",
         "siswatiDisclaimer": "Translation quality may vary",
         "continue": "Continue"
+    },
+    "search": {
+        "placeholder": "Search friends & posts…",
+        "searching": "Searching…",
+        "people": "People",
+        "posts": "Posts",
+        "friend": "Friend",
+        "withMedia": "Media",
+        "noResults": "No results found",
+        "tryDifferent": "Try another name or keyword",
+        "failed": "Search failed. Try again.",
+        "clear": "Clear search",
+        "hint": "↑↓ to navigate · Enter to open · Esc to close"
     },
     "onboarding": {
         "selectLanguage": "Select Language",
@@ -82,7 +96,11 @@
         "language": "Language",
         "selectLanguage": "Select your preferred language",
         "lightMode": "Light Mode",
-        "darkMode": "Dark Mode"
+        "darkMode": "Dark Mode",
+        "alwaysTranslateMessages": "Always translate messages",
+        "alwaysTranslateMessagesDesc": "Incoming messages appear in your language. Tap to view the original anytime.",
+        "liveTypingPreview": "Share live typing preview",
+        "liveTypingPreviewDesc": "Let people in your conversation see your draft in real time before you send it."
     },
     "posts": {
         "noPostsToDisplay": "No posts to display",
@@ -164,7 +182,9 @@
             "posts": "Posts",
             "following": "Following",
             "followers": "Followers"
-        }
+        },
+        "gamingArena": "Gaming Arena",
+        "purgeRisk": "Purge Risk"
     },
     "profile": {
         "learnMore": "Learn more",
@@ -176,6 +196,7 @@
         "gallery": "Gallery",
         "puurgas": "Puurgas",
         "gaming": "Gaming",
+        "verified": "Verified",
         "settings": "Settings",
         "changeCover": "Change Cover",
         "gamingStats": "Gaming Stats",
@@ -224,6 +245,14 @@
     "post": {
         "editPost": "Edit Post",
         "deletePost": "Delete Post",
+        "dontLike": "I don't like this",
+        "dontLikeDone": "Post hidden from your feed",
+        "purgeDone": "Purge counted",
+        "purgeThreshold": "This post has been purged {{count}} times.",
+        "cannotPurgeOwn": "You cannot purge your own posts",
+        "alreadyPurged": "You have already purged this post",
+        "purgeFailed": "Failed to purge post",
+        "background": "Background",
         "save": "Save",
         "cancel": "Cancel",
         "readMore": "Read more",
@@ -259,6 +288,28 @@
         "rejectSuccess": "Friend request rejected",
         "rejectFailed": "Failed to reject friend request"
     },
+    "comments": {
+        "loading": "Loading comments…",
+        "empty": "No comments yet",
+        "placeholder": "Write a comment…",
+        "send": "Send comment",
+        "added": "Comment added",
+        "addFailed": "Failed to add comment",
+        "updated": "Comment updated",
+        "updateFailed": "Failed to update comment",
+        "deleted": "Comment deleted",
+        "deleteConfirm": "Delete this comment?",
+        "deleteFailed": "Failed to delete comment",
+        "likeFailed": "Failed to like comment",
+        "reply": "Reply",
+        "replyPlaceholder": "Reply to {{name}}…",
+        "replyAdded": "Reply added",
+        "replyFailed": "Failed to reply",
+        "purge": "Purge",
+        "purgeFailed": "Failed to purge comment",
+        "purgedHidden": "Comment purged",
+        "edited": "edited"
+    },
     "messages": {
         "title": "Messages",
         "newConversation": "New conversation",
@@ -278,7 +329,14 @@
         "welcomePrompt": "Select a conversation from the sidebar or start a new one to begin messaging.",
         "failedToStart": "Failed to start conversation",
         "failedToSend": "Failed to send message",
-        "sendMessage": "Send message"
+        "sendMessage": "Send message",
+        "decryptUnavailable": "Message unavailable on this device",
+        "newMessage": "New message",
+        "mediaMessage": "📎 Media",
+        "edited": "edited",
+        "edit": "Edit",
+        "delete": "Delete",
+        "messageDeleted": "Message deleted"
     },
     "games": {
         "arena": "Arena",
@@ -348,5 +406,27 @@
         "continue": "Continue",
         "exit": "Exit",
         "retry": "Retry"
+    },
+    "connections": {
+        "title": "My Connections",
+        "subtitle": "Friends, followers, requests and suggestions",
+        "friends": "Friends",
+        "followers": "Followers",
+        "following": "Following",
+        "pending": "Pending",
+        "suggested": "Suggested",
+        "search": "Search people…",
+        "empty": "No people here yet",
+        "emptyHint": "Try another tab or send a friend request",
+        "accept": "Accept",
+        "cancel": "Cancel",
+        "add": "Add",
+        "unfriend": "Unfriend",
+        "loadError": "Failed to load connections",
+        "accepted": "Friend request accepted",
+        "rejected": "Request declined",
+        "cancelled": "Request cancelled",
+        "unfriended": "Friend removed",
+        "requestSent": "Friend request sent"
     }
 }

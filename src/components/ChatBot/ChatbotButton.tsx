@@ -9,7 +9,7 @@ const ChatbotButton: React.FC = () => {
   };
 
   return (
-    <div className="fixed bottom-6 right-6 z-50">
+    <div className="fixed bottom-6 right-6 z-50 fixed-in-shell-br">
       {isOpen && (
         <div className="absolute bottom-16 right-0 w-80 h-96 bg-[#1a1a1a] rounded-xl shadow-lg border border-[#333] overflow-hidden animate-in fade-in slide-in-from-bottom-4">
           <div className="flex items-center justify-between bg-[#222] px-4 py-3 border-b border-[#333]">
@@ -19,7 +19,7 @@ const ChatbotButton: React.FC = () => {
             </div>
             <button 
               onClick={toggleChat}
-              className="text-gray-400 hover:text-white"
+              className="text-muted hover:text-foreground transition-colors"
             >
               <X size={20} />
             </button>

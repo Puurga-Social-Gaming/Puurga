@@ -6,6 +6,7 @@ import { RealtimePostgresChangesPayload, RealtimeChannel } from '@supabase/supab
 import { useWebSocket } from './useWebSocket';
 import api from '../api/api';
 import toast from 'react-hot-toast';
+import { playMessageSound } from '../utils/messageSound';
 
 const NOTIFICATION_MESSAGES: Record<string, (name: string) => string> = {
   like: (name) => `❤️ ${name} liked your post!`,
@@ -99,20 +100,23 @@ export const useNotifications = () => {
   };
 
   useEffect(() => {
-    if (user) {
+    if (user?.id) {
       fetchNotifications();
     }
-  }, [user]);
+  }, [user?.id]);
 
-  const { isConnected } = useWebSocket({
+  const { isConnected: _wsConnected } = useWebSocket({
     onNotification: (notification: Notification) => {
       setNotifications(prev => {
         if (prev.some(n => n.id === notification.id)) return prev;
         return [notification, ...prev];
       });
       setUnreadCount(prev => prev + 1);
-
       const type = notification.type as string;
+      if (type !== 'message' && type !== 'new_message') {
+        playMessageSound();
+      }
+
       const name = notification.fromUser?.name || 'Someone';
       const messageFn = NOTIFICATION_MESSAGES[type];
       const toastMessage = messageFn ? messageFn(name) : `${name} sent a notification`;
@@ -122,13 +126,10 @@ export const useNotifications = () => {
         position: 'top-right',
       });
     },
-    onConnectionChange: (connected) => {
-      console.log('WebSocket connection status:', connected);
-    }
   });
 
   useEffect(() => {
-    if (!user || isConnected) return;
+    if (!user || _wsConnected) return;
 
     if (subscriptionRef.current) {
       subscriptionRef.current.unsubscribe();
@@ -158,7 +159,7 @@ export const useNotifications = () => {
         subscriptionRef.current = null;
       }
     };
-  }, [user, isConnected]);
+  }, [user, _wsConnected]);
 
   return {
     notifications,

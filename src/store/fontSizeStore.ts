@@ -22,7 +22,7 @@ function getStoredFontSize(): FontSizeOption {
   } catch {
     // ignore read errors
   }
-  return 'medium';
+  return 'large';
 }
 
 function applyFontScale(size: FontSizeOption) {

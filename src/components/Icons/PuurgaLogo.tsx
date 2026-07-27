@@ -1,19 +1,33 @@
 import React from 'react';
+import { useTheme } from '../../context/ThemeContext';
+import logoDark from '../../puurge_img/logo_dark.png';
 
-const PuurgaLogo: React.FC<{ size?: number; className?: string }> = ({ size = 32, className = '' }) => {
+/** Original brand mark (used for dark theme header) */
+const LOGO_ORIGINAL =
+  'https://vhvxfnxtyrgiydztsonz.supabase.co/storage/v1/object/public/Logos/5dLight.png';
 
-  // Using the 5dLight version for a premium look based on project requirements
-  // Using 5dLight (white) for a monochromatic dark theme or when a white logo is requested
-  const logoUrl = 'https://vhvxfnxtyrgiydztsonz.supabase.co/storage/v1/object/public/Logos/5dLight.png';
+interface PuurgaLogoProps {
+  size?: number;
+  className?: string;
+}
+
+/**
+ * Light theme: local dark mark (already good — do not change).
+ * Dark theme: original remote logo from the start.
+ */
+const PuurgaLogo: React.FC<PuurgaLogoProps> = ({ size = 32, className = '' }) => {
+  const { theme } = useTheme();
+  const src = theme === 'light' ? logoDark : LOGO_ORIGINAL;
 
   return (
     <img
-      src={logoUrl}
+      src={src}
       alt="Puurga"
       width={size}
       height={size}
       className={`object-contain ${className}`}
       style={{ width: size, height: size }}
+      draggable={false}
     />
   );
 };

@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { MessageCircle, MoreHorizontal, Pencil, X, AlertTriangle, Skull, Ghost, Flame } from 'lucide-react';
+import { MessageCircle, MoreHorizontal, Pencil, X, AlertTriangle, Skull, Ghost, Flame, ThumbsDown, Globe, Download, Loader2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
@@ -10,28 +10,22 @@ import { motion, AnimatePresence } from 'framer-motion';
 import CommentSection from '../Comment/CommentSection';
 import PostReactions from './PostReactions';
 import ShareButton from './ShareButton';
+import PostMediaGallery from './PostMediaGallery';
 import { useSurvival } from '../../context/SurvivalContext';
+import { useUser } from '../../context/UserContext';
+import { BACKGROUND_PRESETS, getPostBackgroundPreset } from '../../constants/postBackgrounds';
 
-import SupabaseImage from '../UI/SupabaseImage';
 import SupabaseVideo from '../UI/SupabaseVideo';
 import Avatar from '../Avatar';
 import RichText from '../RichText/RichText';
-
-// Post background presets (matching CreatePost)
-const BACKGROUND_PRESETS = [
-  { type: 'none', label: 'None', value: 0, class: 'bg-transparent' },
-  { type: 'color', label: 'Warm', value: 1, class: 'bg-orange-100' },
-  { type: 'color', label: 'Cool', value: 2, class: 'bg-blue-100' },
-  { type: 'color', label: 'Nature', value: 3, class: 'bg-green-100' },
-  { type: 'color', label: 'Sunset', value: 4, class: 'bg-yellow-100' },
-  { type: 'gradient', label: 'Ocean', value: 5, class: 'bg-gradient-to-br from-blue-500 to-purple-600' },
-  { type: 'gradient', label: 'Sunrise', value: 6, class: 'bg-gradient-to-br from-pink-500 to-orange-500' },
-  { type: 'gradient', label: 'Forest', value: 7, class: 'bg-gradient-to-br from-green-500 to-teal-600' },
-];
+import PurgeIcon from '../Icons/PurgeIcon';
+import InlineTranslate from '../InlineTranslate';
+import CertificationBadges from '../Profile/CertificationBadges';
+import { downloadPostCapture } from '../../utils/downloadPostCapture';
 
 interface PostProps {
   post: PostType;
-  onUpdate?: (post: PostType) => void;
+  onUpdate?: (post: PostType & { deleted?: boolean; hidden?: boolean }) => void;
   variant?: 'feed' | 'card' | 'compact';
 }
 
@@ -43,12 +37,15 @@ const Post: React.FC<PostProps> = ({ post, onUpdate, variant = 'feed' }) => {
     compact: 'py-0.5',
   };
   const { t } = useTranslation();
+  const { user } = useUser();
+  const isOwner =
+    !!user?.id &&
+    (String(user.id) === String(post.userId) || String(user.id) === String(post.user?.id));
   const [isEditing, setIsEditing] = useState(false);
   const [editedContent, setEditedContent] = useState(post.content);
   const [editedBackgroundIndex, setEditedBackgroundIndex] = useState(post.background_index || 0);
   const [isPurging, setIsPurging] = useState(false);
   const [localPurges, setLocalPurges] = useState(post.purges || 0);
-  const [showAllImages, setShowAllImages] = useState(false);
   const [isPurged, setIsPurged] = useState(post.purged || false);
   const { survivalState: mySurvival } = useSurvival();
   const authorState = mySurvival?.current_survival_state || 'SAFE';
@@ -64,6 +61,10 @@ const Post: React.FC<PostProps> = ({ post, onUpdate, variant = 'feed' }) => {
   const [showComments, setShowComments] = useState(false);
   const [commentCount, setCommentCount] = useState(post.comments || 0);
   const commentSectionRef = useRef<HTMLDivElement>(null);
+  const commentButtonRef = useRef<HTMLButtonElement>(null);
+  const [translateToken, setTranslateToken] = useState(0);
+  const [isTranslatedView, setIsTranslatedView] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [playingVideoId, setPlayingVideoId] = useState<string | null>(null);
   const [expandedMedia, setExpandedMedia] = useState<{ url: string; isVideo: boolean } | null>(null);
@@ -77,16 +78,18 @@ const Post: React.FC<PostProps> = ({ post, onUpdate, variant = 'feed' }) => {
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+      const target = event.target as Node;
+      if (menuRef.current && !menuRef.current.contains(target)) {
         setShowMenu(false);
       }
-      if (commentSectionRef.current && !commentSectionRef.current.contains(event.target as Node)) {
-        setShowComments(false);
-      }
+      if (!showComments) return;
+      if (commentSectionRef.current?.contains(target)) return;
+      if (commentButtonRef.current?.contains(target)) return;
+      setShowComments(false);
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  }, [showComments]);
 
   const handleMenuToggle = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -130,6 +133,45 @@ const Post: React.FC<PostProps> = ({ post, onUpdate, variant = 'feed' }) => {
     setShowComments(!showComments);
   };
 
+  const handleTranslateClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!post.content?.trim()) {
+      toast.error(t('post.nothingToTranslate', 'No text to translate'));
+      return;
+    }
+    setTranslateToken((n) => n + 1);
+  };
+
+  const handleDownloadPost = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (isDownloading) return;
+    setIsDownloading(true);
+    try {
+      const safeName = (post.user.username || post.user.name || 'post')
+        .replace(/[^a-z0-9_-]/gi, '')
+        .slice(0, 24);
+      await downloadPostCapture(
+        {
+          authorName: post.user.name || post.user.username || 'Puurga user',
+          authorUsername: post.user.username,
+          authorAvatar: post.user.avatar,
+          content: post.content,
+          images: post.images || [],
+          createdLabel: formatDistanceToNow(new Date(post.createdAt), { addSuffix: true }),
+        },
+        `puurga-${safeName || 'post'}-${String(post.id).slice(0, 8)}.png`
+      );
+      toast.success(t('post.downloaded', 'Post saved as image'));
+    } catch (err) {
+      console.error('Post download failed:', err);
+      toast.error(t('post.downloadFailed', 'Could not download post'));
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
   const handleCommentUpdate = (updatedPost: PostType) => {
     if (updatedPost.comments !== undefined) {
       setCommentCount(updatedPost.comments);
@@ -138,12 +180,14 @@ const Post: React.FC<PostProps> = ({ post, onUpdate, variant = 'feed' }) => {
   };
 
   const handleDeletePost = async () => {
+    if (!isOwner) return;
     if (!window.confirm(t('post.deleteConfirm'))) return;
+    setShowMenu(false);
     try {
       const response = await api.delete(`/posts/${post.id}`);
       if (response.status === 200) {
         toast.success(t('post.postDeleted'));
-        if (onUpdate) onUpdate({ ...post, deleted: true } as PostType);
+        if (onUpdate) onUpdate({ ...post, deleted: true });
       }
     } catch (error) {
       console.error('Error deleting post:', error);
@@ -152,34 +196,50 @@ const Post: React.FC<PostProps> = ({ post, onUpdate, variant = 'feed' }) => {
   };
 
   const handlePurgeClick = async () => {
+    if (isOwner) {
+      toast.error(t('post.cannotPurgeOwn', 'You cannot purge your own posts'), { duration: 3000 });
+      return;
+    }
     if (isPurging || isPurged) return;
     try {
       setIsPurging(true);
       const response = await api.post(`/posts/${post.id}/purge`);
-      const newPurgeCount = response.data.purges;
+      const newPurgeCount = response.data?.purges ?? (localPurges + 1);
       setLocalPurges(newPurgeCount);
       setIsPurged(true);
       if (newPurgeCount >= 5) {
-        toast.error(`Post has been purged ${newPurgeCount} times.`, { duration: 4000 });
+        toast.error(t('post.purgeThreshold', 'This post has been purged {{count}} times.', { count: newPurgeCount }), { duration: 4000 });
       } else {
-        toast.success('Post purged!');
+        toast.success(t('post.purgeDone', 'Purge counted'));
       }
       if (onUpdate) onUpdate({ ...post, purges: newPurgeCount, purged: true });
     } catch (error: any) {
       console.error('Error purging post:', error);
-      if (error.response?.status === 403 && error.response?.data?.code === 'OWN_POST') {
-        toast.error('You cannot purge your own posts', { duration: 3000 });
-      } else if (error.response?.status === 400 && error.response?.data?.code === 'ALREADY_PURGED') {
-        toast.error('You have already purged this post', { duration: 3000 });
+      const status = error.response?.status;
+      const code = error.response?.data?.code;
+      const message = error.response?.data?.error || error.response?.data?.message;
+
+      if (status === 403 && code === 'OWN_POST') {
+        toast.error(t('post.cannotPurgeOwn', 'You cannot purge your own posts'), { duration: 3000 });
+      } else if (status === 400 && code === 'ALREADY_PURGED') {
+        toast.success(t('post.alreadyPurged', 'You have already purged this post'));
         setIsPurged(true);
-      } else if (error.response?.data?.message) {
-        toast.error(error.response.data.message, { duration: 3000 });
+        if (onUpdate) onUpdate({ ...post, purged: true });
+      } else if (message) {
+        toast.error(message, { duration: 3000 });
+      } else if (status === 500 || !status) {
+        toast.error(t('post.purgeFailed', 'Failed to purge post. Try again.'), { duration: 3000 });
       } else {
-        toast.error('Failed to purge post');
+        toast.error(t('post.purgeFailed', 'Failed to purge post'));
       }
     } finally {
       setIsPurging(false);
+      setShowMenu(false);
     }
+  };
+
+  const handleDontLike = () => {
+    void handlePurgeClick();
   };
 
   const handleReactionChange = (reactions: { [key: string]: ReactionCount }) => {
@@ -199,16 +259,11 @@ const Post: React.FC<PostProps> = ({ post, onUpdate, variant = 'feed' }) => {
   };
 
   // Get background class for post (like status system)
-  const getBackgroundClass = () => {
-    const index = post.background_index || 0;
-    return BACKGROUND_PRESETS[index]?.class || 'bg-transparent';
-  };
-
-  const textColorClass = post.background_index && post.background_index !== 0
-    ? 'text-gray-900'
-    : 'text-foreground';
-
-  const hasBackground = post.background_index && post.background_index !== 0;
+  const bgPreset = getPostBackgroundPreset(post.background_index);
+  const getBackgroundClass = () => bgPreset.class;
+  const textColorClass = bgPreset.textClass;
+  const hasBackground = Boolean(post.background_index && post.background_index !== 0);
+  const editBgPreset = getPostBackgroundPreset(editedBackgroundIndex);
 
   return (
     <div id={`post-${post.id}`}>
@@ -225,7 +280,7 @@ const Post: React.FC<PostProps> = ({ post, onUpdate, variant = 'feed' }) => {
           <div className="flex items-center gap-3 px-4 pt-3 pb-0">
             <Link to={`/profile/${post.user.username}`} className="shrink-0">
               <Avatar
-                src={post.user.avatar || '/default-avatar.png'}
+                src={post.user.avatar || undefined}
                 alt={post.user.name}
                 size="sm"
                 userId={post.user.id}
@@ -235,13 +290,18 @@ const Post: React.FC<PostProps> = ({ post, onUpdate, variant = 'feed' }) => {
             </Link>
 
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1.5 min-w-0">
                 <Link
                   to={`/profile/${post.user.username}`}
-                  className="font-semibold text-[13px] leading-tight text-foreground hover:text-accent hover:underline truncate"
+                  className="font-semibold text-[13px] leading-tight text-foreground hover:text-accent no-underline hover:no-underline truncate"
                 >
                   {post.user.name}
                 </Link>
+                <CertificationBadges
+                  certificationSlug={post.user.certificationSlug}
+                  logoCertified={post.user.logoCertified}
+                  size="sm"
+                />
                 {STATE_ICONS[authorState]}
               </div>
               <p className="text-[11px] text-muted/60 leading-none mt-0.5">
@@ -249,14 +309,15 @@ const Post: React.FC<PostProps> = ({ post, onUpdate, variant = 'feed' }) => {
               </p>
             </div>
 
-            {/* Menu */}
-            <div className="relative shrink-0" ref={menuRef}>
+            {/* Menu — edit/delete for author only; "don't like" for others */}
+            <div className="relative shrink-0" ref={menuRef} data-capture-ignore="true">
               <button
                 onClick={handleMenuToggle}
-                className="w-6 h-6 flex items-center justify-center text-muted/50 hover:text-foreground hover:bg-border/40 rounded-full transition-all"
+                className="w-7 h-7 flex items-center justify-center text-muted/50 hover:text-foreground hover:bg-border/40 rounded-full transition-all touch-manipulation"
                 type="button"
+                aria-label="Post options"
               >
-                <MoreHorizontal size={13} />
+                <MoreHorizontal size={14} />
               </button>
               <AnimatePresence>
                 {showMenu && (
@@ -265,24 +326,38 @@ const Post: React.FC<PostProps> = ({ post, onUpdate, variant = 'feed' }) => {
                     animate={{ opacity: 1, scale: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.95, y: -6 }}
                     transition={{ duration: 0.1 }}
-                    className="absolute right-0 mt-1 w-44 bg-card rounded-lg shadow-lg overflow-hidden z-10 border border-border/60"
+                    className="absolute right-0 mt-1 w-48 bg-card rounded-lg shadow-lg overflow-hidden z-20 border border-border/60"
                   >
-                    <button
-                      onClick={handleEdit}
-                      className="w-full px-3 py-2 text-left text-[12px] text-foreground flex items-center gap-2 hover:bg-card-hover transition-colors"
-                      type="button"
-                    >
-                      <Pencil size={13} />
-                      {t('post.editPost')}
-                    </button>
-                    <button
-                      onClick={handleDeletePost}
-                      className="w-full px-3 py-2 text-left text-[12px] text-red-500 flex items-center gap-2 hover:bg-red-500/10 transition-colors"
-                      type="button"
-                    >
-                      <X size={13} />
-                      {t('post.deletePost')}
-                    </button>
+                    {isOwner ? (
+                      <>
+                        <button
+                          onClick={handleEdit}
+                          className="w-full px-3 py-2.5 text-left text-[12px] text-foreground flex items-center gap-2 hover:bg-card-hover transition-colors"
+                          type="button"
+                        >
+                          <Pencil size={13} />
+                          {t('post.editPost')}
+                        </button>
+                        <button
+                          onClick={handleDeletePost}
+                          className="w-full px-3 py-2.5 text-left text-[12px] text-red-500 flex items-center gap-2 hover:bg-red-500/10 transition-colors"
+                          type="button"
+                        >
+                          <X size={13} />
+                          {t('post.deletePost')}
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        onClick={handleDontLike}
+                        disabled={isPurging || isPurged}
+                        className="w-full px-3 py-2.5 text-left text-[12px] text-red-500 flex items-center gap-2 hover:bg-red-500/10 transition-colors disabled:opacity-50"
+                        type="button"
+                      >
+                        <ThumbsDown size={13} />
+                        {t('post.dontLike', "I don't like this")}
+                      </button>
+                    )}
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -295,26 +370,36 @@ const Post: React.FC<PostProps> = ({ post, onUpdate, variant = 'feed' }) => {
               {isEditing ? (
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
                   {/* Background pickers */}
-                  <div className="flex gap-1 mb-2">
-                    {BACKGROUND_PRESETS.map((preset) => (
-                      <button
-                        key={preset.value}
-                        type="button"
-                        onClick={() => setEditedBackgroundIndex(preset.value)}
-                        className={`w-5 h-5 rounded ${preset.class} hover:scale-110 transition-transform ${preset.value === editedBackgroundIndex ? 'ring-2 ring-accent ring-offset-1 ring-offset-card' : ''
+                  <div className="mb-2">
+                    <p className="text-[10px] font-medium uppercase tracking-wider text-muted mb-1.5">
+                      {t('post.background', 'Background')}
+                    </p>
+                    <div className="flex gap-1.5 flex-wrap max-h-24 overflow-y-auto pr-0.5">
+                      {BACKGROUND_PRESETS.map((preset) => (
+                        <button
+                          key={preset.value}
+                          type="button"
+                          onClick={() => setEditedBackgroundIndex(preset.value)}
+                          className={`w-7 h-7 rounded-md shrink-0 ${preset.swatchClass || preset.class} hover:scale-110 transition-transform ${
+                            preset.value === editedBackgroundIndex
+                              ? 'ring-2 ring-accent ring-offset-1 ring-offset-card'
+                              : 'ring-1 ring-black/5'
                           }`}
-                        title={preset.label}
-                      />
-                    ))}
+                          title={preset.label}
+                          aria-label={preset.label}
+                        />
+                      ))}
+                    </div>
                   </div>
-                  <div className={`rounded-lg p-2 ${BACKGROUND_PRESETS[editedBackgroundIndex]?.class || 'bg-transparent'}`}>
+                  <div
+                    className={`rounded-xl p-3 min-h-[88px] ${editBgPreset.class} ${
+                      editedBackgroundIndex !== 0 ? '' : 'border border-border/50'
+                    }`}
+                  >
                     <textarea
                       value={editedContent}
                       onChange={(e) => setEditedContent(e.target.value)}
-                      className={`w-full rounded-md px-3 py-2 text-[13px] resize-none focus:outline-none focus:ring-1 focus:ring-accent transition-shadow ${editedBackgroundIndex !== 0
-                          ? 'bg-transparent text-gray-900 placeholder-gray-600'
-                          : 'bg-input text-foreground placeholder-muted'
-                        }`}
+                      className={`w-full rounded-md px-2 py-1.5 text-[13px] resize-none focus:outline-none bg-transparent transition-shadow ${editBgPreset.textClass} placeholder:opacity-50`}
                       rows={3}
                     />
                   </div>
@@ -331,27 +416,47 @@ const Post: React.FC<PostProps> = ({ post, onUpdate, variant = 'feed' }) => {
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
                   {/* Post text — only wrap in a styled box if there's a background */}
                   {hasBackground ? (
-                    <div className={`rounded-lg px-3 py-2.5 ${getBackgroundClass()}`}>
-                      <div className={`text-[13px] leading-relaxed ${textColorClass}`}>
-                        <RichText
-                          content={displayText}
-                          showLinkPreviews={true}
-                          compactLinks={false}
-                          onHashtagClick={(tag) => console.log('Hashtag clicked:', tag)}
-                          onMentionClick={(username) => console.log('Mention clicked:', username)}
-                        />
-                      </div>
-                    </div>
-                  ) : (
-                    <div className={`text-[13px] leading-relaxed ${textColorClass}`}>
-                      <RichText
+                    <div className={`rounded-xl px-4 py-3.5 ${getBackgroundClass()}`}>
+                      <InlineTranslate
                         content={displayText}
-                        showLinkPreviews={true}
-                        compactLinks={false}
-                        onHashtagClick={(tag) => console.log('Hashtag clicked:', tag)}
-                        onMentionClick={(username) => console.log('Mention clicked:', username)}
+                        claimedLanguage={(post as any).language}
+                        tone="onAccent"
+                        showControl={false}
+                        triggerToken={translateToken}
+                        onTranslatedChange={setIsTranslatedView}
+                        renderContent={(text) => (
+                          <div className={`text-[14px] sm:text-[13px] leading-relaxed font-medium ${textColorClass}`}>
+                            <RichText
+                              content={text}
+                              showLinkPreviews={true}
+                              compactLinks={false}
+                              onHashtagClick={(tag) => console.log('Hashtag clicked:', tag)}
+                              onMentionClick={(username) => console.log('Mention clicked:', username)}
+                            />
+                          </div>
+                        )}
                       />
                     </div>
+                  ) : (
+                    <InlineTranslate
+                      content={displayText}
+                      claimedLanguage={(post as any).language}
+                      tone="muted"
+                      showControl={false}
+                      triggerToken={translateToken}
+                      onTranslatedChange={setIsTranslatedView}
+                      renderContent={(text) => (
+                        <div className={`text-[13px] leading-relaxed ${textColorClass}`}>
+                          <RichText
+                            content={text}
+                            showLinkPreviews={true}
+                            compactLinks={false}
+                            onHashtagClick={(tag) => console.log('Hashtag clicked:', tag)}
+                            onMentionClick={(username) => console.log('Mention clicked:', username)}
+                          />
+                        </div>
+                      )}
+                    />
                   )}
                   {shouldTruncate && (
                     <button
@@ -366,161 +471,104 @@ const Post: React.FC<PostProps> = ({ post, onUpdate, variant = 'feed' }) => {
             </AnimatePresence>
           </div>
 
-          {/* Media */}
-          {post.images && post.images.length > 0 && (() => {
-            const media = post.images;
-            const shouldShowExpand = media.length > 2 && !showAllImages;
-            const mediaToShow = shouldShowExpand ? media.slice(0, 2) : media;
-            const remainingCount = media.length - 2;
-
-            const getGridClasses = () => {
-              if (media.length === 1) return 'grid-cols-1';
-              const layout = post.media_layout || 'grid';
-              switch (layout) {
-                case 'rows': return 'grid-cols-1';
-                case 'columns': return 'grid-cols-2 gap-1';
-                case 'grid':
-                default: return 'grid-cols-2 gap-1';
-              }
-            };
-
-            const getMediaClasses = (isSingle: boolean, isVideo: boolean, layout?: string) => {
-              if (isSingle) return isVideo ? 'aspect-video w-full max-h-[400px] sm:max-h-[500px] object-cover' : 'aspect-[4/5] w-full max-h-[400px] sm:max-h-[500px] object-cover';
-              const mediaLayout = layout || 'grid';
-              switch (mediaLayout) {
-                case 'rows': return isVideo ? 'h-[18vh] sm:h-[22vh] max-h-[220px] w-full object-cover' : 'h-[18vh] sm:h-[22vh] max-h-[220px] w-full object-cover';
-                case 'columns': return isVideo ? 'aspect-video w-full object-cover' : 'aspect-[3/4] w-full object-cover';
-                case 'grid':
-                default: return isVideo ? 'aspect-video w-full object-cover' : 'aspect-[3/4] w-full object-cover';
-              }
-            };
-
-            const isVideoUrl = (url: string) => {
-              const videoExtensions = ['.mp4', '.webm', '.mov', '.avi', '.mkv', '.flv', '.wmv'];
-              return videoExtensions.some(ext => url.toLowerCase().includes(ext));
-            };
-
-            return (
-              <motion.div
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                className={`mt-2.5 grid gap-0.5 overflow-hidden rounded-xl ${getGridClasses()}`}
-              >
-                {mediaToShow.map((mediaUrl, index) => {
-                  const isVideo = isVideoUrl(mediaUrl);
-                  return (
-                    <div key={index} className="relative overflow-hidden rounded-lg">
-                      {isVideo ? (
-                        <div className="cursor-pointer" onClick={() => handleVideoClick(mediaUrl)}>
-                          <SupabaseVideo
-                            src={mediaUrl}
-                            controls={playingVideoId === mediaUrl}
-                            muted={playingVideoId !== mediaUrl}
-                            playsInline={true}
-                            autoPlay={playingVideoId === mediaUrl}
-                            className={`transition-opacity duration-150 rounded-lg ${getMediaClasses(media.length === 1, true, post.media_layout)}`}
-                          />
-                          {playingVideoId !== mediaUrl && (
-                            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                              <div className="w-8 h-8 bg-black/50 rounded-full flex items-center justify-center">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="white"><path d="M8 5v14l11-7z" /></svg>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      ) : (
-                        <div onClick={() => handleMediaClick(mediaUrl, false)} className="cursor-pointer">
-                          <SupabaseImage
-                            src={mediaUrl}
-                            alt={`Post image ${index + 1}`}
-                            className={`transition-opacity duration-150 hover:opacity-95 rounded-lg ${getMediaClasses(media.length === 1, false, post.media_layout)}`}
-                          />
-                        </div>
-                      )}
-                      {shouldShowExpand && index === 1 && (
-                        <button
-                          onClick={() => setShowAllImages(true)}
-                          className="absolute inset-0 bg-foreground/55 hover:bg-foreground/65 flex items-center justify-center transition-colors cursor-pointer"
-                        >
-                          <div className="text-background text-center">
-                            <div className="text-base font-bold">+{remainingCount}</div>
-                            <div className="text-[10px] opacity-80">more</div>
-                          </div>
-                        </button>
-                      )}
-                    </div>
-                  );
-                })}
-                {showAllImages && media.length > 2 && (
-                  <>
-                    {media.slice(2).map((mediaUrl, index) => {
-                      const isVideo = isVideoUrl(mediaUrl);
-                      return (
-                        <motion.div key={index + 2} initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="relative overflow-hidden rounded-lg">
-                          {isVideo ? (
-                            <div className="cursor-pointer" onClick={() => handleVideoClick(mediaUrl)}>
-                              <SupabaseVideo
-                                src={mediaUrl}
-                                controls={playingVideoId === mediaUrl}
-                                muted={playingVideoId !== mediaUrl}
-                                playsInline={true}
-                                autoPlay={playingVideoId === mediaUrl}
-                                className={`rounded-lg ${getMediaClasses(false, true, post.media_layout)}`}
-                              />
-                              {playingVideoId !== mediaUrl && (
-                                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                                  <div className="w-10 h-10 bg-black/50 rounded-full flex items-center justify-center">
-                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M8 5v14l11-7z" /></svg>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          ) : (
-                            <div onClick={() => handleMediaClick(mediaUrl, false)} className="cursor-pointer">
-                              <SupabaseImage src={mediaUrl} alt={`Post image ${index + 3}`} className={`rounded-lg ${getMediaClasses(false, false, post.media_layout)}`} />
-                            </div>
-                          )}
-                        </motion.div>
-                      );
-                    })}
-                  </>
-                )}
-              </motion.div>
-            );
-          })()}
+          {/* Media — same inset as text / profile posts (aligned edges) */}
+          {post.images && post.images.length > 0 && (
+            <div className="px-4">
+              <PostMediaGallery
+                media={post.images}
+                playingVideoId={playingVideoId}
+                onVideoClick={handleVideoClick}
+                onMediaClick={handleMediaClick}
+              />
+            </div>
+          )}
 
           {/* Action bar */}
-          <div className="flex items-center justify-between px-3 py-2 mt-2 border-t border-border/20">
+          <div
+            className="flex items-center justify-between px-3 py-2 mt-2 border-t border-border/20"
+            data-capture-ignore="true"
+          >
             <div className="flex items-center gap-1">
               <PostReactions postId={post.id} initialReactions={post.reactions || {}} onReactionChange={handleReactionChange} />
               <motion.button
+                ref={commentButtonRef}
                 whileTap={{ scale: 0.92 }}
                 onClick={handleCommentClick}
                 className={`h-7 px-2.5 flex items-center gap-1.5 rounded-full text-muted hover:text-accent transition-all hover:bg-accent/8 ${showComments ? 'text-accent bg-accent/8' : ''}`}
                 type="button"
+                aria-expanded={showComments}
+                aria-label={showComments ? 'Hide comments' : 'Show comments'}
               >
                 <MessageCircle size={14} className={showComments ? 'fill-accent/20' : ''} />
                 <span className="text-[11.5px] font-medium tabular-nums">{commentCount}</span>
               </motion.button>
             </div>
 
-            <div className="flex items-center gap-1">
-              <ShareButton postId={post.id} postContent={post.content} postAuthor={post.user.name} postAuthorAvatar={post.user.avatar} />
+            <div className="flex items-center gap-0.5">
               <motion.button
                 whileTap={{ scale: 0.92 }}
-                onClick={handlePurgeClick}
-                disabled={isPurging}
-                className={`h-7 px-2.5 flex items-center gap-1.5 rounded-full transition-all ${isPurged ? 'text-accent bg-accent/8' : 'text-muted hover:text-red-400 hover:bg-red-400/8'
-                  } ${isPurging ? 'opacity-50 cursor-not-allowed' : ''}`}
-                title="Purge post"
+                onClick={handleTranslateClick}
+                type="button"
+                title={
+                  isTranslatedView
+                    ? t('common.viewOriginal', 'View original')
+                    : t('common.viewTranslated', 'Translate')
+                }
+                aria-label={t('common.viewTranslated', 'Translate')}
+                className={`h-7 w-7 flex items-center justify-center rounded-full transition-all ${
+                  isTranslatedView
+                    ? 'text-accent bg-accent/10'
+                    : 'text-muted hover:text-accent hover:bg-accent/8'
+                }`}
               >
-                <SupabaseImage
-                  src="https://vhvxfnxtyrgiydztsonz.supabase.co/storage/v1/object/public/icons/purge.png"
-                  alt="Purge"
-                  className={`w-3.5 h-3.5 transition-all ${isPurging ? 'animate-pulse' : ''} ${isPurged ? 'drop-shadow-[0_0_6px_rgba(var(--accent-rgb),0.5)]' : 'grayscale'}`}
-                />
-                <span className="text-[11.5px] font-medium tabular-nums">{localPurges}</span>
+                <Globe size={14} />
               </motion.button>
+
+              <motion.button
+                whileTap={{ scale: 0.92 }}
+                onClick={handleDownloadPost}
+                type="button"
+                disabled={isDownloading}
+                title={t('post.downloadPost', 'Download post')}
+                aria-label={t('post.downloadPost', 'Download post')}
+                className={`h-7 w-7 flex items-center justify-center rounded-full text-muted hover:text-accent hover:bg-accent/8 transition-all ${
+                  isDownloading ? 'opacity-50 cursor-wait' : ''
+                }`}
+              >
+                {isDownloading ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <Download size={14} />
+                )}
+              </motion.button>
+
+              <ShareButton
+                postId={post.id}
+                postContent={post.content}
+                postAuthor={post.user.username || post.user.name}
+                postAuthorAvatar={post.user.avatar}
+                postImages={post.images || []}
+              />
+              {!isOwner && (
+                <motion.button
+                  whileTap={{ scale: 0.92 }}
+                  onClick={handlePurgeClick}
+                  disabled={isPurging}
+                  className={`h-7 px-2.5 flex items-center gap-1.5 rounded-full transition-all ${
+                    isPurged ? 'text-accent bg-accent/8' : 'text-muted hover:text-red-400 hover:bg-red-400/8'
+                  } ${isPurging ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  title={t('post.dontLike', "I don't like this")}
+                  type="button"
+                >
+                  <PurgeIcon
+                    size={14}
+                    className={`transition-all ${isPurging ? 'animate-pulse' : ''} ${
+                      isPurged ? 'drop-shadow-[0_0_6px_rgba(var(--accent-rgb),0.5)]' : 'grayscale'
+                    }`}
+                  />
+                  <span className="text-[11.5px] font-medium tabular-nums">{localPurges}</span>
+                </motion.button>
+              )}
             </div>
           </div>
 
@@ -534,6 +582,7 @@ const Post: React.FC<PostProps> = ({ post, onUpdate, variant = 'feed' }) => {
                 exit={{ opacity: 0, height: 0 }}
                 transition={{ duration: 0.18 }}
                 className="border-t border-border/20 px-4 pb-3 pt-2"
+                data-capture-ignore="true"
               >
                 <CommentSection
                   postId={post.id}

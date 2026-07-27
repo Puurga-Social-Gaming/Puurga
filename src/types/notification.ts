@@ -6,6 +6,7 @@ export type NotificationType =
   | 'message' | 'group_message' | 'message_reaction' | 'missed_call'
   // Gaming
   | 'resume_game' | 'reward_reminder' | 'tournament_reminder' | 'challenge'
+  | 'game_score' | 'game_high_score'
   // System
   | 'welcome' | 'verification' | 'security_alert' | 'maintenance'
   // Legacy
@@ -71,9 +72,21 @@ export interface NotificationPreferences {
 }
 
 const NOTIFICATION_CATEGORIES: Record<string, NotificationType[]> = {
-  social: ['like', 'dislike', 'comment', 'reply', 'mention', 'follow', 'follow_accepted', 'share', 'profile_visit'],
+  social: [
+    'like', 'dislike', 'comment', 'reply', 'mention',
+    'follow', 'follow_accepted', 'share', 'profile_visit',
+    'friend_request', 'friend_request_accepted',
+    'friend_ghosted', 'redemption', 'redemption_contribution', 'purge',
+  ],
   messaging: ['message', 'group_message', 'message_reaction', 'missed_call'],
-  gaming: ['resume_game', 'reward_reminder', 'tournament_reminder', 'challenge'],
+  gaming: [
+    'resume_game',
+    'reward_reminder',
+    'tournament_reminder',
+    'challenge',
+    'game_score',
+    'game_high_score',
+  ],
   system: ['welcome', 'verification', 'security_alert', 'maintenance'],
 };
 

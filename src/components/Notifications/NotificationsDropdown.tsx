@@ -9,6 +9,7 @@ import {
 import { useNotifications } from '../../context/NotificationsContext';
 import { formatDistanceToNow } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
+import ProfileLink from '../Profile/ProfileLink';
 function PhoneCallIcon(props: any) {
   return (
     <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -36,6 +37,8 @@ const getNotificationIcon = (type: string) => {
     reward_reminder: <Award className="w-5 h-5 text-yellow-400" />,
     tournament_reminder: <Trophy className="w-5 h-5 text-yellow-500" />,
     challenge: <Flame className="w-5 h-5 text-orange-500" />,
+    game_score: <Gamepad2 className="w-5 h-5 text-cyan-400" />,
+    game_high_score: <Trophy className="w-5 h-5 text-yellow-400" />,
     welcome: <Bell className="w-5 h-5 text-blue-400" />,
     verification: <Mail className="w-5 h-5 text-yellow-400" />,
     security_alert: <Shield className="w-5 h-5 text-red-500" />,
@@ -69,6 +72,8 @@ const getNotificationText = (type: string): string => {
     reward_reminder: 'Rewards available!',
     tournament_reminder: 'Tournament starting!',
     challenge: 'challenged you!',
+    game_score: 'just finished a game',
+    game_high_score: 'set a new high score!',
     welcome: 'Welcome to Puurga!',
     verification: 'Verify your email',
     security_alert: 'Security alert',
@@ -93,7 +98,10 @@ const getNotificationTarget = (notification: any) => {
     return '/puurga-dashboard';
   }
   if (notification.type === 'challenge') {
-    return '/games';
+    return '/puurga-games';
+  }
+  if (['game_score', 'game_high_score', 'resume_game', 'reward_reminder', 'tournament_reminder'].includes(notification.type)) {
+    return '/puurga-games';
   }
   if (['like', 'dislike', 'comment', 'reply', 'mention', 'share'].includes(notification.type) && data.postId) {
     return `/home#post-${data.postId}`;
@@ -120,7 +128,7 @@ const NotificationsDropdown: React.FC = () => {
     <div className="relative">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="relative p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
+        className="relative p-2 text-muted hover:text-foreground hover:bg-card-hover rounded-lg transition-colors cursor-pointer"
       >
         <Bell size={20} />
         {unreadCount > 0 && (
@@ -182,7 +190,7 @@ const NotificationsDropdown: React.FC = () => {
                         }`}
                       >
                         <div className="flex items-start gap-3">
-                          <div className="flex-shrink-0">
+                          <ProfileLink username={notification.fromUser.username} className="flex-shrink-0 rounded-full">
                             <div className="w-10 h-10 rounded-full bg-gray-700 flex items-center justify-center overflow-hidden">
                               {notification.fromUser.avatar ? (
                                 <img
@@ -196,15 +204,18 @@ const NotificationsDropdown: React.FC = () => {
                                 </span>
                               )}
                             </div>
-                          </div>
+                          </ProfileLink>
 
                           <div className="flex-1 min-w-0">
                             <div className="flex items-start gap-2">
                               <div className="flex-1">
                                 <p className="text-sm text-white">
-                                  <span className="font-semibold">
+                                  <ProfileLink
+                                    username={notification.fromUser.username}
+                                    className="font-semibold hover:text-accent"
+                                  >
                                     {notification.fromUser.name || 'System'}
-                                  </span>{' '}
+                                  </ProfileLink>{' '}
                                   <span className="text-gray-400">
                                     {getNotificationText(notification.type)}
                                   </span>

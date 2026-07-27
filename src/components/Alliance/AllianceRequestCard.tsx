@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Shield, X, Check } from 'lucide-react';
 import { PendingAllianceRequest } from '../../types/survival';
 import Avatar from '../Avatar';
+import ProfileLink from '../Profile/ProfileLink';
 
 interface AllianceRequestCardProps {
   request: PendingAllianceRequest;
@@ -18,15 +19,21 @@ const AllianceRequestCard: React.FC<AllianceRequestCardProps> = ({ request, onAc
       className="p-4 rounded-lg border border-amber-500/30 bg-amber-500/5 backdrop-blur-sm"
     >
       <div className="flex items-start gap-3">
-        <Avatar src={request.avatar || undefined} alt={request.username} size="md" />
+        <ProfileLink username={request.username} className="rounded-full shrink-0">
+          <Avatar src={request.avatar || undefined} alt={request.username} size="md" />
+        </ProfileLink>
         
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
             <Shield className="w-4 h-4 text-amber-400" />
-            <h3 className="font-semibold text-white truncate">{request.name}</h3>
+            <ProfileLink username={request.username} className="font-semibold text-white truncate hover:text-accent">
+              {request.name}
+            </ProfileLink>
           </div>
           
-          <p className="text-sm text-gray-400 mb-3">@{request.username}</p>
+          <ProfileLink username={request.username} className="text-sm text-gray-400 mb-3 hover:text-accent block">
+            @{request.username}
+          </ProfileLink>
           
           <p className="text-xs text-amber-300 mb-3">
             This user seeks to form a survival bond with you.

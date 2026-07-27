@@ -119,8 +119,8 @@ const JoinGroup: React.FC = () => {
       </div>
 
       {/* Content */}
-      <div className="flex-1 p-6 -mt-20 relative z-10">
-        <div className="bg-card rounded-2xl p-6 max-w-md mx-auto">
+      <div className="flex-1 py-6 -mt-20 relative z-10">
+        <div className="bg-card rounded-2xl p-6 max-w-md mx-auto border border-border shadow-sm">
           {/* Group Profile */}
           <div className="flex flex-col items-center -mt-20 mb-6">
             <div className="w-24 h-24 rounded-full bg-background border-4 border-card overflow-hidden mb-4">
@@ -136,8 +136,8 @@ const JoinGroup: React.FC = () => {
                 </div>
               )}
             </div>
-            <h1 className="text-2xl font-bold text-white text-center">{group.name}</h1>
-            <p className="text-gray-400 text-center mt-1">
+            <h1 className="text-2xl font-bold text-foreground text-center">{group.name}</h1>
+            <p className="text-muted text-center mt-1">
               {group.is_private ? '🔒 Private Group' : '🌐 Public Group'}
             </p>
           </div>

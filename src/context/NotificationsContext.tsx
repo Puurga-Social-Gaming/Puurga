@@ -3,6 +3,7 @@ import { useUser } from './UserContext';
 import { useWebSocket } from '../hooks/useWebSocket';
 import api from '../lib/axios';
 import { Notification, NotificationType } from '../types/notification';
+import { playMessageSound } from '../utils/messageSound';
 
 export type { Notification, NotificationType };
 
@@ -26,7 +27,7 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
   const unreadCount = useMemo(() => notifications.filter(n => !n.read).length, [notifications]);
 
   const loadNotifications = useCallback(async () => {
-    if (!user) return;
+    if (!user?.id) return;
 
     try {
       setLoading(true);
@@ -39,7 +40,7 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [user?.id]);
 
   const markAsRead = useCallback(async (notificationIds: string[]) => {
     if (!user || notificationIds.length === 0) return;
@@ -91,6 +92,11 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const handleNewNotification = useCallback((notification: Notification) => {
     setNotifications(prev => [notification, ...prev]);
+    // Message DMs already ring via MessagesContext WS — avoid double beep
+    const type = String(notification.type || '');
+    if (type !== 'message' && type !== 'new_message') {
+      playMessageSound();
+    }
   }, []);
 
   useWebSocket({
@@ -98,10 +104,10 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
   });
 
   useEffect(() => {
-    if (user) {
+    if (user?.id) {
       loadNotifications();
     }
-  }, [user, loadNotifications]);
+  }, [user?.id]);
 
   return (
     <NotificationsContext.Provider

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Users, Send, ArrowLeft, Settings, UserPlus, LogOut, Crown, Shield, X, Copy, RefreshCw, Link as LinkIcon, Film } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -7,7 +7,10 @@ import toast from 'react-hot-toast';
 import { useUser } from '../context/UserContext';
 import SupabaseVideo from '../components/UI/SupabaseVideo';
 import RichText from '../components/RichText/RichText';
+import ContentTranslator from '../components/ContentTranslator';
 import { extractUrls } from '../utils/linkParser';
+import { useWebSocket } from '../hooks/useWebSocket';
+import ProfileLink from '../components/Profile/ProfileLink';
 
 interface GroupMember {
   id: string;
@@ -25,9 +28,16 @@ interface GroupMessage {
   id: string;
   group_id: string;
   sender_id: string;
-  content: string;
+  content: string | null;
   created_at: string;
+  language?: string;
+  translated_content?: string | null;
+  translated_language?: string | null;
   media?: string[];
+  images?: string[];
+  reactions?: Record<string, { count: number; reacted_by_me: boolean }>;
+  read_count?: number;
+  is_deleted?: boolean;
   sender?: {
     username: string;
     full_name: string;
@@ -77,7 +87,12 @@ const GroupDetail: React.FC = () => {
   const [showSettings, setShowSettings] = useState(false);
   const [inviteLink, setInviteLink] = useState<string | null>(null);
   const [copyingLink, setCopyingLink] = useState(false);
+  const [reactionPickerId, setReactionPickerId] = useState<string | null>(null);
+  const [typingUserIds, setTypingUserIds] = useState<string[]>([]);
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastTypingSentRef = useRef(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const GROUP_REACTION_EMOJIS = ['❤️', '👍', '🔥', '😂', '😮', '🎉'];
 
   useEffect(() => {
     if (id) {
@@ -90,16 +105,71 @@ const GroupDetail: React.FC = () => {
     scrollToBottom();
   }, [messages]);
 
-  // Poll for new messages every 3 seconds
+  // Real-time group messages via WebSocket (replaces 3s polling)
+  const handleGroupMessage = useCallback((payload: { groupId: string; message: GroupMessage }) => {
+    if (payload.groupId !== id) return;
+    if (payload.message.sender_id === user?.id) return;
+    setMessages((prev) => {
+      if (prev.some((m) => m.id === payload.message.id)) return prev;
+      return [...prev, payload.message];
+    });
+  }, [id, user?.id]);
+
+  const handleGroupMessageReaction = useCallback(
+    (payload: { groupId: string; messageId: string; reactions: Record<string, { count: number; reacted_by_me: boolean }> }) => {
+      if (payload.groupId !== id) return;
+      setMessages((prev) =>
+        prev.map((m) => (m.id === payload.messageId ? { ...m, reactions: payload.reactions } : m))
+      );
+    },
+    [id]
+  );
+
+  const handleGroupTyping = useCallback(
+    (payload: { groupId: string; userId: string; isTyping: boolean }) => {
+      if (payload.groupId !== id || payload.userId === user?.id) return;
+      setTypingUserIds((prev) => {
+        if (payload.isTyping) {
+          return prev.includes(payload.userId) ? prev : [...prev, payload.userId];
+        }
+        return prev.filter((uid) => uid !== payload.userId);
+      });
+    },
+    [id, user?.id]
+  );
+
+  useWebSocket({
+    onGroupMessage: handleGroupMessage,
+    onGroupMessageReaction: handleGroupMessageReaction,
+    onGroupTyping: handleGroupTyping,
+  });
+
+  const reactToGroupMessage = async (messageId: string, emoji: string) => {
+    if (!id) return;
+    try {
+      const res = await api.post(`/groups/${id}/messages/${messageId}/reactions`, { emoji });
+      if (res.data?.reactions) {
+        setMessages((prev) =>
+          prev.map((m) => (m.id === messageId ? { ...m, reactions: res.data.reactions } : m))
+        );
+      }
+    } catch {
+      toast.error('Failed to react');
+    }
+  };
+
+  const emitGroupTyping = (isTyping: boolean) => {
+    if (!id) return;
+    const now = Date.now();
+    if (isTyping && now - lastTypingSentRef.current < 1500) return;
+    lastTypingSentRef.current = now;
+    void api.post(`/groups/${id}/typing`, { isTyping }).catch(() => undefined);
+  };
+
   useEffect(() => {
     if (!id || !group?.is_member) return;
-
-    const interval = setInterval(() => {
-      fetchMessages();
-    }, 3000);
-
-    return () => clearInterval(interval);
-  }, [id, group?.is_member]);
+    void api.put(`/groups/${id}/messages/read`).catch(() => undefined);
+  }, [id, group?.is_member, messages.length]);
 
   // Detect URLs in group message for live preview
   useEffect(() => {
@@ -211,7 +281,8 @@ const GroupDetail: React.FC = () => {
 
       const response = await api.post(`/groups/${id}/messages`, {
         content: newMessage.trim(),
-        media: mediaUrls
+        media: mediaUrls,
+        language: (localStorage.getItem('i18nextLng') || 'en').split('-')[0],
       });
       setMessages(prev => [...prev, response.data]);
       setNewMessage('');
@@ -501,7 +572,7 @@ const GroupDetail: React.FC = () => {
                         <div className={`flex ${isOwnMessage ? 'justify-end' : 'justify-start'}`}>
                           <div className={`flex gap-2 max-w-[70%] ${isOwnMessage ? 'flex-row-reverse' : ''}`}>
                             {!isOwnMessage && (
-                              <div className="w-8 h-8 rounded-full bg-[#2d2d2d] flex-shrink-0 overflow-hidden">
+                              <ProfileLink username={message.sender?.username} className="w-8 h-8 rounded-full bg-[#2d2d2d] flex-shrink-0 overflow-hidden block">
                                 {message.sender?.avatar_url ? (
                                   <img src={message.sender.avatar_url} alt="" className="w-full h-full object-cover" />
                                 ) : (
@@ -509,13 +580,16 @@ const GroupDetail: React.FC = () => {
                                     {message.sender?.username?.[0]?.toUpperCase() || '?'}
                                   </div>
                                 )}
-                              </div>
+                              </ProfileLink>
                             )}
                             <div>
                               {!isOwnMessage && (
-                                <p className="text-xs text-gray-400 mb-1">
+                                <ProfileLink
+                                  username={message.sender?.username}
+                                  className="text-xs text-gray-400 mb-1 hover:text-accent block"
+                                >
                                   {message.sender?.full_name || message.sender?.username || 'Unknown'}
-                                </p>
+                                </ProfileLink>
                               )}
                               <div
                                 className={`px-4 py-2 rounded-2xl ${isOwnMessage
@@ -523,10 +597,35 @@ const GroupDetail: React.FC = () => {
                                     : 'bg-card text-foreground rounded-bl-md'
                                   }`}
                               >
-                                <p className="break-words">{message.content}</p>
-                                {message.media && message.media.length > 0 && (
-                                  <div className={`mt-2 grid gap-1 ${message.media.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
-                                    {message.media.map((mediaUrl: string, mediaIndex: number) => {
+                                {message.content && (
+                                  isOwnMessage ? (
+                                    <RichText
+                                      content={message.content}
+                                      showLinkPreviews={true}
+                                      compactLinks={true}
+                                    />
+                                  ) : (
+                                    <ContentTranslator
+                                      content={message.content}
+                                      sourceType="group_message"
+                                      sourceId={message.id}
+                                      originalLanguage={message.language || 'en'}
+                                      translatedContent={message.translated_content}
+                                      translatedLanguage={message.translated_language}
+                                      autoTranslate
+                                      renderContent={(text) => (
+                                        <RichText
+                                          content={text}
+                                          showLinkPreviews={true}
+                                          compactLinks={true}
+                                        />
+                                      )}
+                                    />
+                                  )
+                                )}
+                                {(message.media || message.images) && (message.media || message.images || []).length > 0 && (
+                                  <div className={`mt-2 grid gap-1 ${(message.media || message.images || []).length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
+                                    {(message.media || message.images || []).map((mediaUrl: string, mediaIndex: number) => {
                                       const isVideo = mediaUrl.toLowerCase().match(/\.(mp4|webm|mov|avi|mkv|flv|wmv)$/);
                                       return isVideo ? (
                                         <div key={mediaIndex} className="relative">
@@ -568,8 +667,63 @@ const GroupDetail: React.FC = () => {
                                   </div>
                                 )}
                               </div>
+                              {!message.is_deleted && (
+                                <div
+                                  className={`flex flex-wrap items-center gap-1 mt-1 ${
+                                    isOwnMessage ? 'justify-end' : 'justify-start'
+                                  }`}
+                                >
+                                  {Object.entries(message.reactions || {}).map(([emoji, data]) => (
+                                    <button
+                                      key={emoji}
+                                      type="button"
+                                      onClick={() => reactToGroupMessage(message.id, emoji)}
+                                      className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[11px] border transition-colors ${
+                                        data.reacted_by_me
+                                          ? 'bg-accent/20 border-accent/40 text-foreground'
+                                          : 'bg-card border-border text-muted hover:border-accent/30'
+                                      }`}
+                                    >
+                                      <span>{emoji}</span>
+                                      <span className="tabular-nums">{data.count}</span>
+                                    </button>
+                                  ))}
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setReactionPickerId(
+                                        reactionPickerId === message.id ? null : message.id
+                                      )
+                                    }
+                                    className="text-[11px] px-1.5 py-0.5 rounded-full border border-border text-muted hover:text-foreground hover:border-accent/40"
+                                    aria-label="Add reaction"
+                                  >
+                                    +
+                                  </button>
+                                  {reactionPickerId === message.id && (
+                                    <div className="flex gap-0.5 p-1 rounded-full bg-card border border-border shadow-md">
+                                      {GROUP_REACTION_EMOJIS.map((emoji) => (
+                                        <button
+                                          key={emoji}
+                                          type="button"
+                                          className="hover:scale-125 transition-transform text-sm px-0.5"
+                                          onClick={() => {
+                                            void reactToGroupMessage(message.id, emoji);
+                                            setReactionPickerId(null);
+                                          }}
+                                        >
+                                          {emoji}
+                                        </button>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
                               <p className={`text-xs text-gray-500 mt-1 ${isOwnMessage ? 'text-right' : ''}`}>
                                 {formatTime(message.created_at)}
+                                {typeof message.read_count === 'number' && message.read_count > 0 && (
+                                  <span className="ml-1 opacity-70">· {message.read_count} read</span>
+                                )}
                               </p>
                             </div>
                           </div>
@@ -577,6 +731,9 @@ const GroupDetail: React.FC = () => {
                       </React.Fragment>
                     );
                   })
+                )}
+                {typingUserIds.length > 0 && (
+                  <p className="text-xs text-muted px-2">Someone is typing…</p>
                 )}
                 <div ref={messagesEndRef} />
               </div>
@@ -650,7 +807,12 @@ const GroupDetail: React.FC = () => {
                   <input
                     type="text"
                     value={newMessage}
-                    onChange={(e) => setNewMessage(e.target.value)}
+                    onChange={(e) => {
+                      setNewMessage(e.target.value);
+                      emitGroupTyping(true);
+                      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+                      typingTimeoutRef.current = setTimeout(() => emitGroupTyping(false), 2000);
+                    }}
                     placeholder="Type a message..."
                     className="flex-1 bg-card border border-border rounded-full px-4 py-3 text-foreground placeholder-muted focus:outline-none focus:ring-2 focus:ring-accent"
                   />
@@ -700,7 +862,7 @@ const GroupDetail: React.FC = () => {
                 <div className="space-y-3">
                   {group.members.map((member) => (
                     <div key={member.id} className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-[#2d2d2d] overflow-hidden flex-shrink-0">
+                      <ProfileLink username={member.profile?.username} className="w-10 h-10 rounded-full bg-[#2d2d2d] overflow-hidden flex-shrink-0 block">
                         {member.profile?.avatar_url ? (
                           <img src={member.profile.avatar_url} alt="" className="w-full h-full object-cover" />
                         ) : (
@@ -708,14 +870,20 @@ const GroupDetail: React.FC = () => {
                             {member.profile?.username?.[0]?.toUpperCase() || '?'}
                           </div>
                         )}
-                      </div>
+                      </ProfileLink>
                       <div className="flex-1 min-w-0">
-                        <p className="text-foreground text-sm font-medium truncate">
+                        <ProfileLink
+                          username={member.profile?.username}
+                          className="text-foreground text-sm font-medium truncate hover:text-accent block"
+                        >
                           {member.profile?.full_name || member.profile?.username || 'Unknown'}
-                        </p>
-                        <p className="text-xs text-gray-400 truncate">
+                        </ProfileLink>
+                        <ProfileLink
+                          username={member.profile?.username}
+                          className="text-xs text-gray-400 truncate hover:text-accent block"
+                        >
                           @{member.profile?.username || 'unknown'}
-                        </p>
+                        </ProfileLink>
                       </div>
                       {member.role === 'admin' && (
                         <Crown size={16} className="text-muted flex-shrink-0" />
@@ -812,7 +980,7 @@ const GroupDetail: React.FC = () => {
                     {group.members.map((member) => (
                       <div key={member.id} className="flex items-center justify-between p-3 bg-card rounded-lg">
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-full bg-[#2d2d2d] overflow-hidden flex-shrink-0">
+                          <ProfileLink username={member.profile?.username} className="w-10 h-10 rounded-full bg-[#2d2d2d] overflow-hidden flex-shrink-0 block">
                             {member.profile?.avatar_url ? (
                               <img src={member.profile.avatar_url} alt="" className="w-full h-full object-cover" />
                             ) : (
@@ -820,11 +988,11 @@ const GroupDetail: React.FC = () => {
                                 {member.profile?.username?.[0]?.toUpperCase() || '?'}
                               </div>
                             )}
-                          </div>
+                          </ProfileLink>
                           <div>
-                            <p className="text-foreground text-sm font-medium">
+                            <ProfileLink username={member.profile?.username} className="text-foreground text-sm font-medium hover:text-accent block">
                               {member.profile?.full_name || member.profile?.username || 'Unknown'}
-                            </p>
+                            </ProfileLink>
                             <div className="flex items-center gap-2">
                               <span className={`text-xs px-2 py-0.5 rounded ${member.role === 'admin' ? 'bg-accent/20 text-accent' :
                                   member.role === 'moderator' ? 'bg-blue-500/20 text-blue-400' :

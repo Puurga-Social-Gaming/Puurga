@@ -64,33 +64,33 @@ const RedeemUserButton: React.FC<RedeemUserButtonProps> = ({
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="bg-[#1a1a1a] border border-gray-800 rounded-xl p-6 max-w-md w-full"
+            className="bg-card border border-border rounded-2xl p-6 max-w-md w-full shadow-theme-xl"
           >
             <div className="flex items-center gap-3 mb-4">
-              <div className="bg-orange-500/20 p-3 rounded-full">
-                <Ghost size={24} className="text-orange-500" />
+              <div className="bg-amber-500/15 p-3 rounded-full border border-amber-500/25">
+                <Ghost size={24} className="text-amber-500" />
               </div>
               <div>
-                <h3 className="text-white font-bold text-lg">Redeem User</h3>
-                <p className="text-gray-400 text-sm">Restore account from ghost mode</p>
+                <h3 className="text-foreground font-bold text-lg">Redeem User</h3>
+                <p className="text-muted text-sm">Restore account from ghost mode</p>
               </div>
             </div>
 
-            <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-4 mb-4">
-              <p className="text-gray-300 text-sm mb-3">
-                You are about to redeem <span className="font-semibold text-white">{userName}</span> from ghost mode.
+            <div className="bg-background border border-border rounded-xl p-4 mb-4">
+              <p className="text-muted text-sm mb-3">
+                You are about to redeem <span className="font-semibold text-foreground">{userName}</span> from ghost mode.
               </p>
               <div className="flex items-center justify-between text-sm">
-                <span className="text-gray-400">Cost:</span>
-                <div className="flex items-center gap-1 text-orange-400 font-semibold">
+                <span className="text-muted">Cost:</span>
+                <div className="flex items-center gap-1 text-amber-500 font-semibold">
                   <Coins size={16} />
                   <span>100 Credits</span>
                 </div>
               </div>
             </div>
 
-            <div className="bg-orange-900/20 border border-orange-800/50 rounded-lg p-3 mb-4">
-              <p className="text-orange-300 text-xs">
+            <div className="bg-amber-500/10 border border-amber-500/25 rounded-xl p-3 mb-4">
+              <p className="text-amber-700 dark:text-amber-300 text-xs">
                 This will restore their account and clear all purges. They will be able to use the app normally again.
               </p>
             </div>
@@ -99,14 +99,14 @@ const RedeemUserButton: React.FC<RedeemUserButtonProps> = ({
               <button
                 onClick={() => setShowConfirm(false)}
                 disabled={isRedeeming}
-                className="flex-1 px-4 py-2 bg-gray-800 text-gray-300 rounded-lg font-medium hover:bg-gray-700 transition-colors disabled:opacity-50"
+                className="flex-1 px-4 py-2.5 bg-card-hover text-foreground border border-border rounded-xl font-medium hover:opacity-90 transition-colors disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
                 onClick={handleRedeem}
                 disabled={isRedeeming}
-                className="flex-1 px-4 py-2 bg-gradient-to-r from-orange-500 to-yellow-500 text-white rounded-lg font-semibold hover:shadow-lg transition-all disabled:opacity-50"
+                className="flex-1 px-4 py-2.5 bg-foreground text-background rounded-xl font-semibold hover:opacity-90 transition-all disabled:opacity-50"
               >
                 {isRedeeming ? 'Redeeming...' : 'Confirm'}
               </button>

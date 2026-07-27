@@ -7,6 +7,9 @@ import { NotificationService } from '../services/notificationService';
 import { CreditService } from '../services/creditService';
 import { PurgeEngine } from '../services/survival';
 import { validateNotGhosted } from '../middleware/restrictGhosted';
+import { getMutedIds, getBidirectionalBlockedIds, getAcceptedFriendIds } from '../utils/friendRelations';
+import { isTransientError } from '../utils/transientError';
+import { parseMediaUrls } from '../utils/mediaUrls';
 
 const router = express.Router();
 
@@ -18,40 +21,105 @@ router.get('/feed', auth, async (req: AuthRequest, res) => {
     const requestedLimit = parseInt(req.query.limit as string) || 10;
     const limit = Math.min(requestedLimit, 50);
     const from = (page - 1) * limit;
-    const to = from + limit - 1;
 
-    console.log(`Fetching feed page ${page} (limit ${limit}, range ${from}-${to})`);
+    console.log(`Fetching feed page ${page} (limit ${limit}, from ${from})`);
 
-    // 1) Fetch posts with pagination
-    const { data: posts, error: postsError } = await supabase
-      .from('posts')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .range(from, to);
+    // Over-fetch a bit so visibility/mute filters don't leave pages half-empty
+    const fetchTo = from + Math.min(limit * 3, 60) - 1;
 
-    if (postsError) throw postsError;
+    type FeedPost = {
+      id: string;
+      user_id: string;
+      content?: string | null;
+      media_url?: string | null;
+      created_at: string;
+      updated_at?: string | null;
+      likes?: number | null;
+      dislikes?: number | null;
+      purges?: number | null;
+      visibility?: string | null;
+      background_color?: string | null;
+      background_type?: string | null;
+      [key: string]: unknown;
+    };
 
-    let safePosts = posts || [];
+    const CORE_SELECT =
+      'id, user_id, content, media_url, created_at, last_edited, purge_count, background_index, layout, media_layout, language, location_name';
+    const LEGACY_SELECT =
+      'id, user_id, content, media_url, created_at, updated_at, likes, dislikes, purges, visibility, background_color, background_type';
+    const MIN_SELECT = 'id, user_id, content, media_url, created_at';
+
+    const fetchPostsPage = async (select: string) =>
+      supabase
+        .from('posts')
+        .select(select)
+        .order('created_at', { ascending: false })
+        .range(from, fetchTo);
+
+    let posts: FeedPost[] | null = null;
+    let postsError: { message?: string; code?: string; details?: string } | null = null;
+
+    // Prefer current schema; fall back to minimal, then legacy shapes
+    const selectChain = [CORE_SELECT, MIN_SELECT, LEGACY_SELECT];
+    let selectIdx = 0;
+    for (let attempt = 0; attempt < 4; attempt++) {
+      const select = selectChain[selectIdx];
+      const result = await fetchPostsPage(select);
+      posts = (result.data as FeedPost[] | null) || null;
+      postsError = result.error;
+
+      if (!postsError) break;
+
+      const msg = String(postsError.message || postsError.details || '');
+      const missingCol = postsError.code === '42703' || /column .* does not exist/i.test(msg);
+
+      if (missingCol) {
+        if (selectIdx < selectChain.length - 1) {
+          selectIdx += 1;
+          continue;
+        }
+        break;
+      }
+
+      if (isTransientError(postsError) && attempt < 3) {
+        await new Promise((r) => setTimeout(r, 300 * (attempt + 1)));
+        continue;
+      }
+
+      break;
+    }
+
+    if (postsError) {
+      if (isTransientError(postsError) || postsError.code === '42703') {
+        console.warn('Feed temporarily unavailable:', postsError.message);
+        return res.status(503).json({ error: 'Feed temporarily unavailable', retry: true });
+      }
+      throw postsError;
+    }
+
+    // Normalize legacy / current column names
+    if (posts) {
+      posts = posts.map((p) => ({
+        ...p,
+        updated_at: (p as any).updated_at ?? (p as any).last_edited ?? p.created_at,
+        purges: (p as any).purges ?? (p as any).purge_count ?? 0,
+        likes: (p as any).likes ?? 0,
+        dislikes: (p as any).dislikes ?? 0,
+        visibility: (p as any).visibility ?? 'public',
+      }));
+    }
+
+    let safePosts: FeedPost[] = posts || [];
     if (safePosts.length === 0) {
       return res.json([]);
     }
 
-    // 2) Get current user's friends for visibility filtering
-    const { data: friendships } = await supabase
-      .from('friends')
-      .select('user_id_1, user_id_2')
-      .or(`user_id_1.eq.${currentUserId},user_id_2.eq.${currentUserId}`);
+    // Friends for visibility filtering (all schemas)
+    const friendIdList = await getAcceptedFriendIds(currentUserId);
+    const friendIds = new Set(friendIdList);
 
-    const friendIds = new Set(
-      (friendships || []).map(f =>
-        f.user_id_1 === currentUserId ? f.user_id_2 : f.user_id_1
-      )
-    );
-
-    // 3) Filter posts by visibility
-    safePosts = safePosts.filter(post => {
-      const visibility = post.visibility || 'public';
-
+    safePosts = safePosts.filter((post) => {
+      const visibility = (post as any).visibility || 'public';
       if (visibility === 'public') return true;
       if (visibility === 'private') return post.user_id === currentUserId;
       if (visibility === 'friends') {
@@ -60,109 +128,100 @@ router.get('/feed', auth, async (req: AuthRequest, res) => {
       return true;
     });
 
+    // Hide muted / blocked authors
+    const [mutedIds, blockedIds] = await Promise.all([
+      getMutedIds(currentUserId),
+      getBidirectionalBlockedIds(currentUserId),
+    ]);
+    const hiddenAuthors = new Set([...mutedIds, ...blockedIds]);
+    if (hiddenAuthors.size > 0) {
+      safePosts = safePosts.filter((post) => !hiddenAuthors.has(post.user_id));
+    }
+
+    // Trim to requested page size after filters
+    safePosts = safePosts.slice(0, limit);
+
     if (safePosts.length === 0) {
       return res.json([]);
     }
 
-    // 4) Fetch visibility scores for ranking
-    const uniqueUserIds = Array.from(new Set(safePosts.map(p => p.user_id).filter(Boolean)));
+    // Visibility scores for ranking (best-effort)
+    const uniqueUserIds = Array.from(new Set(safePosts.map((p) => p.user_id).filter(Boolean)));
     const { data: survivalStates } = await supabase
       .from('user_survival_state')
       .select('user_id, visibility_score')
       .in('user_id', uniqueUserIds);
 
     const visibilityMap = new Map<string, number>();
-    (survivalStates || []).forEach(s => {
+    (survivalStates || []).forEach((s) => {
       visibilityMap.set(s.user_id, s.visibility_score ?? 100);
     });
 
-    // 5) Apply visibility-based ranking
     safePosts.sort((a, b) => {
       const visA = visibilityMap.get(a.user_id) ?? 100;
       const visB = visibilityMap.get(b.user_id) ?? 100;
       const timeA = new Date(a.created_at).getTime();
       const timeB = new Date(b.created_at).getTime();
-
       const rankA = timeA * (visA >= 80 ? 1.5 : visA >= 50 ? 1.0 : visA >= 20 ? 0.5 : 0.2);
       const rankB = timeB * (visB >= 80 ? 1.5 : visB >= 50 ? 1.0 : visB >= 20 ? 0.5 : 0.2);
-
       return rankB - rankA;
     });
 
-    // 7) Collect unique user_ids
-    const userIds = Array.from(new Set(safePosts.map(p => p.user_id).filter(Boolean)));
+    const userIds = Array.from(new Set(safePosts.map((p) => p.user_id).filter(Boolean)));
+    const postIds = safePosts.map((p) => p.id).filter(Boolean);
 
-    // 8) Fetch profile data from profiles and avatar from users (if table exists)
-    const [profilesRes, usersRes] = await Promise.all([
-      supabase.from('profiles').select('id, full_name, username, avatar_url').in('id', userIds),
+    const [profilesRes, usersRes, commentsRes] = await Promise.all([
+      supabase
+        .from('profiles')
+        .select('id, full_name, username, avatar_url, certification_slug, logo_certified')
+        .in('id', userIds),
       supabase.from('users').select('id, avatar_url').in('id', userIds),
+      postIds.length
+        ? supabase.from('comments').select('post_id').in('post_id', postIds)
+        : Promise.resolve({ data: [] as Array<{ post_id: string }>, error: null }),
     ]);
 
-    const profiles = (profilesRes.data || []) as Array<{ id: string; full_name?: string | null; username?: string | null; avatar_url?: string | null }>;
-    const usersTbl = Array.isArray(usersRes.data) ? (usersRes.data as Array<{ id: string; avatar_url?: string | null }>) : [];
+    let profiles = (profilesRes.data || []) as Array<{
+      id: string;
+      full_name?: string | null;
+      username?: string | null;
+      avatar_url?: string | null;
+      certification_slug?: string | null;
+      logo_certified?: boolean | null;
+    }>;
 
-    const profileMap = new Map<string, { id: string; full_name?: string | null; username?: string | null; avatar_url?: string | null }>();
-    for (const p of profiles) profileMap.set(p.id, p);
-    const usersMap = new Map<string, { id: string; avatar_url?: string | null }>();
-    for (const u of usersTbl) usersMap.set(u.id, u);
+    // Soft fallback if certification columns not migrated yet
+    if (profilesRes.error && /certification_slug|logo_certified|42703/i.test(String(profilesRes.error.message || ''))) {
+      const retry = await supabase
+        .from('profiles')
+        .select('id, full_name, username, avatar_url')
+        .in('id', userIds);
+      profiles = (retry.data || []) as typeof profiles;
+    }
+    const usersTbl = Array.isArray(usersRes.data)
+      ? (usersRes.data as Array<{ id: string; avatar_url?: string | null }>)
+      : [];
 
+    const profileMap = new Map(profiles.map((p) => [p.id, p]));
+    const usersMap = new Map(usersTbl.map((u) => [u.id, u]));
 
-    // 9) Fetch comment counts for these posts
-    const postIds = safePosts.map(p => p.id).filter(Boolean);
-    const commentCounts = await Promise.all(
-      postIds.map(async (postId) => {
-        const { count } = await supabase
-          .from('comments')
-          .select('*', { count: 'exact', head: true })
-          .eq('post_id', postId);
-        return { postId, count: count || 0 };
-      })
-    );
     const commentCountMap = new Map<string, number>();
-    for (const cc of commentCounts) commentCountMap.set(cc.postId, cc.count);
+    for (const row of commentsRes.data || []) {
+      const pid = (row as any).post_id as string;
+      commentCountMap.set(pid, (commentCountMap.get(pid) || 0) + 1);
+    }
 
-
-    // 10) Map posts with images and merged user object
-    const mapped = safePosts.map(post => {
+    const mapped = safePosts.map((post) => {
       const prof = profileMap.get(post.user_id as string);
       const urow = usersMap.get(post.user_id as string);
-      // Check profiles first since that's where new avatars are saved
-      // Fallback to users table for backwards compatibility
-      const rawAvatar = (prof?.avatar_url) ?? (urow?.avatar_url) ?? '';
+      const rawAvatar = prof?.avatar_url ?? urow?.avatar_url ?? '';
       const avatar = normalizeImageUrl(rawAvatar);
-
       const name = prof?.full_name ?? '';
       const username = prof?.username ?? '';
 
-      // Process images with URL normalization
-      let images: string[] = [];
-      if (typeof post.media_url === 'string' && post.media_url.length > 0) {
-        try {
-          // Try to parse as JSON array first
-          const parsed = JSON.parse(post.media_url);
-          if (Array.isArray(parsed)) {
-            images = parsed
-              .map((url: string) => normalizeImageUrl(url))
-              .filter(Boolean);
-          } else {
-            // Fallback to comma-separated parsing
-            images = post.media_url
-              .split(',')
-              .map((s: string) => s.trim())
-              .filter(Boolean)
-              .map(normalizeImageUrl)
-              .filter(Boolean);
-          }
-        } catch {
-          // If JSON parsing fails, try comma-separated parsing
-          images = post.media_url
-            .split(',')
-            .map((s: string) => s.trim())
-            .filter(Boolean)
-            .map(normalizeImageUrl)
-            .filter(Boolean);
-        }
-      }
+      const images = parseMediaUrls(post.media_url)
+        .map((url) => normalizeImageUrl(url))
+        .filter(Boolean);
 
       const commentCount = commentCountMap.get(post.id) ?? 0;
 
@@ -176,6 +235,8 @@ router.get('/feed', auth, async (req: AuthRequest, res) => {
           name,
           username,
           avatar,
+          certificationSlug: (prof as any)?.certification_slug || null,
+          logoCertified: Boolean((prof as any)?.logo_certified),
         },
       };
     });
@@ -183,7 +244,11 @@ router.get('/feed', auth, async (req: AuthRequest, res) => {
     res.json(mapped);
   } catch (error) {
     console.error('Error fetching posts:', error);
-    res.status(500).json({ error: 'Failed to fetch posts' });
+    if (isTransientError(error)) {
+      return res.status(503).json({ error: 'Feed temporarily unavailable', retry: true });
+    }
+    // Soft-fail: keep the home shell usable; client will retry
+    return res.status(503).json({ error: 'Feed temporarily unavailable', retry: true });
   }
 });
 
@@ -310,6 +375,54 @@ router.get('/purges/my-activity', auth, async (req: AuthRequest, res) => {
   }
 });
 
+// --- GET /api/posts/:id ---
+router.get('/:id', auth, async (req: AuthRequest, res) => {
+  try {
+    const postId = req.params.id;
+    const currentUserId = req.user?.id;
+
+    const { data: post, error } = await supabase
+      .from('posts')
+      .select('*')
+      .eq('id', postId)
+      .maybeSingle();
+
+    if (error) throw error;
+    if (!post) return res.status(404).json({ error: 'Post not found' });
+
+    const [{ data: profile }, { data: userRow }, { count: commentCount }] = await Promise.all([
+      supabase.from('profiles').select('id, full_name, username, avatar_url').eq('id', post.user_id).maybeSingle(),
+      supabase.from('users').select('id, avatar_url').eq('id', post.user_id).maybeSingle(),
+      supabase
+        .from('comments')
+        .select('*', { count: 'exact', head: true })
+        .eq('post_id', postId),
+    ]);
+
+    const avatar = normalizeImageUrl(profile?.avatar_url || userRow?.avatar_url || '');
+    const images = parseMediaUrls(post.media_url)
+      .map((url) => normalizeImageUrl(url))
+      .filter(Boolean);
+
+    res.json({
+      ...post,
+      images,
+      comments: commentCount || 0,
+      comment_count: commentCount || 0,
+      user: {
+        id: post.user_id,
+        name: profile?.full_name || 'User',
+        username: profile?.username || 'user',
+        avatar,
+      },
+      viewer_id: currentUserId || null,
+    });
+  } catch (error) {
+    console.error('Error fetching post:', error);
+    res.status(500).json({ error: 'Failed to fetch post' });
+  }
+});
+
 // --- POST /api/posts/:id/purge ---
 router.post('/:id/purge', auth, validateNotGhosted, async (req, res) => {
   try {
@@ -327,13 +440,18 @@ router.post('/:id/purge', auth, validateNotGhosted, async (req, res) => {
     }
 
     const targetUserId = post.user_id;
-
     const isSuperAdmin = req.user.role === 'super_admin' || req.user.role === 'superadmin';
 
     if (!isSuperAdmin) {
       const validation = await PurgeEngine.validatePurge(userId, postId, targetUserId);
       if (!validation.valid) {
-        return res.status(403).json({
+        const status =
+          validation.code === 'ALREADY_PURGED' || validation.code === 'COOLDOWN_ACTIVE'
+            ? 400
+            : validation.code === 'OWN_POST'
+              ? 403
+              : 403;
+        return res.status(status).json({
           error: validation.error,
           code: validation.code,
         });
@@ -348,40 +466,83 @@ router.post('/:id/purge', auth, validateNotGhosted, async (req, res) => {
         targetType: 'post',
         details: { note: 'Super Admin purged their own post' },
         ipAddress: req.ip,
-        userAgent: req.headers['user-agent']
+        userAgent: req.headers['user-agent'],
       });
     }
 
-    const purgeWeight = await PurgeEngine.calculatePurgeWeight(userId);
+    let purgeWeight = { weight: 1.0, reputation: 100, threatLevel: 0 };
+    try {
+      purgeWeight = await PurgeEngine.calculatePurgeWeight(userId);
+    } catch (e) {
+      console.warn('Purge weight calc skipped:', e);
+    }
 
-    const { error: insertError } = await supabase
-      .from('post_purges')
-      .insert({
-        post_id: postId,
-        user_id: userId,
-        created_at: new Date().toISOString()
+    const { error: insertError } = await supabase.from('post_purges').insert({
+      post_id: postId,
+      user_id: userId,
+      created_at: new Date().toISOString(),
+    });
+
+    if (insertError) {
+      // Unique violation → already purged
+      if ((insertError as any).code === '23505') {
+        return res.status(400).json({
+          error: 'Already purged this post',
+          code: 'ALREADY_PURGED',
+        });
+      }
+      console.error('post_purges insert failed:', insertError);
+      return res.status(500).json({
+        error: insertError.message || 'Failed to record purge',
+        code: 'PURGE_INSERT_FAILED',
       });
+    }
 
-    if (insertError) throw insertError;
-
-    const { data: purgeCount } = await supabase
+    const { count, error: countError } = await supabase
       .from('post_purges')
-      .select('*', { count: 'exact' })
+      .select('*', { count: 'exact', head: true })
       .eq('post_id', postId);
 
-    const totalPurges = purgeCount?.length || 0;
+    if (countError) {
+      console.warn('Purge count query warning:', countError.message);
+    }
 
-    await supabase
+    const totalPurges = typeof count === 'number' ? count : 1;
+
+    const { error: updatePostError } = await supabase
       .from('posts')
       .update({ purge_count: totalPurges })
       .eq('id', postId);
 
-    const consequences = await PurgeEngine.applyConsequences(targetUserId, userId);
+    if (updatePostError) {
+      // Column may be missing on older DBs — purge still counts
+      console.warn('posts.purge_count update skipped:', updatePostError.message);
+    }
 
-    await PurgeEngine.recordCooldown(userId, postId);
-    await PurgeEngine.updateRateLimits(userId);
+    let consequences = {
+      ghostTriggered: false,
+      tier: 'STABLE',
+      visibilityScore: 100,
+    };
+    try {
+      consequences = await PurgeEngine.applyConsequences(targetUserId, userId);
+    } catch (e) {
+      console.warn('Purge consequences skipped (post still purged):', e);
+    }
 
-    res.json({
+    try {
+      await PurgeEngine.recordCooldown(userId, postId);
+    } catch (e) {
+      console.warn('Purge cooldown skipped:', e);
+    }
+
+    try {
+      await PurgeEngine.updateRateLimits(userId);
+    } catch (e) {
+      console.warn('Purge rate limits skipped:', e);
+    }
+
+    return res.json({
       purged: true,
       purges: totalPurges,
       ghostModeTriggered: consequences.ghostTriggered,
@@ -389,10 +550,12 @@ router.post('/:id/purge', auth, validateNotGhosted, async (req, res) => {
       visibilityScore: consequences.visibilityScore,
       purgeWeight: purgeWeight.weight,
     });
-
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error handling post purge:', error);
-    res.status(500).json({ error: 'Failed to purge post' });
+    res.status(500).json({
+      error: error?.message || 'Failed to purge post',
+      code: 'PURGE_FAILED',
+    });
   }
 });
 

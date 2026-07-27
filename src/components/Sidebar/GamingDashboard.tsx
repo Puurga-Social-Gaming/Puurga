@@ -150,15 +150,15 @@ const GamingDashboard: React.FC = () => {
   }
 
   return (
-    <div className="mb-2">
+    <div className="mb-2 min-w-0 overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between mb-2 px-0.5">
-        <span className="text-[11px] font-semibold text-foreground flex items-center gap-1.5">
-          <Gamepad2 size={13} className="text-muted" />
-          {t('rightSidebar.gamingArena')}
+      <div className="flex items-center justify-between gap-2 mb-2 min-w-0">
+        <span className="text-[11px] font-semibold text-foreground flex items-center gap-1.5 min-w-0 truncate">
+          <Gamepad2 size={13} className="text-muted shrink-0" />
+          <span className="truncate">{t('rightSidebar.gamingArena', 'Gaming Arena')}</span>
         </span>
         {totalPlaying > 0 && (
-          <span className="flex items-center gap-1 text-[10px] text-green-500 font-medium">
+          <span className="flex items-center gap-1 text-[10px] text-green-500 font-medium shrink-0">
             <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
             {totalPlaying} live
           </span>
@@ -192,11 +192,11 @@ const GamingDashboard: React.FC = () => {
                 className="w-full flex-shrink-0"
                 onClick={() => navigate(game.target)}
               >
-                <div className="relative overflow-hidden rounded-lg border border-border/40 bg-card hover:bg-card-hover transition-colors duration-150 cursor-pointer group/card">
+                <div className="relative overflow-hidden rounded-xl border border-border/40 bg-card hover:bg-card-hover transition-colors duration-150 cursor-pointer group/card">
                   <div className="p-2.5">
                     {/* Top row: icon + title + score */}
                     <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-md bg-accent/10 flex items-center justify-center text-base shrink-0">
+                      <div className="w-8 h-8 rounded-xl bg-accent/10 flex items-center justify-center text-base shrink-0">
                         {game.icon}
                       </div>
                       <div className="flex-1 min-w-0">
@@ -236,7 +236,7 @@ const GamingDashboard: React.FC = () => {
                         <Zap size={10} className="text-accent" />
                         +{game.rewardCoins} credits
                       </span>
-                      <button className="flex items-center gap-1 px-2.5 py-1 bg-accent/10 hover:bg-accent/20 rounded-full text-[11px] font-medium text-foreground transition-colors">
+                      <button className="flex items-center gap-1 px-2.5 py-1 bg-accent/10 hover:bg-accent/20 rounded-xl text-[11px] font-medium text-foreground transition-colors">
                         <Play size={10} />
                         Play
                       </button>

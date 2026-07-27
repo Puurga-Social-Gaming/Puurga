@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, ReactNode, useCallback, use
 import { supabase } from '../lib/supabaseClient';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { websocketService } from '../services/websocketService';
+import { normalizeAppUser } from '../utils/userProfile';
 
 // Types
 export type AccountStatus = 'active' | 'warned' | 'penalized' | 'restricted';
@@ -48,6 +49,9 @@ export interface User {
   purga_points?: number;
   isGhost?: boolean;
   purgeCount?: number;
+  // Certifications (Super Admin granted)
+  certificationSlug?: string | null;
+  logoCertified?: boolean;
   // Credit system fields
   accountStatus?: AccountStatus;
   inactivityLevel?: number;
@@ -93,41 +97,7 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
           console.log('Restoring user from localStorage fallback');
           try {
             const userData = JSON.parse(storedUser);
-            const normalized = {
-              id: userData.id,
-              name: userData.full_name ?? userData.name ?? '',
-              username: userData.username ?? '',
-              email: userData.email ?? '',
-              avatar: userData.avatar_url ?? userData.avatar ?? null,
-              coverPhoto: userData.cover_photo ?? userData.coverPhoto ?? null,
-              bio: userData.bio ?? '',
-              location: userData.location ?? '',
-              website: userData.website ?? '',
-              createdAt: userData.created_at ?? userData.createdAt ?? new Date().toISOString(),
-              role: userData.role ?? 'user',
-              isBlocked: userData.is_blocked ?? false,
-              isOnline: userData.isOnline ?? false,
-              isFriend: userData.isFriend ?? false,
-              occupation: userData.occupation ?? '',
-              education: userData.education ?? '',
-              relationship: userData.relationship ?? '',
-              isPrivate: userData.is_private ?? false,
-              hideFromSuggestions: userData.hide_from_suggestions ?? false,
-              messageRequests: userData.message_requests ?? 'everyone',
-              showReadReceipts: userData.show_read_receipts ?? true,
-              showOnlineStatus: userData.show_online_status ?? true,
-              commentPrivacy: userData.comment_privacy ?? 'everyone',
-              storyPrivacy: userData.story_privacy ?? 'everyone',
-              isVerified: userData.isVerified ?? false,
-              joinDate: userData.joinDate ?? userData.created_at ?? undefined,
-              postCount: userData.postCount ?? 0,
-              totalLikes: userData.totalLikes ?? 0,
-              stats: userData.stats ?? { posts: 0, followers: 0, following: 0, puurgas: 0, purges: 0, credits: userData.purga_points ?? userData.credits ?? 0 },
-              credits: userData.purga_points ?? userData.credits ?? 0,
-              purga_points: userData.purga_points ?? userData.credits ?? 0,
-              isGhost: userData.is_ghost ?? userData.isGhost ?? false,
-              purgeCount: userData.purge_count ?? userData.purgeCount ?? 0,
-            } as User;
+            const normalized = normalizeAppUser(userData);
             setUser(normalized);
             setLoading(false);
             return;
@@ -155,43 +125,7 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
             const userData = JSON.parse(storedUser);
             // Verify that stored user matches current session user
             if (userData.id === session.user.id) {
-              // Normalize stored data
-              const normalized = {
-                id: userData.id,
-                name: userData.full_name ?? userData.name ?? '',
-                username: userData.username ?? '',
-                email: userData.email ?? '',
-                avatar: userData.avatar_url ?? userData.avatar ?? null,
-                coverPhoto: userData.cover_photo ?? userData.coverPhoto ?? null,
-                bio: userData.bio ?? '',
-                location: userData.location ?? '',
-                website: userData.website ?? '',
-                createdAt: userData.created_at ?? userData.createdAt ?? new Date().toISOString(),
-                role: userData.role ?? 'user',
-                isBlocked: userData.is_blocked ?? false,
-                isOnline: userData.isOnline ?? false,
-                isFriend: userData.isFriend ?? false,
-                occupation: userData.occupation ?? '',
-                education: userData.education ?? '',
-                relationship: userData.relationship ?? '',
-                isPrivate: userData.is_private ?? false,
-                hideFromSuggestions: userData.hide_from_suggestions ?? false,
-                messageRequests: userData.message_requests ?? 'everyone',
-                showReadReceipts: userData.show_read_receipts ?? true,
-                showOnlineStatus: userData.show_online_status ?? true,
-                commentPrivacy: userData.comment_privacy ?? 'everyone',
-                storyPrivacy: userData.story_privacy ?? 'everyone',
-                isVerified: userData.isVerified ?? false,
-                joinDate: userData.joinDate ?? userData.created_at ?? undefined,
-                postCount: userData.postCount ?? 0,
-                totalLikes: userData.totalLikes ?? 0,
-                stats: userData.stats ?? { posts: 0, followers: 0, following: 0, puurgas: 0, purges: 0, credits: userData.purga_points ?? userData.credits ?? 0 },
-                credits: userData.purga_points ?? userData.credits ?? 0,
-                purga_points: userData.purga_points ?? userData.credits ?? 0,
-                isGhost: userData.is_ghost ?? userData.isGhost ?? false,
-                purgeCount: userData.purge_count ?? userData.purgeCount ?? 0,
-              } as User;
-              setUser(normalized);
+              setUser(normalizeAppUser(userData));
             } else {
               // User mismatch, clear stored data
               localStorage.removeItem('user');
@@ -228,42 +162,7 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
             // Store merged data in localStorage for persistence
             localStorage.setItem('user', JSON.stringify(mergedData));
 
-            // Normalize backend profile payload (snake_case) to frontend User shape (camelCase)
-            const normalized = {
-              id: mergedData.id,
-              name: mergedData.full_name ?? mergedData.name ?? '',
-              username: mergedData.username ?? '',
-              email: mergedData.email ?? '',
-              avatar: mergedData.avatar_url ?? mergedData.avatar ?? null,
-              coverPhoto: mergedData.cover_photo ?? mergedData.coverPhoto ?? null,
-              bio: mergedData.bio ?? '',
-              location: mergedData.location ?? '',
-              website: mergedData.website ?? '',
-              createdAt: mergedData.created_at ?? mergedData.createdAt ?? new Date().toISOString(),
-              role: mergedData.role ?? 'user',
-              isBlocked: mergedData.is_blocked ?? false,
-              isOnline: mergedData.isOnline ?? false,
-              isFriend: mergedData.isFriend ?? false,
-              occupation: mergedData.occupation ?? '',
-              education: mergedData.education ?? '',
-              relationship: mergedData.relationship ?? '',
-              isPrivate: mergedData.is_private ?? false,
-              hideFromSuggestions: mergedData.hide_from_suggestions ?? false,
-              messageRequests: mergedData.message_requests ?? 'everyone',
-              showReadReceipts: mergedData.show_read_receipts ?? true,
-              showOnlineStatus: mergedData.show_online_status ?? true,
-              commentPrivacy: mergedData.comment_privacy ?? 'everyone',
-              storyPrivacy: mergedData.story_privacy ?? 'everyone',
-              isVerified: mergedData.isVerified ?? false,
-              joinDate: mergedData.joinDate ?? mergedData.created_at ?? undefined,
-              postCount: mergedData.postCount ?? 0,
-              totalLikes: mergedData.totalLikes ?? 0,
-              stats: mergedData.stats ?? { posts: 0, followers: 0, following: 0, puurgas: 0, purges: 0, credits: mergedData.purga_points ?? mergedData.credits ?? 0 },
-              credits: mergedData.purga_points ?? mergedData.credits ?? 0,
-              purga_points: mergedData.purga_points ?? mergedData.credits ?? 0,
-              isGhost: mergedData.is_ghost ?? mergedData.isGhost ?? false,
-              purgeCount: mergedData.purge_count ?? mergedData.purgeCount ?? 0,
-            } as User;
+            const normalized = normalizeAppUser(mergedData);
 
             console.log('Profile data loaded:', {
               id: normalized.id,
@@ -271,7 +170,21 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
               username: normalized.username,
               email: normalized.email
             });
-            setUser(normalized);
+            setUser((prev) => {
+              // Skip update if nothing meaningful changed — avoids avatar remount flicker
+              if (
+                prev &&
+                prev.id === normalized.id &&
+                prev.avatar === normalized.avatar &&
+                prev.coverPhoto === normalized.coverPhoto &&
+                prev.name === normalized.name &&
+                prev.username === normalized.username &&
+                prev.credits === normalized.credits
+              ) {
+                return prev;
+              }
+              return normalized;
+            });
           }
         } catch (error) {
           console.error('Error fetching fresh user data:', error);
@@ -282,23 +195,25 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
 
     initializeUser();
 
-    // Listen for auth state changes
+    // Listen for auth state changes — avoid re-fetch loops that make avatars blink
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event: any, session: any) => {
-      console.log('Auth state changed:', event, session?.user?.id);
       if (event === 'SIGNED_OUT') {
         localStorage.removeItem('user');
         localStorage.removeItem('token');
         setUser(null);
-      } else if (event === 'TOKEN_REFRESHED') {
-        // Update the stored token so axios always sends the fresh JWT
+        return;
+      }
+
+      if (event === 'TOKEN_REFRESHED') {
+        // Keep existing profile in memory; only refresh the JWT for axios
         if (session?.access_token) {
           localStorage.setItem('token', session.access_token);
-          console.log('Token refreshed and updated in localStorage');
         }
-        localStorage.removeItem('user'); // Triggers re-fetch of profile on next initializeUser
+        return;
       }
-      if (session && event !== 'SIGNED_OUT') {
-        // Re-initialize user when auth state changes
+
+      // Only re-load profile on real sign-in / user metadata updates
+      if (session && (event === 'SIGNED_IN' || event === 'USER_UPDATED')) {
         initializeUser();
       }
     });

@@ -1,33 +1,128 @@
-import React from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Users, TrendingUp, MessageSquare, Bell, Settings, User, Coins, Gamepad2, ArrowUpRight, Zap } from 'lucide-react';
+import {
+  Users, TrendingUp, MessageSquare, Bell, Settings, User, Coins, Gamepad2,
+  ArrowUpRight, Zap, Loader2, RefreshCw,
+} from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useCredits } from '../hooks/useCredits';
+import { useWebSocket } from '../hooks/useWebSocket';
+import api from '../lib/axios';
+
+interface DashboardStats {
+  credits: number;
+  friends: number;
+  followers: number;
+  posts: number;
+  engagementRate: number;
+  engagementRateLabel: string;
+  activeConversations: number;
+  unreadNotifications: number;
+  display: {
+    credits: string;
+    friends: string;
+    engagement: string;
+    conversations: string;
+    notifications: string;
+  };
+}
+
+const EMPTY_STATS: DashboardStats = {
+  credits: 0,
+  friends: 0,
+  followers: 0,
+  posts: 0,
+  engagementRate: 0,
+  engagementRateLabel: '0%',
+  activeConversations: 0,
+  unreadNotifications: 0,
+  display: {
+    credits: '0',
+    friends: '0',
+    engagement: '0%',
+    conversations: '0',
+    notifications: '0',
+  },
+};
 
 const Dashboard: React.FC = () => {
   const { balance } = useCredits();
+  const [statsData, setStatsData] = useState<DashboardStats>(EMPTY_STATS);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const fetchStats = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
+    else setRefreshing(true);
+    try {
+      const { data } = await api.get<DashboardStats>('/dashboard/stats');
+      setStatsData({ ...EMPTY_STATS, ...data, display: { ...EMPTY_STATS.display, ...data.display } });
+    } catch (error) {
+      console.error('Failed to load dashboard stats:', error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void fetchStats();
+  }, [fetchStats]);
+
+  const onCreditUpdate = useCallback(() => {
+    void fetchStats(true);
+  }, [fetchStats]);
+
+  const onNotification = useCallback(() => {
+    void fetchStats(true);
+  }, [fetchStats]);
+
+  useWebSocket({ onCreditUpdate, onNotification });
+
+  const creditsDisplay = balance > 0 ? balance.toLocaleString() : (statsData.display.credits || '0');
 
   const stats = [
-    { icon: <Coins className="w-5 h-5" />, label: 'Perga Credits', value: balance.toLocaleString(), highlight: true },
-    { icon: <Users className="w-5 h-5" />, label: 'Total Followers', value: '1.2K' },
-    { icon: <TrendingUp className="w-5 h-5" />, label: 'Engagement Rate', value: '4.8%' },
-    { icon: <MessageSquare className="w-5 h-5" />, label: 'Active Conversations', value: '24' },
-    { icon: <Bell className="w-5 h-5" />, label: 'Notifications', value: '12' }
+    {
+      icon: <Coins className="w-5 h-5" />,
+      label: 'Purga Credits',
+      value: loading ? '—' : creditsDisplay,
+      highlight: true,
+    },
+    {
+      icon: <Users className="w-5 h-5" />,
+      label: 'Friends',
+      value: loading ? '—' : statsData.display.friends,
+    },
+    {
+      icon: <TrendingUp className="w-5 h-5" />,
+      label: 'Engagement Rate',
+      value: loading ? '—' : statsData.display.engagement,
+    },
+    {
+      icon: <MessageSquare className="w-5 h-5" />,
+      label: 'Active Conversations',
+      value: loading ? '—' : statsData.display.conversations,
+    },
+    {
+      icon: <Bell className="w-5 h-5" />,
+      label: 'Unread Notifications',
+      value: loading ? '—' : statsData.display.notifications,
+    },
   ];
 
   const quickActions = [
     { icon: <User className="w-5 h-5" />, label: 'Edit Profile', path: '/profile', desc: 'Update your info' },
     { icon: <Gamepad2 className="w-5 h-5" />, label: 'Play Games', path: '/puurga-games', desc: 'Earn credits' },
-    { icon: <Settings className="w-5 h-5" />, label: 'App Settings', path: '/settings', desc: 'Customize your hub' }
+    { icon: <Settings className="w-5 h-5" />, label: 'App Settings', path: '/settings', desc: 'Customize your hub' },
   ];
 
   const containerVariants = {
     hidden: { opacity: 0 },
-    visible: { opacity: 1, transition: { staggerChildren: 0.07 } }
+    visible: { opacity: 1, transition: { staggerChildren: 0.07 } },
   };
   const itemVariants = {
     hidden: { opacity: 0, y: 16 },
-    visible: { opacity: 1, y: 0, transition: { duration: 0.45, ease: [0.22, 1, 0.36, 1] } }
+    visible: { opacity: 1, y: 0, transition: { duration: 0.45, ease: [0.22, 1, 0.36, 1] } },
   };
 
   return (
@@ -35,62 +130,55 @@ const Dashboard: React.FC = () => {
       variants={containerVariants}
       initial="hidden"
       animate="visible"
-      className="p-6 space-y-5 min-h-screen"
-      style={{ fontFamily: "'DM Sans', sans-serif" }}
+      className="w-full space-y-5 min-h-full pb-8"
     >
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Bebas+Neue&display=swap');
-
-        .glow-white { box-shadow: 0 0 40px rgba(245,245,245,0.1), 0 0 0 1px rgba(245,245,245,0.08); }
-        .stat-card { background: linear-gradient(135deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.01) 100%); border: 1px solid rgba(255,255,255,0.07); backdrop-filter: blur(12px); }
-        .stat-card:hover { border-color: rgba(245,245,245,0.2); background: linear-gradient(135deg, rgba(245,245,245,0.04) 0%, rgba(200,200,200,0.02) 100%); }
-        .action-card { background: linear-gradient(135deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.01) 100%); border: 1px solid rgba(255,255,255,0.07); }
-        .action-card:hover { border-color: rgba(245,245,245,0.25); background: linear-gradient(135deg, rgba(245,245,245,0.05) 0%, rgba(0,0,0,0) 100%); transform: translateY(-2px); }
-        .hero-card { background: linear-gradient(135deg, #1a1a1a 0%, #0d0d0d 50%, #141414 100%); border: 1px solid rgba(245,245,245,0.1); }
-        .section-card { background: linear-gradient(135deg, rgba(255,255,255,0.035) 0%, rgba(0,0,0,0) 100%); border: 1px solid rgba(255,255,255,0.06); }
-        .earn-btn { background: linear-gradient(135deg, #f5f5f5, #e5e5e5); box-shadow: 0 4px 20px rgba(245,245,245,0.2); color: #111; }
-        .earn-btn:hover { box-shadow: 0 6px 28px rgba(245,245,245,0.3); transform: translateY(-1px); }
-        .puurga-title { font-family: 'Bebas Neue', sans-serif; letter-spacing: 0.08em; }
-        .dot-grid { background-image: radial-gradient(rgba(255,255,255,0.04) 1px, transparent 1px); background-size: 24px 24px; }
-        .badge { background: rgba(245,245,245,0.15); border: 1px solid rgba(245,245,245,0.3); }
-      `}</style>
-
       {/* Welcome Hero */}
-      <motion.div variants={itemVariants} className="hero-card rounded-2xl p-7 relative overflow-hidden dot-grid">
-        <div className="absolute top-0 right-0 w-64 h-64 rounded-full" style={{ background: 'radial-gradient(circle, rgba(245,245,245,0.08) 0%, transparent 70%)', transform: 'translate(30%, -30%)' }} />
-        <div className="relative z-10 flex items-center justify-between">
+      <motion.div
+        variants={itemVariants}
+        className="rounded-2xl p-6 sm:p-7 relative overflow-hidden border border-border bg-card"
+      >
+        <div className="relative z-10 flex items-start justify-between gap-3">
           <div>
             <div className="flex items-center gap-2 mb-2">
-              <span className="badge text-white text-xs font-semibold px-2.5 py-1 rounded-full flex items-center gap-1.5">
+              <span className="bg-accent/15 text-accent text-xs font-semibold px-2.5 py-1 rounded-full flex items-center gap-1.5 border border-accent/25">
                 <Zap className="w-3 h-3" /> LIVE
               </span>
             </div>
-            <h1 className="puurga-title text-5xl text-white tracking-wider">WELCOME TO PUURGA</h1>
-            <p className="text-gray-500 mt-2 text-sm font-medium">Your social hub for meaningful connections</p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-foreground tracking-tight">Welcome to Puurga</h1>
+            <p className="text-muted mt-2 text-sm font-medium">Your social hub — real stats, updated live</p>
           </div>
+          <button
+            type="button"
+            onClick={() => fetchStats(true)}
+            disabled={refreshing}
+            className="p-2 rounded-xl border border-border text-muted hover:text-foreground hover:bg-card-hover transition-colors disabled:opacity-50"
+            aria-label="Refresh stats"
+          >
+            {refreshing ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
+          </button>
         </div>
       </motion.div>
 
       {/* Credits Hero Card */}
-      <motion.div variants={itemVariants} className="glow-white rounded-2xl p-7 relative overflow-hidden" style={{ background: 'linear-gradient(135deg, rgba(245,245,245,0.08) 0%, rgba(200,200,200,0.05) 60%, rgba(245,245,245,0.03) 100%)', border: '1px solid rgba(245,245,245,0.15)' }}>
-        <div className="absolute inset-0 dot-grid opacity-30" />
-        <div className="absolute -right-8 -bottom-8 w-48 h-48 rounded-full" style={{ background: 'radial-gradient(circle, rgba(245,245,245,0.1) 0%, transparent 70%)' }} />
-        <div className="relative z-10 flex items-center justify-between">
-          <div className="flex items-center gap-5">
-            <div className="relative">
-              <div className="absolute inset-0 rounded-xl blur-md" style={{ background: 'rgba(245,245,245,0.3)' }} />
-              <div className="relative p-4 rounded-xl" style={{ background: 'linear-gradient(135deg, rgba(245,245,245,0.2), rgba(200,200,200,0.15))', border: '1px solid rgba(245,245,245,0.3)' }}>
-                <Coins className="w-7 h-7 text-white" />
-              </div>
+      <motion.div
+        variants={itemVariants}
+        className="rounded-2xl p-6 sm:p-7 relative overflow-hidden border border-accent/20 bg-accent/5"
+      >
+        <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className="p-3.5 rounded-xl bg-accent/15 border border-accent/25">
+              <Coins className="w-7 h-7 text-accent" />
             </div>
             <div>
-              <p className="text-xs text-white/70 font-semibold uppercase tracking-widest mb-0.5">Your Perga Credits</p>
-              <p className="puurga-title text-5xl text-white">{balance.toLocaleString()}</p>
+              <p className="text-xs text-muted font-semibold uppercase tracking-widest mb-0.5">Your Purga Credits</p>
+              <p className="text-4xl sm:text-5xl font-bold text-foreground tabular-nums">
+                {loading ? '—' : creditsDisplay}
+              </p>
             </div>
           </div>
           <Link
             to="/puurga-games"
-            className="earn-btn text-white px-5 py-3 rounded-xl font-semibold transition-all flex items-center gap-2 text-sm"
+            className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl font-semibold text-sm bg-foreground text-background hover:opacity-90 transition-opacity"
           >
             <Gamepad2 className="w-4 h-4" />
             Earn More
@@ -101,22 +189,26 @@ const Dashboard: React.FC = () => {
 
       {/* Stats Grid */}
       <motion.div variants={itemVariants} className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-        {stats.map((stat, index) => (
+        {stats.map((stat) => (
           <motion.div
-            key={index}
+            key={stat.label}
             whileHover={{ scale: 1.02 }}
             transition={{ duration: 0.2 }}
-            className={`stat-card rounded-xl p-5 transition-all duration-300 cursor-default ${stat.highlight ? 'border-white/20' : ''}`}
+            className={`rounded-xl p-4 sm:p-5 border border-border bg-card transition-colors ${
+              stat.highlight ? 'border-accent/30 bg-accent/5' : 'hover:border-accent/20'
+            }`}
           >
             <div className="flex flex-col gap-3">
-              <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${stat.highlight ? 'bg-white/20 text-white' : 'bg-white/5 text-gray-400'}`}>
+              <div
+                className={`w-9 h-9 rounded-lg flex items-center justify-center ${
+                  stat.highlight ? 'bg-accent/20 text-accent' : 'bg-background-secondary text-muted'
+                }`}
+              >
                 {stat.icon}
               </div>
               <div>
-                <p className={`text-2xl font-bold leading-none ${stat.highlight ? 'text-white' : 'text-white'}`}>
-                  {stat.value}
-                </p>
-                <p className="text-xs text-gray-500 mt-1.5 font-medium">{stat.label}</p>
+                <p className="text-2xl font-bold leading-none text-foreground tabular-nums">{stat.value}</p>
+                <p className="text-xs text-muted mt-1.5 font-medium">{stat.label}</p>
               </div>
             </div>
           </motion.div>
@@ -124,46 +216,48 @@ const Dashboard: React.FC = () => {
       </motion.div>
 
       {/* Quick Actions */}
-      <motion.div variants={itemVariants} className="section-card rounded-2xl p-6">
+      <motion.div variants={itemVariants} className="rounded-2xl p-5 sm:p-6 border border-border bg-card">
         <div className="flex items-center gap-2 mb-5">
-          <h2 className="text-base font-semibold text-white">Quick Actions</h2>
-          <div className="h-px flex-1 bg-white/5" />
+          <h2 className="text-base font-semibold text-foreground">Quick Actions</h2>
+          <div className="h-px flex-1 bg-border" />
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          {quickActions.map((action, index) => (
+          {quickActions.map((action) => (
             <Link
-              key={index}
+              key={action.path}
               to={action.path}
-              className="action-card rounded-xl p-4 transition-all duration-250 flex items-center justify-between group"
+              className="rounded-xl p-4 border border-border bg-background-secondary/50 hover:bg-card-hover hover:border-accent/30 transition-all flex items-center justify-between group"
             >
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-lg bg-white/10 text-white flex items-center justify-center flex-shrink-0">
+                <div className="w-9 h-9 rounded-lg bg-accent/15 text-accent flex items-center justify-center flex-shrink-0">
                   {action.icon}
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-white">{action.label}</p>
-                  <p className="text-xs text-gray-500">{action.desc}</p>
+                  <p className="text-sm font-semibold text-foreground">{action.label}</p>
+                  <p className="text-xs text-muted">{action.desc}</p>
                 </div>
               </div>
-              <ArrowUpRight className="w-4 h-4 text-gray-600 group-hover:text-white transition-colors" />
+              <ArrowUpRight className="w-4 h-4 text-muted group-hover:text-accent transition-colors" />
             </Link>
           ))}
         </div>
       </motion.div>
 
-      {/* Recent Activity */}
-      <motion.div variants={itemVariants} className="section-card rounded-2xl p-6">
-        <div className="flex items-center gap-2 mb-5">
-          <h2 className="text-base font-semibold text-white">Recent Activity</h2>
-          <div className="h-px flex-1 bg-white/5" />
+      <motion.div variants={itemVariants} className="rounded-2xl p-5 sm:p-6 border border-border bg-card">
+        <div className="flex items-center gap-2 mb-3">
+          <h2 className="text-base font-semibold text-foreground">More insights</h2>
+          <div className="h-px flex-1 bg-border" />
         </div>
-        <div className="rounded-xl p-8 flex flex-col items-center justify-center gap-3" style={{ background: 'rgba(255,255,255,0.02)', border: '1px dashed rgba(255,255,255,0.07)' }}>
-          <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center">
-            <Zap className="w-5 h-5 text-gray-600" />
-          </div>
-          <p className="text-sm text-gray-600 font-medium">No recent activity yet</p>
-          <p className="text-xs text-gray-700">Start connecting to see your activity here</p>
-        </div>
+        <p className="text-sm text-muted mb-4">
+          Dive into survival, purges, and game performance on your Puurga Dashboard.
+        </p>
+        <Link
+          to="/puurga-dashboard"
+          className="inline-flex items-center gap-2 text-sm font-medium text-accent hover:underline"
+        >
+          Open Puurga Dashboard
+          <ArrowUpRight className="w-4 h-4" />
+        </Link>
       </motion.div>
     </motion.div>
   );

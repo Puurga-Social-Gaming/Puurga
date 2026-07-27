@@ -8,7 +8,7 @@ dotenv.config({ path: path.join(__dirname, '..', '.env') });
 console.log('Database config:', {
   host: process.env.DB_HOST,
   username: process.env.DB_USER,
-  password: process.env.DB_PASS,
+  password: process.env.DB_PASS || process.env.DB_PASSWORD,
   database: process.env.DB_NAME,
   port: process.env.DB_PORT
 });
@@ -17,7 +17,7 @@ const sequelize = new Sequelize({
   dialect: 'postgres',
   host: process.env.DB_HOST || 'localhost',
   username: process.env.DB_USER || 'postgres',
-  password: process.env.DB_PASS || 'postgres',
+  password: process.env.DB_PASS || process.env.DB_PASSWORD || 'postgres',
   database: process.env.DB_NAME || 'puurga',
   port: parseInt(process.env.DB_PORT || '5432'),
   logging: false,

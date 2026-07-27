@@ -9,6 +9,8 @@ const EmotionalFeedback: React.FC = () => {
   const [showPulse, setShowPulse] = React.useState(false);
   const [pulseIntensity, setPulseIntensity] = React.useState(0);
 
+  const tier = getPurgeTier(survivalState?.purge_count ?? 0);
+
   useEffect(() => {
     if (!survivalState) return;
     const prev = prevPurgeCountRef.current;
@@ -32,11 +34,10 @@ const EmotionalFeedback: React.FC = () => {
       };
     }
     prevPurgeCountRef.current = current;
-  }, [survivalState?.purge_count, survivalState]);
+  }, [survivalState?.purge_count, survivalState, tier]);
 
   if (!survivalState) return null;
 
-  const tier = getPurgeTier(survivalState.purge_count);
   const colors: Record<string, string> = {
     STABLE: 'rgba(34,197,94,0.15)',
     WATCHED: 'rgba(251,191,36,0.2)',

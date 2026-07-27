@@ -12,7 +12,8 @@
     "sync-users:cleanup-profiles": "ts-node scripts/syncUsersToAuth.ts --cleanup-profiles",
     "sync-users:cleanup-auth": "ts-node scripts/syncUsersToAuth.ts --cleanup-auth",
     "sync-users:cleanup-all": "ts-node scripts/syncUsersToAuth.ts --cleanup-all",
-    "sync-users:sync-emails": "ts-node scripts/syncUsersToAuth.ts --sync-emails"
+    "sync-users:sync-emails": "ts-node scripts/syncUsersToAuth.ts --sync-emails",
+    "setup:db": "bash scripts/setupLocalDb.sh"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.50.0",

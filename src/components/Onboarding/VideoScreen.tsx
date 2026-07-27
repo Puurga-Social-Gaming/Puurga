@@ -68,57 +68,65 @@ const VideoScreen = () => {
       }
     };
 
+    const enableSoundAndFs = () => {
+      video.muted = false;
+      video.volume = 1;
+      void video.play();
+      requestFs();
+    };
+
     const startPlayback = () => {
       if (disposed || playbackStarted.current) return;
       playbackStarted.current = true;
 
-      video.volume = 1;
       video.muted = true;
+      video.volume = 1;
 
-      video
-        .play()
-        .then(() => {
-          if (!disposed) video.muted = false;
-        })
-        .catch(() => {
-          const unmuteOnTap = () => {
-            video.muted = false;
-            video.volume = 1;
-            void video.play();
-          };
-          document.addEventListener('pointerdown', unmuteOnTap, { once: true });
-          removeTapListener = () =>
-            document.removeEventListener('pointerdown', unmuteOnTap);
-        });
+      void video.play().catch(() => {
+        // Autoplay blocked — unmute + fullscreen only after user gesture
+      });
+
+      document.addEventListener('pointerdown', enableSoundAndFs, { once: true });
+      removeTapListener = () =>
+        document.removeEventListener('pointerdown', enableSoundAndFs);
     };
 
-    const onCanPlayThrough = () => {
-      startPlayback();
-      requestFs();
-    };
+    // canplay = enough buffered to start — much faster than canplaythrough
+    const onCanPlay = () => startPlayback();
     const onEnded = () => proceedToNext();
     const onError = () => {
       console.error('Intro video failed to load or play');
       proceedToNext();
     };
 
-    video.addEventListener('canplaythrough', onCanPlayThrough);
+    video.addEventListener('canplay', onCanPlay);
     video.addEventListener('ended', onEnded);
     video.addEventListener('error', onError);
 
-    if (video.readyState >= HTMLMediaElement.HAVE_ENOUGH_DATA) {
+    if (video.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) {
       startPlayback();
-      requestFs();
+    } else {
+      video.load();
     }
 
     return () => {
       disposed = true;
       if (removeTapListener) removeTapListener();
-      video.removeEventListener('canplaythrough', onCanPlayThrough);
+      video.removeEventListener('canplay', onCanPlay);
       video.removeEventListener('ended', onEnded);
       video.removeEventListener('error', onError);
     };
   }, [videoUrl, proceedToNext, isDesktop]);
+
+  const videoProps = {
+    ref: videoRef,
+    src: videoUrl ?? undefined,
+    autoPlay: true as const,
+    muted: true,
+    playsInline: true,
+    preload: 'auto' as const,
+    disablePictureInPicture: true,
+  };
 
   return (
     <div
@@ -132,22 +140,14 @@ const VideoScreen = () => {
     >
       {isDesktop ? (
         <video
-          ref={videoRef}
-          src={videoUrl ?? undefined}
+          {...videoProps}
           className="w-full h-full object-cover"
-          playsInline
-          preload="auto"
-          disablePictureInPicture
         />
       ) : (
         <div className="w-full mx-auto max-w-sm aspect-[9/16]">
           <video
-            ref={videoRef}
-            src={videoUrl ?? undefined}
+            {...videoProps}
             className="w-full h-full rounded-xl object-contain"
-            playsInline
-            preload="auto"
-            disablePictureInPicture
           />
         </div>
       )}

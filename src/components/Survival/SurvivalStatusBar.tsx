@@ -71,7 +71,9 @@ const SurvivalStatusBar: React.FC = () => {
           <div className="flex-1 h-1.5 rounded-full bg-border/40 overflow-hidden max-w-[60px]">
             <motion.div
               initial={{ width: 0 }}
-              animate={{ width: `${Math.min(100, survivalState.reputation_score / 10)}%` }}
+              animate={{
+                width: `${Math.min(100, Math.max(0, Number(survivalState.reputation_score) || 0) / 10)}%`,
+              }}
               transition={{ duration: 0.5 }}
               className={`h-full rounded-full ${survivalState.reputation_score > 60 ? 'bg-accent' : survivalState.reputation_score > 30 ? 'bg-orange-500' : 'bg-red-500'}`}
             />
@@ -103,7 +105,9 @@ const SurvivalStatusBar: React.FC = () => {
           <div className="h-1.5 w-[40px] rounded-full bg-border/40 overflow-hidden hidden sm:block">
             <motion.div
               initial={{ width: 0 }}
-              animate={{ width: `${survivalState.threat_level}%` }}
+              animate={{
+                width: `${Math.min(100, Math.max(0, Number(survivalState.threat_level) || 0))}%`,
+              }}
               transition={{ duration: 0.5 }}
               className={`h-full rounded-full ${getThreatBarColor()}`}
             />

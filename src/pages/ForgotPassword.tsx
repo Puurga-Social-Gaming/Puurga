@@ -110,7 +110,7 @@ const ForgotPassword: React.FC = () => {
 
             <button
               onClick={() => navigate('/login')}
-              className="w-full px-4 py-2 rounded-lg bg-accent text-white font-semibold hover:opacity-90 transition-all shadow-theme-button hover:shadow-lg mb-4"
+              className="w-full px-4 py-2 rounded-lg bg-accent text-black font-semibold hover:opacity-90 transition-all shadow-theme-button hover:shadow-lg mb-4"
             >
               Back to Login
             </button>
@@ -188,7 +188,7 @@ const ForgotPassword: React.FC = () => {
             <button
               type="submit"
               disabled={loading || !email}
-              className="w-full px-4 py-2 rounded-lg bg-accent text-white font-semibold hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-theme-button hover:shadow-lg"
+              className="w-full px-4 py-2 rounded-lg bg-accent text-black font-semibold hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-theme-button hover:shadow-lg"
             >
               {loading ? (
                 <div className="flex items-center justify-center gap-2">

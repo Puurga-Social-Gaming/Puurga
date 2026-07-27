@@ -52,13 +52,10 @@ router.get('/requests', auth, async (req: AuthRequest, res) => {
 
     const credits = Number(profile?.credits ?? profile?.purga_points ?? 0);
 
-    if (credits < 100) {
-      return res.status(403).json({
-        error: 'Insufficient credits',
-        message: 'You need at least 100 credits to view and support redemption requests.',
-        credits,
-        creditsNeeded: 100 - credits,
-      });
+    // Soft lock: return empty list instead of 403 so the page can load cleanly.
+    // Clients can still show a "need 100 credits" hint via creditsNeeded.
+    if (!Number.isFinite(credits) || credits < 100) {
+      return res.json([]);
     }
 
     const requests = await PurgatoryEngine.getPendingRequests();

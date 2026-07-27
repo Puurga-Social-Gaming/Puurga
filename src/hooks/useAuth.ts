@@ -5,6 +5,99 @@ import { useUser } from '../context/UserContext';
 import { supabase } from '../lib/supabaseClient';
 import { websocketService } from '../services/websocketService';
 import { signInWithGoogle as googleOAuthSignIn } from '../lib/googleAuth';
+import {
+  normalizeAppUser,
+  needsProfileHeal,
+  resolveDisplayName,
+  resolveUsername,
+} from '../utils/userProfile';
+
+type AuthUserLike = {
+  id: string;
+  email?: string | null;
+  user_metadata?: Record<string, unknown>;
+};
+
+async function upsertProfileFromAuth(
+  authUser: AuthUserLike,
+  overrides?: { full_name?: string; username?: string },
+) {
+  const meta = authUser.user_metadata ?? {};
+  const email = authUser.email ?? '';
+
+  const full_name = resolveDisplayName({
+    full_name: overrides?.full_name,
+    metadata: meta,
+    email,
+  });
+
+  const username = resolveUsername({
+    username: overrides?.username,
+    metadata: meta,
+    email,
+    userId: authUser.id,
+  });
+
+  const payload = {
+    id: authUser.id,
+    email: email.trim().toLowerCase() || null,
+    full_name,
+    username,
+    updated_at: new Date().toISOString(),
+  };
+
+  const { data, error } = await supabase
+    .from('profiles')
+    .upsert(payload, { onConflict: 'id' })
+    .select('*')
+    .single();
+
+  if (error) {
+    // Unique username conflict — retry with suffix
+    if (error.code === '23505' || error.message?.toLowerCase().includes('username')) {
+      const retryPayload = {
+        ...payload,
+        username: resolveUsername({
+          email,
+          userId: authUser.id,
+        }),
+      };
+      const { data: retryData, error: retryError } = await supabase
+        .from('profiles')
+        .upsert(retryPayload, { onConflict: 'id' })
+        .select('*')
+        .single();
+      if (retryError) throw retryError;
+      return retryData;
+    }
+    throw error;
+  }
+
+  return data;
+}
+
+async function fetchBackendProfile(token: string) {
+  const res = await fetch('/api/users/profile', {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) return null;
+  return res.json();
+}
+
+function persistUser(raw: Record<string, unknown>, email?: string | null) {
+  const normalized = normalizeAppUser(raw, email);
+  localStorage.setItem(
+    'user',
+    JSON.stringify({
+      ...raw,
+      full_name: normalized.name,
+      name: normalized.name,
+      username: normalized.username,
+      email: normalized.email,
+    }),
+  );
+  return normalized;
+}
 
 export const useAuth = () => {
   const [loading, setLoading] = useState(false);
@@ -17,13 +110,18 @@ export const useAuth = () => {
     }
 
     const trimmedEmail = email.trim().toLowerCase();
-    const trimmedUsername = username.trim().toLowerCase();
+    const trimmedUsername = username.trim().toLowerCase().replace(/[^a-z0-9_]/g, '_');
     const trimmedName = name.trim();
 
     try {
       setLoading(true);
 
-      // Check if email or username already exists
+      const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+      if (!emailRegex.test(trimmedEmail)) {
+        throw new Error('Please enter a valid email address');
+      }
+
+      // Check conflicts (non-blocking if network fails)
       try {
         const { data: existingUser, error: checkError } = await supabase
           .from('profiles')
@@ -31,160 +129,74 @@ export const useAuth = () => {
           .or(`email.eq.${trimmedEmail},username.eq.${trimmedUsername}`)
           .maybeSingle();
 
-        if (checkError) {
-          if (checkError.message.includes('Failed to fetch')) {
-            throw new Error('Network error. Please check your internet connection and try again.');
-          }
-          throw checkError;
-        }
-        if (existingUser) {
-          if (existingUser.email === trimmedEmail) {
-            throw new Error('Email already exists');
-          }
-          if (existingUser.username === trimmedUsername) {
-            throw new Error('Username already exists');
-          }
+        if (!checkError && existingUser) {
+          if (existingUser.email === trimmedEmail) throw new Error('Email already exists');
+          if (existingUser.username === trimmedUsername) throw new Error('Username already exists');
         }
       } catch (error) {
-        if (error instanceof Error && error.message.includes('Network error')) {
+        if (error instanceof Error && (error.message.includes('already exists') || error.message.includes('Network'))) {
           throw error;
         }
-        console.error('Error checking existing user:', error);
-        // Continue with registration if we can't check for existing users
       }
 
-      // Create auth user
-      console.log('Attempting to create auth user with:', {
+      const { data: authData, error: authError } = await supabase.auth.signUp({
         email: trimmedEmail,
-        metadata: {
-          full_name: trimmedName,
-          username: trimmedUsername
-        }
+        password,
+        options: {
+          data: {
+            full_name: trimmedName,
+            name: trimmedName,
+            username: trimmedUsername,
+          },
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+        },
       });
 
-      try {
-        console.log('Starting registration process...');
-
-        // Validate email format more strictly
-        const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-        console.log('Email being validated:', trimmedEmail);
-        if (!emailRegex.test(trimmedEmail)) {
+      if (authError) {
+        if (authError.message.includes('Database error')) {
+          throw new Error('Unable to create account. Please try again later.');
+        }
+        if (authError.message.toLowerCase().includes('email')) {
           throw new Error('Please enter a valid email address');
         }
-
-        const { data: authData, error: authError } = await supabase.auth.signUp({
-          email: trimmedEmail,
-          password,
-          options: {
-            data: {
-              full_name: trimmedName,
-              username: trimmedUsername
-            },
-            emailRedirectTo: `${window.location.origin}/auth/callback`
-          }
-        });
-
-        if (authError) {
-          console.error('Detailed auth error:', {
-            error: authError,
-            code: authError.code,
-            message: authError.message,
-            status: authError.status,
-            name: authError.name,
-            stack: authError.stack
-          });
-
-          if (authError.message.includes('Database error')) {
-            console.error('Database error during registration:', authError);
-            throw new Error('Unable to create account. Please try again later.');
-          }
-          if (authError.message.includes('Email address')) {
-            throw new Error('Please enter a valid email address');
-          }
-          throw authError;
-        }
-
-        if (!authData.user) {
-          console.error('No user data returned from signup');
-          throw new Error('Failed to create user account');
-        }
-
-        console.log('Auth user created successfully:', {
-          id: authData.user.id,
-          email: authData.user.email,
-          metadata: authData.user.user_metadata
-        });
-
-        // Store access token if available
-        if (authData.session?.access_token) {
-          localStorage.setItem('token', authData.session.access_token);
-          console.log('Token stored after registration:', authData.session.access_token.substring(0, 20) + '...');
-        } else {
-          console.warn('No session token available after registration');
-        }
-
-        // Create user profile in 'profiles' table
-        const profileData = {
-          id: authData.user.id,
-          full_name: trimmedName,
-          username: trimmedUsername,
-          avatar_url: null, // Default to null, can be updated later
-          created_at: new Date().toISOString()
-        };
-
-        console.log('Attempting to create profile with data:', profileData);
-
-        try {
-          const { data: profile, error: profileError } = await supabase
-            .from('profiles')
-            .insert([profileData])
-            .select()
-            .single();
-
-          if (profileError) {
-            console.error('Profile creation error details:', {
-              error: profileError,
-              code: profileError.code,
-              message: profileError.message,
-              details: profileError.details,
-              hint: profileError.hint,
-              data: profileData
-            });
-            throw profileError;
-          }
-
-          if (!profile) {
-            throw new Error('Failed to create user profile');
-          }
-
-          console.log('Profile created successfully:', profile);
-          setUser(profile);
-          toast.success('Registration successful! Welcome to Puurga!');
-          return profile;
-        } catch (error) {
-          console.error('Profile creation failed:', error);
-          // Fallback if profile creation fails, user is still authenticated
-          const fallbackProfile = {
-            id: authData.user.id,
-            name: trimmedName,
-            email: authData.user.email || '',
-            username: trimmedUsername,
-            avatar: null,
-            createdAt: new Date().toISOString(),
-            credits: 0
-          };
-          setUser(fallbackProfile);
-          toast.success('Registration successful! Welcome to Puurga!');
-          return fallbackProfile;
-        }
-      } catch (error) {
-        console.error('Registration error:', error);
-        const message = error instanceof Error ? error.message : 'Registration failed';
-        toast.error(message);
-        throw new Error(message);
-      } finally {
-        setLoading(false);
+        throw authError;
       }
+
+      if (!authData.user) {
+        throw new Error('Failed to create user account');
+      }
+
+      if (authData.session?.access_token) {
+        localStorage.setItem('token', authData.session.access_token);
+      }
+
+      // Ensure auth metadata is correct (protects against empty trigger metadata)
+      await supabase.auth.updateUser({
+        data: {
+          full_name: trimmedName,
+          name: trimmedName,
+          username: trimmedUsername,
+        },
+      }).catch(() => undefined);
+
+      // Upsert profile — heals trigger-created "New User" placeholders
+      const profile = await upsertProfileFromAuth(authData.user, {
+        full_name: trimmedName,
+        username: trimmedUsername,
+      });
+
+      const normalized = persistUser(
+        { ...profile, email: trimmedEmail },
+        trimmedEmail,
+      );
+      setUser(normalized);
+      toast.success('Registration successful! Welcome to Puurga!');
+      return normalized;
+    } catch (error) {
+      console.error('Registration error:', error);
+      const message = error instanceof Error ? error.message : 'Registration failed';
+      toast.error(message);
+      throw new Error(message);
     } finally {
       setLoading(false);
     }
@@ -198,97 +210,67 @@ export const useAuth = () => {
         throw new Error('Email and password are required');
       }
 
-      console.log('Attempting to sign in with Supabase...');
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email: email.trim().toLowerCase(),
-        password
+        password,
       });
 
-      if (authError) {
-        console.error('Supabase auth error:', authError);
-        throw authError;
-      }
-      if (!authData.session) {
-        console.error('No session created:', authData);
+      if (authError) throw authError;
+      if (!authData.session || !authData.user) {
         throw new Error('No session created');
       }
 
-      // Store access token so backend API receives Authorization header
-      try {
-        const token = authData.session.access_token;
-        if (token) {
-          localStorage.setItem('token', token);
-          console.log('Token stored successfully:', token.substring(0, 20) + '...');
-        } else {
-          console.error('No access token in session');
-        }
-      } catch (e) {
-        console.error('Token storage failed:', e);
-      }
+      const token = authData.session.access_token;
+      localStorage.setItem('token', token);
 
-      console.log('Auth successful, fetching user profile...');
-      // Get user profile from 'profiles' table
-      const { data: profile, error: profileError } = await supabase
+      // Load or heal profile
+      let { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', authData.user.id)
         .maybeSingle();
 
-      if (profileError) {
-        console.error('Profile fetch error:', profileError);
-        throw profileError;
-      }
+      if (profileError) throw profileError;
 
-      let finalProfile = profile;
-
-      // If profile doesn't exist, create a fallback profile
-      if (!profile) {
-        console.warn('Profile not found for authenticated user, creating fallback...');
-        console.log('User metadata:', authData.user.user_metadata);
-        const newProfileData = {
-          id: authData.user.id,
-          full_name: authData.user.user_metadata.full_name || 'New User',
-          username: authData.user.user_metadata.username || authData.user.email?.split('@')[0] || `user_${authData.user.id.substring(0, 8)}`,
-          email: authData.user.email,
-          avatar_url: null,
-          created_at: new Date().toISOString()
-        };
-        const { data: createdProfile, error: createError } = await supabase
-          .from('profiles')
-          .insert([newProfileData])
-          .select()
-          .single();
-
-        if (createError) {
-          console.error('Failed to create fallback profile:', createError);
-          // Fallback to a minimal local profile if DB creation fails
-          finalProfile = { id: authData.user.id, name: 'User', username: 'user', createdAt: new Date().toISOString(), email: authData.user.email || '', credits: 0 };
-        } else if (createdProfile) {
-          finalProfile = createdProfile;
-          console.log('Fallback profile created successfully:', finalProfile);
-        }
-      }
-
-      // Fetch latest user profile from backend
-      try {
-        const res = await fetch('/api/users/profile', {
-          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      if (!profile || needsProfileHeal(profile)) {
+        profile = await upsertProfileFromAuth(authData.user, {
+          full_name: resolveDisplayName({
+            full_name: profile?.full_name,
+            metadata: authData.user.user_metadata,
+            email: authData.user.email,
+          }),
+          username: resolveUsername({
+            username: profile?.username,
+            metadata: authData.user.user_metadata,
+            email: authData.user.email,
+            userId: authData.user.id,
+          }),
         });
-        if (res.ok) {
-          const backendProfile = await res.json();
-          setUser(backendProfile);
-          toast.success('Logged in successfully!');
-          // Don't navigate here - let Login component handle it after welcome screen
-          return backendProfile;
-        }
-      } catch {
-        // fallback to finalProfile
       }
 
-      setUser(finalProfile);
+      // Prefer backend profile (includes stats), fall back to healed local profile
+      const backendProfile = await fetchBackendProfile(token);
+      const source = backendProfile && !needsProfileHeal(backendProfile)
+        ? backendProfile
+        : { ...profile, email: authData.user.email };
+
+      // If backend still has placeholders, heal again then re-fetch
+      if (backendProfile && needsProfileHeal(backendProfile)) {
+        await upsertProfileFromAuth(authData.user);
+        const healed = await fetchBackendProfile(token);
+        const normalized = persistUser(
+          healed ?? { ...profile, email: authData.user.email },
+          authData.user.email,
+        );
+        setUser(normalized);
+        toast.success('Logged in successfully!');
+        return normalized;
+      }
+
+      const normalized = persistUser(source, authData.user.email);
+      setUser(normalized);
       toast.success('Logged in successfully!');
-      // Don't navigate here - let Login component handle it after welcome screen
-      return finalProfile;
+      return normalized;
     } catch (error) {
       console.error('Detailed login error:', error);
       const message = error instanceof Error ? error.message : 'Login failed';
@@ -297,7 +279,7 @@ export const useAuth = () => {
     } finally {
       setLoading(false);
     }
-  }, [setUser, navigate]);
+  }, [setUser]);
 
   const logout = useCallback(async () => {
     try {
@@ -307,12 +289,9 @@ export const useAuth = () => {
       if (error) throw error;
 
       setUser(null);
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
       navigate('/login');
-      // Clear persisted token used by backend API
-      try { localStorage.removeItem('token'); } catch (e) {
-        // ignore storage errors
-        console.debug('Token removal failed (non-fatal).');
-      }
     } catch (error) {
       console.error('Logout error:', error);
       const message = error instanceof Error ? error.message : 'Logout failed';
@@ -339,10 +318,9 @@ export const useAuth = () => {
     try {
       setLoading(true);
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`
+        redirectTo: `${window.location.origin}/reset-password`,
       });
       if (error) throw error;
-
       toast.success('Password reset instructions sent to your email');
     } catch (error) {
       console.error('Password reset error:', error);
@@ -359,6 +337,6 @@ export const useAuth = () => {
     logout,
     signInWithGoogle,
     forgotPassword,
-    loading
+    loading,
   };
-}; 
+};

@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Shield, Heart, AlertTriangle, Ghost, Zap } from 'lucide-react';
 import { Alliance } from '../../types/survival';
 import Avatar from '../Avatar';
+import ProfileLink from '../Profile/ProfileLink';
 
 interface AllianceCardProps {
   alliance: Alliance;
@@ -48,15 +49,21 @@ const AllianceCard: React.FC<AllianceCardProps> = ({ alliance, onBreak, onSuppor
       className={`p-4 rounded-lg border ${getStatusColor(alliance.allianceStatus)} backdrop-blur-sm`}
     >
       <div className="flex items-start gap-3">
-        <Avatar src={alliance.avatar || undefined} alt={alliance.username} size="md" />
+        <ProfileLink username={alliance.username} className="rounded-full shrink-0">
+          <Avatar src={alliance.avatar || undefined} alt={alliance.username} size="md" />
+        </ProfileLink>
         
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
-            <h3 className="font-semibold text-white truncate">{alliance.name}</h3>
+            <ProfileLink username={alliance.username} className="font-semibold text-white truncate hover:text-accent">
+              {alliance.name}
+            </ProfileLink>
             {getStateIcon(alliance.partnerState)}
           </div>
           
-          <p className="text-sm text-gray-400 mb-2">@{alliance.username}</p>
+          <ProfileLink username={alliance.username} className="text-sm text-gray-400 mb-2 hover:text-accent block">
+            @{alliance.username}
+          </ProfileLink>
           
           <div className="flex items-center gap-4 text-xs">
             <div className="flex items-center gap-1">

@@ -20,10 +20,12 @@ const ForgotPassword = retryableLazy(() => import('./pages/ForgotPassword'));
 const ResetPassword = retryableLazy(() => import('./pages/ResetPassword'));
 const TestResetUrl = retryableLazy(() => import('./pages/TestResetUrl'));
 const Messages = retryableLazy(() => import('./pages/Messages'));
+const Dashboard = retryableLazy(() => import('./pages/Dashboard'));
 const PuurgaDashboard = retryableLazy(() => import('./pages/PuurgaDashboard'));
 const Purgatory = retryableLazy(() => import('./pages/Purgatory'));
 const PurgaGames = retryableLazy(() => import('./pages/PurgaGames/PurgaGames'));
 const Settings = retryableLazy(() => import('./pages/Settings/Settings'));
+const PostDetail = retryableLazy(() => import('./pages/PostDetail'));
 const Groups = retryableLazy(() => import('./pages/Groups'));
 const Security = retryableLazy(() => import('./pages/Security'));
 const GroupDetail = retryableLazy(() => import('./pages/GroupDetail'));
@@ -32,6 +34,7 @@ const Help = retryableLazy(() => import('./pages/Help'));
 const NewGameCode = retryableLazy(() => import('./pages/NewGameCode'));
 const TheNextGame = retryableLazy(() => import('./pages/TheNextGame'));
 const UserProfile = retryableLazy(() => import('./pages/UserProfile'));
+const Connections = retryableLazy(() => import('./pages/Connections'));
 const UserList = retryableLazy(() => import('./pages/Admin/UserList'));
 const SuperAdmin = retryableLazy(() => import('./pages/SuperAdmin/SuperAdmin'));
 import VideoScreen from './components/Onboarding/VideoScreen';
@@ -121,45 +124,50 @@ const RootRedirect: React.FC = () => {
   return <Navigate to="/login" replace />;
 };
 
-const SuspenseWrapper: React.FC = () => (
+const PublicSuspense: React.FC = () => (
   <Suspense fallback={<RouteLoadingBar />}>
     <Outlet />
   </Suspense>
 );
 
-// Create router with future flags
+/** Pathless root — just nests branches. Must NOT wrap Layout in Suspense. */
+const RootOutlet: React.FC = () => <Outlet />;
+
+// Create router with React Router v7 future flags (silences upgrade warnings)
 const router = createBrowserRouter(
   createRoutesFromElements(
-    <Route element={<SuspenseWrapper />}>
-      {/* RootLayout wraps onboarding + login so OnboardingAudioManager persists across them */}
-      <Route element={<RootLayout />}>
-        {/* Onboarding Routes (Public) */}
-        <Route path="/splash" element={<Navigate to="/onboarding/video" replace />} />
-        <Route path="/onboarding/video" element={<VideoScreen />} />
-        <Route path="/onboarding/language" element={<LanguageScreen />} />
-        <Route path="/onboarding/welcome" element={<WelcomeScreenWrapper />} />
-        {/* Login lives inside RootLayout so audio fades as it mounts */}
-        <Route path="/login" element={<Login />} />
+    <Route element={<RootOutlet />}>
+      {/* Public / onboarding — own Suspense (must NOT wrap the app Layout) */}
+      <Route element={<PublicSuspense />}>
+        <Route element={<RootLayout />}>
+          <Route path="/splash" element={<Navigate to="/onboarding/video" replace />} />
+          <Route path="/onboarding/video" element={<VideoScreen />} />
+          <Route path="/onboarding/language" element={<LanguageScreen />} />
+          <Route path="/onboarding/welcome" element={<WelcomeScreenWrapper />} />
+          <Route path="/login" element={<Login />} />
+        </Route>
+
+        <Route path="/register" element={<Register />} />
+        <Route path="/auth/callback" element={<AuthCallback />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/test-reset-url" element={<TestResetUrl />} />
+        <Route path="/" element={<RootRedirect />} />
       </Route>
 
-      {/* Public Routes (outside audio scope) */}
-      <Route path="/register" element={<Register />} />
-      <Route path="/auth/callback" element={<AuthCallback />} />
-      <Route path="/forgot-password" element={<ForgotPassword />} />
-      <Route path="/reset-password" element={<ResetPassword />} />
-      <Route path="/test-reset-url" element={<TestResetUrl />} />
-
-      {/* Redirect root to login, preserving auth params if present */}
-      <Route path="/" element={<RootRedirect />} />
-
-
-      {/* Protected Routes - Wrapped with Layout */}
-      <Route element={
-        <ProtectedRoute>
-          <Layout />
-        </ProtectedRoute>
-      }>
+      {/*
+        Protected app shell — Layout is OUTSIDE any parent Suspense that would
+        unmount the menu. Page-level Suspense lives inside Layout (StableOutlet).
+      */}
+      <Route
+        element={
+          <ProtectedRoute>
+            <Layout />
+          </ProtectedRoute>
+        }
+      >
         <Route path="/home" element={<Home />} />
+        <Route path="/post/:postId" element={<PostDetail />} />
         <Route path="/profile" element={<Profile />} />
         <Route path="/notifications" element={<Notifications />} />
         <Route path="/messages" element={<Messages />} />
@@ -167,29 +175,47 @@ const router = createBrowserRouter(
         <Route path="/groups/:id" element={<GroupDetail />} />
         <Route path="/join/:inviteCode" element={<JoinGroup />} />
         <Route path="/puurga-games" element={<PurgaGames />} />
+        <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/puurga-dashboard" element={<PuurgaDashboard />} />
         <Route path="/purgatory" element={<Purgatory />} />
         <Route path="/help" element={<Help />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/security" element={<Security />} />
         <Route path="/profile/:username" element={<UserProfile />} />
+        <Route path="/connections" element={<Connections />} />
         <Route path="/admin/users" element={<UserList />} />
-        <Route path="/super-admin" element={
-          <SuperAdminRoute>
-            <SuperAdmin />
-          </SuperAdminRoute>
-        } />
-
-        {/* Temporary route for new game code integration */}
+        <Route
+          path="/super-admin"
+          element={
+            <SuperAdminRoute>
+              <SuperAdmin />
+            </SuperAdminRoute>
+          }
+        />
         <Route path="/new-game" element={<NewGameCode />} />
         <Route path="/next-game" element={<TheNextGame />} />
       </Route>
 
-      {/* Catch all other routes and redirect to login */}
-      <Route path="*" element={<Navigate to="/login" replace />} />
+      <Route path="*" element={<UnknownRouteRedirect />} />
     </Route>
-  )
+  ),
+  {
+    future: {
+      v7_relativeSplatPath: true,
+      v7_fetcherPersist: true,
+      v7_normalizeFormMethod: true,
+      v7_partialHydration: true,
+      v7_skipActionErrorRevalidation: true,
+    },
+  }
 );
+
+function UnknownRouteRedirect() {
+  const hasSession =
+    typeof window !== 'undefined' &&
+    (!!localStorage.getItem('token') || !!localStorage.getItem('user'));
+  return <Navigate to={hasSession ? '/home' : '/login'} replace />;
+}
 
 const App: React.FC = () => {
   console.log('App rendering...');
@@ -231,7 +257,10 @@ const App: React.FC = () => {
                       },
                     }}
                   />
-                <RouterProvider router={router} />
+                <RouterProvider
+                  router={router}
+                  future={{ v7_startTransition: true }}
+                />
                 </MessagesProvider>
                 </MessageNotificationProvider>
             </NotificationsProvider>

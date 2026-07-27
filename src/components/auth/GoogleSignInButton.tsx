@@ -15,7 +15,7 @@ const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
     type="button"
     onClick={onClick}
     disabled={isLoading}
-    className="w-full flex items-center justify-center gap-3 py-3 px-4 rounded-lg bg-white text-gray-900 text-sm font-medium hover:bg-gray-100 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+    className="w-full flex items-center justify-center gap-3 py-3 px-4 rounded-lg bg-[#1a1a1a] border border-[#2d2d2d] text-white text-sm font-medium hover:bg-[#222] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
   >
     <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
       <path

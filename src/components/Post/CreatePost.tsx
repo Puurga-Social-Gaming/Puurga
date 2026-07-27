@@ -14,6 +14,8 @@ import VideoCropModal from './VideoCropModal';
 import { retryableLazy } from '../../utils/retryableLazy';
 const EmojiPicker = retryableLazy(() => import('emoji-picker-react'));
 import type { EmojiClickData, Theme } from 'emoji-picker-react';
+import { BACKGROUND_PRESETS, getPostBackgroundPreset } from '../../constants/postBackgrounds';
+import { fileExtensionForUpload } from '../../utils/mediaUrls';
 
 interface CreatePostProps {
   onPostCreated: (post: Post) => void;
@@ -24,17 +26,6 @@ const VISIBILITY_OPTIONS = [
   { value: 'public', label: 'Public', icon: Globe, description: 'Anyone can see this post' },
   { value: 'friends', label: 'Friends', icon: Users, description: 'Only your friends can see this' },
   { value: 'private', label: 'Only Me', icon: EyeOff, description: 'Only you can see this post' },
-];
-
-const BACKGROUND_PRESETS = [
-  { type: 'none', label: 'None', value: 0, class: 'bg-transparent border-2 border-dashed border-border' },
-  { type: 'color', label: 'Warm', value: 1, class: 'bg-orange-100' },
-  { type: 'color', label: 'Cool', value: 2, class: 'bg-blue-100' },
-  { type: 'color', label: 'Nature', value: 3, class: 'bg-green-100' },
-  { type: 'color', label: 'Sunset', value: 4, class: 'bg-yellow-100' },
-  { type: 'gradient', label: 'Ocean', value: 5, class: 'bg-gradient-to-br from-blue-500 to-purple-600' },
-  { type: 'gradient', label: 'Sunrise', value: 6, class: 'bg-gradient-to-br from-pink-500 to-orange-500' },
-  { type: 'gradient', label: 'Forest', value: 7, class: 'bg-gradient-to-br from-green-500 to-teal-600' },
 ];
 
 const CreatePost: React.FC<CreatePostProps> = ({ onPostCreated, autoExpand = false }) => {
@@ -349,38 +340,43 @@ const CreatePost: React.FC<CreatePostProps> = ({ onPostCreated, autoExpand = fal
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!content.trim() && selectedImages.length === 0 && selectedVideos.length === 0) {
+    const hasLocalMedia = selectedImages.length > 0 || selectedVideos.length > 0;
+    const hasLibraryMedia = libraryImageUrls.length > 0 || libraryVideoUrls.length > 0;
+    if (!content.trim() && !hasLocalMedia && !hasLibraryMedia) {
       toast.error(t('posts.emptyPostError'));
       return;
     }
 
     setLoading(true);
     try {
-      let mediaUrls: string[] = [];
-      
-      // Upload images and videos together
-      if (selectedImages.length > 0 || selectedVideos.length > 0) {
+      let mediaUrls: string[] = [...libraryImageUrls, ...libraryVideoUrls];
+
+      // Upload newly selected images and videos together
+      if (hasLocalMedia) {
         const formData = new FormData();
-        
+
         selectedImages.forEach((file, index) => {
-          const fileExtension = file.type.split('/')[1];
+          const fileExtension = fileExtensionForUpload(file);
           const fileName = `image${index}.${fileExtension}`;
           const newFile = new File([file], fileName, { type: file.type });
           formData.append('media', newFile);
         });
-        
+
         selectedVideos.forEach((file, index) => {
-          const fileExtension = file.type.split('/')[1];
+          const fileExtension = fileExtensionForUpload(file);
           const fileName = `video${index}.${fileExtension}`;
-          const newFile = new File([file], fileName, { type: file.type });
+          const newFile = new File([file], fileName, { type: file.type || 'video/mp4' });
           formData.append('media', newFile);
         });
-        
+
         const uploadResponse = await api.post('/users/upload', formData, {
           headers: { 'Content-Type': 'multipart/form-data' },
           timeout: 180000, // 3 minutes for video uploads
         });
-        mediaUrls = uploadResponse.data.urls;
+        const uploaded = Array.isArray(uploadResponse.data?.urls)
+          ? uploadResponse.data.urls
+          : [];
+        mediaUrls = [...mediaUrls, ...uploaded];
       }
 
       const postData: any = {
@@ -390,7 +386,7 @@ const CreatePost: React.FC<CreatePostProps> = ({ onPostCreated, autoExpand = fal
         visibility,
         background_index: backgroundIndex,
       };
-      
+
       const postResponse = await api.post('/users/posts', postData);
 
       setContent('');
@@ -398,10 +394,13 @@ const CreatePost: React.FC<CreatePostProps> = ({ onPostCreated, autoExpand = fal
       setSelectedVideos([]);
       setImagePreviewUrls([]);
       setVideoPreviewUrls([]);
+      setLibraryImageUrls([]);
+      setLibraryVideoUrls([]);
       setBackgroundIndex(0);
       onPostCreated(postResponse.data);
       toast.success('Post created successfully!');
     } catch (error) {
+      console.error('Error creating post:', error);
       toast.error(t('posts.errorCreating'));
     } finally {
       setLoading(false);
@@ -481,7 +480,7 @@ const CreatePost: React.FC<CreatePostProps> = ({ onPostCreated, autoExpand = fal
         {/* Text Area with Background Preview */}
         <div
           className={`flex-1 flex flex-col relative min-h-[150px] rounded-xl p-3 ${
-            BACKGROUND_PRESETS[backgroundIndex].class
+            getPostBackgroundPreset(backgroundIndex).class
           }`}
         >
           <textarea
@@ -490,7 +489,7 @@ const CreatePost: React.FC<CreatePostProps> = ({ onPostCreated, autoExpand = fal
             onChange={(e) => setContent(e.target.value)}
             placeholder={`What's on your mind${user.name ? ', ' + user.name.split(' ')[0] : ''}?`}
             className={`w-full flex-1 bg-transparent border-none px-0 text-base lg:text-lg placeholder-muted resize-none focus:outline-none focus:ring-0 ${
-              backgroundIndex !== 0 ? 'text-gray-900' : 'text-foreground'
+              getPostBackgroundPreset(backgroundIndex).textClass
             }`}
           />
 
@@ -548,9 +547,9 @@ const CreatePost: React.FC<CreatePostProps> = ({ onPostCreated, autoExpand = fal
           <div className="mt-4 border border-border rounded-xl p-2 relative">
             <div className="mb-2 flex items-center gap-2">
               <span className="text-xs font-medium text-muted">Layout:</span>
-              <button type="button" onClick={() => setImageLayout('grid')} className={`p-1.5 rounded-md ${imageLayout === 'grid' ? 'bg-accent text-white shadow-theme-sm' : 'bg-card hover:bg-card-hover text-muted'}`}><LayoutGrid size={14} /></button>
-              <button type="button" onClick={() => setImageLayout('rows')} className={`p-1.5 rounded-md ${imageLayout === 'rows' ? 'bg-accent text-white shadow-theme-sm' : 'bg-card hover:bg-card-hover text-muted'}`}><Rows size={14} /></button>
-              <button type="button" onClick={() => setImageLayout('columns')} className={`p-1.5 rounded-md ${imageLayout === 'columns' ? 'bg-accent text-white shadow-theme-sm' : 'bg-card hover:bg-card-hover text-muted'}`}><Columns size={14} /></button>
+              <button type="button" onClick={() => setImageLayout('grid')} className={`p-1.5 rounded-md ${imageLayout === 'grid' ? 'bg-accent text-black shadow-theme-sm' : 'bg-card hover:bg-card-hover text-muted'}`}><LayoutGrid size={14} /></button>
+              <button type="button" onClick={() => setImageLayout('rows')} className={`p-1.5 rounded-md ${imageLayout === 'rows' ? 'bg-accent text-black shadow-theme-sm' : 'bg-card hover:bg-card-hover text-muted'}`}><Rows size={14} /></button>
+              <button type="button" onClick={() => setImageLayout('columns')} className={`p-1.5 rounded-md ${imageLayout === 'columns' ? 'bg-accent text-black shadow-theme-sm' : 'bg-card hover:bg-card-hover text-muted'}`}><Columns size={14} /></button>
             </div>
             <div className={`grid gap-1 rounded-lg overflow-hidden ${imageLayout === 'grid' ? 'grid-cols-2' : imageLayout === 'rows' ? 'grid-cols-1' : 'grid-cols-2'}`}>
               {imagePreviewUrls.map((url, index) => (
@@ -675,22 +674,23 @@ const CreatePost: React.FC<CreatePostProps> = ({ onPostCreated, autoExpand = fal
                 title="Add background"
               />
               {showBackgroundPicker && (
-                <div className="absolute top-10 right-0 sm:top-12 sm:right-0 bg-card border border-border rounded-xl shadow-2xl z-50 p-3 min-w-[280px] max-w-[90vw] sm:max-w-none">
+                <div className="absolute top-10 right-0 sm:top-12 sm:right-0 bg-card border border-border rounded-xl shadow-2xl z-50 p-3 w-[min(92vw,320px)]">
                   <h4 className="text-sm font-semibold text-foreground mb-2">Background</h4>
-                  <div className="grid grid-cols-4 gap-2">
-                    {BACKGROUND_PRESETS.map((preset, index) => (
+                  <div className="grid grid-cols-6 gap-2 max-h-52 overflow-y-auto pr-0.5">
+                    {BACKGROUND_PRESETS.map((preset) => (
                       <button
-                        key={index}
+                        key={preset.value}
                         type="button"
                         onClick={() => handleBackgroundSelect(preset)}
-                        className={`w-full aspect-square rounded-lg ${preset.class} hover:scale-105 transition-transform flex items-center justify-center ${
+                        className={`w-full aspect-square rounded-lg ${preset.swatchClass || preset.class} hover:scale-105 transition-transform flex items-center justify-center ${
                           preset.value === backgroundIndex
                             ? 'ring-2 ring-accent'
-                            : ''
+                            : 'ring-1 ring-black/5'
                         }`}
                         title={preset.label}
+                        aria-label={preset.label}
                       >
-                        {preset.type === 'none' && <X size={16} className="text-muted" />}
+                        {preset.type === 'none' && <X size={14} className="text-muted" />}
                       </button>
                     ))}
                   </div>

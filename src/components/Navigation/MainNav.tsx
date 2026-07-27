@@ -19,12 +19,12 @@ import {
 } from 'lucide-react';
 import { LucideIcon } from 'lucide-react';
 import { useNotifications } from '../../context/NotificationContext';
+import { useMessages } from '../../context/MessagesContext';
 import { useUser } from '../../context/UserContext';
 import { useSurvival } from '../../context/SurvivalContext';
 import { supabase } from '../../lib/supabaseClient';
 import { toast } from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
-import PuurgaLogo from '../Icons/PuurgaLogo';
 
 interface NavigationItem {
   to?: string;
@@ -37,6 +37,7 @@ interface NavigationItem {
 const MainNav: React.FC = () => {
   const { t } = useTranslation();
   const { unreadCount } = useNotifications();
+  const { unreadTotal: unreadMessages } = useMessages();
   const { user: currentUser } = useUser();
   const { survivalState } = useSurvival();
   const isGhosted = survivalState?.purgatory_status === true;
@@ -64,10 +65,11 @@ const MainNav: React.FC = () => {
   }, []);
 
   const navLinkClasses = (isActive: boolean) => `
-    relative flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200
+    relative flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors duration-150
+    border-l-[3px]
     ${isActive
-      ? 'nav-active shadow-theme-sm'
-      : 'text-muted hover:text-foreground hover:bg-highlight-light hover:shadow-theme-sm border border-transparent hover:border-highlight'
+      ? 'nav-active'
+      : 'border-l-transparent text-muted hover:text-foreground hover:bg-highlight-light'
     }
   `;
 
@@ -151,29 +153,45 @@ const MainNav: React.FC = () => {
 
   return (
     <>
-      {/* Desktop Sidebar Layout */}
-      <div className="hidden lg:flex flex-col h-full sidebar justify-center">
-        <div className="p-6 pb-8 flex items-center justify-center gap-3">
-          <PuurgaLogo size={40} className="text-accent" />
-          <span className="text-xl font-bold tracking-wide text-accent">PUURGA</span>
-        </div>
-
-        <div className="px-4 space-y-6 mt-8">
+      {/* Desktop Sidebar Layout — stable fixed column content */}
+      <div className="hidden lg:flex flex-col h-full min-h-0 sidebar">
+        <nav className="flex-1 px-3 pt-3 pb-2 space-y-0.5 overflow-y-auto scrollbar-hide">
           {navigationItems.map((item) => (
             item.to ? (
               <NavLink
                 key={item.to}
                 to={item.to}
+                end={item.to === '/home' || item.to === '/profile'}
+                onMouseEnter={() => {
+                  // Prefetch route chunk on hover for instant navigation
+                  const path = item.to!;
+                  if (path === '/home') void import('../../pages/Home');
+                  else if (path === '/profile') void import('../../pages/Profile');
+                  else if (path === '/messages') void import('../../pages/Messages');
+                  else if (path === '/puurga-games') void import('../../pages/PurgaGames/PurgaGames');
+                  else if (path === '/puurga-dashboard') void import('../../pages/PuurgaDashboard');
+                  else if (path === '/purgatory') void import('../../pages/Purgatory');
+                  else if (path === '/groups') void import('../../pages/Groups');
+                  else if (path === '/notifications') void import('../../pages/Notifications/Notifications');
+                  else if (path === '/settings') void import('../../pages/Settings/Settings');
+                  else if (path === '/help') void import('../../pages/Help');
+                  else if (path === '/super-admin') void import('../../pages/SuperAdmin/SuperAdmin');
+                }}
                 className={({ isActive }) => `
                   ${navLinkClasses(isActive)}
                   ${item.className || ''}
                 `}
               >
-                <item.icon size={20} />
-                <span>{item.label}</span>
+                <item.icon size={18} className="shrink-0" />
+                <span className="text-sm font-medium truncate">{item.label}</span>
                 {item.to === '/notifications' && unreadCount > 0 && (
-                  <span className="absolute top-2 right-2 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                  <span className="ml-auto bg-red-500 text-white text-[10px] rounded-full h-4 min-w-[16px] px-1 flex items-center justify-center">
                     {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
+                {item.to === '/messages' && unreadMessages > 0 && (
+                  <span className="ml-auto bg-red-500 text-white text-[10px] rounded-full h-4 min-w-[16px] px-1 flex items-center justify-center">
+                    {unreadMessages > 9 ? '9+' : unreadMessages}
                   </span>
                 )}
               </NavLink>
@@ -183,19 +201,19 @@ const MainNav: React.FC = () => {
                 onClick={item.onClick}
                 className={`w-full text-left ${navLinkClasses(false)} ${item.className || ''}`}
               >
-                <item.icon size={20} />
-                <span>{item.label}</span>
+                <item.icon size={18} className="shrink-0" />
+                <span className="text-sm font-medium truncate">{item.label}</span>
               </button>
             )
           ))}
-        </div>
+        </nav>
 
-        <div className="mt-auto p-4">
+        <div className="px-3 pb-4 pt-2 border-t border-border/40 shrink-0">
           <button
             onClick={handleLogout}
-            className="w-full flex items-center gap-3 px-4 py-3 text-muted hover:text-foreground hover:bg-highlight-light hover:shadow-theme-sm rounded-lg transition-all border border-transparent hover:border-highlight"
+            className="w-full flex items-center gap-3 px-3 py-2.5 border-l-[3px] border-l-transparent text-muted hover:text-foreground hover:bg-highlight-light rounded-lg transition-colors text-sm font-medium"
           >
-            <LogOut className="w-6 h-6" />
+            <LogOut size={18} className="shrink-0" />
             <span>{t('navigation.logout')}</span>
           </button>
         </div>
@@ -243,7 +261,14 @@ const MainNav: React.FC = () => {
             ${isActive ? 'text-accent' : 'text-muted-foreground hover:text-foreground'}
           `}
         >
-          <MessageSquare size={18} />
+          <span className="relative inline-flex">
+            <MessageSquare size={18} />
+            {unreadMessages > 0 && (
+              <span className="absolute -top-1.5 -right-2 bg-red-500 text-white text-[9px] font-semibold rounded-full h-3.5 min-w-[14px] px-0.5 flex items-center justify-center leading-none">
+                {unreadMessages > 9 ? '9+' : unreadMessages}
+              </span>
+            )}
+          </span>
           <span className="text-[9px] leading-none truncate w-full text-center">{t('navigation.chat')}</span>
         </NavLink>
 

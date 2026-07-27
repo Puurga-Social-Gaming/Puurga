@@ -47,30 +47,50 @@ const NewGamePromoBanner: React.FC<NewGamePromoBannerProps> = ({ className = '' 
             initial={{ opacity: 0, y: -8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, height: 0 }}
-            className="relative overflow-hidden rounded-xl border border-violet-500/40 bg-gradient-to-r from-violet-950/80 via-neutral-950 to-orange-950/40"
+            className="relative overflow-hidden rounded-xl border border-orange-500/25 dark:border-orange-500/35 bg-card dark:bg-card"
           >
             <div
-              className="absolute inset-0 bg-cover bg-center opacity-20"
+              className="absolute inset-0 bg-cover bg-center opacity-[0.12] dark:opacity-[0.18]"
               style={{ backgroundImage: `url('${game.image}')` }}
             />
-            <div className="relative flex flex-col sm:flex-row sm:items-center gap-3 p-3 sm:p-4">
+            <div className="absolute inset-0 bg-gradient-to-r from-orange-500/[0.08] via-transparent to-red-500/[0.06] dark:from-orange-500/15 dark:to-red-500/10 pointer-events-none" />
+
+            <div className="relative flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:gap-4 sm:p-4">
               <div className="flex items-start gap-3 flex-1 min-w-0">
-                <div className="p-2 rounded-lg bg-violet-500/20 shrink-0">
-                  <Sparkles className="w-5 h-5 text-violet-300" />
+                <div className="p-2 rounded-lg bg-orange-500/15 dark:bg-orange-500/20 shrink-0 border border-orange-500/20">
+                  <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 text-orange-600 dark:text-orange-300" />
                 </div>
-                <div className="min-w-0">
-                  <p className="text-[10px] uppercase tracking-widest text-violet-300 font-bold">
-                    {t('games.newGameAvailable')}
+                <div className="min-w-0 flex-1 text-left">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-[10px] uppercase tracking-widest text-orange-700 dark:text-orange-300 font-bold">
+                      {t('games.newGameAvailable')}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => dismiss(game.id)}
+                      className="sm:hidden p-1 -mt-0.5 -mr-1 rounded-md text-muted hover:text-foreground hover:bg-card-hover transition shrink-0 cursor-pointer"
+                      aria-label={t('games.dismiss')}
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <h3 className="text-sm sm:text-base font-bold text-foreground truncate mt-0.5">
+                    {game.title}
+                  </h3>
+                  <p className="text-[11px] sm:text-xs text-muted line-clamp-2 mt-0.5 leading-snug">
+                    {game.description}
                   </p>
-                  <h3 className="text-base font-bold text-white truncate">{game.title}</h3>
-                  <p className="text-xs text-gray-400 line-clamp-2 mt-0.5">{game.description}</p>
                 </div>
               </div>
-              <div className="flex items-center gap-2 shrink-0 sm:ml-auto">
+
+              <div className="flex items-center gap-2 w-full sm:w-auto sm:shrink-0 sm:ml-auto">
                 <button
                   type="button"
                   onClick={() => play(game)}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-sm font-semibold transition"
+                  className="flex flex-1 sm:flex-initial items-center justify-center gap-1.5 px-4 py-2.5 sm:py-2 rounded-lg
+                    bg-orange-600 hover:bg-orange-500 active:bg-orange-700
+                    text-white text-sm font-semibold transition-colors min-h-[40px] cursor-pointer
+                    shadow-sm shadow-orange-600/20 dark:shadow-orange-500/25"
                 >
                   <Play className="w-4 h-4" fill="currentColor" />
                   {t('games.playNow')}
@@ -78,7 +98,7 @@ const NewGamePromoBanner: React.FC<NewGamePromoBannerProps> = ({ className = '' 
                 <button
                   type="button"
                   onClick={() => dismiss(game.id)}
-                  className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition"
+                  className="hidden sm:inline-flex p-2 rounded-lg text-muted hover:text-foreground hover:bg-card-hover transition cursor-pointer"
                   aria-label={t('games.dismiss')}
                 >
                   <X className="w-4 h-4" />

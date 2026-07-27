@@ -1,4 +1,5 @@
 import { supabase } from '../config/supabase';
+import { areFriends } from '../utils/friendRelations';
 
 export type MessageRequestSetting = 'everyone' | 'followers' | 'none';
 
@@ -28,17 +29,26 @@ export async function canSendMessage(senderId: string, recipientId: string): Pro
         return { allowed: false, reason: 'This user is not accepting messages' };
       
       case 'followers':
-        // Check if sender is following recipient
-        const { data: followRelation } = await supabase
-          .from('friends')
-          .select('id')
-          .or(`and(user_id_1.eq.${senderId},user_id_2.eq.${recipientId}),and(user_id_1.eq.${recipientId},user_id_2.eq.${senderId})`)
-          .limit(1);
-        
-        if (!followRelation || followRelation.length === 0) {
-          return { allowed: false, reason: 'You must be friends to message this user' };
+        // Friends can always message (both DB schemas + accepted requests)
+        if (await areFriends(senderId, recipientId)) {
+          return { allowed: true };
         }
-        return { allowed: true };
+
+        // Also allow if a friend request is pending either way (so you can message right after adding)
+        const { data: pendingRequest } = await supabase
+          .from('friend_requests')
+          .select('id, status')
+          .or(`and(sender_id.eq.${senderId},receiver_id.eq.${recipientId}),and(sender_id.eq.${recipientId},receiver_id.eq.${senderId})`)
+          .limit(5);
+
+        const hasPending = (pendingRequest || []).some(
+          (r: any) => !r.status || r.status === 'pending'
+        );
+        if (hasPending) {
+          return { allowed: true };
+        }
+
+        return { allowed: false, reason: 'You must be friends to message this user' };
       
       default:
         return { allowed: true };
@@ -169,6 +179,29 @@ export async function shouldShowOnlineStatus(targetUserId: string, viewerId?: st
   } catch (error) {
     console.error('Error checking online status visibility:', error);
     return true; // Default to showing
+  }
+}
+
+/**
+ * Check whether a user allows sharing their live typing draft preview.
+ * Stored in user_settings.settings.liveTypingPreview; defaults to true.
+ */
+export async function allowsLiveTypingPreview(userId: string): Promise<boolean> {
+  try {
+    const { data, error } = await supabase
+      .from('user_settings')
+      .select('settings')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (error) {
+      return true;
+    }
+
+    return data?.settings?.liveTypingPreview !== false;
+  } catch (error) {
+    console.error('Error checking live typing preview setting:', error);
+    return true;
   }
 }
 

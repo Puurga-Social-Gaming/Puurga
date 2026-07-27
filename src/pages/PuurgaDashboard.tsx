@@ -1,13 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { Shield, Award, Trophy, RefreshCw, Gift, CheckCircle, XCircle, User as UserIcon, Zap, Users, Heart, ChevronDown, ChevronRight, Star } from 'lucide-react';
+import { Shield, Award, Trophy, RefreshCw, Gift, CheckCircle, XCircle, User as UserIcon, Zap, Users, Heart, ChevronDown, ChevronRight, Star, AlertTriangle, Activity } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import api from '../lib/axios';
 import toast from 'react-hot-toast';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { useUser } from '../context/UserContext';
+import { useSurvival } from '../context/SurvivalContext';
 import { PURGE_THRESHOLD } from '../constants/purgeConstants';
 import { DEFAULT_IMAGES } from '../constants/defaultImages';
-
+import { SurvivalState } from '../types/survival';
+import { SurvivalBadge } from '../components/Survival';
+import DashboardAnalyticsCharts from '../components/Dashboard/DashboardAnalyticsCharts';
+import ProfileLink from '../components/Profile/ProfileLink';
 interface UserStats {
   credits: number;
   purgeStreak: number;
@@ -43,16 +47,62 @@ interface LeaderboardUser {
   full_name?: string;
   avatar_url?: string;
   credits?: number;
+  purge_streak?: number;
 }
 
-const MOCK_CHALLENGES = [
-  { id: 1, text: 'Complete 3 Group Tasks', points: 50 },
-  { id: 2, text: 'Win a Puurga Battle', points: 100 },
-  { id: 3, text: 'Survive a Purge Event', points: 200 },
-  { id: 4, text: 'Invite a Friend', points: 30 },
-  { id: 5, text: 'React to 5 Posts', points: 20 },
-];
+type ChallengeGoal = {
+  id: number;
+  text: string;
+  points: number;
+  completed: boolean;
+  progressLabel?: string;
+};
 
+function buildChallengeGoals(stats: {
+  purgeStreak: number;
+  totalPurgesGiven: number;
+  credits: number;
+  gamesPlayed: number;
+  friends: number;
+}): ChallengeGoal[] {
+  return [
+    {
+      id: 1,
+      text: 'Reach a 3-day purge streak',
+      points: 50,
+      completed: stats.purgeStreak >= 3,
+      progressLabel: `${Math.min(stats.purgeStreak, 3)}/3`,
+    },
+    {
+      id: 2,
+      text: 'Give 5 purges',
+      points: 100,
+      completed: stats.totalPurgesGiven >= 5,
+      progressLabel: `${Math.min(stats.totalPurgesGiven, 5)}/5`,
+    },
+    {
+      id: 3,
+      text: 'Earn 100 credits',
+      points: 200,
+      completed: stats.credits >= 100,
+      progressLabel: `${Math.min(stats.credits, 100)}/100`,
+    },
+    {
+      id: 4,
+      text: 'Play 3 games',
+      points: 30,
+      completed: stats.gamesPlayed >= 3,
+      progressLabel: `${Math.min(stats.gamesPlayed, 3)}/3`,
+    },
+    {
+      id: 5,
+      text: 'Have 3 friends',
+      points: 20,
+      completed: stats.friends >= 3,
+      progressLabel: `${Math.min(stats.friends, 3)}/3`,
+    },
+  ];
+}
 const RANK_CONFIG: Record<string, { bg: string; text: string; border: string }> = {
   'Elite Survivor': { bg: 'bg-purple-500/20', text: 'text-purple-400', border: 'border-purple-500/40' },
   'Veteran': { bg: 'bg-blue-500/20', text: 'text-blue-400', border: 'border-blue-500/40' },
@@ -68,35 +118,40 @@ const SectionHeader: React.FC<{
   onToggle?: () => void;
 }> = ({ icon, title, subtitle, isCollapsed, onToggle }) => (
   <div 
-    className={`flex items-center justify-between mb-5 group cursor-pointer select-none`}
+    className={`flex items-center justify-between gap-3 mb-4 group select-none ${onToggle ? 'cursor-pointer' : ''}`}
     onClick={onToggle}
   >
-    <div className="flex items-center gap-3">
+    <div className="flex items-center gap-3 min-w-0">
       <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-accent/15 text-accent shrink-0 group-hover:bg-accent/25 transition-colors">
         {icon}
       </div>
-      <div>
-        <h2 className="text-lg font-bold text-foreground leading-tight">{title}</h2>
-        {subtitle && <p className="text-xs text-muted mt-0.5">{subtitle}</p>}
+      <div className="min-w-0">
+        <h2 className="text-base sm:text-lg font-bold text-foreground leading-tight truncate">{title}</h2>
+        {subtitle && <p className="text-xs text-muted mt-0.5 leading-snug">{subtitle}</p>}
       </div>
     </div>
     {onToggle && (
-      <div className="text-muted group-hover:text-accent transition-colors">
-        {isCollapsed ? <ChevronRight size={20} /> : <ChevronDown size={20} />}
+      <div className="text-muted group-hover:text-accent transition-colors shrink-0">
+        {isCollapsed ? <ChevronRight size={18} /> : <ChevronDown size={18} />}
       </div>
     )}
   </div>
 );
 
-const StatPill: React.FC<{ label: string; value: string | number; color?: string }> = ({ label, value, color = 'text-accent' }) => (
-  <div className="flex flex-col items-center justify-center bg-background/60 rounded-xl px-4 py-3 min-w-[80px]">
-    <span className={`text-xl font-bold ${color}`}>{value}</span>
-    <span className="text-[11px] text-muted mt-0.5 whitespace-nowrap">{label}</span>
+const StatTile: React.FC<{ label: string; value: string | number; valueClass?: string }> = ({
+  label,
+  value,
+  valueClass = 'text-accent',
+}) => (
+  <div className="stat-tile">
+    <span className={`stat-tile-value ${valueClass}`}>{value}</span>
+    <span className="stat-tile-label">{label}</span>
   </div>
 );
 
 const PuurgaDashboard: React.FC = () => {
-  const { user } = useUser();
+  const { user, updateUser } = useUser();
+  const { survivalState } = useSurvival();
 
   const [feed, setFeed] = useState<FeedEvent[]>([]);
   const [leaderboard, setLeaderboard] = useState<LeaderboardUser[]>([]);
@@ -109,10 +164,8 @@ const PuurgaDashboard: React.FC = () => {
     riskLevel: 0,
     rank: 'Novice'
   });
-  const [challenges, setChallenges] = useState(
-    MOCK_CHALLENGES.map(c => ({ ...c, completed: false }))
-  );
-  const [bonus, _setBonus] = useState<{ label: string; icon: React.ReactNode } | null>(null);
+  const [challenges, setChallenges] = useState<ChallengeGoal[]>([]);
+  const [bonus, setBonus] = useState<{ label: string; icon: React.ReactNode } | null>(null);
   const [spinning, setSpinning] = useState(false);
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({
     'games': true, // Collapse games by default to save space
@@ -171,6 +224,13 @@ const PuurgaDashboard: React.FC = () => {
     recentGames: []
   });
 
+  const [socialStats, setSocialStats] = useState({
+    friends: 0,
+    engagementRateLabel: '0%',
+    activeConversations: 0,
+    unreadNotifications: 0,
+  });
+
   const [purgingActivity, setPurgingActivity] = useState<Array<{
     id: string;
     userId: string;
@@ -201,7 +261,7 @@ const PuurgaDashboard: React.FC = () => {
     try {
 
       // Use allSettled so one failing endpoint doesn't break the whole dashboard
-      const [creditsRes, purgesRes, leaderboardRes, postsRes, friendsRes, purgingRes, gameStatsRes, redemptionRes] =
+      const [creditsRes, purgesRes, leaderboardRes, postsRes, friendsRes, purgingRes, gameStatsRes, redemptionRes, dashboardRes] =
         await Promise.allSettled([
           api.get('/credits'),
           api.get('/posts/purges/my-activity'),
@@ -210,7 +270,8 @@ const PuurgaDashboard: React.FC = () => {
           api.get('/friends/stats'),
           api.get('/purging/activity'),
           api.get('/games/stats'),
-          api.get('/purging/redemption-needed')
+          api.get('/purging/redemption-needed'),
+          api.get('/dashboard/stats'),
         ]);
 
       // Helper to extract data safely
@@ -225,6 +286,16 @@ const PuurgaDashboard: React.FC = () => {
       const purgingData = getData(purgingRes);
       const gameStatsData = getData(gameStatsRes);
       const redemptionNeededData = getData(redemptionRes);
+      const dashboardData = getData(dashboardRes);
+
+      if (dashboardData) {
+        setSocialStats({
+          friends: Number(dashboardData.friends) || 0,
+          engagementRateLabel: dashboardData.engagementRateLabel || dashboardData.display?.engagement || '0%',
+          activeConversations: Number(dashboardData.activeConversations) || 0,
+          unreadNotifications: Number(dashboardData.unreadNotifications) || 0,
+        });
+      }
 
       if (Array.isArray(leaderboardData)) {
         setLeaderboard(leaderboardData);
@@ -315,6 +386,16 @@ const PuurgaDashboard: React.FC = () => {
         riskLevel: Math.round(riskLevel),
         rank
       });
+
+      setChallenges(
+        buildChallengeGoals({
+          purgeStreak: creditData.purgeStreak || 0,
+          totalPurgesGiven: purgeData.stats.totalGiven || 0,
+          credits: creditData.credits || 0,
+          gamesPlayed: gameStatsData?.gamesPlayed || 0,
+          friends: Number(dashboardData?.friends) || 0,
+        })
+      );
     } catch (error) {
       console.error('Failed to fetch user stats:', error);
       toast.error('Failed to load dashboard data');
@@ -390,62 +471,225 @@ const PuurgaDashboard: React.FC = () => {
     return () => clearTimeout(timer);
   }, [userStats.credits, displayCredits]);
 
-  const handleToggleChallenge = (id: number) => {
-    setChallenges(prev => prev.map(c =>
-      c.id === id ? { ...c, completed: !c.completed } : c
-    ));
-    const challenge = challenges.find(c => c.id === id);
-    if (challenge && !challenge.completed) {
-      setUserStats(s => ({ ...s, credits: s.credits + challenge.points }));
-      setFeed(f => [
-        { id: Date.now(), user: 'You', action: 'completed a challenge', detail: challenge.text, time: 'now' },
-        ...f
-      ]);
+  const handleSpin = async () => {
+    if (spinning) return;
+    const today = new Date().toISOString().slice(0, 10);
+    const dayKey = `puurga_spin_${today}`;
+    if (localStorage.getItem(dayKey) === '1') {
+      toast.error('Already spun today — come back tomorrow');
+      return;
     }
-  };
 
-  const handleSpin = () => {
+    const rewards = [
+      { label: '+25 points', icon: '⚡', points: 25, challenge: null as string | null },
+      { label: 'Challenge: post within 30 min', icon: '📝', points: 10, challenge: 'post_30m' },
+      { label: '+50 points', icon: '💎', points: 50, challenge: null },
+      { label: 'Challenge: like 3 posts', icon: '❤️', points: 15, challenge: 'like_3' },
+      { label: '+15 points', icon: '✨', points: 15, challenge: null },
+      { label: 'Social boost: message a friend', icon: '💬', points: 20, challenge: 'message_friend' },
+      { label: '+5 consolation', icon: '🌙', points: 5, challenge: null },
+    ];
+
     setSpinning(true);
+    setBonus(null);
+
+    window.setTimeout(async () => {
+      const reward = rewards[Math.floor(Math.random() * rewards.length)];
+      setSpinning(false);
+      setBonus({ label: reward.label, icon: reward.icon });
+      localStorage.setItem(dayKey, '1');
+
+      if (reward.challenge) {
+        localStorage.setItem(
+          'puurga_spin_challenge',
+          JSON.stringify({
+            id: reward.challenge,
+            label: reward.label,
+            expiresAt: Date.now() + 30 * 60 * 1000,
+          })
+        );
+      }
+
+      if (reward.points > 0 && user) {
+        try {
+          const newBalance = (user.credits || userStats.credits || 0) + reward.points;
+          updateUser({ credits: newBalance });
+          setUserStats((prev) => ({ ...prev, credits: newBalance }));
+          await api.post('/credits/update', { credits: newBalance });
+          toast.success(`Wheel: ${reward.label}`);
+        } catch {
+          toast.success(reward.label);
+        }
+      } else {
+        toast.success(reward.label);
+      }
+    }, 2200);
   };
 
   return (
-    <div className="min-h-screen bg-background">
-        {/* ── Hero Header ── */}
-        <div className="bg-card border-b border-border/50">
-          <div className="max-w-7xl mx-auto px-6 py-6">
-            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
-              {/* Left: Title + Rank */}
-              <div className="flex items-center gap-4">
-                <div className="relative">
-                  <div className="w-14 h-14 rounded-2xl bg-accent/15 flex items-center justify-center">
-                    <Shield className="w-7 h-7 text-accent" />
-                  </div>
-                  <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-green-500 border-2 border-card" />
-                </div>
-                <div>
-                  <h1 className="text-2xl font-bold text-foreground">Puurga Dashboard</h1>
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${RANK_CONFIG[userStats.rank].bg} ${RANK_CONFIG[userStats.rank].text} ${RANK_CONFIG[userStats.rank].border}`}>
-                      {userStats.rank}
-                    </span>
-                    <span className="text-muted text-xs">Shield Points: N/A</span>
-                  </div>
-                </div>
+    <div className="w-full space-y-6">
+      {/* Page header */}
+      <header className="page-header">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+          <div className="flex items-start gap-3.5 min-w-0">
+            <div className="w-12 h-12 rounded-2xl bg-accent/15 flex items-center justify-center shrink-0">
+              <Shield className="w-6 h-6 text-accent" />
+            </div>
+            <div className="min-w-0 space-y-1.5">
+              <h1 className="page-title">Puurga Dashboard</h1>
+              <div className="flex flex-wrap items-center gap-2">
+                <span
+                  className={`text-[11px] font-semibold px-2.5 py-1 rounded-full border ${RANK_CONFIG[userStats.rank].bg} ${RANK_CONFIG[userStats.rank].text} ${RANK_CONFIG[userStats.rank].border}`}
+                >
+                  {userStats.rank}
+                </span>
+                {survivalState && (
+                  <SurvivalBadge
+                    state={survivalState.current_survival_state as SurvivalState}
+                    reputationScore={survivalState.reputation_score}
+                    size="md"
+                  />
+                )}
               </div>
-
-              {/* Right: Key Stats Row */}
-              <div className="flex flex-wrap gap-2">
-                <StatPill label="Total Points" value={Math.round(displayCredits)} />
-                <StatPill label="Purge Streak" value={userStats.purgeStreak} color="text-orange-400" />
-                <StatPill label="Purges Given" value={userStats.totalPurgesGiven} color="text-red-400" />
-                <StatPill label="Purges Received" value={userStats.totalPurgesReceived} color="text-yellow-400" />
-              </div>
+              <p className="page-subtitle">
+                Track credits, purges, and survival in one place.
+              </p>
             </div>
           </div>
         </div>
+      </header>
+
+      {/* Key stats — uniform grid */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <StatTile label="Total Points" value={Math.round(displayCredits)} />
+        <StatTile label="Purge Streak" value={userStats.purgeStreak} valueClass="text-orange-400" />
+        <StatTile label="Purges Given" value={userStats.totalPurgesGiven} valueClass="text-red-400" />
+        <StatTile label="Purges Received" value={userStats.totalPurgesReceived} valueClass="text-yellow-400" />
+      </div>
+
+      {/* Social stats — real data from /api/dashboard/stats */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <StatTile label="Friends" value={socialStats.friends} />
+        <StatTile label="Engagement" value={socialStats.engagementRateLabel} valueClass="text-emerald-400" />
+        <StatTile label="Conversations" value={socialStats.activeConversations} />
+        <StatTile label="Unread Alerts" value={socialStats.unreadNotifications} valueClass="text-blue-400" />
+      </div>
+
+      {/* Leaderboard — high visibility for social competition */}
+      <div className="bg-card rounded-2xl p-5 border border-border/50">
+        <SectionHeader 
+          icon={<Trophy size={18} />} 
+          title="Leaderboard" 
+          subtitle="Top survivors" 
+          isCollapsed={collapsedSections['leaderboard']}
+          onToggle={() => toggleSection('leaderboard')}
+        />
+        {!collapsedSections['leaderboard'] && (
+          <div className="space-y-2 max-h-96 overflow-y-auto pr-1 custom-scrollbar">
+            {leaderboard.length === 0 ? (
+              <div className="text-center text-muted py-8 bg-background/40 rounded-xl border border-border/40 text-sm">Loading leaderboard...</div>
+            ) : (
+              leaderboard.map((user, idx) => {
+                const isTop3 = idx < 3;
+                const medalColors = ['text-yellow-400', 'text-gray-400', 'text-orange-500'];
+                const medalBg = ['bg-yellow-500/10 border-yellow-500/30', 'bg-gray-400/10 border-gray-400/30', 'bg-orange-500/10 border-orange-500/30'];
+
+                return (
+                  <div
+                    key={user.id}
+                    className={`flex items-center gap-3 p-3 rounded-xl border ${
+                      isTop3
+                        ? medalBg[idx]
+                        : 'bg-background/60 border-border/40'
+                    }`}
+                  >
+                    <div className={`flex flex-col items-center justify-center w-9 h-9 rounded-lg font-bold text-sm shrink-0 ${isTop3 ? `${medalBg[idx]} border ${medalColors[idx]}` : 'bg-background text-muted border border-border/50'
+                      }`}>
+                      <span className={isTop3 ? medalColors[idx] : 'text-muted'}>#{idx + 1}</span>
+                    </div>
+
+                    <ProfileLink username={user.username} className="rounded-full shrink-0">
+                      <img
+                        src={user.avatar_url || DEFAULT_IMAGES.avatar}
+                        alt={user.username}
+                        className="w-9 h-9 rounded-full object-cover border-2 border-background"
+                      />
+                    </ProfileLink>
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <ProfileLink username={user.username} className="text-foreground font-semibold text-sm truncate hover:text-accent transition-colors">
+                          {user.username || user.full_name || 'Survivor'}
+                        </ProfileLink>
+                      </div>
+                      <div className="flex items-center gap-3 text-[11px] text-muted mt-0.5">
+                        <span>Credits: {user.credits?.toLocaleString() || 0}</span>
+                        <span>Streak: {user.purge_streak ?? 0}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <div className="text-right">
+                        <p className={`font-bold text-base tabular-nums ${isTop3 ? medalColors[idx] : 'text-accent'}`}>
+                          {user.credits?.toLocaleString() || 0}
+                        </p>
+                        <p className="text-[10px] text-muted">pts</p>
+                      </div>
+                      {isTop3 && (
+                        <Trophy className={`w-5 h-5 shrink-0 ${medalColors[idx]}`} />
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        )}
+      </div>
+
+      <DashboardAnalyticsCharts />
+
+      {/* Survival status — dedicated home for survival metrics */}
+      {survivalState && (
+        <div className="bg-card rounded-2xl p-5 border border-border/50">
+          <SectionHeader
+            icon={<Activity size={18} />}
+            title="Survival Status"
+            subtitle="Your standing in the Purge economy"
+          />
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="stat-tile">
+              <SurvivalBadge
+                state={survivalState.current_survival_state as SurvivalState}
+                size="md"
+              />
+              <span className="stat-tile-label">State</span>
+            </div>
+            <StatTile label="Reputation" value={survivalState.reputation_score} />
+            <StatTile
+              label="Threat"
+              value={`${survivalState.threat_level}%`}
+              valueClass={survivalState.threat_level > 40 ? 'text-red-400' : 'text-foreground'}
+            />
+            <StatTile
+              label="Purges"
+              value={survivalState.purge_count}
+              valueClass="text-orange-400"
+            />
+          </div>
+          {survivalState.current_survival_state !== 'SAFE' && (
+            <div className="mt-3 flex items-start gap-2 rounded-xl border border-amber-500/20 bg-amber-500/10 px-3.5 py-2.5 text-xs text-amber-300">
+              <AlertTriangle size={14} className="shrink-0 mt-0.5" />
+              <span>
+                Your status needs attention. Stay active, earn reputation, and avoid purges to recover.
+              </span>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── Main Content ── */}
-      <div className="max-w-7xl mx-auto px-6 py-6 space-y-6">
+      <div className="space-y-6">
 
         {/* ── Row 1: Risk + Spin ── */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -493,9 +737,21 @@ const PuurgaDashboard: React.FC = () => {
                 <div className="w-full bg-background rounded-full h-2.5 overflow-hidden">
                   <motion.div
                     className="h-2.5 rounded-full bg-gradient-to-r from-accent to-accent/60"
-                    animate={{ width: `${(challenges.filter(c => c.completed).length / challenges.length) * 100}%` }}
+                    animate={{
+                      width: `${
+                        challenges.length
+                          ? (challenges.filter((c) => c.completed).length / challenges.length) * 100
+                          : 0
+                      }%`,
+                    }}
                     transition={{ duration: 0.6 }}
-                    style={{ width: `${(challenges.filter(c => c.completed).length / challenges.length) * 100}%` }}
+                    style={{
+                      width: `${
+                        challenges.length
+                          ? (challenges.filter((c) => c.completed).length / challenges.length) * 100
+                          : 0
+                      }%`,
+                    }}
                   />
                 </div>
               </div>
@@ -514,8 +770,11 @@ const PuurgaDashboard: React.FC = () => {
           />
           {!collapsedSections['spin'] && (
             <div className="flex flex-col items-center gap-4 w-full">
+            <p className="text-[11px] text-muted text-center px-2">
+              Daily spin · earn points or unlock a timed challenge
+            </p>
             <button
-              className={`relative w-20 h-20 rounded-full bg-gradient-to-br from-accent to-accent/70 hover:from-accent/90 hover:to-accent/50 text-white shadow-lg shadow-accent/20 transition-all duration-300 flex items-center justify-center ${spinning ? 'animate-spin' : 'hover:scale-110 active:scale-95'}`}
+              className={`relative w-20 h-20 rounded-full bg-gradient-to-br from-accent to-accent/70 hover:from-accent/90 hover:to-accent/50 text-black dark:text-white shadow-lg shadow-accent/20 transition-all duration-300 flex items-center justify-center ${spinning ? 'animate-spin' : 'hover:scale-110 active:scale-95'}`}
               onClick={handleSpin}
               disabled={spinning}
             >
@@ -624,10 +883,16 @@ const PuurgaDashboard: React.FC = () => {
                   const cfg = RANK_CONFIG[friend.rank] || RANK_CONFIG['Novice'];
                   return (
                     <div key={friend.id} className="flex items-center gap-3 bg-background/60 rounded-xl p-3 hover:bg-background/80 transition-colors">
-                      <img src={friend.avatar} alt={friend.name} className="w-10 h-10 rounded-full object-cover shrink-0" />
+                      <ProfileLink username={friend.username} className="rounded-full shrink-0">
+                        <img src={friend.avatar} alt={friend.name} className="w-10 h-10 rounded-full object-cover" />
+                      </ProfileLink>
                       <div className="flex-1 min-w-0">
-                        <p className="text-foreground font-semibold text-sm truncate">{friend.name}</p>
-                        <p className="text-muted text-xs">@{friend.username}</p>
+                        <ProfileLink username={friend.username} className="text-foreground font-semibold text-sm truncate hover:text-accent block">
+                          {friend.name}
+                        </ProfileLink>
+                        <ProfileLink username={friend.username} className="text-muted text-xs hover:text-accent block">
+                          @{friend.username}
+                        </ProfileLink>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
                         <div className="text-right">
@@ -659,30 +924,34 @@ const PuurgaDashboard: React.FC = () => {
             {!collapsedSections['challenges'] && (
               <div className="space-y-2 max-h-[340px] overflow-y-auto pr-1 custom-scrollbar">
               {challenges.map(challenge => (
-                <button
+                <div
                   key={challenge.id}
-                  onClick={() => handleToggleChallenge(challenge.id)}
-                  className={`w-full flex items-center justify-between p-3 rounded-xl transition-all duration-200 border text-left group ${challenge.completed
-                      ? 'bg-green-500/10 border-green-500/40 hover:bg-green-500/15'
-                      : 'bg-background/60 border-border/50 hover:border-accent/40 hover:bg-background/80'
+                  className={`w-full flex items-center justify-between p-3 rounded-xl border text-left ${challenge.completed
+                      ? 'bg-green-500/10 border-green-500/40'
+                      : 'bg-background/60 border-border/50'
                     }`}
                 >
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
                     <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${challenge.completed ? 'bg-green-500/20' : 'bg-background'}`}>
                       {challenge.completed
                         ? <CheckCircle className="w-4 h-4 text-green-400" />
                         : <XCircle className="w-4 h-4 text-muted" />
                       }
                     </div>
-                    <span className={`text-sm font-medium ${challenge.completed ? 'text-muted line-through' : 'text-foreground'}`}>
-                      {challenge.text}
-                    </span>
+                    <div className="min-w-0">
+                      <span className={`text-sm font-medium block ${challenge.completed ? 'text-muted line-through' : 'text-foreground'}`}>
+                        {challenge.text}
+                      </span>
+                      {challenge.progressLabel && (
+                        <span className="text-[11px] text-muted">{challenge.progressLabel}</span>
+                      )}
+                    </div>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
                     <Award className="text-accent w-4 h-4" />
                     <span className="text-accent font-bold text-sm">+{challenge.points}</span>
                   </div>
-                </button>
+                </div>
               ))}
               </div>
             )}
@@ -711,15 +980,19 @@ const PuurgaDashboard: React.FC = () => {
               {redemptionNeeded.filter(f => f.userId).map((friend) => (
                 <div key={friend.id} className="bg-background/60 rounded-xl p-4 border border-red-500/20 hover:border-red-500/40 transition-colors">
                   <div className="flex items-center gap-3 mb-3">
-                    <div className="relative shrink-0">
+                    <ProfileLink username={friend.username} className="relative shrink-0 rounded-full">
                       <img src={friend.avatar} alt={friend.name} className="w-11 h-11 rounded-full object-cover border-2 border-red-500/30" />
                       <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-red-500 border-2 border-card flex items-center justify-center">
                         <span className="text-[8px] text-white font-bold">!</span>
                       </div>
-                    </div>
+                    </ProfileLink>
                     <div className="min-w-0 flex-1">
-                      <p className="text-foreground font-bold text-sm truncate">{friend.name}</p>
-                      <p className="text-xs text-muted truncate">@{friend.username}</p>
+                      <ProfileLink username={friend.username} className="text-foreground font-bold text-sm truncate hover:text-accent block">
+                        {friend.name}
+                      </ProfileLink>
+                      <ProfileLink username={friend.username} className="text-xs text-muted truncate hover:text-accent block">
+                        @{friend.username}
+                      </ProfileLink>
                       <p className="text-xs text-red-400/70 mt-0.5">Purged {friend.daysPurged} days ago</p>
                     </div>
                   </div>
@@ -730,7 +1003,7 @@ const PuurgaDashboard: React.FC = () => {
                     </div>
                     <button
                       onClick={() => handleRedeemFriend(friend.userId, friend.name)}
-                      className="flex items-center gap-1.5 px-3 py-2 bg-accent hover:bg-accent-hover text-white text-xs rounded-lg transition-all duration-200 font-semibold hover:scale-105 active:scale-95"
+                      className="flex items-center gap-1.5 px-3 py-2 bg-accent hover:bg-accent-hover text-black text-xs rounded-lg transition-all duration-200 font-semibold hover:scale-105 active:scale-95 cursor-pointer"
                     >
                       <Heart className="w-3 h-3" />
                       Redeem
@@ -767,10 +1040,14 @@ const PuurgaDashboard: React.FC = () => {
               <div className="space-y-2 max-h-64 overflow-y-auto pr-1 custom-scrollbar">
                 {purgingActivity.map((activity) => (
                   <div key={activity.id} className="flex items-center gap-3 bg-background/60 rounded-xl p-3 hover:bg-background/80 transition-colors">
-                    <img src={activity.avatar} alt={activity.name} className="w-9 h-9 rounded-full object-cover shrink-0" />
+                    <ProfileLink username={activity.username} className="rounded-full shrink-0">
+                      <img src={activity.avatar} alt={activity.name} className="w-9 h-9 rounded-full object-cover" />
+                    </ProfileLink>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <p className="text-foreground font-semibold text-sm truncate">{activity.name}</p>
+                        <ProfileLink username={activity.username} className="text-foreground font-semibold text-sm truncate hover:text-accent">
+                          {activity.name}
+                        </ProfileLink>
                         {activity.isFriend && (
                           <span className="text-[10px] bg-green-500/15 text-green-400 px-1.5 py-0.5 rounded-full border border-green-500/30 shrink-0">Friend</span>
                         )}
@@ -829,82 +1106,6 @@ const PuurgaDashboard: React.FC = () => {
               </div>
             )}
           </div>
-        </div>
-
-        {/* ── Row 6: Leaderboard ── */}
-        <div className="bg-card rounded-2xl p-5 border border-border/50">
-          <SectionHeader 
-            icon={<Trophy size={18} />} 
-            title="Leaderboard" 
-            subtitle="Top survivors" 
-            isCollapsed={collapsedSections['leaderboard']}
-            onToggle={() => toggleSection('leaderboard')}
-          />
-          {!collapsedSections['leaderboard'] && (
-            <div className="space-y-2 max-h-96 overflow-y-auto pr-1 custom-scrollbar">
-              {leaderboard.length === 0 ? (
-                <div className="text-center text-muted py-8 bg-background/40 rounded-xl border border-border/40 text-sm">Loading leaderboard...</div>
-              ) : (
-                leaderboard.map((user, idx) => {
-                  const rankChange = idx === 0 ? 0 : Math.floor(Math.random() * 3) - 1;
-                  const isTop3 = idx < 3;
-                  const medalColors = ['text-yellow-400', 'text-gray-400', 'text-orange-500'];
-                  const medalBg = ['bg-yellow-500/10 border-yellow-500/30', 'bg-gray-400/10 border-gray-400/30', 'bg-orange-500/10 border-orange-500/30'];
-
-                  return (
-                    <div
-                      key={user.id}
-                      className={`flex items-center gap-3 p-3 rounded-xl transition-all hover:scale-[1.01] border ${isTop3 ? medalBg[idx] : 'bg-background/60 border-border/40 hover:border-accent/30'
-                        }`}
-                    >
-                      {/* Rank badge */}
-                      <div className={`flex flex-col items-center justify-center w-9 h-9 rounded-lg font-bold text-sm shrink-0 ${isTop3 ? `${medalBg[idx]} border ${medalColors[idx]}` : 'bg-background text-muted border border-border/50'
-                        }`}>
-                        <span className={isTop3 ? medalColors[idx] : 'text-muted'}>#{idx + 1}</span>
-                      </div>
-
-                      {/* Avatar */}
-                      <img
-                        src={user.avatar_url || DEFAULT_IMAGES.avatar}
-                        alt={user.username}
-                        className="w-9 h-9 rounded-full object-cover border-2 border-background shrink-0"
-                      />
-
-                      {/* Info */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <p className="text-foreground font-semibold text-sm truncate">{user.username || user.full_name || 'Survivor'}</p>
-                          {rankChange !== 0 && (
-                            <span className={`text-[10px] font-bold shrink-0 ${rankChange > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                              {rankChange > 0 ? '↑' : '↓'}{Math.abs(rankChange)}
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-3 text-[11px] text-muted mt-0.5">
-                          <span>Credits: {user.credits?.toLocaleString() || 0}</span>
-                          <span>Streak: {Math.floor(Math.random() * 10)}</span>
-                          <span>Games: {Math.floor(Math.random() * 20) + 5}</span>
-                        </div>
-                      </div>
-
-                      {/* Score + Trophy */}
-                      <div className="flex items-center gap-2 shrink-0">
-                        <div className="text-right">
-                          <p className={`font-bold text-base ${isTop3 ? medalColors[idx] : 'text-accent'}`}>
-                            {user.credits?.toLocaleString() || 0}
-                          </p>
-                          <p className="text-[10px] text-muted">pts</p>
-                        </div>
-                        {isTop3 && (
-                          <Trophy className={`w-5 h-5 shrink-0 ${idx === 0 ? 'text-yellow-400 animate-bounce' : medalColors[idx]}`} />
-                        )}
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          )}
         </div>
 
       </div>

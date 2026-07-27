@@ -3,9 +3,11 @@ import { supabase } from '../config/supabase';
 import { supabaseAuth as auth, AuthRequest } from '../middleware/supabaseAuth';
 import { wsManager } from '../websocketManager';
 import { normalizeImageUrl } from '../utils/url';
-import { canSendMessage } from '../services/settingsService';
+import { allowsLiveTypingPreview, canSendMessage } from '../services/settingsService';
 import { NotificationService } from '../services/notificationService';
 import { validateNotGhosted } from '../middleware/restrictGhosted';
+import { getAcceptedFriendIds, getPendingOutgoingIds, areBlocked, getBidirectionalBlockedIds } from '../utils/friendRelations';
+import { TranslationService } from '../services/translationService';
 
 const router = express.Router();
 
@@ -124,16 +126,29 @@ router.get('/conversations', auth, async (req: AuthRequest, res) => {
       const { data: allMessages } = await supabase
         .from('messages')
         .select(`
-          id, content, created_at, from_user_id, conversation_id,
+          id, content, created_at, from_user_id, conversation_id, is_deleted,
           profiles!messages_from_user_id_fkey(id, full_name, username, avatar_url)
         `)
         .in('conversation_id', targetIds)
         .order('created_at', { ascending: false })
-        .limit(targetIds.length * 5); // Get top 5 messages per conversation max
+        .limit(targetIds.length * 8);
+
+      let hiddenLatest = new Set<string>();
+      try {
+        const { data: trashRows } = await supabase
+          .from('message_trash')
+          .select('message_id')
+          .eq('user_id', user.id)
+          .eq('scope', 'me')
+          .in('conversation_id', targetIds);
+        hiddenLatest = new Set((trashRows || []).map((r: any) => r.message_id));
+      } catch {
+        /* ignore */
+      }
 
       if (allMessages && allMessages.length > 0) {
-        // Group by conversation and keep only the latest
         allMessages.forEach((msg: any) => {
+          if (hiddenLatest.has(msg.id)) return;
           if (!latestMessagesMap.has(msg.conversation_id)) {
             latestMessagesMap.set(msg.conversation_id, msg);
           }
@@ -142,15 +157,22 @@ router.get('/conversations', auth, async (req: AuthRequest, res) => {
     }
 
     // Format conversations with their latest messages
-    const formattedConversations = targetConversations.map((conv: any) => {
+    const blockedSet = new Set(await getBidirectionalBlockedIds(user.id));
+
+    const formattedConversations = targetConversations
+      .map((conv: any) => {
       const participants = conversationParticipants.get(conv.id) || [];
+      // Hide 1:1 chats with blocked users
+      if (participants.length === 1 && blockedSet.has(participants[0].id)) {
+        return null;
+      }
       const latestMsg = latestMessagesMap.get(conv.id);
 
       let latest_message = null;
       if (latestMsg) {
         const senderProfile = latestMsg.profiles;
         latest_message = {
-          content: latestMsg.content,
+          content: latestMsg.is_deleted ? 'Message deleted' : latestMsg.content,
           created_at: latestMsg.created_at,
           is_from_current_user: latestMsg.from_user_id === user.id,
           from_user: senderProfile ? {
@@ -169,7 +191,8 @@ router.get('/conversations', auth, async (req: AuthRequest, res) => {
         unread_count: unreadCountsMap.get(conv.id) || 0,
         updated_at: conv.updated_at
       };
-    });
+    })
+      .filter(Boolean);
 
     res.json(formattedConversations);
   } catch (error) {
@@ -201,6 +224,8 @@ router.get('/conversations/:conversationId/messages', auth, async (req: AuthRequ
     }
 
     const MESSAGE_PAGE_SIZE = 100;
+    const viewerLang = await TranslationService.getUserLanguage(user.id);
+    const autoTranslate = await TranslationService.userWantsAutoTranslate(user.id);
 
     // Latest N messages only (avoids loading entire history on open)
     const { data: messages, error } = await supabase
@@ -211,6 +236,15 @@ router.get('/conversations/:conversationId/messages', auth, async (req: AuthRequ
         images,
         created_at,
         from_user_id,
+        read,
+        read_at,
+        is_edited,
+        edited_at,
+        is_deleted,
+        deleted_at,
+        is_encrypted,
+        ciphertext,
+        language,
         profiles!messages_from_user_id_fkey(id, full_name, username, avatar_url)
       `)
       .eq('conversation_id', conversationId)
@@ -221,24 +255,139 @@ router.get('/conversations/:conversationId/messages', auth, async (req: AuthRequ
       if (error.code === '42P01') {
         return res.json([]);
       }
+      // Fallback if edit/delete columns not yet migrated
+      if (error.code === '42703' || error.message?.includes('column')) {
+        const { data: fallbackMsgs, error: fallbackErr } = await supabase
+          .from('messages')
+          .select(`
+            id, content, images, created_at, from_user_id,
+            profiles!messages_from_user_id_fkey(id, full_name, username, avatar_url)
+          `)
+          .eq('conversation_id', conversationId)
+          .order('created_at', { ascending: false })
+          .limit(MESSAGE_PAGE_SIZE);
+        if (fallbackErr) throw fallbackErr;
+        const chronologicalFallback = [...(fallbackMsgs || [])].reverse();
+        return res.json(chronologicalFallback.map((msg: any) => ({
+          id: msg.id,
+          content: msg.content,
+          created_at: msg.created_at,
+          from_user_id: msg.from_user_id,
+          is_from_current_user: msg.from_user_id === user.id,
+          images: msg.images || [],
+          is_edited: false,
+          edited_at: null,
+          is_deleted: false,
+          deleted_at: null,
+          from_user: {
+            id: msg.profiles?.id || msg.from_user_id,
+            full_name: msg.profiles?.full_name || 'Unknown User',
+            username: msg.profiles?.username || 'unknown',
+            avatar_url: normalizeImageUrl(msg.profiles?.avatar_url) || null
+          }
+        })));
+      }
       throw error;
     }
 
     const chronological = [...(messages || [])].reverse();
 
-    const formattedMessages = chronological.map((msg: any) => ({
-      id: msg.id,
-      content: msg.content,
-      created_at: msg.created_at,
-      from_user_id: msg.from_user_id,
-      is_from_current_user: msg.from_user_id === user.id,
-      images: msg.images || [],
-      from_user: {
-        id: msg.profiles?.id || msg.from_user_id,
-        full_name: msg.profiles?.full_name || 'Unknown User',
-        username: msg.profiles?.username || 'unknown',
-        avatar_url: normalizeImageUrl(msg.profiles?.avatar_url) || null
+    // Hide messages this user moved to trash ("delete for me")
+    let hiddenIds = new Set<string>();
+    try {
+      const { data: hiddenRows } = await supabase
+        .from('message_trash')
+        .select('message_id')
+        .eq('user_id', user.id)
+        .eq('conversation_id', conversationId)
+        .eq('scope', 'me');
+      hiddenIds = new Set((hiddenRows || []).map((r: any) => r.message_id));
+    } catch {
+      /* trash table may not exist yet */
+    }
+
+    const visible = chronological.filter((m: any) => !hiddenIds.has(m.id));
+    const messageIds = visible.map((m: any) => m.id);
+
+    // Bulk-load reactions for this page
+    const reactionsByMessage = new Map<string, Record<string, { count: number; reacted_by_me: boolean }>>();
+    if (messageIds.length > 0) {
+      const { data: reactionRows } = await supabase
+        .from('message_reactions')
+        .select('message_id, user_id, emoji')
+        .in('message_id', messageIds);
+
+      (reactionRows || []).forEach((r: any) => {
+        if (!reactionsByMessage.has(r.message_id)) {
+          reactionsByMessage.set(r.message_id, {});
+        }
+        const bucket = reactionsByMessage.get(r.message_id)!;
+        if (!bucket[r.emoji]) {
+          bucket[r.emoji] = { count: 0, reacted_by_me: false };
+        }
+        bucket[r.emoji].count += 1;
+        if (r.user_id === user.id) bucket[r.emoji].reacted_by_me = true;
+      });
+    }
+
+    const formattedMessages = await Promise.all(visible.map(async (msg: any) => {
+      const isDeleted = Boolean(msg.is_deleted);
+      const language = TranslationService.normalizeLang(msg.language);
+      let translated_content: string | null = null;
+      let translated_language: string | null = null;
+
+      if (
+        autoTranslate &&
+        !isDeleted &&
+        msg.content &&
+        String(msg.content).trim() &&
+        !String(msg.content).startsWith('🔒') &&
+        msg.from_user_id !== user.id &&
+        language !== viewerLang
+      ) {
+        try {
+          const t = await TranslationService.translateContent(
+            'message',
+            msg.id,
+            msg.content,
+            viewerLang,
+            language
+          );
+          if (t && t !== msg.content) {
+            translated_content = t;
+            translated_language = viewerLang;
+          }
+        } catch {
+          /* keep original */
+        }
       }
+
+      return {
+        id: msg.id,
+        content: isDeleted ? null : msg.content,
+        language,
+        translated_content,
+        translated_language,
+        created_at: msg.created_at,
+        from_user_id: msg.from_user_id,
+        is_from_current_user: msg.from_user_id === user.id,
+        images: isDeleted ? [] : (msg.images || []),
+        read: Boolean(msg.read),
+        read_at: msg.read_at || null,
+        is_edited: Boolean(msg.is_edited),
+        edited_at: msg.edited_at || null,
+        is_deleted: isDeleted,
+        deleted_at: msg.deleted_at || null,
+        is_encrypted: Boolean(msg.is_encrypted),
+        ciphertext: msg.ciphertext || null,
+        reactions: reactionsByMessage.get(msg.id) || {},
+        from_user: {
+          id: msg.profiles?.id || msg.from_user_id,
+          full_name: msg.profiles?.full_name || 'Unknown User',
+          username: msg.profiles?.username || 'unknown',
+          avatar_url: normalizeImageUrl(msg.profiles?.avatar_url) || null
+        }
+      };
     }));
 
     res.json(formattedMessages);
@@ -253,18 +402,26 @@ router.post('/conversations/:conversationId/messages', auth, validateNotGhosted,
   try {
     const { user } = req;
     const { conversationId } = req.params;
-    const { content, images } = req.body;
+    const { content, images, is_encrypted, ciphertext, language: bodyLanguage } = req.body;
 
     if (!user) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
+    const hasCipher = typeof ciphertext === 'string' && ciphertext.length > 0;
     const hasContent = content && typeof content === 'string' && content.trim().length > 0;
     const hasImages = Array.isArray(images) && images.length > 0;
 
-    if (!hasContent && !hasImages) {
+    if (!hasContent && !hasImages && !hasCipher) {
       return res.status(400).json({ error: 'Message content or images required' });
     }
+
+    const claimedLanguage = TranslationService.normalizeLang(
+      bodyLanguage || (await TranslationService.getUserLanguage(user.id))
+    );
+    const sourceLanguage = hasContent
+      ? await TranslationService.resolveSourceLanguage(content.trim(), claimedLanguage)
+      : claimedLanguage;
 
     // Verify user is participant in this conversation
     const { data: participant, error: participantError } = await supabase
@@ -278,34 +435,119 @@ router.post('/conversations/:conversationId/messages', auth, validateNotGhosted,
       return res.status(403).json({ error: 'Not authorized to send messages in this conversation' });
     }
 
+    // Block check against other participants
+    const { data: others } = await supabase
+      .from('conversation_participants')
+      .select('user_id')
+      .eq('conversation_id', conversationId)
+      .neq('user_id', user.id);
+
+    if (others) {
+      for (const p of others) {
+        if (await areBlocked(user.id, p.user_id)) {
+          return res.status(403).json({
+            error: 'Cannot message this user due to a block',
+            code: 'USER_BLOCKED',
+          });
+        }
+      }
+    }
+
     // Insert the message
     const insertData: any = {
       conversation_id: conversationId,
       from_user_id: user.id,
       content: hasContent ? content.trim() : '',
-      created_at: new Date().toISOString()
+      created_at: new Date().toISOString(),
+      read: false,
+      language: sourceLanguage,
     };
+    if (hasCipher) {
+      insertData.is_encrypted = true;
+      insertData.ciphertext = ciphertext;
+    }
 
     // Only add images if the column exists and images are provided
     if (hasImages) {
       insertData.images = images;
     }
 
-    const { data: message, error } = await supabase
-      .from('messages')
-      .insert(insertData)
-      .select(`
-        id,
-        content,
-        images,
-        created_at,
-        from_user_id,
-        profiles!messages_from_user_id_fkey(id, full_name, username, avatar_url)
-      `)
-      .single();
+    let message: any;
+    {
+      const { data, error } = await supabase
+        .from('messages')
+        .insert(insertData)
+        .select(`
+          id,
+          content,
+          images,
+          created_at,
+          from_user_id,
+          language,
+          profiles!messages_from_user_id_fkey(id, full_name, username, avatar_url)
+        `)
+        .single();
 
-    if (error) {
-      throw error;
+      if (error) {
+        // Fallback if `language` or `read` column not migrated yet
+        if (error.code === 'PGRST204' || error.code === '42703' || error.message?.includes('language')) {
+          delete insertData.language;
+        }
+        if (error.code === 'PGRST204' || error.code === '42703' || error.message?.includes('read') || error.message?.includes('language')) {
+          if (error.message?.includes('read') || String(error.details || '').includes('read')) {
+            delete insertData.read;
+          }
+          const retry = await supabase
+            .from('messages')
+            .insert(insertData)
+            .select(`
+              id,
+              content,
+              images,
+              created_at,
+              from_user_id,
+              profiles!messages_from_user_id_fkey(id, full_name, username, avatar_url)
+            `)
+            .single();
+          if (retry.error) {
+            // last resort without language
+            delete insertData.language;
+            delete insertData.read;
+            const retry2 = await supabase
+              .from('messages')
+              .insert(insertData)
+              .select(`
+                id, content, images, created_at, from_user_id,
+                profiles!messages_from_user_id_fkey(id, full_name, username, avatar_url)
+              `)
+              .single();
+            if (retry2.error) throw retry2.error;
+            message = retry2.data;
+          } else {
+            message = retry.data;
+          }
+        } else if (error.message?.includes('read')) {
+          delete insertData.read;
+          const retry = await supabase
+            .from('messages')
+            .insert(insertData)
+            .select(`
+              id,
+              content,
+              images,
+              created_at,
+              from_user_id,
+              profiles!messages_from_user_id_fkey(id, full_name, username, avatar_url)
+            `)
+            .single();
+          if (retry.error) throw retry.error;
+          message = retry.data;
+        } else {
+          throw error;
+        }
+      } else {
+        message = data;
+      }
     }
 
     // Update conversation's updated_at timestamp
@@ -334,13 +576,22 @@ router.post('/conversations/:conversationId/messages', auth, validateNotGhosted,
       }
     }
 
+    const messageLanguage = TranslationService.normalizeLang(
+      (message as any).language || sourceLanguage
+    );
+
     const formattedMessage: any = {
       id: message.id,
-      content: message.content,
+      content: message.content || '',
+      language: messageLanguage,
       created_at: message.created_at,
       from_user_id: message.from_user_id,
       is_from_current_user: message.from_user_id === user.id,
       images: (message as any).images || [],
+      read: false,
+      read_at: null,
+      is_encrypted: Boolean(hasCipher),
+      ciphertext: hasCipher ? ciphertext : null,
       from_user: {
         id: (message as any).profiles?.id || message.from_user_id,
         full_name: (message as any).profiles?.full_name || 'Unknown User',
@@ -350,30 +601,78 @@ router.post('/conversations/:conversationId/messages', auth, validateNotGhosted,
     };
 
     // Broadcast message to all participants via WebSocket for real-time delivery
+    // Clear any live draft first so recipients don't see stale preview text.
     if (otherParticipants && otherParticipants.length > 0) {
-      const recipientIds = otherParticipants.map(p => p.user_id);
-      const wsMessage = {
-        type: 'new_message' as const,
-        payload: {
-          conversationId,
-          message: {
-            id: formattedMessage.id,
-            content: formattedMessage.content,
-            images: formattedMessage.images,
-            fromUserId: formattedMessage.from_user_id,
-            createdAt: new Date(formattedMessage.created_at),
-            fromUser: {
-              id: formattedMessage.from_user.id,
-              name: formattedMessage.from_user.full_name,
-              username: formattedMessage.from_user.username,
-              avatar: formattedMessage.from_user.avatar_url || undefined  // already normalized above
+      const onlineRecipientIds = otherParticipants
+        .map((p) => p.user_id)
+        .filter((recipientId) => wsManager.isUserOnline(recipientId));
+
+      if (onlineRecipientIds.length > 0) {
+        wsManager.broadcastToUsers(onlineRecipientIds, {
+          type: 'draft_sent',
+          payload: {
+            conversationId,
+            userId: user.id,
+          },
+        });
+      }
+    }
+
+    // Personalized: each recipient gets an auto-translated copy in their language
+    if (otherParticipants && otherParticipants.length > 0) {
+      const plainContent =
+        typeof formattedMessage.content === 'string' && formattedMessage.content.trim()
+          ? formattedMessage.content
+          : null;
+
+      await Promise.all(
+        otherParticipants.map(async (p) => {
+          let translatedContent: string | null = null;
+          let translatedLanguage: string | null = null;
+
+          if (plainContent) {
+            try {
+              const result = await TranslationService.translateForRecipient({
+                sourceType: 'message',
+                sourceId: formattedMessage.id,
+                content: plainContent,
+                sourceLanguage: messageLanguage,
+                recipientId: p.user_id,
+              });
+              translatedContent = result.translatedContent;
+              translatedLanguage = result.translatedLanguage;
+            } catch (e) {
+              console.warn('translate for recipient failed:', e);
             }
           }
-        }
-      };
 
-      wsManager.broadcastToUsers(recipientIds, wsMessage);
-      console.log(`💬 Broadcasted message to ${recipientIds.length} recipient(s)`);
+          wsManager.broadcastToUsers([p.user_id], {
+            type: 'new_message' as const,
+            payload: {
+              conversationId,
+              message: {
+                id: formattedMessage.id,
+                content: formattedMessage.content,
+                language: messageLanguage,
+                translatedContent,
+                translatedLanguage,
+                images: formattedMessage.images,
+                isEncrypted: formattedMessage.is_encrypted,
+                ciphertext: formattedMessage.ciphertext,
+                fromUserId: formattedMessage.from_user_id,
+                createdAt: new Date(formattedMessage.created_at),
+                fromUser: {
+                  id: formattedMessage.from_user.id,
+                  name: formattedMessage.from_user.full_name,
+                  username: formattedMessage.from_user.username,
+                  avatar: formattedMessage.from_user.avatar_url || undefined,
+                },
+              },
+            },
+          });
+        })
+      );
+      console.log(`💬 Broadcasted message to ${otherParticipants.length} recipient(s)`);
     }
 
     res.json(formattedMessage);
@@ -400,6 +699,13 @@ router.post('/conversations', auth, validateNotGhosted, async (req: AuthRequest,
     // Prevent messaging yourself
     if (otherUserId === user.id) {
       return res.status(400).json({ error: 'Cannot message yourself' });
+    }
+
+    if (await areBlocked(user.id, otherUserId)) {
+      return res.status(403).json({
+        error: 'Cannot message this user due to a block',
+        code: 'USER_BLOCKED',
+      });
     }
 
     // Check if recipient allows messages from this user
@@ -493,7 +799,7 @@ router.post('/conversations', auth, validateNotGhosted, async (req: AuthRequest,
   }
 });
 
-// Get users available for messaging (friends and recent contacts)
+// Get users available for messaging (friends, pending requests, and contacts)
 router.get('/users/online', auth, async (req: AuthRequest, res) => {
   try {
     const { user } = req;
@@ -501,26 +807,18 @@ router.get('/users/online', auth, async (req: AuthRequest, res) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    // Get online user IDs from WebSocket manager for status indication
     const onlineUserIds = new Set(wsManager.getOnlineUsers().filter(id => id !== user.id));
 
-    // Fetch the user's friends from the friends table
-    const { data: friendships, error: friendsError } = await supabase
-      .from('friends')
-      .select('user_id_1, user_id_2')
-      .or(`user_id_1.eq.${user.id},user_id_2.eq.${user.id}`);
+    // Friends (both DB schemas) + accepted requests fallback; pending outgoing = messageable
+    const [friendIds, pendingOutgoingRaw] = await Promise.all([
+      getAcceptedFriendIds(user.id),
+      getPendingOutgoingIds(user.id),
+    ]);
+    const friendIdSet = new Set(friendIds);
+    const pendingOutgoingIds = pendingOutgoingRaw.filter((id) => !friendIdSet.has(id));
+    const pendingIdSet = new Set(pendingOutgoingIds);
 
-    if (friendsError && friendsError.code !== '42P01') {
-      console.error('Error fetching friendships:', friendsError);
-      // Don't throw, just return empty friends list
-    }
-
-    // Extract friend IDs (the other user in each friendship)
-    const friendIds = (friendships || []).map(f =>
-      f.user_id_1 === user.id ? f.user_id_2 : f.user_id_1
-    );
-
-    // Also get users from existing conversations (for non-friends who have conversed)
+    // Existing conversation partners
     const { data: conversationParticipants } = await supabase
       .from('conversation_participants')
       .select('conversation_id')
@@ -540,22 +838,19 @@ router.get('/users/online', auth, async (req: AuthRequest, res) => {
       }
     }
 
-    // Combine friends and conversation contacts, remove duplicates
-    let allUserIds = [...new Set([...friendIds, ...conversationUserIds])];
+    let allUserIds = [...new Set([...friendIds, ...pendingOutgoingIds, ...conversationUserIds])];
 
-    // Fallback: If no friends/contacts (or very few), fetch recent users so the list isn't empty
-    // This ensures new users have someone to message
-    if (allUserIds.length < 5) {
+    // Only pad with recent users when the user has almost nobody to message
+    if (allUserIds.length === 0) {
       const { data: recentUsers } = await supabase
         .from('profiles')
         .select('id')
         .neq('id', user.id)
         .order('created_at', { ascending: false })
-        .limit(20);
+        .limit(15);
 
       if (recentUsers) {
-        const recentIds = recentUsers.map(u => u.id);
-        allUserIds = [...new Set([...allUserIds, ...recentIds])];
+        allUserIds = recentUsers.map(u => u.id);
       }
     }
 
@@ -563,12 +858,11 @@ router.get('/users/online', auth, async (req: AuthRequest, res) => {
       return res.json([]);
     }
 
-    // Fetch profiles for these users
     const { data: users, error } = await supabase
       .from('profiles')
       .select('id, full_name, username, avatar_url, show_online_status')
       .in('id', allUserIds)
-      .limit(100);
+      .limit(150);
 
     if (error) {
       if (error.code === '42P01') {
@@ -577,29 +871,34 @@ router.get('/users/online', auth, async (req: AuthRequest, res) => {
       throw error;
     }
 
-    const formattedUsers = (users || []).map((u: any) => ({
-      id: u.id,
-      full_name: u.full_name || 'Unknown User',
-      username: u.username || 'unknown',
-      avatar_url: normalizeImageUrl(u.avatar_url),
-      show_online_status: Boolean(u.show_online_status ?? true),
-      // Only show online status if user allows it
-      isOnline: (u.show_online_status ?? true) ? onlineUserIds.has(u.id) : false
-    }));
+    const formattedUsers = (users || []).map((u: any) => {
+      let relationship: 'friend' | 'pending' | 'contact' = 'contact';
+      if (friendIdSet.has(u.id)) relationship = 'friend';
+      else if (pendingIdSet.has(u.id)) relationship = 'pending';
 
-    // Sort: online -> friends -> others -> alphabetical
+      return {
+        id: u.id,
+        full_name: u.full_name || 'Unknown User',
+        username: u.username || 'unknown',
+        avatar_url: normalizeImageUrl(u.avatar_url),
+        show_online_status: Boolean(u.show_online_status ?? true),
+        isOnline: (u.show_online_status ?? true) ? onlineUserIds.has(u.id) : false,
+        relationship,
+      };
+    });
+
+    // Sort: friends → pending → online → alphabetical
+    const rank = (u: { relationship: string; isOnline: boolean }) => {
+      if (u.relationship === 'friend') return 0;
+      if (u.relationship === 'pending') return 1;
+      if (u.isOnline) return 2;
+      return 3;
+    };
+
     formattedUsers.sort((a: any, b: any) => {
-      // 1. Online status
-      if (a.isOnline && !b.isOnline) return -1;
-      if (!a.isOnline && b.isOnline) return 1;
-
-      // 2. Friend status (checks if id is in friendIds)
-      const aIsFriend = friendIds.includes(a.id);
-      const bIsFriend = friendIds.includes(b.id);
-      if (aIsFriend && !bIsFriend) return -1;
-      if (!aIsFriend && bIsFriend) return 1;
-
-      // 3. Alphabetical
+      const ra = rank(a);
+      const rb = rank(b);
+      if (ra !== rb) return ra - rb;
       return (a.full_name || '').localeCompare(b.full_name || '');
     });
 
@@ -633,27 +932,64 @@ router.put('/conversations/:conversationId/read', auth, async (req: AuthRequest,
     }
 
     // Mark all unread messages from other users as read
-    // Gracefully handle missing 'read' column (table may not have it yet)
+    const readAt = new Date().toISOString();
+    let messageIds: string[] = [];
+
     try {
-      const { error } = await supabase
+      const { data: unreadRows, error: fetchErr } = await supabase
         .from('messages')
-        .update({ read: true })
+        .select('id')
         .eq('conversation_id', conversationId)
         .neq('from_user_id', user.id)
         .eq('read', false);
 
-      if (error) {
-        // If the 'read' column doesn't exist, log and return success anyway
-        // PGRST204 = PostgREST "column not found in schema cache"
-        // 42703 = PostgreSQL "undefined column"
-        if (error.code === 'PGRST204' || error.code === '42703' || error.message?.includes('column') || error.message?.includes('schema cache')) {
+      if (fetchErr) {
+        if (fetchErr.code === 'PGRST204' || fetchErr.code === '42703' || fetchErr.message?.includes('column') || fetchErr.message?.includes('schema cache')) {
           console.warn('Mark-as-read: "read" column not available. Skipping silently.');
           return res.json({ success: true, warning: 'read column not available' });
         }
-        throw error;
+        throw fetchErr;
+      }
+
+      messageIds = (unreadRows || []).map((r: any) => r.id as string);
+
+      if (messageIds.length > 0) {
+        const { error } = await supabase
+          .from('messages')
+          .update({ read: true, read_at: readAt })
+          .in('id', messageIds);
+
+        if (error) {
+          if (error.code === 'PGRST204' || error.code === '42703' || error.message?.includes('column') || error.message?.includes('schema cache')) {
+            console.warn('Mark-as-read: "read" column not available. Skipping silently.');
+            return res.json({ success: true, warning: 'read column not available' });
+          }
+          throw error;
+        }
+
+        // Notify other participants so senders see double-check (read) instantly
+        const { data: others } = await supabase
+          .from('conversation_participants')
+          .select('user_id')
+          .eq('conversation_id', conversationId)
+          .neq('user_id', user.id);
+
+        if (others && others.length > 0) {
+          wsManager.broadcastToUsers(
+            others.map((p) => p.user_id),
+            {
+              type: 'message_read',
+              payload: {
+                conversationId,
+                userId: user.id,
+                readAt,
+                messageIds,
+              },
+            }
+          );
+        }
       }
     } catch (dbError: any) {
-      // Gracefully handle column-not-found errors
       if (dbError?.code === 'PGRST204' || dbError?.code === '42703' || dbError?.message?.includes('column') || dbError?.message?.includes('schema cache')) {
         console.warn('Mark-as-read: "read" column not found. Skipping silently.');
         return res.json({ success: true, warning: 'read column not available' });
@@ -661,7 +997,7 @@ router.put('/conversations/:conversationId/read', auth, async (req: AuthRequest,
       throw dbError;
     }
 
-    res.json({ success: true });
+    res.json({ success: true, readAt, messageIds });
   } catch (error) {
     console.error('Error marking messages as read:', error);
     res.status(500).json({ error: 'Failed to mark messages as read' });
@@ -673,7 +1009,7 @@ router.post('/conversations/:conversationId/typing', auth, async (req: AuthReque
   try {
     const { user } = req;
     const { conversationId } = req.params;
-    const { isTyping } = req.body;
+    const { isTyping, text } = req.body;
 
     if (!user) {
       return res.status(401).json({ error: 'Unauthorized' });
@@ -691,7 +1027,10 @@ router.post('/conversations/:conversationId/typing', auth, async (req: AuthReque
       return res.status(403).json({ error: 'Not authorized' });
     }
 
-    // Get other participants to send typing indicator
+    const trimmedText = typeof text === 'string' ? text.slice(0, 500) : '';
+    const livePreviewEnabled = await allowsLiveTypingPreview(user.id);
+
+    // Get other participants to send typing indicator / live draft
     const { data: otherParticipants } = await supabase
       .from('conversation_participants')
       .select('user_id')
@@ -699,23 +1038,596 @@ router.post('/conversations/:conversationId/typing', auth, async (req: AuthReque
       .neq('user_id', user.id);
 
     if (otherParticipants && otherParticipants.length > 0) {
-      const recipientIds = otherParticipants.map(p => p.user_id);
-      const typingMessage = {
-        type: 'typing' as const,
-        payload: {
-          conversationId,
-          userId: user.id,
-          isTyping: !!isTyping
-        }
-      };
+      const recipientIds = otherParticipants
+        .map((p) => p.user_id)
+        .filter((recipientId) => wsManager.isUserOnline(recipientId));
 
-      wsManager.broadcastToUsers(recipientIds, typingMessage);
+      if (recipientIds.length > 0) {
+        if (livePreviewEnabled) {
+          wsManager.broadcastToUsers(recipientIds, {
+            type:
+              !isTyping || !trimmedText.trim()
+                ? 'draft_stopped'
+                : trimmedText.length <= 1
+                ? 'draft_started'
+                : 'draft_updated',
+            payload: {
+              conversationId,
+              userId: user.id,
+              text: trimmedText,
+            }
+          });
+        } else {
+          wsManager.broadcastToUsers(recipientIds, {
+            type: 'typing' as const,
+            payload: {
+              conversationId,
+              userId: user.id,
+              isTyping: !!isTyping,
+            }
+          });
+        }
+      }
     }
 
     res.json({ success: true });
   } catch (error) {
     console.error('Error handling typing indicator:', error);
     res.status(500).json({ error: 'Failed to send typing indicator' });
+  }
+});
+
+const MESSAGE_EDIT_WINDOW_MS = 15 * 60 * 1000;
+
+async function assertConversationParticipant(conversationId: string, userId: string) {
+  const { data: participant, error } = await supabase
+    .from('conversation_participants')
+    .select('id')
+    .eq('conversation_id', conversationId)
+    .eq('user_id', userId)
+    .single();
+  return !error && !!participant;
+}
+
+async function getOtherParticipantIds(conversationId: string, userId: string): Promise<string[]> {
+  const { data } = await supabase
+    .from('conversation_participants')
+    .select('user_id')
+    .eq('conversation_id', conversationId)
+    .neq('user_id', userId);
+  return (data || []).map((p) => p.user_id);
+}
+
+// Edit own message (within 15 minutes)
+router.patch('/conversations/:conversationId/messages/:messageId', auth, async (req: AuthRequest, res) => {
+  try {
+    const { user } = req;
+    const { conversationId, messageId } = req.params;
+    const { content, is_encrypted, ciphertext } = req.body;
+
+    if (!user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    if (!content || typeof content !== 'string' || !content.trim()) {
+      return res.status(400).json({ error: 'Message content is required' });
+    }
+
+    if (!(await assertConversationParticipant(conversationId, user.id))) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    const { data: existing, error: fetchError } = await supabase
+      .from('messages')
+      .select('id, from_user_id, created_at, is_deleted, conversation_id, language, is_encrypted, ciphertext')
+      .eq('id', messageId)
+      .eq('conversation_id', conversationId)
+      .single();
+
+    if (fetchError || !existing) {
+      return res.status(404).json({ error: 'Message not found' });
+    }
+
+    if (existing.from_user_id !== user.id) {
+      return res.status(403).json({ error: 'You can only edit your own messages' });
+    }
+
+    if (existing.is_deleted) {
+      return res.status(400).json({ error: 'Cannot edit a deleted message' });
+    }
+
+    const ageMs = Date.now() - new Date(existing.created_at).getTime();
+    if (ageMs > MESSAGE_EDIT_WINDOW_MS) {
+      return res.status(400).json({ error: 'Edit window expired (15 minutes)' });
+    }
+
+    const editedAt = new Date().toISOString();
+    const updatePayload: Record<string, unknown> = {
+      content: content.trim(),
+      is_edited: true,
+      edited_at: editedAt,
+    };
+
+    if (typeof is_encrypted === 'boolean') {
+      updatePayload.is_encrypted = is_encrypted;
+      updatePayload.ciphertext = is_encrypted && ciphertext ? ciphertext : null;
+    } else if (existing.is_encrypted && ciphertext) {
+      updatePayload.ciphertext = ciphertext;
+    }
+
+    let row: any = null;
+    {
+      const { data: updated, error: updateError } = await supabase
+        .from('messages')
+        .update(updatePayload)
+        .eq('id', messageId)
+        .select(`
+          id, content, images, created_at, from_user_id, is_edited, edited_at, is_deleted, deleted_at,
+          is_encrypted, ciphertext,
+          profiles!messages_from_user_id_fkey(id, full_name, username, avatar_url)
+        `)
+        .single();
+
+      if (updateError) {
+        if ((updateError as any).code === '42703' || /is_encrypted|ciphertext/i.test(updateError.message || '')) {
+          const soft = await supabase
+            .from('messages')
+            .update({
+              content: content.trim(),
+              is_edited: true,
+              edited_at: editedAt,
+            })
+            .eq('id', messageId)
+            .select(`
+              id, content, images, created_at, from_user_id, is_edited, edited_at, is_deleted, deleted_at,
+              profiles!messages_from_user_id_fkey(id, full_name, username, avatar_url)
+            `)
+            .single();
+          if (soft.error) throw soft.error;
+          row = soft.data;
+        } else {
+          throw updateError;
+        }
+      } else {
+        row = updated;
+      }
+    }
+
+    const formatted = {
+      id: row.id,
+      content: row.content,
+      created_at: row.created_at,
+      from_user_id: row.from_user_id,
+      is_from_current_user: true,
+      images: row.images || [],
+      is_edited: true,
+      edited_at: editedAt,
+      is_deleted: false,
+      deleted_at: null,
+      is_encrypted: Boolean(row.is_encrypted ?? updatePayload.is_encrypted),
+      ciphertext: row.ciphertext ?? updatePayload.ciphertext ?? null,
+      from_user: {
+        id: row.profiles?.id || row.from_user_id,
+        full_name: row.profiles?.full_name || 'Unknown User',
+        username: row.profiles?.username || 'unknown',
+        avatar_url: normalizeImageUrl(row.profiles?.avatar_url) || null,
+      },
+    };
+
+    const recipients = await getOtherParticipantIds(conversationId, user.id);
+    if (recipients.length > 0) {
+      // Personalized edit event: each recipient gets fresh translation of the new content
+      await Promise.all(
+        recipients.map(async (recipientId) => {
+          let translatedContent: string | null = null;
+          let translatedLanguage: string | null = null;
+          try {
+            const result = await TranslationService.translateForRecipient({
+              content: formatted.content,
+              sourceId: messageId,
+              sourceType: 'message',
+              recipientId,
+              sourceLanguage: TranslationService.normalizeLang((existing as any).language),
+            });
+            translatedContent = result.translatedContent;
+            translatedLanguage = result.translatedLanguage;
+          } catch (e) {
+            console.warn('translate edited message for recipient failed:', e);
+          }
+
+          wsManager.broadcastToUsers([recipientId], {
+            type: 'message_edited',
+            payload: {
+              conversationId,
+              messageId,
+              content: formatted.content,
+              isEdited: true,
+              editedAt,
+              translatedContent,
+              translatedLanguage,
+              language: TranslationService.normalizeLang((existing as any).language),
+            },
+          });
+        })
+      );
+    }
+
+    res.json(formatted);
+  } catch (error) {
+    console.error('Error editing message:', error);
+    res.status(500).json({ error: 'Failed to edit message' });
+  }
+});
+
+// Soft-delete message: scope=me (trash + hide) | scope=everyone (both sides)
+router.delete('/conversations/:conversationId/messages/:messageId', auth, async (req: AuthRequest, res) => {
+  try {
+    const { user } = req;
+    const { conversationId, messageId } = req.params;
+    const scopeRaw = (req.query?.scope as string) || req.body?.scope;
+    const scope = (scopeRaw === 'everyone' ? 'everyone' : 'me') as 'me' | 'everyone';
+
+    if (!user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    if (!(await assertConversationParticipant(conversationId, user.id))) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    const { data: existing, error: fetchError } = await supabase
+      .from('messages')
+      .select('id, from_user_id, is_deleted, conversation_id, content, images, created_at, is_encrypted, ciphertext')
+      .eq('id', messageId)
+      .eq('conversation_id', conversationId)
+      .single();
+
+    if (fetchError || !existing) {
+      return res.status(404).json({ error: 'Message not found' });
+    }
+
+    if (existing.is_deleted && scope === 'everyone') {
+      return res.json({ success: true, alreadyDeleted: true, scope: 'everyone' });
+    }
+
+    // Delete for everyone: only the sender
+    if (scope === 'everyone' && existing.from_user_id !== user.id) {
+      return res.status(403).json({ error: 'Only the sender can delete for everyone' });
+    }
+
+    const deletedAt = new Date().toISOString();
+    const contentSnapshot =
+      existing.is_encrypted && existing.ciphertext
+        ? existing.ciphertext
+        : existing.content || '';
+    const imagesSnapshot = Array.isArray(existing.images) ? existing.images : [];
+
+    const saveTrashCopy = async () => {
+      const { error: trashError } = await supabase.from('message_trash').upsert(
+        {
+          message_id: messageId,
+          user_id: user.id,
+          conversation_id: conversationId,
+          from_user_id: existing.from_user_id,
+          content_snapshot: contentSnapshot,
+          images_snapshot: imagesSnapshot,
+          created_at_snapshot: existing.created_at,
+          scope,
+          deleted_at: deletedAt,
+        },
+        { onConflict: 'message_id,user_id' }
+      );
+      return trashError;
+    };
+
+    if (scope === 'everyone') {
+      const { error: updateError } = await supabase
+        .from('messages')
+        .update({
+          is_deleted: true,
+          deleted_at: deletedAt,
+          deleted_by: user.id,
+          deleted_scope: 'everyone',
+          content: '',
+          images: [],
+          ciphertext: null,
+        })
+        .eq('id', messageId);
+
+      if (updateError) throw updateError;
+
+      const trashError = await saveTrashCopy();
+      if (trashError) {
+        console.warn('message_trash upsert (everyone):', trashError.message);
+      }
+
+      const recipients = await getOtherParticipantIds(conversationId, user.id);
+      if (recipients.length > 0) {
+        wsManager.broadcastToUsers(recipients, {
+          type: 'message_deleted',
+          payload: {
+            conversationId,
+            messageId,
+            isDeleted: true,
+            deletedAt,
+            scope: 'everyone',
+            deletedBy: user.id,
+          },
+        });
+
+        for (const recipientId of recipients) {
+          try {
+            await NotificationService.create({
+              type: 'message',
+              senderId: user.id,
+              receiverId: recipientId,
+              conversationId,
+              messageId,
+              title: 'Message deleted',
+              message: 'A message was deleted in your conversation',
+              metadata: { action: 'message_deleted' },
+            });
+          } catch (notifErr) {
+            console.warn('delete notification failed:', notifErr);
+          }
+        }
+      }
+
+      wsManager.sendToUser(user.id, {
+        type: 'message_deleted',
+        payload: {
+          conversationId,
+          messageId,
+          isDeleted: true,
+          deletedAt,
+          scope: 'everyone',
+          deletedBy: user.id,
+        },
+      });
+
+      return res.json({
+        id: messageId,
+        content: null,
+        is_deleted: true,
+        deleted_at: deletedAt,
+        scope: 'everyone',
+        hidden_for_me: true,
+        trash_saved: !trashError,
+      });
+    }
+
+    // Delete for me only — requires trash table so it persists + hides on reload
+    const trashError = await saveTrashCopy();
+    if (trashError) {
+      const missing =
+        trashError.code === '42P01' ||
+        /relation .*message_trash.* does not exist/i.test(trashError.message || '') ||
+        /Could not find the table/i.test(trashError.message || '');
+      console.error('message_trash upsert failed:', trashError);
+      return res.status(missing ? 503 : 500).json({
+        error: missing
+          ? 'Message trash is not set up. Apply migration 20260716_message_trash.sql in the Supabase SQL editor, then try again.'
+          : trashError.message || 'Failed to move message to trash',
+        code: trashError.code,
+        trash_unavailable: missing,
+        snapshot: missing
+          ? {
+              message_id: messageId,
+              conversation_id: conversationId,
+              from_user_id: existing.from_user_id,
+              content: contentSnapshot,
+              images: imagesSnapshot,
+              created_at: existing.created_at,
+              scope: 'me',
+              deleted_at: deletedAt,
+            }
+          : undefined,
+      });
+    }
+
+    wsManager.sendToUser(user.id, {
+      type: 'message_hidden',
+      payload: {
+        conversationId,
+        messageId,
+        deletedAt,
+        scope: 'me',
+      },
+    });
+
+    res.json({
+      id: messageId,
+      scope: 'me',
+      hidden_for_me: true,
+      deleted_at: deletedAt,
+      trash_saved: true,
+    });
+  } catch (error) {
+    console.error('Error deleting message:', error);
+    res.status(500).json({ error: 'Failed to delete message' });
+  }
+});
+
+// List messages in current user's trash
+router.get('/trash', auth, async (req: AuthRequest, res) => {
+  try {
+    const { user } = req;
+    if (!user) return res.status(401).json({ error: 'Unauthorized' });
+
+    const { data, error } = await supabase
+      .from('message_trash')
+      .select(
+        'id, message_id, conversation_id, from_user_id, content_snapshot, images_snapshot, created_at_snapshot, scope, deleted_at'
+      )
+      .eq('user_id', user.id)
+      .order('deleted_at', { ascending: false })
+      .limit(100);
+
+    if (error) {
+      const missing =
+        error.code === '42P01' ||
+        /relation .*message_trash.* does not exist/i.test(error.message || '') ||
+        /Could not find the table/i.test(error.message || '');
+      if (missing) {
+        return res.status(503).json({
+          error:
+            'Message trash is not set up. Apply migration 20260716_message_trash.sql then try again.',
+          code: error.code,
+        });
+      }
+      throw error;
+    }
+
+    const fromIds = [...new Set((data || []).map((r: any) => r.from_user_id).filter(Boolean))];
+    const profilesMap = new Map<string, any>();
+    if (fromIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, full_name, username, avatar_url')
+        .in('id', fromIds);
+      (profiles || []).forEach((p: any) => profilesMap.set(p.id, p));
+    }
+
+    res.json(
+      (data || []).map((row: any) => {
+        const profile = profilesMap.get(row.from_user_id);
+        return {
+          id: row.id,
+          message_id: row.message_id,
+          conversation_id: row.conversation_id,
+          content: row.content_snapshot,
+          images: row.images_snapshot || [],
+          created_at: row.created_at_snapshot,
+          deleted_at: row.deleted_at,
+          scope: row.scope,
+          from_user_id: row.from_user_id,
+          is_from_current_user: row.from_user_id === user.id,
+          from_user: {
+            id: profile?.id || row.from_user_id,
+            full_name: profile?.full_name || 'Unknown User',
+            username: profile?.username || 'unknown',
+            avatar_url: normalizeImageUrl(profile?.avatar_url) || null,
+          },
+        };
+      })
+    );
+  } catch (error) {
+    console.error('Error fetching trash:', error);
+    res.status(500).json({ error: 'Failed to fetch trash' });
+  }
+});
+
+// Permanently remove from trash
+router.delete('/trash/:trashId', auth, async (req: AuthRequest, res) => {
+  try {
+    const { user } = req;
+    const { trashId } = req.params;
+    if (!user) return res.status(401).json({ error: 'Unauthorized' });
+
+    const { error } = await supabase
+      .from('message_trash')
+      .delete()
+      .eq('id', trashId)
+      .eq('user_id', user.id);
+
+    if (error) {
+      if (error.code === '42P01') return res.json({ success: true });
+      throw error;
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error emptying trash item:', error);
+    res.status(500).json({ error: 'Failed to delete from trash' });
+  }
+});
+
+const MESSAGE_REACTION_EMOJIS = ['❤️', '👍', '🔥', '😂', '😮', '🎉'];
+
+async function getMessageReactionSummary(messageId: string, userId: string) {
+  const { data: rows } = await supabase
+    .from('message_reactions')
+    .select('emoji, user_id')
+    .eq('message_id', messageId);
+
+  const summary: Record<string, { count: number; reacted_by_me: boolean }> = {};
+  (rows || []).forEach((r: any) => {
+    if (!summary[r.emoji]) summary[r.emoji] = { count: 0, reacted_by_me: false };
+    summary[r.emoji].count += 1;
+    if (r.user_id === userId) summary[r.emoji].reacted_by_me = true;
+  });
+  return summary;
+}
+
+// Toggle reaction on a message
+router.post('/conversations/:conversationId/messages/:messageId/reactions', auth, async (req: AuthRequest, res) => {
+  try {
+    const { user } = req;
+    const { conversationId, messageId } = req.params;
+    const emoji = typeof req.body?.emoji === 'string' ? req.body.emoji.trim() : '';
+
+    if (!user) return res.status(401).json({ error: 'Unauthorized' });
+    if (!MESSAGE_REACTION_EMOJIS.includes(emoji)) {
+      return res.status(400).json({ error: 'Invalid emoji', allowed: MESSAGE_REACTION_EMOJIS });
+    }
+    if (!(await assertConversationParticipant(conversationId, user.id))) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    const { data: msg } = await supabase
+      .from('messages')
+      .select('id, is_deleted')
+      .eq('id', messageId)
+      .eq('conversation_id', conversationId)
+      .single();
+
+    if (!msg || msg.is_deleted) {
+      return res.status(404).json({ error: 'Message not found' });
+    }
+
+    const { data: existing } = await supabase
+      .from('message_reactions')
+      .select('id')
+      .eq('message_id', messageId)
+      .eq('user_id', user.id)
+      .eq('emoji', emoji)
+      .maybeSingle();
+
+    if (existing) {
+      await supabase.from('message_reactions').delete().eq('id', existing.id);
+    } else {
+      // One reaction type per user per message: replace prior emoji if any
+      await supabase
+        .from('message_reactions')
+        .delete()
+        .eq('message_id', messageId)
+        .eq('user_id', user.id);
+
+      const { error: insertErr } = await supabase.from('message_reactions').insert({
+        message_id: messageId,
+        user_id: user.id,
+        emoji,
+      });
+      if (insertErr) {
+        if (insertErr.code === '42P01') {
+          return res.status(503).json({ error: 'Reactions not available. Apply migration.' });
+        }
+        throw insertErr;
+      }
+    }
+
+    const reactions = await getMessageReactionSummary(messageId, user.id);
+    const recipients = await getOtherParticipantIds(conversationId, user.id);
+    const payload = { conversationId, messageId, reactions };
+    wsManager.broadcastToUsers([...recipients, user.id], {
+      type: 'message_reaction',
+      payload,
+    });
+
+    res.json({ messageId, reactions });
+  } catch (error) {
+    console.error('Error reacting to message:', error);
+    res.status(500).json({ error: 'Failed to react to message' });
   }
 });
 

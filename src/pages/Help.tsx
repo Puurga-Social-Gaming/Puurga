@@ -38,13 +38,15 @@ const Help: React.FC = () => {
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
-      className="min-h-screen bg-background p-6 text-foreground"
+      className="w-full text-foreground space-y-6"
     >
-      <div className="max-w-4xl mx-auto space-y-12">
-        <header className="text-center">
-          <LifeBuoy className="mx-auto text-accent h-16 w-16 mb-4" />
-          <h1 className="text-4xl font-bold mb-2">Help & Support</h1>
-          <p className="text-lg text-muted">Your guide to mastering Puurga. Find answers, tutorials, and contact information below.</p>
+      <div className="w-full space-y-8">
+        <header className="page-header text-center items-center">
+          <LifeBuoy className="mx-auto text-accent h-12 w-12" />
+          <h1 className="page-title">Help & Support</h1>
+          <p className="page-subtitle max-w-xl mx-auto">
+            Your guide to mastering Puurga. Find answers, tutorials, and contact information below.
+          </p>
         </header>
 
         {/* Main Sections */}

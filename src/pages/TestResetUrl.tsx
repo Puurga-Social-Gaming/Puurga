@@ -111,7 +111,7 @@ const TestResetUrl: React.FC = () => {
                         <button
                             onClick={testPasswordReset}
                             disabled={loading || !email}
-                            className="w-full px-4 py-3 rounded-lg bg-accent text-white font-semibold hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-theme-button hover:shadow-lg"
+                            className="w-full px-4 py-3 rounded-lg bg-accent text-black font-semibold hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-theme-button hover:shadow-lg"
                         >
                             {loading ? 'Sending...' : 'Send Test Password Reset'}
                         </button>

@@ -16,7 +16,10 @@ import {
   Share2,
   Flame,
   Zap,
-  Ghost
+  Ghost,
+  Ban,
+  VolumeX,
+  Volume2,
 } from 'lucide-react';
 import api from '../lib/axios';
 import { supabase } from '../lib/supabaseClient';
@@ -25,6 +28,9 @@ import Avatar from '../components/Avatar';
 import FriendRequestButton from '../components/FriendRequestButton/FriendRequestButton';
 import { DEFAULT_IMAGES } from '../constants/defaultImages';
 import { useUser } from '../context/UserContext';
+import { formatBioForDisplay } from '../utils/bioLimits';
+import PurgeIcon from '../components/Icons/PurgeIcon';
+import CertificationBadges from '../components/Profile/CertificationBadges';
 
 interface UserProfileData {
   id: string;
@@ -45,6 +51,8 @@ interface UserProfileData {
   isOwnProfile: boolean;
   isGhosted?: boolean;
   redemptionProgress?: number;
+  certificationSlug?: string | null;
+  logoCertified?: boolean;
 }
 
 interface UserPost {
@@ -55,6 +63,8 @@ interface UserPost {
   likes: number;
   comments: number;
   liked: boolean;
+  purges: number;
+  purged: boolean;
 }
 
 const UserProfile: React.FC = () => {
@@ -68,6 +78,11 @@ const UserProfile: React.FC = () => {
   const [loadingPosts, setLoadingPosts] = useState(true);
   const [sendingRequest, setSendingRequest] = useState(false);
   const [isPurging, setIsPurging] = useState(false);
+  const [isBlocked, setIsBlocked] = useState(false);
+  const [blockedByThem, setBlockedByThem] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
+  const [socialBusy, setSocialBusy] = useState(false);
+  const [purgingPostId, setPurgingPostId] = useState<string | null>(null);
 
   useEffect(() => {
     if (username) {
@@ -134,7 +149,22 @@ const UserProfile: React.FC = () => {
         isOwnProfile: currentUser?.username === username,
         isGhosted: data.is_ghost || data.purgatory_status || false,
         redemptionProgress: data.redemption_progress || 0,
+        certificationSlug: data.certification_slug || data.certificationSlug || null,
+        logoCertified: Boolean(data.logo_certified ?? data.logoCertified),
       });
+
+      if (data.id && currentUser?.username !== username) {
+        try {
+          const statusRes = await api.get(`/social/status/${data.id}`);
+          setIsBlocked(Boolean(statusRes.data?.isBlocked));
+          setBlockedByThem(Boolean(statusRes.data?.blockedByThem));
+          setIsMuted(Boolean(statusRes.data?.isMuted));
+        } catch {
+          setIsBlocked(false);
+          setBlockedByThem(false);
+          setIsMuted(false);
+        }
+      }
     } catch (err: any) {
       console.error('Failed to load profile:', err);
       if (err.response?.status === 404) {
@@ -160,6 +190,8 @@ const UserProfile: React.FC = () => {
         likes: p.likes || p.like_count || 0,
         comments: p.comments || p.comment_count || 0,
         liked: p.liked || false,
+        purges: p.purges || p.purge_count || 0,
+        purged: Boolean(p.purged),
       })));
     } catch (err) {
       console.error('Failed to load user posts:', err);
@@ -201,9 +233,94 @@ const UserProfile: React.FC = () => {
     }
   };
 
+  const handlePurgePost = async (postId: string) => {
+    if (!profile || profile.isOwnProfile) {
+      toast.error('You cannot purge your own posts');
+      return;
+    }
+    const target = userPosts.find((p) => p.id === postId);
+    if (!target || target.purged || purgingPostId) return;
+
+    setPurgingPostId(postId);
+    try {
+      const response = await api.post(`/posts/${postId}/purge`);
+      const newPurgeCount = response.data?.purges ?? target.purges + 1;
+      setUserPosts((prev) =>
+        prev.map((p) =>
+          p.id === postId ? { ...p, purges: newPurgeCount, purged: true } : p
+        )
+      );
+      toast.success('Post purged');
+      if (newPurgeCount >= 5) {
+        toast.error(`Post has been purged ${newPurgeCount} times.`, { duration: 4000 });
+      }
+    } catch (err: any) {
+      const msg = err?.response?.data?.error || 'Failed to purge post';
+      if (String(msg).toLowerCase().includes('already purged')) {
+        setUserPosts((prev) =>
+          prev.map((p) => (p.id === postId ? { ...p, purged: true } : p))
+        );
+        toast.error('Already purged this post');
+      } else if (String(msg).toLowerCase().includes('own')) {
+        toast.error('You cannot purge your own posts');
+      } else {
+        toast.error(msg);
+      }
+    } finally {
+      setPurgingPostId(null);
+    }
+  };
+
   const handleMessage = () => {
     if (profile) {
       navigate(`/messages?user=${profile.username}`);
+    }
+  };
+
+  const handleBlockToggle = async () => {
+    if (!profile) return;
+    setSocialBusy(true);
+    try {
+      if (isBlocked) {
+        await api.delete(`/social/block/${profile.id}`);
+        setIsBlocked(false);
+        setBlockedByThem(false);
+        toast.success('User unblocked');
+      } else {
+        if (!window.confirm(`Block @${profile.username}? They won't be able to message you or interact with your content.`)) {
+          setSocialBusy(false);
+          return;
+        }
+        await api.post(`/social/block/${profile.id}`);
+        setIsBlocked(true);
+        setIsMuted(false);
+        setProfile((p) => (p ? { ...p, isFriend: false, hasPendingRequest: false } : p));
+        toast.success('User blocked');
+      }
+    } catch (err: any) {
+      toast.error(err.response?.data?.error || 'Failed to update block');
+    } finally {
+      setSocialBusy(false);
+    }
+  };
+
+  const handleMuteToggle = async () => {
+    if (!profile || isBlocked) return;
+    setSocialBusy(true);
+    try {
+      if (isMuted) {
+        await api.delete(`/social/mute/${profile.id}`);
+        setIsMuted(false);
+        toast.success('User unmuted');
+      } else {
+        await api.post(`/social/mute/${profile.id}`);
+        setIsMuted(true);
+        toast.success('User muted — their posts will be hidden');
+      }
+    } catch (err: any) {
+      toast.error(err.response?.data?.error || 'Failed to update mute');
+    } finally {
+      setSocialBusy(false);
     }
   };
 
@@ -279,7 +396,7 @@ const UserProfile: React.FC = () => {
       </div>
 
       {/* Profile Info */}
-      <div className="max-w-4xl mx-auto px-4 -mt-16 relative z-10">
+      <div className="w-full -mt-16 relative z-10">
         <div className="flex flex-col sm:flex-row sm:items-end gap-4">
           {/* Avatar */}
           <div className="relative">
@@ -299,54 +416,109 @@ const UserProfile: React.FC = () => {
           {/* Name and Actions */}
           <div className="flex-1 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4">
             <div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-foreground">{profile.name}</h1>
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-2xl sm:text-3xl font-bold text-foreground">{profile.name}</h1>
+                <CertificationBadges
+                  certificationSlug={profile.certificationSlug}
+                  logoCertified={profile.logoCertified}
+                  size="md"
+                />
+              </div>
               <p className="text-muted">@{profile.username}</p>
             </div>
 
             {/* Action Buttons - Only show for other users */}
             {!profile.isOwnProfile && (
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-3">
+                {blockedByThem && !isBlocked ? (
+                  <p className="text-sm text-muted px-3 py-2 rounded-lg border border-border bg-card">
+                    You cannot interact with this account.
+                  </p>
+                ) : null}
+                {!blockedByThem && (
                 <button
                   onClick={handlePurgeUser}
-                  disabled={isPurging}
+                  disabled={isPurging || isBlocked}
                   className="flex items-center gap-2 px-4 py-2 bg-red-600/20 hover:bg-red-600/40 text-red-500 rounded-lg transition-colors disabled:opacity-50"
                   title="Purge User"
                 >
-                  <Flame size={18} />
-                  Purge
+                  <PurgeIcon size={18} className={isPurging ? 'animate-pulse' : ''} />
+                  {isPurging ? 'Purging…' : 'Purge'}
                 </button>
-                {profile.isFriend ? (
+                )}
+                {isBlocked ? (
+                  <button
+                    onClick={handleBlockToggle}
+                    disabled={socialBusy}
+                    className="flex items-center gap-2 px-4 py-2 bg-card hover:bg-green-500/10 text-muted hover:text-green-500 border border-border rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    <Ban size={18} />
+                    Unblock
+                  </button>
+                ) : blockedByThem ? null : (
                   <>
+                    {profile.isFriend ? (
+                      <>
+                        <button
+                          onClick={handleMessage}
+                          className="flex items-center gap-2 px-4 py-2 bg-[var(--accent)] hover:opacity-90 text-[var(--fg)] rounded-lg transition-colors"
+                        >
+                          <MessageCircle size={18} />
+                          Message
+                        </button>
+                        <button
+                          onClick={handleRemoveFriend}
+                          disabled={sendingRequest}
+                          className="flex items-center gap-2 px-4 py-2 bg-card hover:bg-red-500/10 text-muted hover:text-red-500 border border-border hover:border-red-500/50 rounded-lg transition-colors"
+                        >
+                          <UserMinus size={18} />
+                          Unfriend
+                        </button>
+                      </>
+                    ) : (
+                      <FriendRequestButton
+                        targetUserId={profile.id}
+                      />
+                    )}
                     <button
-                      onClick={handleMessage}
-                      className="flex items-center gap-2 px-4 py-2 bg-[var(--accent)] hover:opacity-90 text-[var(--fg)] rounded-lg transition-colors"
+                      onClick={handleMuteToggle}
+                      disabled={socialBusy}
+                      className="flex items-center gap-2 px-4 py-2 bg-card hover:bg-muted/40 text-muted border border-border rounded-lg transition-colors disabled:opacity-50"
+                      title={isMuted ? 'Unmute' : 'Mute'}
                     >
-                      <MessageCircle size={18} />
-                      Message
+                      {isMuted ? <Volume2 size={18} /> : <VolumeX size={18} />}
+                      {isMuted ? 'Unmute' : 'Mute'}
                     </button>
                     <button
-                      onClick={handleRemoveFriend}
-                      disabled={sendingRequest}
-                      className="flex items-center gap-2 px-4 py-2 bg-card hover:bg-red-500/10 text-muted hover:text-red-500 border border-border hover:border-red-500/50 rounded-lg transition-colors"
+                      onClick={handleBlockToggle}
+                      disabled={socialBusy}
+                      className="flex items-center gap-2 px-4 py-2 bg-card hover:bg-red-500/10 text-muted hover:text-red-500 border border-border rounded-lg transition-colors disabled:opacity-50"
                     >
-                      <UserMinus size={18} />
-                      Unfriend
+                      <Ban size={18} />
+                      Block
                     </button>
                   </>
-                ) : (
-                  <FriendRequestButton
-                    targetUserId={profile.id}
-                  />
                 )}
               </div>
             )}
           </div>
         </div>
 
-        {/* Bio and Details */}
+        {(isBlocked || blockedByThem) && (
+          <div className="mt-4 rounded-xl border border-border bg-card px-4 py-3 text-sm text-muted">
+            {isBlocked
+              ? 'You blocked this user. Unblock to interact again.'
+              : 'This profile is limited because of a block.'}
+          </div>
+        )}
+
+        {/* Bio and Details — hide detailed content when blocked either way */}
+        {!isBlocked && !blockedByThem && (
         <div className="mt-6 space-y-4">
           {profile.bio && (
-            <p className="text-foreground/90 text-lg">{profile.bio}</p>
+            <p className="text-foreground/90 text-base sm:text-lg leading-relaxed break-words max-w-2xl">
+              {formatBioForDisplay(profile.bio)}
+            </p>
           )}
 
           <div className="flex flex-wrap gap-4 text-muted text-sm">
@@ -385,45 +557,88 @@ const UserProfile: React.FC = () => {
             </div>
           )}
 
-          {/* Stats - Compact horizontal layout */}
-          <div className="flex items-center justify-center gap-6 py-4 border-t border-b border-border">
-            <div className="flex items-center gap-2">
-              <Users className="w-5 h-5 text-blue-500" />
-              <div className="text-center">
-                <p className="text-lg font-bold text-foreground">{profile.friendsCount}</p>
-                <p className="text-xs text-muted font-medium">Friends</p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <MessageSquare className="w-5 h-5 text-purple-500" />
-              <div className="text-center">
-                <p className="text-lg font-bold text-foreground">{profile.postsCount}</p>
-                <p className="text-xs text-muted font-medium">Posts</p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <Zap className="w-5 h-5 text-yellow-500" />
-              <div className="text-center">
-                <p className="text-lg font-bold text-foreground">{profile.credits}</p>
-                <p className="text-xs text-muted font-medium">Credits</p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <Flame className="w-5 h-5 text-red-500" />
-              <div className="text-center">
-                <p className="text-lg font-bold text-foreground">{profile.purgeStreak}</p>
-                <p className="text-xs text-muted font-medium">Streak</p>
-              </div>
+          {/* Stats */}
+          <div className="pt-5 mt-1">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3">
+              {[
+                {
+                  key: 'friends',
+                  value: profile.friendsCount,
+                  label: 'Friends',
+                  icon: Users,
+                  tone: 'text-sky-400',
+                  ring: 'hover:border-sky-500/35',
+                },
+                {
+                  key: 'posts',
+                  value: profile.postsCount,
+                  label: 'Posts',
+                  icon: MessageSquare,
+                  tone: 'text-violet-400',
+                  ring: 'hover:border-violet-500/35',
+                },
+                {
+                  key: 'credits',
+                  value: profile.credits,
+                  label: 'Credits',
+                  icon: Zap,
+                  tone: 'text-accent',
+                  ring: 'hover:border-accent/40',
+                  accent: true,
+                },
+                {
+                  key: 'streak',
+                  value: profile.purgeStreak,
+                  label: 'Streak',
+                  icon: Flame,
+                  tone: 'text-orange-400',
+                  ring: 'hover:border-orange-500/35',
+                },
+              ].map(({ key, value, label, icon: Icon, tone, ring, accent }) => (
+                <div
+                  key={key}
+                  className={`group relative overflow-hidden rounded-2xl border border-border/70 bg-card/70 backdrop-blur-sm px-3 py-3.5 sm:px-4 sm:py-4 transition-all duration-200 ${ring}`}
+                >
+                  <div className="pointer-events-none absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-br from-white/[0.03] to-transparent" />
+                  <div className="relative flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p
+                        className={`text-xl sm:text-2xl font-bold tabular-nums leading-none tracking-tight truncate ${
+                          accent ? 'text-accent' : 'text-foreground'
+                        }`}
+                      >
+                        {Number(value || 0).toLocaleString()}
+                      </p>
+                      <p className="mt-1.5 text-[10px] sm:text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">
+                        {label}
+                      </p>
+                    </div>
+                    <div
+                      className={`flex h-8 w-8 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-xl bg-background/70 border border-border/60 ${tone}`}
+                    >
+                      <Icon size={16} strokeWidth={2.25} />
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </div>
+        )}
 
         {/* User Posts */}
-        <div className="mt-6 pb-8">
-          <h2 className="text-xl font-bold text-foreground mb-4">Posts</h2>
+        {!isBlocked && !blockedByThem && (
+        <div className="mt-8 pb-8">
+          <div className="flex items-end justify-between gap-3 mb-4">
+            <div>
+              <h2 className="text-lg sm:text-xl font-bold text-foreground tracking-tight">Posts</h2>
+              <p className="text-xs text-muted mt-0.5">
+                {profile.postsCount > 0
+                  ? `${Number(profile.postsCount).toLocaleString()} published`
+                  : 'Nothing published yet'}
+              </p>
+            </div>
+          </div>
 
           {loadingPosts ? (
             <div className="flex items-center justify-center text-muted py-8">
@@ -461,24 +676,60 @@ const UserProfile: React.FC = () => {
                     />
                   )}
 
-                  <div className="flex items-center gap-6 pt-3 border-t border-border text-muted">
-                    <button className="flex items-center gap-2 hover:text-pink-500 transition-colors">
+                  <div className="flex items-center gap-3 sm:gap-6 pt-3 border-t border-border text-muted">
+                    <button
+                      type="button"
+                      className="flex items-center gap-2 hover:text-pink-500 transition-colors"
+                    >
                       <Heart size={18} className={post.liked ? 'fill-pink-500 text-pink-500' : ''} />
                       <span>{post.likes}</span>
                     </button>
-                    <button className="flex items-center gap-2 hover:text-white transition-colors">
+                    <button
+                      type="button"
+                      className="flex items-center gap-2 hover:text-foreground transition-colors"
+                    >
                       <MessageCircle size={18} />
                       <span>{post.comments}</span>
                     </button>
-                    <button className="flex items-center gap-2 hover:text-blue-500 transition-colors ml-auto">
-                      <Share2 size={18} />
-                    </button>
+
+                    <div className="ml-auto flex items-center gap-2 sm:gap-3">
+                      <button
+                        type="button"
+                        className="flex items-center gap-2 hover:text-blue-500 transition-colors"
+                        title="Share"
+                      >
+                        <Share2 size={18} />
+                      </button>
+
+                      {!profile.isOwnProfile && (
+                        <button
+                          type="button"
+                          onClick={() => void handlePurgePost(post.id)}
+                          disabled={Boolean(purgingPostId) || post.purged || isBlocked}
+                          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full transition-all ${
+                            post.purged
+                              ? 'text-accent bg-accent/10'
+                              : 'text-muted hover:text-red-400 hover:bg-red-400/10'
+                          } ${purgingPostId === post.id ? 'opacity-50 cursor-not-allowed' : ''} disabled:opacity-50`}
+                          title={post.purged ? 'Already purged' : "I don't like this — Purge"}
+                        >
+                          <PurgeIcon
+                            size={16}
+                            className={`${purgingPostId === post.id ? 'animate-pulse' : ''} ${
+                              post.purged ? '' : 'grayscale'
+                            }`}
+                          />
+                          <span className="text-xs font-medium tabular-nums">{post.purges}</span>
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </motion.div>
               ))}
             </div>
           )}
         </div>
+        )}
       </div>
     </motion.div>
   );

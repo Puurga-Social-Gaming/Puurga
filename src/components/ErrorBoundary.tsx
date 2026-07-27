@@ -40,24 +40,24 @@ class ErrorBoundary extends Component<Props, State> {
   public render() {
     if (this.state.hasError) {
       return (
-        <div className="fixed inset-0 bg-[#0a0a0a] flex flex-col items-center justify-center p-4 z-[9999]">
+        <div className="fixed inset-0 bg-background flex flex-col items-center justify-center p-4 z-[9999]">
           <div className="text-center space-y-4 max-w-sm">
-            <div className="w-16 h-16 mx-auto rounded-full bg-gray-800 flex items-center justify-center">
-              <span className="text-2xl">!</span>
+            <div className="w-16 h-16 mx-auto rounded-full bg-card border border-border flex items-center justify-center shadow-theme-sm">
+              <span className="text-2xl text-foreground">!</span>
             </div>
-            <p className="text-gray-400 text-sm">
+            <p className="text-muted text-sm">
               {this.state.errorMessage}
             </p>
             <div className="flex items-center justify-center gap-3">
               <button
                 onClick={this.handleRetry}
-                className="px-5 py-2 bg-accent text-black text-sm font-semibold rounded-full hover:opacity-90 transition-colors"
+                className="px-5 py-2 bg-foreground text-background text-sm font-semibold rounded-xl hover:opacity-90 transition-colors"
               >
                 Try again
               </button>
               <button
                 onClick={this.handleReload}
-                className="px-5 py-2 bg-gray-800 text-gray-300 text-sm font-medium rounded-full hover:bg-gray-700 transition-colors"
+                className="px-5 py-2 bg-card text-foreground border border-border text-sm font-medium rounded-xl hover:bg-card-hover transition-colors"
               >
                 Reload page
               </button>

@@ -13,8 +13,8 @@ const NavItem: React.FC<NavItemProps> = ({ icon: Icon, label, to, isActive }) =>
   return (
     <Link
       to={to}
-      className={`flex items-center space-x-3 p-3 rounded-lg hover:bg-[#1a1a1a] transition-colors ${
-        isActive ? 'text-white' : 'text-gray-300'
+      className={`flex items-center space-x-3 p-3 rounded-lg hover:bg-card-hover transition-colors ${
+        isActive ? 'text-foreground' : 'text-muted'
       }`}
     >
       <Icon size={24} />
