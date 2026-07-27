@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import {
   Bell, Shield, Eye, Globe, Moon, Sun, Loader2, Maximize2, Minimize2, Ban, VolumeX,
 } from 'lucide-react';
-import Button from '../../components/ui/Button';
+import Button from '../../components/UI/Button';
 import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
 import api from '../../lib/axios';

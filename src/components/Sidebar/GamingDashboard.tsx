@@ -5,64 +5,15 @@ import { motion } from 'framer-motion';
 import { Gamepad2, Play, Trophy, Zap, ChevronLeft, ChevronRight } from 'lucide-react';
 import { getGameStats, getCurrentlyPlaying, subscribeToPlayingUsers, GameStats, PlayingUser } from '../../services/purgaService';
 import { useUser } from '../../context/UserContext';
+import { GAMES_CATALOG, getTranslatedGameName } from '../../games/catalog';
 
-const GAMES = [
-  {
-    id: 'judgment',
-    title: 'Judgment',
-    icon: '⚖️',
-    description: 'Decide the fate of souls. Swift and fair.',
-    difficulty: 'Hard',
-    rewardCoins: 600,
-    theme: 'epic',
-    available: true,
-    target: '/puurga-games'
-  },
-  {
-    id: 'watchman',
-    title: 'Watchman',
-    icon: '🛡️',
-    description: 'Defend the realm. Vigilance is key.',
-    difficulty: 'Hard',
-    rewardCoins: 500,
-    theme: 'epic',
-    available: true,
-    target: '/next-game'
-  },
-  {
-    id: 'redemption',
-    title: 'Redemption',
-    icon: '✨',
-    description: 'Make right choices to restore your status.',
-    difficulty: 'Medium',
-    rewardCoins: 300,
-    theme: 'epic',
-    available: true,
-    target: '/new-game'
-  },
-  {
-    id: 'purga-rift',
-    title: 'Purga Rift',
-    icon: '🌀',
-    description: 'Pattern prediction in the rift dimension.',
-    difficulty: 'Hard',
-    rewardCoins: 520,
-    theme: 'epic',
-    available: true,
-    target: '/puurga-games?play=purga-rift'
-  },
-  {
-    id: 'puurga-slot-2',
-    title: 'Cyber Runner',
-    icon: '🏃',
-    description: 'Stickman runner with combat and upgrades.',
-    difficulty: 'Medium',
-    rewardCoins: 480,
-    theme: 'epic',
-    available: true,
-    target: '/puurga-games?play=puurga-slot-2'
-  }
-];
+const GAME_ICONS: Record<string, string> = {
+  judgment: '⚖️',
+  watchman: '🛡️',
+  redemption: '✨',
+  'purga-rift': '🌀',
+  'cyber-runner': '🏃',
+};
 
 const DIFFICULTY_COLOR: Record<string, string> = {
   Hard: 'text-red-400',
@@ -107,7 +58,17 @@ const GamingDashboard: React.FC = () => {
     return () => { unsubscribe(); };
   }, []);
 
-  const availableGames = GAMES.filter(g => g.available);
+  const availableGames = GAMES_CATALOG
+    .filter(g => g.status === 'live')
+    .map(g => ({
+      id: g.id,
+      title: getTranslatedGameName(g.id),
+      icon: GAME_ICONS[g.id] || '🎮',
+      description: g.description,
+      difficulty: g.difficulty,
+      rewardCoins: g.rewardCoins,
+      target: g.route,
+    }));
 
   const goTo = useCallback((index: number) => {
     const total = availableGames.length;

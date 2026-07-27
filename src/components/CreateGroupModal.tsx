@@ -2,8 +2,8 @@ import React, { useState, useRef } from 'react';
 import { Users, Upload, Image } from 'lucide-react';
 import api from '../lib/axios';
 import toast from 'react-hot-toast';
-import Modal from './ui/Modal';
-import Button from './ui/Button';
+import Modal from './UI/Modal';
+import Button from './UI/Button';
 import imageCompression from 'browser-image-compression';
 
 interface CreateGroupModalProps {

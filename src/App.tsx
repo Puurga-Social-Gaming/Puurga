@@ -3,6 +3,7 @@ import {
   Route,
   Navigate,
   Outlet,
+  useParams,
   createRoutesFromElements,
   createBrowserRouter,
   RouterProvider
@@ -31,8 +32,7 @@ const Security = retryableLazy(() => import('./pages/Security'));
 const GroupDetail = retryableLazy(() => import('./pages/GroupDetail'));
 const JoinGroup = retryableLazy(() => import('./pages/JoinGroup'));
 const Help = retryableLazy(() => import('./pages/Help'));
-const NewGameCode = retryableLazy(() => import('./pages/NewGameCode'));
-const TheNextGame = retryableLazy(() => import('./pages/TheNextGame'));
+const GameLauncher = retryableLazy(() => import('./games/GameLauncher'));
 const UserProfile = retryableLazy(() => import('./pages/UserProfile'));
 const Connections = retryableLazy(() => import('./pages/Connections'));
 const UserList = retryableLazy(() => import('./pages/Admin/UserList'));
@@ -133,6 +133,12 @@ const PublicSuspense: React.FC = () => (
 /** Pathless root — just nests branches. Must NOT wrap Layout in Suspense. */
 const RootOutlet: React.FC = () => <Outlet />;
 
+/** Game route — extracts slug from URL and passes to GameLauncher */
+const GameRoute: React.FC = () => {
+  const { slug } = useParams<{ slug: string }>();
+  return <GameLauncher slug={slug!} />;
+};
+
 // Create router with React Router v7 future flags (silences upgrade warnings)
 const router = createBrowserRouter(
   createRoutesFromElements(
@@ -175,6 +181,10 @@ const router = createBrowserRouter(
         <Route path="/groups/:id" element={<GroupDetail />} />
         <Route path="/join/:inviteCode" element={<JoinGroup />} />
         <Route path="/puurga-games" element={<PurgaGames />} />
+        <Route path="/games/:slug" element={<GameRoute />} />
+        {/* Legacy game routes — redirect to new canonical paths */}
+        <Route path="/new-game" element={<Navigate to="/games/redemption" replace />} />
+        <Route path="/next-game" element={<Navigate to="/games/watchman" replace />} />
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/puurga-dashboard" element={<PuurgaDashboard />} />
         <Route path="/purgatory" element={<Purgatory />} />
@@ -192,8 +202,6 @@ const router = createBrowserRouter(
             </SuperAdminRoute>
           }
         />
-        <Route path="/new-game" element={<NewGameCode />} />
-        <Route path="/next-game" element={<TheNextGame />} />
       </Route>
 
       <Route path="*" element={<UnknownRouteRedirect />} />

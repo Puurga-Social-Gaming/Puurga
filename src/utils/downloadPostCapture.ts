@@ -36,7 +36,7 @@ function wrapText(
   ctx: CanvasRenderingContext2D,
   text: string,
   maxWidth: number,
-  lineHeight: number,
+  _lineHeight: number,
   maxLines = 12
 ): string[] {
   const paragraphs = String(text || '')

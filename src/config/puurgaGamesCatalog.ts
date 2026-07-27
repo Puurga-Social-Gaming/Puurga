@@ -99,7 +99,7 @@ export const PUURGA_GAMES_CATALOG: PuurgaGameCatalogEntry[] = [
     title: 'Cyber Runner',
     description:
       'Run, slash, and slide through five network phases. Upgrade gear, beat the weekly boss, and climb the leaderboard.',
-    image: '/images/games/cyber-runner-cover.svg',
+    image: 'https://vhvxfnxtyrgiydztsonz.supabase.co/storage/v1/object/public/Gamevids/GameIcon.png',
     category: 'Action',
     difficulty: 'Medium',
     rewardCoins: 480,

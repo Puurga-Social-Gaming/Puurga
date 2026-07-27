@@ -51,11 +51,14 @@ export function preloadMainRoutes() {
 export function usePreloadMainRoutes() {
   useEffect(() => {
     const run = () => preloadMainRoutes();
+    let cleanup: (() => void) | undefined;
     if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
       const id = window.requestIdleCallback(run, { timeout: 1200 });
-      return () => window.cancelIdleCallback(id);
+      cleanup = () => window.cancelIdleCallback(id);
+    } else {
+      const t = setTimeout(run, 300);
+      cleanup = () => clearTimeout(t);
     }
-    const t = window.setTimeout(run, 300);
-    return () => window.clearTimeout(t);
+    return cleanup;
   }, []);
 }

@@ -4,7 +4,7 @@ import { Users, ArrowLeft, UserPlus } from 'lucide-react';
 import { motion } from 'framer-motion';
 import api from '../api/api';
 import toast from 'react-hot-toast';
-import Button from '../components/ui/Button';
+import Button from '../components/UI/Button';
 
 interface GroupPreview {
   id: string;

@@ -7,7 +7,7 @@ import PuurgaLogo from '../components/Icons/PuurgaLogo';
 import { toast } from 'react-hot-toast';
 import { Eye, EyeOff } from 'lucide-react';
 import { motion } from 'framer-motion';
-import Button from '../components/ui/Button';
+import Button from '../components/UI/Button';
 import { z } from 'zod';
 import { preloadPosts } from '../utils/preloadPosts';
 import { useOnboardingAudioStore } from '../store/onboardingAudioStore';

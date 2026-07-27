@@ -3,12 +3,17 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Sparkles, X, Play } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import {
-  getNewGames,
-  isPromoDismissed,
-  dismissPromo,
-  type PuurgaGameCatalogEntry,
-} from '../../config/puurgaGamesCatalog';
+import { GAMES_CATALOG, getTranslatedGameName, getTranslatedGameDescription, type GameEntry } from '../../games/catalog';
+
+const PROMO_STORAGE_PREFIX = 'puurga_new_game_promo_dismissed_';
+
+function isPromoDismissed(gameId: string): boolean {
+  return localStorage.getItem(`${PROMO_STORAGE_PREFIX}${gameId}`) === '1';
+}
+
+function dismissPromo(gameId: string): void {
+  localStorage.setItem(`${PROMO_STORAGE_PREFIX}${gameId}`, '1');
+}
 
 interface NewGamePromoBannerProps {
   className?: string;
@@ -17,7 +22,7 @@ interface NewGamePromoBannerProps {
 const NewGamePromoBanner: React.FC<NewGamePromoBannerProps> = ({ className = '' }) => {
   const navigate = useNavigate();
   const { t } = useTranslation();
-  const newGames = useMemo(() => getNewGames(), []);
+  const newGames = useMemo(() => GAMES_CATALOG.filter(g => g.status === 'live'), []);
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(() => {
     const s = new Set<string>();
     newGames.forEach((g) => {
@@ -34,8 +39,8 @@ const NewGamePromoBanner: React.FC<NewGamePromoBannerProps> = ({ className = '' 
     setDismissedIds((prev) => new Set(prev).add(gameId));
   };
 
-  const play = (game: PuurgaGameCatalogEntry) => {
-    navigate(`/puurga-games?play=${game.id}`);
+  const play = (game: GameEntry) => {
+    navigate(game.route);
   };
 
   return (
@@ -51,7 +56,7 @@ const NewGamePromoBanner: React.FC<NewGamePromoBannerProps> = ({ className = '' 
           >
             <div
               className="absolute inset-0 bg-cover bg-center opacity-[0.12] dark:opacity-[0.18]"
-              style={{ backgroundImage: `url('${game.image}')` }}
+              style={{ backgroundImage: `url('${game.icon}')` }}
             />
             <div className="absolute inset-0 bg-gradient-to-r from-orange-500/[0.08] via-transparent to-red-500/[0.06] dark:from-orange-500/15 dark:to-red-500/10 pointer-events-none" />
 
@@ -75,10 +80,10 @@ const NewGamePromoBanner: React.FC<NewGamePromoBannerProps> = ({ className = '' 
                     </button>
                   </div>
                   <h3 className="text-sm sm:text-base font-bold text-foreground truncate mt-0.5">
-                    {game.title}
+                    {getTranslatedGameName(game.id)}
                   </h3>
                   <p className="text-[11px] sm:text-xs text-muted line-clamp-2 mt-0.5 leading-snug">
-                    {game.description}
+                    {getTranslatedGameDescription(game.id)}
                   </p>
                 </div>
               </div>

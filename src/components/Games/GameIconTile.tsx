@@ -2,10 +2,20 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { Swords } from 'lucide-react';
-import type { PuurgaGameCatalogEntry } from '../../config/puurgaGamesCatalog';
+
+interface GameIconTileGame {
+  id: string;
+  title: string;
+  image: string;
+  category?: string;
+  difficulty?: string;
+  rewardCoins?: number;
+  isNew?: boolean;
+  [key: string]: unknown;
+}
 
 interface GameIconTileProps {
-  game: PuurgaGameCatalogEntry;
+  game: GameIconTileGame;
   onClick: () => void;
   index?: number;
   /** Friends currently playing this game */

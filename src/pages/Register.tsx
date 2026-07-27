@@ -10,7 +10,7 @@ import { toast } from 'react-hot-toast';
 import { motion } from 'framer-motion';
 import { preloadPosts } from '../utils/preloadPosts';
 import GoogleSignInButton from '../components/auth/GoogleSignInButton';
-import Button from '../components/ui/Button';
+import Button from '../components/UI/Button';
 import { signInWithGoogle } from '../lib/googleAuth';
 
 const Register: React.FC = () => {

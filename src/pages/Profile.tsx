@@ -12,7 +12,7 @@ import { motion } from 'framer-motion';
 import Avatar from '../components/Avatar';
 import PurgasTab from '../components/Profile/PurgasTab';
 import GalleryTab from '../components/Profile/GalleryTab';
-import Button from '../components/ui/Button';
+import Button from '../components/UI/Button';
 import { useSurvival } from '../context/SurvivalContext';
 import { SurvivalBadge } from '../components/Survival';
 import CertificationBadges from '../components/Profile/CertificationBadges';

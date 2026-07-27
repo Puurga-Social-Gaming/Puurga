@@ -19,7 +19,7 @@ import CertificationBadges from './CertificationBadges';
 import CertificationPaymentModal, { type BuyableCert } from './CertificationPaymentModal';
 import { formatCertPrice, type CertificationType } from '../../constants/certifications';
 import { formatCdf, formatUsd } from '../../constants/paymentMethods';
-import Button from '../ui/Button';
+import Button from '../UI/Button';
 
 type CatalogItem = CertificationType & {
   eligible: boolean;

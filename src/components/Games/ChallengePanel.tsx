@@ -19,7 +19,7 @@ import {
   type GamePresenceUser,
 } from '../../services/challengeService';
 import { getAcceptedFriends } from '../../services/friendService';
-import { PUURGA_GAMES_CATALOG } from '../../config/puurgaGamesCatalog';
+import { GAMES_CATALOG, getTranslatedGameName } from '../../games/catalog';
 import Avatar from '../Avatar';
 import ProfileLink from '../Profile/ProfileLink';
 
@@ -42,7 +42,7 @@ const ChallengePanel: React.FC<{
   const [busy, setBusy] = useState(false);
 
   const [opponentId, setOpponentId] = useState(initialOpponentId || '');
-  const [gameId, setGameId] = useState(initialGameId || PUURGA_GAMES_CATALOG[0]?.id || 'purga-rift');
+  const [gameId, setGameId] = useState(initialGameId || GAMES_CATALOG[0]?.id || 'purga-rift');
   const [stake, setStake] = useState<number>(50);
   const [customStake, setCustomStake] = useState('');
   const [activePlay, setActivePlay] = useState<GameChallenge | null>(null);
@@ -129,12 +129,12 @@ const ChallengePanel: React.FC<{
     }
     setBusy(true);
     try {
-      const game = PUURGA_GAMES_CATALOG.find((g) => g.id === gameId);
+      const game = GAMES_CATALOG.find((g) => g.id === gameId);
       await createChallenge({
         opponentId,
         gameId,
         stake: effectiveStake,
-        gameTitle: game?.title,
+        gameTitle: game ? getTranslatedGameName(game.id) : gameId,
       });
       toast.success('Challenge sent');
       setTab('inbox');
@@ -272,9 +272,9 @@ const ChallengePanel: React.FC<{
               onChange={(e) => setGameId(e.target.value)}
               className="mt-1 w-full rounded-lg bg-background border border-border px-3 py-2 text-sm text-foreground"
             >
-              {PUURGA_GAMES_CATALOG.map((g) => (
+              {GAMES_CATALOG.map((g) => (
                 <option key={g.id} value={g.id}>
-                  {g.title}
+                  {getTranslatedGameName(g.id)}
                 </option>
               ))}
             </select>

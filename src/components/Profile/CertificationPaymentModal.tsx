@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { CreditCard, Smartphone, Loader2, X } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import api from '../../lib/axios';
-import Button from '../ui/Button';
+import Button from '../UI/Button';
 import CertificationBadges from './CertificationBadges';
 import {
   RDC_MOBILE_MONEY_NETWORKS,

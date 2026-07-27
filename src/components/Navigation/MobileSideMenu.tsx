@@ -154,7 +154,7 @@ const MobileSideMenu: React.FC<MobileSideMenuProps> = ({ open, onClose }) => {
     });
   }
 
-  const displayName = user?.name || user?.full_name || 'User';
+  const displayName = user?.name || 'User';
   const username = user?.username ? `@${user.username}` : '';
   const avatar = user?.avatar || DEFAULT_IMAGES.avatar;
 
