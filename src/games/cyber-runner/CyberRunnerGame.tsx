@@ -6,6 +6,7 @@ import {
   Compass, Skull, RefreshCw, Flame, Award, Play, AlertTriangle, ArrowRight,
   Info, Volume2, VolumeX, Crosshair, ZapOff, CheckCircle2, ChevronRight, Target
 } from 'lucide-react';
+import { useCredits } from '../../hooks/useCredits';
 
 const ZONES_CONFIG = {
   1: { name: 'Boot Sector (Phase 1)', theme: '#06b6d4', bg: ['#020813', '#051833'], enemyProb: 0.15 },
@@ -164,6 +165,7 @@ function syncRunnerLayout(state, canvasW, canvasH) {
 }
 
 export default function App() {
+  const { balance, addCredits, spendCredits, mergeLocalCredits } = useCredits();
   const [screen, setScreen] = useState('menu'); 
   const [credits, setCredits] = useState(() => {
     const saved = localStorage.getItem('purga_credits');
@@ -174,6 +176,24 @@ export default function App() {
     return saved ? parseInt(saved) : 450;
   });
   const [isMuted, setIsMuted] = useState(false);
+
+  // One-time migration: merge localStorage credits into unified economy
+  const [migrated, setMigrated] = useState(false);
+  useEffect(() => {
+    if (migrated) return;
+    const localCredits = parseInt(localStorage.getItem('purga_credits') || '0');
+    const localPoints = parseInt(localStorage.getItem('purga_points') || '0');
+    const totalLocal = localCredits + localPoints;
+    if (totalLocal > 0) {
+      mergeLocalCredits(totalLocal, 'cyber_runner').then(() => {
+        localStorage.removeItem('purga_credits');
+        localStorage.removeItem('purga_points');
+        setMigrated(true);
+      });
+    } else {
+      setMigrated(true);
+    }
+  }, [migrated, mergeLocalCredits]);
 
   const [stats, setStats] = useState(() => {
     const saved = localStorage.getItem('purga_stats');
@@ -220,8 +240,9 @@ export default function App() {
   });
 
   const saveUserData = (updatedCredits = credits, updatedPoints = purgaPoints, updatedStats = stats, updatedGear = gear, updatedSkins = ownedSkins, activeSkin = equippedSkin, updatedTrails = ownedTrails, activeTrail = equippedTrail) => {
-    localStorage.setItem('purga_credits', updatedCredits);
-    localStorage.setItem('purga_points', updatedPoints);
+    // Credits now managed by unified economy — don't write to localStorage
+    // localStorage.setItem('purga_credits', updatedCredits);
+    // localStorage.setItem('purga_points', updatedPoints);
     localStorage.setItem('purga_stats', JSON.stringify(updatedStats));
     localStorage.setItem('purga_gear', JSON.stringify(updatedGear));
     localStorage.setItem('purga_owned_skins', JSON.stringify(updatedSkins));
@@ -1673,6 +1694,7 @@ function GameArena({
 }
 
 function UpgradesScreen({ setScreen, stats, setStats, gear, setGear, credits, setCredits, saveUserData }) {
+  const { spendCredits: spendCreditsBackend } = useCredits();
   const statUpgrades = [
     { key: 'speed', name: 'Nano Thruster Modules', desc: 'Increases progressive runner agility & pace scaling', icon: Zap, color: 'text-orange-400' },
     { key: 'strength', name: 'Laser Blade Frequency', desc: 'Increases dynamic combat strike damage', icon: Sword, color: 'text-red-400' },
@@ -1703,6 +1725,7 @@ function UpgradesScreen({ setScreen, stats, setStats, gear, setGear, credits, se
       setCredits(nextCredits);
       setStats(nextStats);
       saveUserData(nextCredits, undefined, nextStats);
+      spendCreditsBackend(cost, `Cyber Runner upgrade: ${key}`);
       sfx.playCoin();
     } else {
       sfx.playHit();
@@ -1716,6 +1739,7 @@ function UpgradesScreen({ setScreen, stats, setStats, gear, setGear, credits, se
       setCredits(nextCredits);
       setGear(nextGear);
       saveUserData(nextCredits, undefined, undefined, nextGear);
+      spendCreditsBackend(item.cost, `Cyber Runner gear: ${item.name}`);
       sfx.playCoin();
     } else {
       sfx.playHit();
@@ -2022,6 +2046,8 @@ function ChallengesScreen({ setScreen, dailyChallenges, setDailyChallenges, setC
 function GameOverScreen({ 
   setScreen, runSummary, credits, setCredits, purgaPoints, setPurgaPoints, saveUserData 
 }) {
+  const { addCredits: addCreditsToBackend } = useCredits();
+  
   const claimRewards = () => {
     if (runSummary.rewardsClaimed) return;
 
@@ -2034,6 +2060,11 @@ function GameOverScreen({
     setCredits(nextCredits);
     setPurgaPoints(nextPoints);
     saveUserData(nextCredits, nextPoints);
+    
+    // Sync credits to unified economy backend
+    if (gainedCredits > 0) {
+      addCreditsToBackend(gainedCredits, 'Cyber Runner run rewards');
+    }
 
     sfx.playCoin();
     runSummary.rewardsClaimed = true;

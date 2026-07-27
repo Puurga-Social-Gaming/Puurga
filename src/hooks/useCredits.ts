@@ -10,49 +10,38 @@ export const useCredits = () => {
     const balance = user?.credits || 0;
 
     /**
-     * Syncs credits with the backend
-     */
-    const syncCreditsToBackend = useCallback(async (newBalance: number) => {
-        try {
-            await api.post('/credits/update', { credits: newBalance });
-            return true;
-        } catch (error) {
-            console.error('Failed to sync credits with backend:', error);
-            // Don't throw - we'll use optimistic updates
-            return false;
-        }
-    }, []);
-
-    /**
-     * Adds credits to the user's balance.
-     * Syncs with backend and updates local state.
+     * Add credits via server-validated endpoint.
+     * Server calculates and returns the new balance.
      */
     const addCredits = useCallback(async (amount: number, reason: string) => {
         if (!user) return false;
+        if (amount <= 0) return false;
 
         try {
-            // Optimistic Update
-            const newBalance = (user.credits || 0) + amount;
-            updateUser({ credits: newBalance });
+            const response = await api.post('/credits/spend', {
+                amount: -amount, // Negative = award
+                source: 'spend',
+                description: reason,
+            });
 
-            // Sync with backend
-            await syncCreditsToBackend(newBalance);
+            if (response.data?.success) {
+                const newBalance = response.data.credits;
+                updateUser({ credits: newBalance });
+                toast.success(`+${amount} Credits Earned!`);
+                return true;
+            }
 
-            // Also persist to localStorage for game sync
-            localStorage.setItem('perga_points', String(newBalance));
-
-            toast.success(`+${amount} Credits Earned!`);
-            console.log(`Credits added: ${amount} - ${reason}. New balance: ${newBalance}`);
-            return true;
+            toast.error('Could not sync credits');
+            return false;
         } catch (error) {
             console.error('Failed to add credits:', error);
             toast.error('Could not sync credits');
             return false;
         }
-    }, [user, updateUser, syncCreditsToBackend]);
+    }, [user, updateUser]);
 
     /**
-     * Deducts credits from the user's balance.
+     * Deduct credits via server-validated endpoint.
      */
     const spendCredits = useCallback(async (amount: number, reason: string) => {
         if (!user) return false;
@@ -62,25 +51,27 @@ export const useCredits = () => {
         }
 
         try {
-            // Optimistic Update
-            const newBalance = user.credits - amount;
-            updateUser({ credits: newBalance });
+            const response = await api.post('/credits/spend', {
+                amount,
+                source: 'spend',
+                description: reason,
+            });
 
-            // Sync with backend
-            await syncCreditsToBackend(newBalance);
+            if (response.data?.success) {
+                const newBalance = response.data.credits;
+                updateUser({ credits: newBalance });
+                toast.success(`-${amount} Credits`);
+                return true;
+            }
 
-            // Also persist to localStorage
-            localStorage.setItem('perga_points', String(newBalance));
-
-            toast.success(`-${amount} Credits`);
-            console.log(`Credits spent: ${amount} - ${reason}. New balance: ${newBalance}`);
-            return true;
+            toast.error('Transaction failed');
+            return false;
         } catch (error) {
             console.error('Failed to spend credits:', error);
             toast.error('Transaction failed');
             return false;
         }
-    }, [user, balance, updateUser, syncCreditsToBackend]);
+    }, [user, balance, updateUser]);
 
     /**
      * Deducts credits for game penalties (silent - no toast)
@@ -88,22 +79,74 @@ export const useCredits = () => {
     const deductPenalty = useCallback(async (amount: number, reason: string) => {
         if (!user || amount <= 0) return false;
 
-        const newBalance = Math.max(0, (user.credits || 0) - amount);
-        updateUser({ credits: newBalance });
+        try {
+            const response = await api.post('/credits/spend', {
+                amount,
+                source: 'game',
+                description: reason,
+            });
 
-        // Sync with backend
-        await syncCreditsToBackend(newBalance);
-
-        // Also persist to localStorage
-        localStorage.setItem('perga_points', String(newBalance));
-
-        console.log(`Penalty applied: ${amount} - ${reason}. New balance: ${newBalance}`);
-        return true;
-    }, [user, updateUser, syncCreditsToBackend]);
+            if (response.data?.success) {
+                updateUser({ credits: response.data.credits });
+                return true;
+            }
+            return false;
+        } catch (error) {
+            console.error('Failed to deduct penalty:', error);
+            return false;
+        }
+    }, [user, updateUser]);
 
     /**
-     * Helper to process game results automatically using the Economy Template.
-     * Handles both earnings and penalties.
+     * Process a game result via server-validated POST /games/finish.
+     * Server validates score, calculates rewards, and returns the result.
+     */
+    const processFullGameSession = useCallback(async (params: GameResultParams) => {
+        try {
+            const response = await api.post('/games/finish', {
+                gameId: params.gameId,
+                score: params.score,
+                timePlayed: 0, // Games don't track time yet — will be added per-game
+                isWin: params.isWin || false,
+                isPerfect: params.isPerfect || false,
+                metadata: {
+                    wrongAnswers: params.wrongAnswers,
+                    missedTargets: params.missedTargets,
+                    corruptionHits: params.corruptionHits,
+                },
+            });
+
+            if (response.data?.success) {
+                const { creditsAwarded, newBalance } = response.data;
+                updateUser({ credits: newBalance });
+
+                // Update local high score
+                const highKey = `puurga_high_${params.gameId}`;
+                const prevHigh = Number(localStorage.getItem(highKey) || 0);
+                if (params.score > prevHigh) {
+                    localStorage.setItem(highKey, String(params.score));
+                }
+
+                return {
+                    earned: creditsAwarded,
+                    lost: 0,
+                    net: creditsAwarded,
+                };
+            }
+
+            // Fallback: calculate locally if server is unavailable
+            const result = calculateGameResult(params);
+            return result;
+        } catch (error) {
+            console.error('Game finish failed, falling back to local calculation:', error);
+            // Graceful fallback — calculate locally
+            const result = calculateGameResult(params);
+            return result;
+        }
+    }, [updateUser]);
+
+    /**
+     * Simpler wrapper for game results (used by some games)
      */
     const processGameResult = useCallback(async (
         gameId: string,
@@ -111,53 +154,36 @@ export const useCredits = () => {
         isPerfect: boolean = false,
         additionalParams?: Partial<GameResultParams>
     ) => {
-        const result = calculateGameResult({
+        return processFullGameSession({
             gameId,
             score,
             isPerfect,
             ...additionalParams
         });
-
-        if (result.net > 0) {
-            await addCredits(result.net, `Played ${gameId}: Score ${score}`);
-        }
-
-        return result;
-    }, [addCredits]);
+    }, [processFullGameSession]);
 
     /**
-     * Process comprehensive game session with all details
+     * Merge localStorage credits into backend (one-time migration for disconnected games)
      */
-    const processFullGameSession = useCallback(async (params: GameResultParams) => {
-        const result = calculateGameResult(params);
+    const mergeLocalCredits = useCallback(async (localAmount: number, source: string) => {
+        if (!user || localAmount <= 0) return false;
 
-        if (result.net > 0) {
-            await addCredits(result.net, `${params.gameId} session complete`);
-        } else if (result.net < 0) {
-            await deductPenalty(Math.abs(result.net), `${params.gameId} session penalty`);
-        }
-
-        // Social competition: notify friends about the session (non-blocking)
         try {
-            const highKey = `puurga_high_${params.gameId}`;
-            const prevHigh = Number(localStorage.getItem(highKey) || 0);
-            const isHighScore = params.score > prevHigh;
-            if (isHighScore) localStorage.setItem(highKey, String(params.score));
-
-            await api.post('/games/session-complete', {
-                gameId: params.gameId,
-                gameName: params.gameId,
-                score: params.score,
-                // Credits already applied client-side — don't double-award on server
-                pointsEarned: 0,
-                isHighScore,
+            const response = await api.post('/credits/merge', {
+                amount: localAmount,
+                source,
             });
-        } catch (e) {
-            console.warn('Game activity notify skipped:', e);
-        }
 
-        return result;
-    }, [addCredits, deductPenalty]);
+            if (response.data?.success) {
+                updateUser({ credits: response.data.credits });
+                return true;
+            }
+            return false;
+        } catch (error) {
+            console.error('Failed to merge credits:', error);
+            return false;
+        }
+    }, [user, updateUser]);
 
     /**
      * Fetch credits from backend and sync local state
@@ -167,7 +193,6 @@ export const useCredits = () => {
             const response = await api.get('/credits');
             if (response.data && typeof response.data.credits === 'number') {
                 updateUser({ credits: response.data.credits });
-                localStorage.setItem('perga_points', String(response.data.credits));
                 return response.data.credits;
             }
         } catch (error) {
@@ -183,6 +208,7 @@ export const useCredits = () => {
         deductPenalty,
         processGameResult,
         processFullGameSession,
+        mergeLocalCredits,
         refreshCredits,
         economyRules: GAME_ECONOMY
     };

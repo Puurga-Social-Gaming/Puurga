@@ -55,8 +55,10 @@ import callsRoutes from './routes/calls';
 import matchmakingRoutes from './routes/matchmaking';
 import cryptoRoutes from './routes/crypto';
 import certificationsRoutes from './routes/certifications';
+import progressionRoutes from './routes/progression';
 import { errorHandler } from './middleware/errorHandler';
 import { PushNotificationService } from './services/pushNotificationService';
+import { progressionEngine } from './services/progressionEngine';
 
 
 
@@ -279,6 +281,7 @@ app.use('/api/calls', callsRoutes);
 app.use('/api/matchmaking', matchmakingRoutes);
 app.use('/api/crypto', cryptoRoutes);
 app.use('/api/certifications', certificationsRoutes);
+app.use('/api/progression', progressionRoutes);
 
 // Global Error Handler (Must be last)
 app.use(errorHandler);
@@ -288,6 +291,9 @@ app.use(errorHandler);
 const server = createServer(app);
 const wsManager = WebSocketManager.getInstance();
 wsManager.initialize(server);
+
+// Initialize Progression Engine (event-driven XP, achievements, missions)
+progressionEngine.initialize();
 
 // Start inactivity scheduler (runs every 24 hours)
 import { InactivityService } from './services/inactivityService';

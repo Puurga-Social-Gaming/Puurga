@@ -6,6 +6,7 @@ import {
   Volume2, VolumeX, Flame, ShoppingBag, EyeOff,
   Coins, ArrowRight, Share2, Play, Award
 } from 'lucide-react';
+import { useCredits } from '../../hooks/useCredits';
 
 // Web Audio Synthesis class for immersive high-fidelity sci-fi sounds
 class RiftSoundSynth {
@@ -194,14 +195,27 @@ const SHOP_ITEMS = [
 ];
 
 export default function PurgaRiftGame() {
+  const { balance, addCredits, spendCredits, mergeLocalCredits } = useCredits();
   const [view, setView] = useState('hub'); // hub, game, shop, leaderboard, social, gameover
   const [score, setScore] = useState(0);
   const [level, setLevel] = useState(1);
   const [trust, setTrust] = useState(100);
-  const [puurgaPoints, setPuurgaPoints] = useState(() => {
+  // Migrate localStorage credits to unified economy on first load
+  const [migrated, setMigrated] = useState(false);
+  useEffect(() => {
+    if (migrated) return;
     const saved = localStorage.getItem('purga_rift_points');
-    return saved ? parseInt(saved) : 45;
-  });
+    const localCredits = saved ? parseInt(saved) : 0;
+    if (localCredits > 0) {
+      mergeLocalCredits(localCredits, 'purga_rift').then(() => {
+        localStorage.removeItem('purga_rift_points');
+        setMigrated(true);
+      });
+    } else {
+      setMigrated(true);
+    }
+  }, [migrated, mergeLocalCredits]);
+  const puurgaPoints = balance;
   const [unlockedCosmetics, setUnlockedCosmetics] = useState(() => {
     const saved = localStorage.getItem('purga_rift_unlocked');
     return saved ? JSON.parse(saved) : ['theme-emerald'];
@@ -359,8 +373,7 @@ export default function PurgaRiftGame() {
     };
   }, [gameMode]);
 
-  // Persist game state to localStorage
-  useEffect(() => { localStorage.setItem('purga_rift_points', puurgaPoints); }, [puurgaPoints]);
+  // Persist game state to localStorage (credits now handled by unified economy)
   useEffect(() => { localStorage.setItem('purga_rift_unlocked', JSON.stringify(unlockedCosmetics)); }, [unlockedCosmetics]);
   useEffect(() => { localStorage.setItem('purga_rift_theme', activeTheme); }, [activeTheme]);
   useEffect(() => { localStorage.setItem('purga_rift_title', activeTitle); }, [activeTitle]);
@@ -393,8 +406,8 @@ export default function PurgaRiftGame() {
         rewards: didWin ? 30 : 5
       };
       setBattleHistory(prev => [finalBattleState, ...prev]);
-      if (didWin) setPuurgaPoints(prev => prev + 30);
-      else setPuurgaPoints(prev => prev + 5);
+      if (didWin) addCredits(30, 'Purga Rift battle victory');
+      else addCredits(5, 'Purga Rift battle defeat');
     }
     setView('gameover');
   }, [score, activeBattleId, battleOpponent, battleOpponentScore]);
@@ -623,7 +636,7 @@ export default function PurgaRiftGame() {
       setScore(prev => prev + basePoints);
       setStreak(prev => prev + 1);
       setTrust(prev => Math.min(100, prev + 5));
-      setPuurgaPoints(prev => prev + (2 * ptMultiplier));
+      addCredits(2 * ptMultiplier, 'Purga Rift correct answer');
 
       // Level progressions
       const nextLvl = level + 1;
@@ -660,7 +673,7 @@ export default function PurgaRiftGame() {
   const handlePurchase = (item) => {
     if (puurgaPoints >= item.price && !unlockedCosmetics.includes(item.id)) {
       synth.playSuccess();
-      setPuurgaPoints(prev => prev - item.price);
+      spendCredits(item.price, `Purga Rift cosmetic: ${item.label || item.id}`);
       setUnlockedCosmetics(prev => [...prev, item.id]);
       if (item.type === 'theme') {
         setActiveTheme(item.id);

@@ -8,7 +8,7 @@ import {
 } from '../useIntegratedGameViewport';
 import '../integratedGameMobile.css';
 
-const PurgaRiftGame = React.lazy(() => import('./PASTE_GAME_HERE'));
+const PurgaRiftGame = React.lazy(() => import('../../../games/purga-rift'));
 
 const GameLoadingFallback: React.FC = () => (
   <div className="flex min-h-screen items-center justify-center bg-neutral-950">

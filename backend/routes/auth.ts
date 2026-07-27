@@ -6,6 +6,7 @@ import { normalizeImageUrl } from '../utils/url';
 import { logSuperAdminAction } from '../utils/auditLogger';
 import { CreditService } from '../services/creditService';
 import { NotificationService } from '../services/notificationService';
+import { progressionEngine } from '../services/progressionEngine';
 
 const router = express.Router();
 
@@ -217,7 +218,13 @@ router.post('/login', async (req, res) => {
     });
 
     // Award daily login bonus
-    await CreditService.checkAndAwardDailyLoginBonus(authData.user.id);
+    const bonusAwarded = await CreditService.checkAndAwardDailyLoginBonus(authData.user.id);
+    
+    // Emit progression event (XP for daily login)
+    progressionEngine.safeEmit('UserLogin', {
+      userId: authData.user.id,
+      isDailyBonus: bonusAwarded,
+    });
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).json({

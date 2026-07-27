@@ -165,7 +165,8 @@ interface MatchFoundPayload {
 interface WebSocketMessage {
   type: 'new_message' | 'message_edited' | 'message_deleted' | 'message_hidden' | 'message_read' | 'message_reaction' | 'typing' | 'draft_started' | 'draft_updated' | 'draft_stopped' | 'draft_sent' | 'group_message' | 'group_message_reaction' | 'group_typing' | 'notification' | 'user_online' | 'user_offline' | 'credit_update' | 'profile_update' | 'credits_updated' | 'survival_update' | 'alliance_update' | 'match_found' | 'call_invite_update'
     | 'challenge_sent' | 'challenge_received' | 'challenge_accepted' | 'challenge_declined' | 'challenge_started' | 'challenge_finished' | 'challenge_reward'
-    | 'friend_started_game' | 'friend_left_game' | 'leaderboard_updated';
+    | 'friend_started_game' | 'friend_left_game' | 'leaderboard_updated'
+    | 'xp_update' | 'level_up';
   payload: any;
 }
 

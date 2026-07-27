@@ -8,6 +8,7 @@ import { CreditService } from '../services/creditService';
 import { NotificationService } from '../services/notificationService';
 import { validateNotGhosted } from '../middleware/restrictGhosted';
 import { areBlocked, getBidirectionalBlockedIds } from '../utils/friendRelations';
+import { progressionEngine } from '../services/progressionEngine';
 
 const router = express.Router();
 
@@ -284,6 +285,13 @@ router.post('/posts/:postId/comments', auth, validateNotGhosted, async (req: Aut
         await CreditService.awardCredits(post.user_id, 3, 'comment', 'Receive comment');
       }
     }
+
+    // Emit progression event
+    progressionEngine.safeEmit('CommentCreated', {
+      userId,
+      postId,
+      postAuthorId: post?.user_id,
+    });
 
     await CreditService.updateLastActiveAt(userId);
 

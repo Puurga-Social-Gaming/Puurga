@@ -31,6 +31,7 @@ export type NotificationType =
   | 'verification'
   | 'security_alert'
   | 'maintenance'
+  | 'system'
   // Existing
   | 'friend_request'
   | 'friend_request_accepted'

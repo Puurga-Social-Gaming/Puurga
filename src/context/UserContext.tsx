@@ -56,6 +56,9 @@ export interface User {
   accountStatus?: AccountStatus;
   inactivityLevel?: number;
   lastActiveAt?: string;
+  // XP / Progression fields
+  xp?: number;
+  level?: number;
 }
 
 interface UserContextType {
@@ -235,6 +238,18 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
       if (user && payload.userId === user.id) {
         console.log('Global profile update (ghost mode):', payload);
         updateUser({ isGhost: payload.isGhost, purgeCount: payload.purgeCount });
+      }
+    },
+    onXpUpdate: (payload) => {
+      if (user && payload.userId === user.id) {
+        console.log('XP update:', payload.xp, 'Level:', payload.level);
+        updateUser({ xp: payload.xp, level: payload.level });
+      }
+    },
+    onLevelUp: (payload) => {
+      if (user && payload.userId === user.id) {
+        console.log('Level up!', payload.level, payload.title);
+        updateUser({ level: payload.level });
       }
     }
   });

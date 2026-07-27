@@ -11,6 +11,7 @@ import {
 import { Toaster } from 'react-hot-toast';
 import RouteLoadingBar from './components/RouteLoadingBar';
 import { retryableLazy } from './utils/retryableLazy';
+import LevelUpAnimation from './components/Progression/LevelUpAnimation';
 
 const Home = retryableLazy(() => import('./pages/Home'));
 const Profile = retryableLazy(() => import('./pages/Profile'));
@@ -265,6 +266,7 @@ const App: React.FC = () => {
                       },
                     }}
                   />
+                  <LevelUpAnimation />
                 <RouterProvider
                   router={router}
                   future={{ v7_startTransition: true }}

@@ -33,7 +33,7 @@ const GAME_CONFIG = {
 const PathOfTheWatchman = () => {
     const navigate = useNavigate();
     const { t } = useTranslation();
-    const { addCredits, balance: userBalance } = useCredits();
+    const { processFullGameSession, balance: userBalance } = useCredits();
 
     // Game State
     const [gameState, setGameState] = useState('START'); // START, PLAYING, GAMEOVER
@@ -604,7 +604,7 @@ const PathOfTheWatchman = () => {
         };
     }, []);
 
-    // Award Credits Integration
+    // Award Credits Integration — server-validated via /games/finish
     useEffect(() => {
         if (gameState === 'GAMEOVER') {
             const calcCredits = Math.floor((score / 10) * (1 + combo * 0.1));
@@ -612,12 +612,17 @@ const PathOfTheWatchman = () => {
 
             // Award credits exactly once per game over
             if (calcCredits > 0 && !awardedRef.current) {
-                addCredits(calcCredits, 'Path of the Watchman Reward');
+                processFullGameSession({
+                    gameId: 'PATH_OF_WATCHMAN',
+                    score,
+                    isWin: health > 0,
+                    isPerfect: false,
+                });
                 toast.success(t('games.watchman.earnedCredits', { credits: calcCredits }));
                 awardedRef.current = true;
             }
         }
-    }, [gameState, score, combo, addCredits]);
+    }, [gameState, score, combo, processFullGameSession]);
 
     const CooldownButton = ({ icon: Icon, label, progress, onClick, color = COLORS.accent }: any) => (
         <button

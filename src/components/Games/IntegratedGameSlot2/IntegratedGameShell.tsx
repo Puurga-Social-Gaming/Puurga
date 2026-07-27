@@ -8,7 +8,7 @@ import {
 import '../integratedGameMobile.css';
 
 /** Explicit .tsx path avoids stale lazy chunks from old placeholder builds */
-const Slot2Game = React.lazy(() => import('./PASTE_GAME_HERE.tsx'));
+const Slot2Game = React.lazy(() => import('../../../games/cyber-runner'));
 
 const GameLoadingFallback: React.FC = () => (
   <div className="flex min-h-screen items-center justify-center bg-neutral-950">

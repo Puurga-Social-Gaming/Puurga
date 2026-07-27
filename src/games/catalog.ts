@@ -3,6 +3,7 @@ import i18n from '../i18n';
 
 export type GameDifficulty = 'Easy' | 'Medium' | 'Hard';
 export type GameStatus = 'live' | 'coming-soon' | 'disabled';
+export type IntegratedSlotId = 'rift' | 'slot2';
 
 export interface GameEntry {
   id: string;
@@ -118,7 +119,7 @@ export const GAMES_CATALOG: GameEntry[] = [
     loader: purgaRiftLoader,
     accentColor: 'text-violet-400',
     loadingLabel: 'OPENING RIFT...',
-    usesUnifiedEconomy: false,
+    usesUnifiedEconomy: true,
     rating: 4.7,
     playerCount: 483,
     gradient: 'from-fuchsia-600/80 via-purple-500/60 to-violet-600/80',
@@ -139,7 +140,7 @@ export const GAMES_CATALOG: GameEntry[] = [
     loader: cyberRunnerLoader,
     accentColor: 'text-amber-400',
     loadingLabel: 'LOADING...',
-    usesUnifiedEconomy: false,
+    usesUnifiedEconomy: true,
     rating: 4.5,
     playerCount: 1240,
     gradient: 'from-cyan-600/80 via-blue-500/60 to-indigo-600/80',

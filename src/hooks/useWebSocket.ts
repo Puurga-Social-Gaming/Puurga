@@ -31,6 +31,8 @@ interface UseWebSocketOptions {
   onCreditUpdate?: (payload: { userId: string; credits: number; change?: number; source?: string }) => void;
   onProfileUpdate?: (payload: { userId: string; isGhost: boolean; purgeCount?: number }) => void;
   onSurvivalUpdate?: (payload: { userId: string; survivalState: string; reputationScore: number; threatLevel: number; socialRank: string; inactivityLevel: number; ghostStatus: boolean; warningLevel?: number; visibilityScore?: number; purgePressure?: number; collapseRisk?: number; purgeCount?: number; purgatoryStatus?: boolean; purgatoryEnteredAt?: string; redemptionProgress?: number; redemptionRequested?: boolean }) => void;
+  onXpUpdate?: (payload: { userId: string; xp: number; level: number; change: number; reason: string }) => void;
+  onLevelUp?: (payload: { userId: string; level: number; title: string; bonusCredits?: number }) => void;
   onConnectionChange?: (connected: boolean) => void;
 }
 
@@ -146,6 +148,16 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
       unsubscribers.push(unsubscribe);
     }
 
+    if (options.onXpUpdate) {
+      const unsubscribe = websocketService.on('xp_update', options.onXpUpdate);
+      unsubscribers.push(unsubscribe);
+    }
+
+    if (options.onLevelUp) {
+      const unsubscribe = websocketService.on('level_up', options.onLevelUp);
+      unsubscribers.push(unsubscribe);
+    }
+
     if (options.onConnectionChange) {
       const unsubscribe = websocketService.on('connection', (data: { connected: boolean }) => {
         options.onConnectionChange!(data.connected);
@@ -156,7 +168,7 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
     unsubscribersRef.current = unsubscribers;
 
     return cleanup;
-  }, [options.onNotification, options.onMessage, options.onMessageEdited, options.onMessageDeleted, options.onMessageHidden, options.onMessageReaction, options.onMessageRead, options.onGroupMessage, options.onGroupMessageReaction, options.onGroupTyping, options.onMatchFound, options.onTyping, options.onDraftStarted, options.onDraftUpdated, options.onDraftStopped, options.onDraftSent, options.onUserStatusChange, options.onCreditUpdate, options.onProfileUpdate, options.onSurvivalUpdate, options.onConnectionChange, cleanup]);
+  }, [options.onNotification, options.onMessage, options.onMessageEdited, options.onMessageDeleted, options.onMessageHidden, options.onMessageReaction, options.onMessageRead, options.onGroupMessage, options.onGroupMessageReaction, options.onGroupTyping, options.onMatchFound, options.onTyping, options.onDraftStarted, options.onDraftUpdated, options.onDraftStopped, options.onDraftSent, options.onUserStatusChange, options.onCreditUpdate, options.onProfileUpdate, options.onSurvivalUpdate, options.onXpUpdate, options.onLevelUp, options.onConnectionChange, cleanup]);
 
   return {
     isConnected: websocketService.isConnected(),

@@ -512,10 +512,14 @@ const PuurgaDashboard: React.FC = () => {
 
       if (reward.points > 0 && user) {
         try {
-          const newBalance = (user.credits || userStats.credits || 0) + reward.points;
+          // Use merge endpoint for dashboard reward credits
+          const response = await api.post('/credits/merge', {
+            amount: reward.points,
+            source: 'dashboard_wheel',
+          });
+          const newBalance = response.data?.credits || (user.credits || userStats.credits || 0) + reward.points;
           updateUser({ credits: newBalance });
           setUserStats((prev) => ({ ...prev, credits: newBalance }));
-          await api.post('/credits/update', { credits: newBalance });
           toast.success(`Wheel: ${reward.label}`);
         } catch {
           toast.success(reward.label);

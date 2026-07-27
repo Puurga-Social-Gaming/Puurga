@@ -13,6 +13,7 @@ import { createNotification } from './createNotification';
 import { validateNotGhosted } from '../middleware/restrictGhosted';
 import { NotificationService } from '../services/notificationService';
 import { serializeMediaUrls, parseMediaUrls } from '../utils/mediaUrls';
+import { progressionEngine } from '../services/progressionEngine';
 
 const router = express.Router();
 
@@ -276,76 +277,32 @@ router.get('/points', auth, async (req: AuthRequest, res) => {
   }
 });
 
+// DEPRECATED: PUT /api/users/points — Use CreditService.awardCredits/deductCredits instead.
+// Kept as a read-only endpoint for backward compatibility. No longer writes credits.
 router.put('/points', auth, async (req: AuthRequest, res) => {
   try {
     const { id } = req.user;
-    const rawPoints = (req.body as any)?.points;
-    const rawDelta = (req.body as any)?.delta;
 
-    const hasPoints = typeof rawPoints === 'number' && Number.isFinite(rawPoints);
-    const hasDelta = typeof rawDelta === 'number' && Number.isFinite(rawDelta);
-    if (!hasPoints && !hasDelta) {
-      return res.status(400).json({ error: 'Provide either numeric points or delta' });
-    }
-    if (hasPoints && hasDelta) {
-      return res.status(400).json({ error: 'Provide either points or delta, not both' });
-    }
-
-    let nextPoints = 0;
-
-    if (hasDelta) {
-      const { data: existing, error: existingErr } = await supabase
-        .from('profiles')
-        .select('purga_points')
-        .eq('id', id)
-        .maybeSingle();
-
-      if (existingErr) {
-        const msg = String((existingErr as any).message || '').toLowerCase();
-        const code = String((existingErr as any).code || '');
-        if (code === '42703' || msg.includes('purga_points')) {
-          return res.json({ points: null, supported: false });
-        }
-        return res.status(500).json({ error: 'Failed to fetch points' });
-      }
-
-      const current = Number((existing as any)?.purga_points ?? 0);
-      const safeCurrent = Number.isFinite(current) ? current : 0;
-      nextPoints = Math.max(0, safeCurrent + Number(rawDelta));
-    } else {
-      nextPoints = Math.max(0, Number(rawPoints));
-    }
-
-    const { data: updated, error: updateErr } = await supabase
+    const { data, error } = await supabase
       .from('profiles')
-      .update({ purga_points: nextPoints, updated_at: new Date().toISOString() })
-      .eq('id', id)
       .select('purga_points')
+      .eq('id', id)
       .maybeSingle();
 
-    if (updateErr) {
-      const msg = String((updateErr as any).message || '').toLowerCase();
-      const code = String((updateErr as any).code || '');
+    if (error) {
+      const msg = String((error as any).message || '').toLowerCase();
+      const code = String((error as any).code || '');
       if (code === '42703' || msg.includes('purga_points')) {
         return res.json({ points: null, supported: false });
       }
-      return res.status(500).json({ error: 'Failed to update points' });
+      return res.status(500).json({ error: 'Failed to fetch points' });
     }
 
-    const points = Number.isFinite(Number((updated as any)?.purga_points))
-      ? Number((updated as any)?.purga_points)
-      : nextPoints;
-
-    // Emit credit update via WebSocket
-    wsManager.sendToUser(id, {
-      type: 'credit_update',
-      payload: { userId: id, credits: points }
-    });
-
-    res.json({ points, supported: true });
+    const points = Number((data as any)?.purga_points ?? 0);
+    res.json({ points: Number.isFinite(points) ? points : 0, supported: true });
   } catch (error) {
-    console.error('Error updating points:', error);
-    res.status(500).json({ error: 'Failed to update points' });
+    console.error('Error fetching points:', error);
+    res.status(500).json({ error: 'Failed to fetch points' });
   }
 });
 
@@ -902,6 +859,9 @@ router.post('/posts', auth, validateNotGhosted, async (req: AuthRequest, res) =>
     // Award credits
     await CreditService.awardCredits(user_id, 5, 'post', 'Create post');
     await CreditService.updateLastActiveAt(user_id);
+
+    // Emit progression event (XP, future: achievements, missions)
+    progressionEngine.safeEmit('PostCreated', { userId: user_id, postId: createdPost.id });
 
     console.log('Post created successfully:', createdPost.id);
     const responseImages = parseMediaUrls(createdPost.media_url || media_url)

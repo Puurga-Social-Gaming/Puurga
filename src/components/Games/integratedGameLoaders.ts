@@ -1,5 +1,5 @@
 import { lazy, type ComponentType, type LazyExoticComponent } from 'react';
-import type { IntegratedSlotId } from '../../config/puurgaGamesCatalog';
+import type { IntegratedSlotId } from '../../games/catalog';
 import type { PuurgaGameProps } from './IntegratedGame/types';
 
 type IntegratedShell = ComponentType<PuurgaGameProps>;

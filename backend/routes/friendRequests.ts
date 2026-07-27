@@ -4,6 +4,7 @@ import { supabaseAuth as auth, AuthRequest } from '../middleware/supabaseAuth';
 import { createNotification } from './createNotification';
 import { validateNotGhosted } from '../middleware/restrictGhosted';
 import { areBlocked, syncMutualFollows } from '../utils/friendRelations';
+import { progressionEngine } from '../services/progressionEngine';
 
 const router = express.Router();
 
@@ -329,6 +330,12 @@ router.post('/:requestId/accept', auth, async (req: AuthRequest, res) => {
       senderId: user.id,
       receiverId: request.sender_id,
       // friendRequestId removed (column not in DB)
+    });
+
+    // Emit progression event (XP for both users)
+    progressionEngine.safeEmit('FriendAdded', {
+      userId: request.sender_id,
+      friendId: request.receiver_id,
     });
 
     res.json({ message: 'Friend request accepted', status: 'accepted' });

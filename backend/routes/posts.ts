@@ -10,6 +10,7 @@ import { validateNotGhosted } from '../middleware/restrictGhosted';
 import { getMutedIds, getBidirectionalBlockedIds, getAcceptedFriendIds } from '../utils/friendRelations';
 import { isTransientError } from '../utils/transientError';
 import { parseMediaUrls } from '../utils/mediaUrls';
+import { progressionEngine } from '../services/progressionEngine';
 
 const router = express.Router();
 
@@ -828,6 +829,13 @@ router.post('/:postId/react', auth, validateNotGhosted, async (req: AuthRequest,
 
             // Send like notification to post owner
             await NotificationService.like(userId, post.user_id, postId);
+
+            // Emit progression event (XP for both users)
+            progressionEngine.safeEmit('PostLiked', {
+              userId,
+              postId,
+              authorId: post.user_id,
+            });
           }
         }
       }

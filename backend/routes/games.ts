@@ -5,6 +5,101 @@ import { normalizeImageUrl } from '../utils/url';
 import { ChallengeService, CHALLENGE_STAKE_PRESETS } from '../services/challengeService';
 import { NotificationService } from '../services/notificationService';
 import { CreditService } from '../services/creditService';
+import { progressionEngine } from '../services/progressionEngine';
+
+// ─── Server-side Game Validation Config ─────────────────────
+// Score bounds + rate limiting to prevent cheating
+
+interface GameValidationConfig {
+  maxScore: number;
+  minTimeMs: number;
+  maxPerMinute: number;
+}
+
+const GAME_VALIDATORS: Record<string, GameValidationConfig> = {
+  SWORD_OF_JUDGMENT: { maxScore: 50000, minTimeMs: 30000, maxPerMinute: 2 },
+  PATH_OF_WATCHMAN: { maxScore: 100000, minTimeMs: 30000, maxPerMinute: 2 },
+  REDEMPTION: { maxScore: 3000, minTimeMs: 60000, maxPerMinute: 1 },
+  PURGA_RIFT: { maxScore: 10000, minTimeMs: 30000, maxPerMinute: 2 },
+  CYBER_RUNNER: { maxScore: 500000, minTimeMs: 20000, maxPerMinute: 2 },
+};
+
+// In-memory rate limiter (per userId, per game)
+const gameCompletions = new Map<string, number[]>();
+
+// Game economy config (server-side mirror of src/constants/GameEconomy.ts)
+const GAME_ECONOMY_SERVER: Record<string, {
+  scoreToCreditsRatio: number;
+  completion: number;
+  win: number;
+  perfectScore: number;
+  penalties: Record<string, number>;
+}> = {
+  SWORD_OF_JUDGMENT: {
+    scoreToCreditsRatio: 0.1,
+    completion: 15,
+    win: 25,
+    perfectScore: 75,
+    penalties: { corruption: 10, missedTarget: 2 },
+  },
+  PATH_OF_WATCHMAN: {
+    scoreToCreditsRatio: 0.08,
+    completion: 20,
+    win: 50,
+    perfectScore: 0,
+    penalties: { corruption: 5 },
+  },
+  REDEMPTION: {
+    scoreToCreditsRatio: 1.0,
+    completion: 20,
+    win: 0,
+    perfectScore: 50,
+    penalties: { wrongAnswer: 5 },
+  },
+  PURGA_RIFT: {
+    scoreToCreditsRatio: 0.12,
+    completion: 25,
+    win: 40,
+    perfectScore: 80,
+    penalties: { wrongAnswer: 8 },
+  },
+  CYBER_RUNNER: {
+    scoreToCreditsRatio: 0.1,
+    completion: 20,
+    win: 35,
+    perfectScore: 70,
+    penalties: { missedTarget: 3, corruption: 5 },
+  },
+};
+
+function calculateServerReward(
+  gameId: string,
+  score: number,
+  isWin: boolean,
+  isPerfect: boolean,
+  metadata?: Record<string, unknown>
+): { credits: number; isWin: boolean; isPerfect: boolean } {
+  const rules = GAME_ECONOMY_SERVER[gameId];
+  if (!rules) {
+    // Unknown game — conservative default
+    return { credits: Math.min(10, Math.floor(score * 0.05)), isWin, isPerfect };
+  }
+
+  let earned = Math.floor(score * rules.scoreToCreditsRatio);
+  earned += rules.completion;
+  if (isWin && rules.win) earned += rules.win;
+  if (isPerfect && rules.perfectScore) earned += rules.perfectScore;
+
+  // Apply penalties from metadata
+  if (rules.penalties && metadata) {
+    for (const [key, penalty] of Object.entries(rules.penalties)) {
+      const hits = Number(metadata[key]) || 0;
+      earned -= penalty * hits;
+    }
+  }
+
+  return { credits: Math.max(0, earned), isWin, isPerfect };
+}
 
 const router = express.Router();
 
@@ -311,6 +406,120 @@ router.get('/stats', auth, async (req: AuthRequest, res) => {
   } catch (error) {
     console.error('Error fetching game stats:', error);
     res.status(500).json({ error: 'Failed to fetch game stats' });
+  }
+});
+
+// ─── Server-Validated Game Finish ───────────────────────────
+
+router.post('/finish', auth, async (req: AuthRequest, res) => {
+  try {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    const userId = req.user.id;
+    const { gameId, score, timePlayed, isWin, isPerfect, metadata } = req.body || {};
+
+    // 1. Validate required fields
+    if (!gameId || typeof gameId !== 'string') {
+      return res.status(400).json({ error: 'gameId is required' });
+    }
+    if (typeof score !== 'number' || !Number.isFinite(score)) {
+      return res.status(400).json({ error: 'score must be a number' });
+    }
+
+    // 2. Validate game exists
+    const validator = GAME_VALIDATORS[gameId];
+    if (!validator) {
+      return res.status(400).json({ error: `Unknown game: ${gameId}` });
+    }
+
+    // 3. Validate score bounds
+    const floorScore = Math.max(0, Math.floor(score));
+    if (floorScore > validator.maxScore) {
+      console.warn(`Game finish: Score ${floorScore} exceeds max ${validator.maxScore} for ${gameId} by user ${userId}`);
+      return res.status(400).json({ error: 'Score exceeds maximum allowed' });
+    }
+
+    // 4. Validate time played
+    if (typeof timePlayed === 'number' && timePlayed < validator.minTimeMs) {
+      console.warn(`Game finish: Time ${timePlayed}ms below minimum ${validator.minTimeMs}ms for ${gameId} by user ${userId}`);
+      return res.status(400).json({ error: 'Completion time too fast' });
+    }
+
+    // 5. Rate limit: max N games per minute
+    const now = Date.now();
+    const rateKey = `${userId}:${gameId}`;
+    const recent = (gameCompletions.get(rateKey) || []).filter(t => now - t < 60000);
+    if (recent.length >= validator.maxPerMinute) {
+      return res.status(429).json({ error: 'Too many games completed. Please wait.' });
+    }
+    recent.push(now);
+    gameCompletions.set(rateKey, recent);
+
+    // 6. Calculate rewards server-side
+    const reward = calculateServerReward(
+      gameId,
+      floorScore,
+      Boolean(isWin),
+      Boolean(isPerfect),
+      metadata
+    );
+
+    // 7. Award credits via CreditService
+    let newBalance = 0;
+    if (reward.credits > 0) {
+      const result = await CreditService.awardCredits(
+        userId,
+        reward.credits,
+        'game',
+        `${gameId} completed (score: ${floorScore})`
+      );
+      newBalance = result.newBalance;
+    } else {
+      newBalance = await CreditService.getCredits(userId);
+    }
+
+    // 8. Record game session
+    try {
+      await supabase.from('game_sessions').insert({
+        user_id: userId,
+        game_id: gameId,
+        score: floorScore,
+        points_earned: reward.credits,
+        created_at: new Date().toISOString(),
+      });
+    } catch {
+      // table may not exist — non-fatal
+    }
+
+    // 9. Notify friends (non-blocking)
+    NotificationService.gameActivity(userId, {
+      gameId,
+      gameName: gameId,
+      score: floorScore,
+      pointsEarned: reward.credits || undefined,
+      isHighScore: false,
+    }).catch(() => {});
+
+    // Emit progression event (XP for game completion)
+    progressionEngine.safeEmit('GameFinished', {
+      userId,
+      gameId,
+      score: floorScore,
+      isWin: reward.isWin,
+      isPerfect: reward.isPerfect,
+    });
+
+    // 10. Return validated result
+    res.json({
+      success: true,
+      creditsAwarded: reward.credits,
+      newBalance,
+      score: floorScore,
+      isWin: reward.isWin,
+      isPerfect: reward.isPerfect,
+    });
+  } catch (error) {
+    console.error('Error in game finish:', error);
+    res.status(500).json({ error: 'Failed to process game completion' });
   }
 });
 

@@ -89,43 +89,56 @@ router.get('/transactions', auth, async (req: AuthRequest, res) => {
   }
 });
 
-// POST /api/credits/update - Update user's credit balance
-router.post('/update', auth, async (req: AuthRequest, res) => {
+// POST /api/credits/spend - Server-validated credit deduction (replaces old /update bypass)
+router.post('/spend', auth, async (req: AuthRequest, res) => {
   try {
     const userId = req.user.id;
-    const { credits } = req.body;
+    const { amount, source, description } = req.body;
 
-    if (typeof credits !== 'number' || credits < 0) {
-      return res.status(400).json({ error: 'Invalid credits value' });
+    if (typeof amount !== 'number' || !Number.isFinite(amount) || amount <= 0) {
+      return res.status(400).json({ error: 'Invalid amount' });
     }
 
-    const { data: updatedProfile, error } = await supabase
-      .from('profiles')
-      .update({ purga_points: credits, credits: credits, updated_at: new Date().toISOString() })
-      .eq('id', userId)
-      .select('purga_points, credits')
-      .single();
+    const validSources = ['package', 'certification', 'transfer', 'spend'];
+    const spendSource = validSources.includes(source) ? source : 'spend';
 
-    if (error) {
-      console.error('Error updating credits:', error);
-      return res.status(500).json({ error: 'Failed to update credits' });
+    const result = await CreditService.spendCredits(
+      userId,
+      Math.floor(amount),
+      spendSource as any,
+      description
+    );
+
+    if (!result.success) {
+      return res.status(400).json({ error: 'Insufficient credits' });
     }
 
-    const finalCredits = Number(updatedProfile?.purga_points ?? updatedProfile?.credits ?? credits);
-
-    // Emit credit update via WebSocket
-    wsManager.sendToUser(userId, {
-      type: 'credit_update',
-      payload: { userId, credits: finalCredits }
-    });
-
-    res.json({
-      success: true,
-      credits: finalCredits
-    });
+    res.json({ success: true, credits: result.newBalance });
   } catch (error) {
-    console.error('Error in credits update route:', error);
-    res.status(500).json({ error: 'Failed to update credits' });
+    console.error('Error in credits spend route:', error);
+    res.status(500).json({ error: 'Failed to spend credits' });
+  }
+});
+
+// POST /api/credits/merge - One-time migration: merge localStorage credits into backend
+router.post('/merge', auth, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user.id;
+    const { amount, source } = req.body;
+
+    if (typeof amount !== 'number' || !Number.isFinite(amount) || amount < 0) {
+      return res.status(400).json({ error: 'Invalid amount' });
+    }
+    if (!source || typeof source !== 'string') {
+      return res.status(400).json({ error: 'source is required (e.g. purga_rift, cyber_runner)' });
+    }
+
+    const result = await CreditService.mergeCredits(userId, Math.floor(amount), source);
+
+    res.json({ success: true, credits: result.newBalance });
+  } catch (error) {
+    console.error('Error in credits merge route:', error);
+    res.status(500).json({ error: 'Failed to merge credits' });
   }
 });
 

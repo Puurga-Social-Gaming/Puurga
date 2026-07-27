@@ -2,7 +2,7 @@ import { supabaseAdmin } from '../config/supabase';
 import { getCreditSchemaSupport } from '../lib/creditSchema';
 import { wsManager } from '../websocketManager';
 
-export type CreditSource = 'post' | 'like' | 'comment' | 'game' | 'inactivity' | 'login' | 'daily_bonus' | 'recovery_bonus' | 'redeem_user' | 'redeem_friend' | 'refund' | 'transfer' | 'package' | 'GAME_CHALLENGE' | 'certification';
+export type CreditSource = 'post' | 'like' | 'comment' | 'game' | 'inactivity' | 'login' | 'daily_bonus' | 'recovery_bonus' | 'redeem_user' | 'redeem_friend' | 'refund' | 'transfer' | 'package' | 'GAME_CHALLENGE' | 'certification' | 'spend' | 'merge';
 
 const CREDIT_CONFIG = {
   AWARD_CREATE_POST: 5,
@@ -21,6 +21,10 @@ const CREDIT_CONFIG = {
 };
 
 export class CreditService {
+  /**
+   * Atomic credit award using SQL function.
+   * Reads current balance, applies capped amount, writes transaction, returns new balance.
+   */
   static async awardCredits(
     userId: string,
     amount: number,
@@ -57,27 +61,39 @@ export class CreditService {
         return { success: false, newBalance: currentBalance };
       }
 
-      const newBalance = currentBalance + cappedAmount;
+      // Try atomic SQL function first, fall back to read-update-write
+      let newBalance: number;
+      try {
+        const { data, error } = await supabaseAdmin.rpc('update_credit_balance', {
+          p_user_id: userId,
+          p_amount: cappedAmount,
+          p_source: source,
+          p_description: description || `${source} action`,
+        });
 
-      await supabaseAdmin
-        .from('profiles')
-        .update({
-          purga_points: newBalance,
-          [schema.lastActiveColumn]: new Date().toISOString(),
-        })
-        .eq('id', userId);
+        if (error) throw error;
+        newBalance = Number(data);
+      } catch {
+        // Fallback: read-update-write (legacy path if SQL function not deployed)
+        newBalance = currentBalance + cappedAmount;
+        await supabaseAdmin
+          .from('profiles')
+          .update({
+            purga_points: newBalance,
+            [schema.lastActiveColumn]: new Date().toISOString(),
+          })
+          .eq('id', userId);
 
-      const { data: transaction } = await supabaseAdmin
-        .from('credit_transactions')
-        .insert({
-          user_id: userId,
-          amount: cappedAmount,
-          type: 'earn',
-          source: source,
-          description: description || `${source} action`,
-        })
-        .select('id')
-        .single();
+        await supabaseAdmin
+          .from('credit_transactions')
+          .insert({
+            user_id: userId,
+            amount: cappedAmount,
+            type: 'earn',
+            source: source,
+            description: description || `${source} action`,
+          });
+      }
 
       wsManager.sendToUser(userId, {
         type: 'credit_update',
@@ -89,13 +105,16 @@ export class CreditService {
         }
       } as any);
 
-      return { success: true, newBalance, transactionId: transaction?.id };
+      return { success: true, newBalance };
     } catch (error) {
       console.error('CreditService: Error awarding credits', error);
       return { success: false, newBalance: 0 };
     }
   }
 
+  /**
+   * Atomic credit deduction using SQL function.
+   */
   static async deductCredits(
     userId: string,
     amount: number,
@@ -117,22 +136,37 @@ export class CreditService {
       if (currentBalance < amount) {
         return { success: false, newBalance: currentBalance };
       }
-      const newBalance = currentBalance - amount;
 
-      await supabaseAdmin
-        .from('profiles')
-        .update({ purga_points: newBalance })
-        .eq('id', userId);
-
-      await supabaseAdmin
-        .from('credit_transactions')
-        .insert({
-          user_id: userId,
-          amount: -amount,
-          type: 'penalty',
-          source: source,
-          description: description || `${source} penalty`,
+      // Try atomic SQL function first
+      let newBalance: number;
+      try {
+        const { data, error } = await supabaseAdmin.rpc('update_credit_balance', {
+          p_user_id: userId,
+          p_amount: -amount,
+          p_source: source,
+          p_description: description || `${source} penalty`,
         });
+
+        if (error) throw error;
+        newBalance = Number(data);
+      } catch {
+        // Fallback: read-update-write
+        newBalance = currentBalance - amount;
+        await supabaseAdmin
+          .from('profiles')
+          .update({ purga_points: newBalance })
+          .eq('id', userId);
+
+        await supabaseAdmin
+          .from('credit_transactions')
+          .insert({
+            user_id: userId,
+            amount: -amount,
+            type: 'penalty',
+            source: source,
+            description: description || `${source} penalty`,
+          });
+      }
 
       wsManager.sendToUser(userId, {
         type: 'credit_update',
@@ -149,6 +183,37 @@ export class CreditService {
       console.error('CreditService: Error deducting credits', error);
       return { success: false, newBalance: 0 };
     }
+  }
+
+  /**
+   * Server-validated credit spend. Deducts credits and logs the transaction.
+   * Use this instead of the old POST /api/credits/update bypass.
+   */
+  static async spendCredits(
+    userId: string,
+    amount: number,
+    source: CreditSource,
+    description?: string
+  ): Promise<{ success: boolean; newBalance: number }> {
+    return this.deductCredits(userId, amount, source, description || `${source} purchase`);
+  }
+
+  /**
+   * One-time migration: merge localStorage credits into backend balance.
+   * Used when upgrading disconnected games (Purga Rift, Cyber Runner) to unified economy.
+   */
+  static async mergeCredits(
+    userId: string,
+    localAmount: number,
+    source: string
+  ): Promise<{ success: boolean; newBalance: number }> {
+    if (localAmount <= 0) {
+      const balance = await this.getCredits(userId);
+      return { success: true, newBalance: balance };
+    }
+
+    console.log(`CreditService: Merging ${localAmount} local credits for user ${userId} from ${source}`);
+    return this.awardCredits(userId, localAmount, 'merge', `Migrated from ${source}`);
   }
 
   static async checkAndIncrementLikeCount(userId: string): Promise<boolean> {
