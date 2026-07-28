@@ -15,9 +15,7 @@ import { useWebSocket } from '../hooks/useWebSocket';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
-import RedeemUserButton from '../components/GhostMode/RedeemUserButton';
-import { DEFAULT_IMAGES } from '../constants/defaultImages';
-import ProfileLink from '../components/Profile/ProfileLink';
+
 
 
 import { parseMediaUrls } from '../utils/mediaUrls';
@@ -155,11 +153,6 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
-  const [ghostedFriends, setGhostedFriends] = useState<any[]>([]);
-  const [ghostedFriendsLoading, setGhostedFriendsLoading] = useState(true);
-  const [expandedGame, setExpandedGame] = useState<string | null>(null);
-  const [currentTipIndex, setCurrentTipIndex] = useState(0);
-  const [userPoints, setUserPoints] = useState(0);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isStatusViewerOpen, setIsStatusViewerOpen] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -227,66 +220,10 @@ export default function Home() {
     }
   ];
 
-  // Game tips that rotate every 30 seconds
-  const gameTips = [
-    "⚡ Quick reflexes win in Judgment",
-    "🛡️ Defense is key in Redemption",
-    "👁️ Watch for patterns in Watchmen",
-    "🎯 Aim for the weak spots",
-    "⚔️ Timing beats strength",
-    "🔥 Stay calm under pressure",
-    "💎 Collect power-ups wisely",
-    "🌟 Master the special moves"
-  ];
-
-  // Fetch user points
-  useEffect(() => {
-    const fetchUserPoints = async () => {
-      if (!user?.id) return;
-      try {
-        const response = await api.get('/users/points');
-        if (response.data.supported && response.data.points !== null) {
-          setUserPoints(response.data.points);
-        }
-      } catch (error) {
-        console.error('Error fetching user points:', error);
-      }
-    };
-
-    fetchUserPoints();
-  }, [user?.id]);
-
-  // Rotate game tips every 30 seconds
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentTipIndex((prev) => (prev + 1) % gameTips.length);
-    }, 30000);
-
-    return () => clearInterval(interval);
-  }, []);
-
   const handleGameSelect = (gameId: string) => {
     const match = games.find((g) => g.id === gameId);
     navigate(match?.link ?? '/puurga-games');
   };
-
-  const fetchGhostedFriends = async () => {
-    if (!user) return;
-    setGhostedFriendsLoading(true);
-    try {
-      const response = await api.get('/redeem/ghosted-friends');
-      setGhostedFriends(response.data || []);
-    } catch {
-      setGhostedFriends([]);
-    } finally {
-      setGhostedFriendsLoading(false);
-    }
-  };
-
-  // Fetch ghosted friends
-  useEffect(() => {
-    fetchGhostedFriends();
-  }, [user?.id]);
 
   // Refresh user stats from API
   const refreshUserStats = async () => {
@@ -312,16 +249,10 @@ export default function Home() {
 
   // Real-time updates
   useWebSocket({
-    onCreditUpdate: (payload) => {
-      if (user && payload.userId === user.id) {
-        setUserPoints(payload.credits);
-        refreshUserStats();
-      }
+    onCreditUpdate: () => {
+      refreshUserStats();
     },
     onProfileUpdate: (payload) => {
-      // Refresh list if ANY friend was updated
-      fetchGhostedFriends();
-      // If the current user was redeemed/ghosted, they might need to know too
       if (user && payload.userId === user.id) {
         refreshUserStats();
       }
@@ -496,144 +427,6 @@ export default function Home() {
       <div className="w-full pb-2">
         <NewGamePromoBanner className="mb-3" />
         <StatusBar onViewerStateChange={setIsStatusViewerOpen} />
-
-        {/* Smart Bar — swipeable mini carousel */}
-        <div className="mt-2 flex justify-center">
-          {(() => {
-            const userPurges = user?.stats?.purges || 0;
-            const dangerLevel = userPurges >= 15 ? 'CRITICAL' : userPurges >= 10 ? 'HIGH' : userPurges >= 5 ? 'MED' : 'LOW';
-            const dangerColor = userPurges >= 15 ? 'text-red-500' : userPurges >= 10 ? 'text-orange-500' : userPurges >= 5 ? 'text-yellow-500' : 'text-green-500';
-            const ghostedCount = ghostedFriends.length;
-            const rank = (user?.credits || 0) > 500 ? 'Elite' : (user?.credits || 0) > 200 ? 'Survivor' : 'Initiate';
-            const atRiskCount = ghostedFriends.filter((f: any) => (f.purgeCount || 0) < 20 && (f.purgeCount || 0) >= 10).length;
-
-            const items = [
-              {
-                label: 'Danger',
-                value: dangerLevel,
-                color: dangerColor,
-                icon: (
-                  <svg key="danger" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={dangerColor}>
-                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
-                  </svg>
-                ),
-              },
-              {
-                label: 'Ghosted',
-                value: `${ghostedCount}`,
-                color: ghostedCount > 0 ? 'text-red-400' : 'text-muted',
-                icon: (
-                  <svg key="ghosted" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={ghostedCount > 0 ? 'text-red-400' : 'text-muted'}>
-                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
-                  </svg>
-                ),
-              },
-              {
-                label: 'At Risk',
-                value: `${atRiskCount}`,
-                color: atRiskCount > 0 ? 'text-orange-400' : 'text-muted',
-                icon: (
-                  <svg key="risk" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={atRiskCount > 0 ? 'text-orange-400' : 'text-muted'}>
-                    <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-                  </svg>
-                ),
-              },
-              {
-                label: 'Purges',
-                value: `${userPurges}/20`,
-                color: 'text-red-500',
-                icon: (
-                  <svg key="purges" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-red-500">
-                    <path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/>
-                  </svg>
-                ),
-              },
-              {
-                label: 'Rank',
-                value: rank,
-                color: 'text-accent',
-                icon: (
-                  <svg key="rank" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-accent">
-                    <circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/>
-                  </svg>
-                ),
-              },
-            ];
-
-            const [slideIdx, setSlideIdx] = useState(0);
-            const [isDragging, setIsDragging] = useState(false);
-            const autoPlayDelay = 3200;
-            const totalSlides = items.length;
-            const carouselRef = useRef<HTMLDivElement>(null);
-
-            useEffect(() => {
-              const timer = setInterval(() => {
-                if (!isDragging) setSlideIdx(prev => (prev + 1) % totalSlides);
-              }, autoPlayDelay);
-              return () => clearInterval(timer);
-            }, [isDragging, totalSlides]);
-
-            return (
-              <div
-                className="w-full overflow-hidden cursor-grab active:cursor-grabbing select-none"
-                onMouseDown={() => setIsDragging(true)}
-                onMouseUp={() => setTimeout(() => setIsDragging(false), 500)}
-                onMouseLeave={() => setIsDragging(false)}
-                ref={carouselRef}
-              >
-                <motion.div
-                  className="flex"
-                  animate={{ x: `-${slideIdx * 100}%` }}
-                  transition={{ type: 'spring', stiffness: 250, damping: 28 }}
-                  drag="x"
-                  dragConstraints={carouselRef}
-                  dragElastic={0.1}
-                  onDragStart={() => setIsDragging(true)}
-                  onDragEnd={(_, info) => {
-                    const threshold = 30;
-                    if (info.offset.x < -threshold && slideIdx < totalSlides - 1) {
-                      setSlideIdx(slideIdx + 1);
-                    } else if (info.offset.x > threshold && slideIdx > 0) {
-                      setSlideIdx(slideIdx - 1);
-                    }
-                    setTimeout(() => setIsDragging(false), 800);
-                  }}
-                >
-                  {items.map((item, i) => (
-                    <div
-                      key={i}
-                      className="min-w-full flex items-center justify-center px-3 py-1.5 bg-gradient-to-r from-orange-500/10 via-purple-500/10 to-blue-500/10 rounded-lg border border-orange-500/20 text-xs font-semibold text-foreground shadow-theme-sm"
-                    >
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <polygon points="23 7 16 12 23 17 23 7"></polygon>
-                        <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
-                      </svg>
-                      <span className="hidden sm:inline ml-1.5">Smart Arena</span>
-                      <span className="text-accent font-bold ml-1.5">{userPoints}</span>
-                      <span className="text-muted-foreground text-[10px] ml-0.5">pts</span>
-                      <span className="mx-1.5 text-muted-foreground/30">|</span>
-                      <span className="text-[9px] text-muted-foreground uppercase tracking-wider mr-1">{item.label}:</span>
-                      <span className={`text-xs font-bold ${item.color}`}>{item.value}</span>
-                    </div>
-                  ))}
-                </motion.div>
-
-                {/* Dots */}
-                <div className="flex items-center justify-center gap-1 mt-1">
-                  {items.map((_, i) => (
-                    <button
-                      key={i}
-                      onClick={() => { setSlideIdx(i); setIsDragging(true); setTimeout(() => setIsDragging(false), 1500); }}
-                      className={`transition-all duration-300 rounded-full ${
-                        i === slideIdx ? 'w-3 h-1 bg-foreground/60' : 'w-1 h-1 bg-foreground/20'
-                      }`}
-                    />
-                  ))}
-                </div>
-              </div>
-            );
-          })()}
-        </div>
       </div>
 
       {/* Main content — fills column (20px side padding from Layout) */}
@@ -703,145 +496,91 @@ export default function Home() {
                      animate={{ x: 0 }}
                      exit={{ x: '100%' }}
                      transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-                     className="fixed right-0 top-0 bottom-0 w-40 z-[55] lg:hidden overflow-hidden bg-background"
+                     className="fixed right-0 top-0 bottom-0 w-40 z-[55] lg:hidden overflow-hidden"
                    >
                      <div
-                       className="h-full overflow-y-auto scrollbar-hide pt-14 pb-4"
+                       className="h-full overflow-y-auto scrollbar-hide pt-16 pb-4 flex flex-col items-center"
                        style={{ overscrollBehavior: 'contain' }}
                      >
-                      {/* PUURGA GAMES Section - Enhanced with Professional Gradients */}
-                      <div className="relative">
-                        {/* Subtle Gradient Background */}
-                        <div className="absolute inset-0 bg-gradient-to-br from-slate-700/20 via-gray-600/15 to-slate-800/20 dark:from-slate-800/30 dark:via-gray-700/25 dark:to-slate-900/30 rounded-xl blur-sm" />
-                        <div className="relative space-y-2 p-2 rounded-xl">
-                          {/* Creative Games Title with Points */}
-                          <div className="text-center mb-3">
-                            <h3 className="bg-gradient-to-r from-gray-600 via-gray-700 to-gray-800 dark:from-orange-400/90 dark:via-purple-500/90 dark:to-blue-500/90 bg-clip-text text-transparent font-bold text-xs tracking-wider uppercase">
-                              ARENA
-                            </h3>
-                            <div className="flex items-center justify-center gap-1 mt-1">
-                              <span className="text-yellow-600 dark:text-yellow-400 text-xs">⭐</span>
-                              <span className="text-yellow-700 dark:text-yellow-300 text-xs font-bold">{userPoints}</span>
-                              <span className="text-yellow-600 dark:text-yellow-400 text-xs">PTS</span>
-                            </div>
-                          </div>
-
-                          {games.map((game) => (
-                            <div key={game.id} className="space-y-1">
+                          {/* Floating Game Bubbles */}
+                          <div className="flex flex-col items-center gap-4">
+                            {/* Hero Bubble - Judgment */}
+                            <div className="flex flex-col items-center">
                               <div
-                                onClick={() => setExpandedGame(expandedGame === game.id ? null : game.id)}
-                                className="relative group cursor-pointer transition-all duration-300"
+                                className="game-bubble bubble-float-1 w-[80px] h-[80px]"
+                                onClick={() => handleGameSelect(games[0].id)}
                               >
-                                {/* Subtle Glow Effect */}
-                                <div className="absolute inset-0 bg-gradient-to-r from-gray-500/20 dark:from-orange-500/30 to-purple-500/30 dark:to-purple-500/30 rounded-lg blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-
-                                {/* Game Card - Compact for mobile */}
-                                <div className="relative bg-gradient-to-br from-background/80 to-background/60 dark:from-background/80 dark:to-background/60 backdrop-blur-sm border border-gray-200/20 dark:border-transparent rounded-lg p-1.5 group-hover:border-gray-300/30 dark:group-hover:border-transparent transition-all duration-300">
-                                  <div className={`w-full aspect-square mb-1 rounded overflow-hidden shadow-sm relative group-hover:scale-105 transition-transform duration-300`}>
-                                    <img src={game.image} alt={game.name} className="w-full h-full object-cover" />
-                                    <div className="absolute inset-0 bg-black/10 group-hover:bg-transparent transition-colors" />
-                                  </div>
-                                  <h4 className="font-bold text-gray-800 dark:text-foreground text-[9px] leading-tight text-center bg-gradient-to-r from-gray-700 to-gray-900 dark:from-white dark:to-gray-300 bg-clip-text text-transparent truncate">
-                                    {game.name}
-                                  </h4>
-                                  <div className="flex items-center justify-center gap-1 mt-0.5">
-                                    <span className="text-yellow-600 dark:text-yellow-400 text-[7px]">⚡</span>
-                                    <span className="text-yellow-700 dark:text-yellow-300 text-[7px]">{game.rating}</span>
-                                  </div>
+                                <div className="game-bubble-img">
+                                  <img src={games[0].image} alt={games[0].name} />
                                 </div>
                               </div>
-
-                              {expandedGame === game.id && (
-                                <div className="px-1 pb-2 space-y-1.5 animate-in slide-in-from-top-2 duration-300">
-                                  <p className="text-[10px] text-gray-600 dark:text-muted/80 text-center italic leading-tight">{game.description}</p>
-                                  <button
-                                    onClick={() => handleGameSelect(game.id)}
-                                    className="w-full px-2 py-1 bg-gradient-to-r from-white to-gray-200 text-black text-[10px] rounded-full font-medium hover:from-gray-200 hover:to-gray-300 transition-all duration-300 shadow-md hover:shadow-white/25 dark:from-gray-200 dark:to-gray-300 dark:text-black"
-                                  >
-                                    PLAY
-                                  </button>
-                                </div>
-                              )}
+                              <span className="text-[9px] font-semibold text-foreground/80 mt-1 bg-background/60 backdrop-blur-sm px-2 py-0.5 rounded-full border border-border/40">
+                                {games[0].name}
+                              </span>
                             </div>
-                          ))}
-                        </div>
-                      </div>
 
-                      {/* Game Tips Section - Rotating */}
-                      <div className="relative">
-                        <div className="absolute inset-0 bg-gradient-to-br from-gray-600/20 via-gray-500/15 to-slate-700/20 dark:from-green-600/20 dark:to-blue-600/20 rounded-xl blur-sm" />
-                        <div className="relative p-2 rounded-xl">
-                          <div className="text-center mb-2">
-                            <h3 className="bg-gradient-to-r from-gray-600 via-gray-700 to-gray-800 dark:from-green-400/90 dark:to-blue-500/90 bg-clip-text text-transparent font-bold text-xs tracking-wider uppercase">
-                              TIPS
-                            </h3>
-                          </div>
-                          <div className="bg-gradient-to-r from-background/60 to-background/40 dark:from-background/60 dark:to-background/40 backdrop-blur-sm border border-gray-200/10 dark:border-white/10 rounded-lg p-2">
-                            <p className="text-xs text-center text-gray-700 dark:text-muted/90 animate-in fade-in duration-1000">
-                              {gameTips[currentTipIndex]}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* GHOSTED Section - Enhanced */}
-                      <div className="relative">
-                        <div className="absolute inset-0 bg-gradient-to-br from-gray-600/20 via-gray-500/15 to-slate-700/20 dark:from-red-600/20 dark:to-orange-600/20 rounded-xl blur-sm" />
-                        <div className="relative space-y-2 p-2 rounded-xl">
-                          <div className="text-center mb-2">
-                            <h3 className="bg-gradient-to-r from-gray-600 via-gray-700 to-gray-800 dark:from-red-400/90 dark:to-orange-500/90 bg-clip-text text-transparent font-bold text-xs tracking-wider uppercase">
-                              GHOSTED
-                            </h3>
-                          </div>
-
-                          {ghostedFriendsLoading ? (
-                            <div className="text-gray-600 dark:text-muted text-xs text-center py-2 animate-pulse">
-                              Loading...
-                            </div>
-                          ) : ghostedFriends.length === 0 ? (
-                            <div className="text-gray-600 dark:text-muted text-xs text-center py-2">
-                              None
-                            </div>
-                          ) : (
-                            <div className="space-y-1">
-                              {ghostedFriends.map((friend) => (
-                                <div key={friend.id} className="flex flex-col items-center p-2 hover:bg-gray-100/10 dark:hover:bg-white/5 rounded-lg transition-colors border border-transparent hover:border-red-500/20">
-                                  <ProfileLink username={friend.username} className="relative rounded-full">
-                                    <img
-                                      src={friend.avatarUrl || friend.avatar || DEFAULT_IMAGES.avatar}
-                                      alt={friend.name || friend.fullName}
-                                      className="w-10 h-10 rounded-full object-cover ring-2 ring-red-500/30"
-                                      onError={(e) => {
-                                        e.currentTarget.onerror = null;
-                                        e.currentTarget.src = DEFAULT_IMAGES.avatar;
-                                      }}
-                                    />
-                                    <div className="absolute -top-1 -right-1 bg-gradient-to-r from-red-500 to-orange-500 text-white text-[8px] rounded-full w-4 h-4 flex items-center justify-center font-bold shadow-lg border border-background">
-                                      {friend.purgeCount || 0}
-                                    </div>
-                                  </ProfileLink>
-                                  <ProfileLink username={friend.username} className="text-[10px] font-bold text-foreground mt-1 text-center truncate w-full hover:text-accent">
-                                    {friend.name || friend.fullName}
-                                  </ProfileLink>
-                                  <ProfileLink username={friend.username} className="text-[9px] text-muted text-center truncate w-full hover:text-accent">
-                                    @{friend.username}
-                                  </ProfileLink>
-                                  <div className="mt-2 w-full">
-                                    <RedeemUserButton
-                                      userId={friend.id}
-                                      userName={friend.name || friend.fullName}
-                                      isGhost={friend.isGhost ?? friend.is_ghost ?? true}
-                                      onRedeemed={fetchGhostedFriends}
-                                    />
+                            {/* Orbit Cluster - 2 bubbles */}
+                            <div className="flex justify-center items-center gap-4">
+                              <div className="flex flex-col items-center">
+                                <div
+                                  className="game-bubble bubble-float-2 w-[64px] h-[64px]"
+                                  onClick={() => handleGameSelect(games[1].id)}
+                                >
+                                  <div className="game-bubble-img">
+                                    <img src={games[1].image} alt={games[1].name} />
                                   </div>
                                 </div>
-                              ))}
+                                <span className="text-[8px] font-semibold text-foreground/70 mt-1 bg-background/60 backdrop-blur-sm px-1.5 py-0.5 rounded-full border border-border/40">
+                                  {games[1].name}
+                                </span>
+                              </div>
+                              <div className="flex flex-col items-center -mt-3">
+                                <div
+                                  className="game-bubble bubble-float-3 w-[46px] h-[46px]"
+                                  onClick={() => handleGameSelect(games[2].id)}
+                                >
+                                  <div className="game-bubble-img">
+                                    <img src={games[2].image} alt={games[2].name} />
+                                  </div>
+                                </div>
+                                <span className="text-[8px] font-semibold text-foreground/70 mt-1 bg-background/60 backdrop-blur-sm px-1.5 py-0.5 rounded-full border border-border/40">
+                                  {games[2].name}
+                                </span>
+                              </div>
                             </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </motion.div>
+
+                            {/* Purga Rift */}
+                            <div className="flex flex-col items-center">
+                              <div
+                                className="game-bubble bubble-float-1 w-[72px] h-[72px]"
+                                onClick={() => handleGameSelect(games[3].id)}
+                              >
+                                <div className="game-bubble-img">
+                                  <img src={games[3].image} alt={games[3].name} />
+                                </div>
+                              </div>
+                              <span className="text-[9px] font-semibold text-foreground/80 mt-1 bg-background/60 backdrop-blur-sm px-2 py-0.5 rounded-full border border-border/40">
+                                {games[3].name}
+                              </span>
+                            </div>
+
+                            {/* Cyber Runner */}
+                            <div className="flex flex-col items-center">
+                              <div
+                                className="game-bubble bubble-float-2 w-[52px] h-[52px]"
+                                onClick={() => handleGameSelect(games[4].id)}
+                              >
+                                <div className="game-bubble-img">
+                                  <img src={games[4].image} alt={games[4].name} />
+                                </div>
+                              </div>
+                              <span className="text-[8px] font-semibold text-foreground/70 mt-1 bg-background/60 backdrop-blur-sm px-1.5 py-0.5 rounded-full border border-border/40">
+                                {games[4].name}
+                              </span>
+                            </div>
+                          </div>
+                     </div>
+                   </motion.div>
                 </>
               )}
             </AnimatePresence>

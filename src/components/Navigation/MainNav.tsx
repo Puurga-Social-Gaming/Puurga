@@ -8,7 +8,6 @@ import {
   MessageSquare,
   Users,
   UserCircle,
-  HelpCircle,
   LogOut,
   Gamepad2,
   BarChart3,
@@ -16,6 +15,7 @@ import {
   ShieldCheck,
   Ghost,
   MoreHorizontal,
+  Compass,
 } from 'lucide-react';
 import { LucideIcon } from 'lucide-react';
 import { useNotifications } from '../../context/NotificationContext';
@@ -25,6 +25,9 @@ import { useSurvival } from '../../context/SurvivalContext';
 import { supabase } from '../../lib/supabaseClient';
 import { toast } from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
+import XPBar from '../Progression/XPBar';
+
+const WELCOME_VIEWED_KEY = 'puurga_welcome_viewed';
 
 interface NavigationItem {
   to?: string;
@@ -44,8 +47,15 @@ const MainNav: React.FC = () => {
   const navigate = useNavigate();
   const isSuperAdmin = currentUser?.role === 'super_admin' || currentUser?.role === 'superadmin';
   const [showMore, setShowMore] = useState(false);
+  const [welcomeViewed, setWelcomeViewed] = useState(() => localStorage.getItem(WELCOME_VIEWED_KEY) === 'true');
   const moreBtnRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
+
+  const markWelcomeViewed = () => {
+    localStorage.setItem(WELCOME_VIEWED_KEY, 'true');
+    setWelcomeViewed(true);
+    navigate('/welcome');
+  };
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent | TouchEvent) => {
@@ -117,7 +127,7 @@ const MainNav: React.FC = () => {
     }
 
     items.push(
-      { to: '/help', icon: HelpCircle, label: t('navigation.help') },
+      { to: '/welcome', icon: Compass, label: 'Welcome', className: welcomeViewed ? '' : 'welcome-pulse' },
       { to: '/notifications', icon: Bell, label: t('navigation.notifications') },
       { to: '/settings', icon: Settings, label: t('navigation.settings') },
     );
@@ -143,7 +153,7 @@ const MainNav: React.FC = () => {
   }
 
   moreOptions.push(
-    { icon: HelpCircle, label: t('navigation.help'), to: '/help' },
+    { icon: Compass, label: 'Welcome', to: '/welcome' },
     { icon: Settings, label: t('navigation.settings'), to: '/settings' },
   );
 
@@ -162,6 +172,7 @@ const MainNav: React.FC = () => {
                 key={item.to}
                 to={item.to}
                 end={item.to === '/home' || item.to === '/profile'}
+                onClick={item.to === '/welcome' ? markWelcomeViewed : undefined}
                 onMouseEnter={() => {
                   // Prefetch route chunk on hover for instant navigation
                   const path = item.to!;
@@ -174,6 +185,7 @@ const MainNav: React.FC = () => {
                   else if (path === '/groups') void import('../../pages/Groups');
                   else if (path === '/notifications') void import('../../pages/Notifications/Notifications');
                   else if (path === '/settings') void import('../../pages/Settings/Settings');
+                  else if (path === '/welcome') void import('../../pages/WelcomeCenter');
                   else if (path === '/help') void import('../../pages/Help');
                   else if (path === '/super-admin') void import('../../pages/SuperAdmin/SuperAdmin');
                 }}
@@ -208,6 +220,10 @@ const MainNav: React.FC = () => {
           ))}
         </nav>
 
+        <div className="px-3 pt-2 shrink-0">
+          <XPBar compact />
+        </div>
+
         <div className="px-3 pb-4 pt-2 border-t border-border/40 shrink-0">
           <button
             onClick={handleLogout}
@@ -219,10 +235,12 @@ const MainNav: React.FC = () => {
         </div>
       </div>
 
-      {/* Mobile Bottom Navigation */}
+      {/* Mobile Bottom Navigation — uses replace so tab switches don't clutter history stack */}
       <div className="lg:hidden grid grid-cols-5 items-center w-full max-w-full mx-auto px-0.5 py-0.5">
         <NavLink
           to="/home"
+          replace
+          end
           className={({ isActive }) => `
             flex flex-col items-center justify-center gap-1 px-1 py-2 transition-colors relative min-w-0 overflow-hidden
             ${isActive ? 'text-accent' : 'text-muted-foreground hover:text-foreground'}
@@ -234,6 +252,8 @@ const MainNav: React.FC = () => {
 
         <NavLink
           to="/profile"
+          replace
+          end
           className={({ isActive }) => `
             flex flex-col items-center justify-center gap-1 px-1 py-2 transition-colors relative min-w-0 overflow-hidden
             ${isActive ? 'text-accent' : 'text-muted-foreground hover:text-foreground'}
@@ -245,6 +265,8 @@ const MainNav: React.FC = () => {
 
         <NavLink
           to="/puurga-games"
+          replace
+          end
           className={({ isActive }) => `
             flex flex-col items-center justify-center gap-1 px-1 py-2 transition-colors relative min-w-0 overflow-hidden
             ${isActive ? 'text-accent' : 'text-muted-foreground hover:text-foreground'}
@@ -256,6 +278,8 @@ const MainNav: React.FC = () => {
 
         <NavLink
           to="/messages"
+          replace
+          end
           className={({ isActive }) => `
             flex flex-col items-center justify-center gap-1 px-1 py-2 transition-colors relative min-w-0 overflow-hidden
             ${isActive ? 'text-accent' : 'text-muted-foreground hover:text-foreground'}
@@ -300,13 +324,15 @@ const MainNav: React.FC = () => {
                 style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 72px)', left: '50%', transform: 'translateX(-50%)', minWidth: '200px' }}
               >
                 <div className="py-0.5">
-                  {moreOptions.map((option) => (
-                    <NavLink
-                      key={option.to}
-                      to={option.to!}
-                      onClick={() => setShowMore(false)}
-                      className="flex items-center gap-2.5 px-3 py-2 text-sm text-foreground hover:bg-card-hover transition-colors"
-                    >
+                   {moreOptions.map((option) => (
+                     <NavLink
+                       key={option.to}
+                       to={option.to!}
+                       replace
+                       end
+                       onClick={() => setShowMore(false)}
+                       className="flex items-center gap-2.5 px-3 py-2 text-sm text-foreground hover:bg-card-hover transition-colors"
+                     >
                       <option.icon size={15} className="text-muted" />
                       <span>{option.label}</span>
                     </NavLink>

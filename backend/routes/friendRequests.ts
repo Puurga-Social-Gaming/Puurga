@@ -5,6 +5,7 @@ import { createNotification } from './createNotification';
 import { validateNotGhosted } from '../middleware/restrictGhosted';
 import { areBlocked, syncMutualFollows } from '../utils/friendRelations';
 import { progressionEngine } from '../services/progressionEngine';
+import { DailyMissionService } from '../services/dailyMissionService';
 
 const router = express.Router();
 
@@ -337,6 +338,9 @@ router.post('/:requestId/accept', auth, async (req: AuthRequest, res) => {
       userId: request.sender_id,
       friendId: request.receiver_id,
     });
+
+    // Track daily mission progress
+    DailyMissionService.trackProgress(request.sender_id, 'add_friend').catch(() => {});
 
     res.json({ message: 'Friend request accepted', status: 'accepted' });
   } catch (error) {

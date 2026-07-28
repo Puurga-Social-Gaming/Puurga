@@ -22,6 +22,7 @@ import PurgeIcon from '../Icons/PurgeIcon';
 import InlineTranslate from '../InlineTranslate';
 import CertificationBadges from '../Profile/CertificationBadges';
 import { downloadPostCapture } from '../../utils/downloadPostCapture';
+import { PURGE_THRESHOLD } from '../../constants/purgeConstants';
 
 interface PostProps {
   post: PostType;
@@ -489,6 +490,26 @@ const Post: React.FC<PostProps> = ({ post, onUpdate, variant = 'feed' }) => {
             data-capture-ignore="true"
           >
             <div className="flex items-center gap-1">
+              {!isOwner && (
+                <motion.button
+                  whileTap={{ scale: 0.92 }}
+                  onClick={handlePurgeClick}
+                  disabled={isPurging}
+                  className={`h-7 px-2.5 flex items-center gap-1.5 rounded-full transition-all ${
+                    isPurged ? 'text-accent bg-accent/8' : 'text-muted hover:text-red-400 hover:bg-red-400/8'
+                  } ${isPurging ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  title={t('post.dontLike', "I don't like this")}
+                  type="button"
+                >
+                  <PurgeIcon
+                    size={16}
+                    className={`transition-all ${isPurging ? 'animate-pulse' : ''} ${
+                      isPurged ? 'drop-shadow-[0_0_6px_rgba(var(--accent-rgb),0.5)]' : 'grayscale'
+                    }`}
+                  />
+                  <span className="text-[11.5px] font-medium tabular-nums">{localPurges}</span>
+                </motion.button>
+              )}
               <PostReactions postId={post.id} initialReactions={post.reactions || {}} onReactionChange={handleReactionChange} />
               <motion.button
                 ref={commentButtonRef}
@@ -499,7 +520,7 @@ const Post: React.FC<PostProps> = ({ post, onUpdate, variant = 'feed' }) => {
                 aria-expanded={showComments}
                 aria-label={showComments ? 'Hide comments' : 'Show comments'}
               >
-                <MessageCircle size={14} className={showComments ? 'fill-accent/20' : ''} />
+                <MessageCircle size={16} className={showComments ? 'fill-accent/20' : ''} />
                 <span className="text-[11.5px] font-medium tabular-nums">{commentCount}</span>
               </motion.button>
             </div>
@@ -521,7 +542,7 @@ const Post: React.FC<PostProps> = ({ post, onUpdate, variant = 'feed' }) => {
                     : 'text-muted hover:text-accent hover:bg-accent/8'
                 }`}
               >
-                <Globe size={14} />
+                <Globe size={16} />
               </motion.button>
 
               <motion.button
@@ -536,9 +557,9 @@ const Post: React.FC<PostProps> = ({ post, onUpdate, variant = 'feed' }) => {
                 }`}
               >
                 {isDownloading ? (
-                  <Loader2 size={14} className="animate-spin" />
+                  <Loader2 size={16} className="animate-spin" />
                 ) : (
-                  <Download size={14} />
+                  <Download size={16} />
                 )}
               </motion.button>
 
@@ -549,28 +570,27 @@ const Post: React.FC<PostProps> = ({ post, onUpdate, variant = 'feed' }) => {
                 postAuthorAvatar={post.user.avatar}
                 postImages={post.images || []}
               />
-              {!isOwner && (
-                <motion.button
-                  whileTap={{ scale: 0.92 }}
-                  onClick={handlePurgeClick}
-                  disabled={isPurging}
-                  className={`h-7 px-2.5 flex items-center gap-1.5 rounded-full transition-all ${
-                    isPurged ? 'text-accent bg-accent/8' : 'text-muted hover:text-red-400 hover:bg-red-400/8'
-                  } ${isPurging ? 'opacity-50 cursor-not-allowed' : ''}`}
-                  title={t('post.dontLike', "I don't like this")}
-                  type="button"
-                >
-                  <PurgeIcon
-                    size={14}
-                    className={`transition-all ${isPurging ? 'animate-pulse' : ''} ${
-                      isPurged ? 'drop-shadow-[0_0_6px_rgba(var(--accent-rgb),0.5)]' : 'grayscale'
-                    }`}
-                  />
-                  <span className="text-[11.5px] font-medium tabular-nums">{localPurges}</span>
-                </motion.button>
-              )}
             </div>
           </div>
+
+          {/* Purge progress indicator */}
+          {(() => {
+            const ratio = localPurges / PURGE_THRESHOLD;
+            const color = localPurges >= 16 ? 'bg-red-500'
+              : localPurges >= 11 ? 'bg-orange-500'
+              : localPurges >= 6 ? 'bg-yellow-500'
+              : 'bg-green-500';
+            return (
+              <div className="px-3 pb-1" title={`${localPurges}/${PURGE_THRESHOLD} purges before removal`}>
+                <div className="h-0.5 w-full bg-muted/10 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full ${color} rounded-full transition-all duration-700`}
+                    style={{ width: `${Math.min(ratio * 100, 100)}%` }}
+                  />
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Comment section */}
           <AnimatePresence>

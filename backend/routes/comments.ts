@@ -8,6 +8,7 @@ import { CreditService } from '../services/creditService';
 import { NotificationService } from '../services/notificationService';
 import { validateNotGhosted } from '../middleware/restrictGhosted';
 import { areBlocked, getBidirectionalBlockedIds } from '../utils/friendRelations';
+import { DailyMissionService } from '../services/dailyMissionService';
 import { progressionEngine } from '../services/progressionEngine';
 
 const router = express.Router();
@@ -292,6 +293,9 @@ router.post('/posts/:postId/comments', auth, validateNotGhosted, async (req: Aut
       postId,
       postAuthorId: post?.user_id,
     });
+
+    // Track daily mission progress
+    DailyMissionService.trackProgress(userId, 'comment').catch(() => {});
 
     await CreditService.updateLastActiveAt(userId);
 

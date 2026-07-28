@@ -474,7 +474,24 @@ const Profile: React.FC = () => {
             </div>
 
             {/* Stats cards */}
-            <div className="profile-stats-grid grid grid-cols-3 sm:grid-cols-5 gap-2 sm:gap-3 flex-shrink-0 w-full lg:w-auto min-w-0">
+            <div className="profile-stats-grid grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-6 gap-2 sm:gap-3 flex-shrink-0 w-full lg:w-auto min-w-0">
+              {/* Ghost Status / Risk tile — desktop only */}
+              <div className="hidden lg:flex rounded-xl border border-border/70 bg-card/60 backdrop-blur-sm px-2 sm:px-3 py-2.5 text-center min-w-0 flex-col items-center justify-center hover:border-accent/40 transition-colors">
+                {(() => {
+                  if (!survivalState) return null;
+                  const state = survivalState.current_survival_state;
+                  const isCritical = state === 'COLLAPSING' || state === 'GHOSTED';
+                  const isWarning = state === 'HUNTED' || state === 'WARNING';
+                  return (
+                    <>
+                      <span className={`block text-base sm:text-lg font-bold tabular-nums truncate ${isCritical ? 'text-red-500' : isWarning ? 'text-yellow-500' : 'text-green-500'}`}>
+                        {state === 'GHOSTED' ? 'Ghosted' : state === 'COLLAPSING' ? 'Critical' : state === 'HUNTED' ? 'Hunted' : state === 'WARNING' ? 'Warning' : 'Safe'}
+                      </span>
+                      <span className="text-[10px] sm:text-[11px] text-muted uppercase tracking-wide truncate block">Ghost Risk</span>
+                    </>
+                  );
+                })()}
+              </div>
               {stats.map(({ value, label, accent }) => (
                 <div
                   key={label}

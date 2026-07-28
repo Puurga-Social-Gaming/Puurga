@@ -358,7 +358,7 @@ const UserProfile: React.FC = () => {
         <AlertCircle className="w-12 h-12 text-red-500" />
         <p className="text-muted">{error || 'Profile not found'}</p>
         <button
-          onClick={() => navigate(-1)}
+          onClick={() => window.history.length > 1 ? navigate(-1) : navigate('/home')}
           className="flex items-center gap-2 px-4 py-2 bg-card text-foreground rounded-lg hover:bg-card/80 transition-colors"
         >
           <ArrowLeft size={18} />
@@ -388,7 +388,7 @@ const UserProfile: React.FC = () => {
 
         {/* Back Button */}
         <button
-          onClick={() => navigate(-1)}
+          onClick={() => window.history.length > 1 ? navigate(-1) : navigate('/home')}
           className="absolute top-4 left-4 p-2 bg-black/50 backdrop-blur-sm text-white rounded-full hover:bg-black/70 transition-colors"
         >
           <ArrowLeft size={20} />

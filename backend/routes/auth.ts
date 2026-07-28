@@ -7,6 +7,7 @@ import { logSuperAdminAction } from '../utils/auditLogger';
 import { CreditService } from '../services/creditService';
 import { NotificationService } from '../services/notificationService';
 import { progressionEngine } from '../services/progressionEngine';
+import { DailyMissionService } from '../services/dailyMissionService';
 
 const router = express.Router();
 
@@ -225,6 +226,9 @@ router.post('/login', async (req, res) => {
       userId: authData.user.id,
       isDailyBonus: bonusAwarded,
     });
+
+    // Track daily mission progress
+    DailyMissionService.trackProgress(authData.user.id, 'daily_login').catch(() => {});
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).json({

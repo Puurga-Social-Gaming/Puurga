@@ -56,6 +56,7 @@ import matchmakingRoutes from './routes/matchmaking';
 import cryptoRoutes from './routes/crypto';
 import certificationsRoutes from './routes/certifications';
 import progressionRoutes from './routes/progression';
+import achievementsRoutes from './routes/achievements';
 import { errorHandler } from './middleware/errorHandler';
 import { PushNotificationService } from './services/pushNotificationService';
 import { progressionEngine } from './services/progressionEngine';
@@ -282,6 +283,7 @@ app.use('/api/matchmaking', matchmakingRoutes);
 app.use('/api/crypto', cryptoRoutes);
 app.use('/api/certifications', certificationsRoutes);
 app.use('/api/progression', progressionRoutes);
+app.use('/api/achievements', achievementsRoutes);
 
 // Global Error Handler (Must be last)
 app.use(errorHandler);
@@ -353,3 +355,11 @@ export const generateToken = (user: { id: string }): string => {
 };
 
 startServer(); // touch 15:00:33
+
+// Global error handlers to prevent silent crashes
+process.on('uncaughtException', (err) => {
+  console.error('UNCAUGHT EXCEPTION:', err);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('UNHANDLED REJECTION:', reason);
+});

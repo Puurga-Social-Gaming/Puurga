@@ -25,7 +25,7 @@ const ShareButton: React.FC<ShareButtonProps> = ({
         onClick={() => setShowShareModal(true)}
         className="flex items-center gap-1 text-muted hover:text-accent transition-colors"
       >
-        <Share2 size={15} />
+        <Share2 size={16} />
       </button>
 
       <ShareModal

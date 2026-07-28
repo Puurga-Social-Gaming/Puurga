@@ -12,6 +12,7 @@ import { SurvivalState } from '../types/survival';
 import { SurvivalBadge } from '../components/Survival';
 import DashboardAnalyticsCharts from '../components/Dashboard/DashboardAnalyticsCharts';
 import ProfileLink from '../components/Profile/ProfileLink';
+import XPBar from '../components/Progression/XPBar';
 interface UserStats {
   credits: number;
   purgeStreak: number;
@@ -563,8 +564,12 @@ const PuurgaDashboard: React.FC = () => {
         </div>
       </header>
 
+      {/* XP Progress Bar */}
+      <XPBar />
+
       {/* Key stats — uniform grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <StatTile label="Level" value={user?.level || 1} valueClass="text-purple-400" />
         <StatTile label="Total Points" value={Math.round(displayCredits)} />
         <StatTile label="Purge Streak" value={userStats.purgeStreak} valueClass="text-orange-400" />
         <StatTile label="Purges Given" value={userStats.totalPurgesGiven} valueClass="text-red-400" />

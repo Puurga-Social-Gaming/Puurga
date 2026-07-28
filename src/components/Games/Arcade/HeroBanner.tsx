@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { Play, Clock, Trophy, Sparkles } from 'lucide-react';
@@ -11,6 +11,8 @@ interface HeroBannerProps {
   onPlay: (game: GameEntry) => void;
 }
 
+const CYBER_RUNNER_VIDEO = 'https://vhvxfnxtyrgiydztsonz.supabase.co/storage/v1/object/public/Gamevids/Cyberrunner.mp4';
+
 const HeroBanner: React.FC<HeroBannerProps> = ({
   featuredGame,
   lastPlayedGame,
@@ -18,8 +20,16 @@ const HeroBanner: React.FC<HeroBannerProps> = ({
   onPlay,
 }) => {
   const { t } = useTranslation();
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   const displayGame = featuredGame || lastPlayedGame;
+  const isCyberRunner = displayGame?.id === 'cyber-runner';
+
+  useEffect(() => {
+    if (videoRef.current && isCyberRunner) {
+      videoRef.current.playbackRate = 0.7;
+    }
+  }, [isCyberRunner]);
 
   if (!displayGame) return null;
 
@@ -27,12 +37,24 @@ const HeroBanner: React.FC<HeroBannerProps> = ({
     <section className="relative w-full rounded-2xl overflow-hidden border border-border/30">
       {/* Dynamic blur background */}
       <div className="absolute inset-0">
-        <img
-          src={displayGame.banner}
-          alt=""
-          className="w-full h-full object-cover scale-110 blur-2xl opacity-40"
-        />
-        <div className="absolute inset-0 bg-gradient-to-b from-background/60 via-background/80 to-background" />
+        {isCyberRunner ? (
+          <video
+            ref={videoRef}
+            src={CYBER_RUNNER_VIDEO}
+            autoPlay
+            loop
+            muted
+            playsInline
+            className="absolute inset-0 w-full h-full object-cover scale-110 blur-[2px] opacity-70"
+          />
+        ) : (
+          <img
+            src={displayGame.banner}
+            alt=""
+            className="w-full h-full object-cover scale-110 blur-2xl opacity-40"
+          />
+        )}
+        <div className="absolute inset-0 bg-gradient-to-b from-background/30 via-background/40 to-background/70" />
       </div>
 
       {/* Gradient overlay */}

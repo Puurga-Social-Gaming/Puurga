@@ -62,9 +62,9 @@ const PurgaGames: React.FC = () => {
     return games;
   }, [mainGames, selectedCategory, search]);
 
-  // Featured game (highest rating or most players)
+  // Featured game — always promote Cyber Runner
   const featuredGame = useMemo(() => {
-    return [...mainGames].sort((a, b) => (b.rating || 0) - (a.rating || 0))[0] || null;
+    return mainGames.find(g => g.id === 'cyber-runner') || mainGames[0] || null;
   }, [mainGames]);
 
   // Last played game

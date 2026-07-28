@@ -113,7 +113,7 @@ const Purgatory: React.FC = () => {
         <div className="flex items-center gap-3 py-3.5">
           <button
             type="button"
-            onClick={() => navigate(-1)}
+            onClick={() => window.history.length > 1 ? navigate(-1) : navigate('/home')}
             className="p-2 hover:bg-card-hover rounded-xl transition-colors text-muted hover:text-foreground border border-transparent hover:border-border"
             aria-label="Go back"
           >

@@ -11,6 +11,7 @@ import { getMutedIds, getBidirectionalBlockedIds, getAcceptedFriendIds } from '.
 import { isTransientError } from '../utils/transientError';
 import { parseMediaUrls } from '../utils/mediaUrls';
 import { progressionEngine } from '../services/progressionEngine';
+import { DailyMissionService } from '../services/dailyMissionService';
 
 const router = express.Router();
 
@@ -836,6 +837,9 @@ router.post('/:postId/react', auth, validateNotGhosted, async (req: AuthRequest,
               postId,
               authorId: post.user_id,
             });
+
+            // Track daily mission progress
+            DailyMissionService.trackProgress(userId, 'like').catch(() => {});
           }
         }
       }

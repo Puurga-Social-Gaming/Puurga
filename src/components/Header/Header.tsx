@@ -105,7 +105,7 @@ const Header: React.FC<HeaderProps> = ({ className }) => {
             aria-label="Puurga Home"
           >
             <PuurgaLogo size={28} className="text-foreground shrink-0 sm:w-8 sm:h-8" />
-            <span className="text-base sm:text-lg font-bold tracking-[0.12em] text-foreground uppercase leading-none">
+            <span className="text-base sm:text-lg font-bold tracking-[0.06em] text-foreground uppercase leading-none">
               Puurga
             </span>
           </Link>

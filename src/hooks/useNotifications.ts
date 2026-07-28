@@ -63,12 +63,7 @@ export const useNotifications = () => {
 
     try {
       await api.put('/notifications/read', { notificationIds });
-
-      setNotifications(prev =>
-        prev.map(n =>
-          notificationIds.includes(n.id) ? { ...n, read: true } : n
-        )
-      );
+      setNotifications(prev => prev.filter(n => !notificationIds.includes(n.id)));
       setUnreadCount(prev => Math.max(0, prev - notificationIds.length));
     } catch (error) {
       console.error('Error marking notifications as read:', error);

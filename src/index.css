@@ -593,3 +593,119 @@ a[href^="/profile/"]:active {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
+
+/* ─── Welcome Center Nav Item ─────────────────────────────── */
+.welcome-pulse {
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.08), rgba(168, 85, 247, 0.04));
+  border-left-color: rgba(139, 92, 246, 0.4) !important;
+  animation: welcome-float 3s ease-in-out infinite;
+}
+
+.welcome-pulse .shrink-0 {
+  filter: drop-shadow(0 0 4px rgba(139, 92, 246, 0.3));
+}
+
+.welcome-pulse span:last-child {
+  background: linear-gradient(135deg, #a78bfa, #c084fc);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+@keyframes welcome-float {
+  0%, 100% {
+    transform: translateY(0);
+    box-shadow: 0 0 0 rgba(139, 92, 246, 0);
+  }
+  50% {
+    transform: translateY(-1px);
+    box-shadow: 0 0 8px rgba(139, 92, 246, 0.15);
+  }
+}
+
+/* Light mode override */
+:root:not(.dark) .welcome-pulse {
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.06), rgba(168, 85, 247, 0.03));
+  border-left-color: rgba(139, 92, 246, 0.3) !important;
+}
+
+:root:not(.dark) .welcome-pulse span:last-child {
+  background: linear-gradient(135deg, #7c3aed, #9333ea);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Glass Bubble Animations for Game Sidebar */
+@keyframes bubble-float-1 {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-6px); }
+}
+@keyframes bubble-float-2 {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(5px); }
+}
+@keyframes bubble-float-3 {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-4px); }
+}
+
+.game-bubble {
+  position: relative;
+  border-radius: 50%;
+  overflow: hidden;
+  background: radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.02) 55%, rgba(0, 0, 0, 0.6) 100%);
+  box-shadow:
+    inset 0 0 10px rgba(255, 255, 255, 0.15),
+    inset -4px -4px 12px rgba(0, 0, 0, 0.5),
+    0 8px 20px rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s ease;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.game-bubble:hover {
+  transform: scale(1.08) translateY(-3px);
+  box-shadow:
+    inset 0 0 16px rgba(255, 255, 255, 0.3),
+    inset -3px -3px 10px rgba(0, 0, 0, 0.4),
+    0 12px 28px rgba(0, 0, 0, 0.6),
+    0 0 16px rgba(255, 255, 255, 0.1);
+}
+.game-bubble::before {
+  content: '';
+  position: absolute;
+  top: 8%;
+  left: 14%;
+  width: 40%;
+  height: 24%;
+  border-radius: 50%;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.5) 0%, rgba(255, 255, 255, 0) 80%);
+  transform: rotate(-28deg);
+  pointer-events: none;
+  z-index: 12;
+}
+.game-bubble-img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.game-bubble-img img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scale(1.05);
+  filter: contrast(1.05) brightness(0.85);
+  transition: transform 0.4s ease, filter 0.4s ease;
+}
+.game-bubble:hover .game-bubble-img img {
+  transform: scale(1.12);
+  filter: contrast(1.1) brightness(0.95);
+}
+.bubble-float-1 { animation: bubble-float-1 4.2s ease-in-out infinite; }
+.bubble-float-2 { animation: bubble-float-2 3.8s ease-in-out infinite 0.5s; }
+.bubble-float-3 { animation: bubble-float-3 4.5s ease-in-out infinite 1s; }

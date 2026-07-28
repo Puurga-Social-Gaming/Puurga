@@ -8,6 +8,7 @@ import { NotificationService } from '../services/notificationService';
 import { validateNotGhosted } from '../middleware/restrictGhosted';
 import { getAcceptedFriendIds, getPendingOutgoingIds, areBlocked, getBidirectionalBlockedIds } from '../utils/friendRelations';
 import { TranslationService } from '../services/translationService';
+import { DailyMissionService } from '../services/dailyMissionService';
 
 const router = express.Router();
 
@@ -575,6 +576,9 @@ router.post('/conversations/:conversationId/messages', auth, validateNotGhosted,
         );
       }
     }
+
+    // Track daily mission progress
+    DailyMissionService.trackProgress(user.id, 'send_message').catch(() => {});
 
     const messageLanguage = TranslationService.normalizeLang(
       (message as any).language || sourceLanguage

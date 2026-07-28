@@ -6,6 +6,7 @@ import { ChallengeService, CHALLENGE_STAKE_PRESETS } from '../services/challenge
 import { NotificationService } from '../services/notificationService';
 import { CreditService } from '../services/creditService';
 import { progressionEngine } from '../services/progressionEngine';
+import { DailyMissionService } from '../services/dailyMissionService';
 
 // ─── Server-side Game Validation Config ─────────────────────
 // Score bounds + rate limiting to prevent cheating
@@ -507,6 +508,12 @@ router.post('/finish', auth, async (req: AuthRequest, res) => {
       isWin: reward.isWin,
       isPerfect: reward.isPerfect,
     });
+
+    // Track daily mission progress
+    DailyMissionService.trackProgress(userId, 'play_game').catch(() => {});
+    if (reward.isWin) {
+      DailyMissionService.trackProgress(userId, 'win_game').catch(() => {});
+    }
 
     // 10. Return validated result
     res.json({

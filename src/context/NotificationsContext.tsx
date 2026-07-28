@@ -47,10 +47,7 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
 
     try {
       await api.put('/notifications/read', { notificationIds });
-
-      setNotifications(prev =>
-        prev.map(n => (notificationIds.includes(n.id) ? { ...n, read: true } : n))
-      );
+      setNotifications(prev => prev.filter(n => !notificationIds.includes(n.id)));
     } catch (error) {
       console.error('Error marking notifications as read:', error);
     }
@@ -81,7 +78,7 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
   const markAllAsRead = useCallback(async () => {
     try {
       await api.put('/notifications/read-all');
-      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+      setNotifications([]);
     } catch (error) {
       const unreadIds = notifications.filter(n => !n.read).map(n => n.id);
       if (unreadIds.length > 0) {

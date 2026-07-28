@@ -19,33 +19,33 @@ import { Notification, NotificationType, FILTER_CATEGORIES, getNotificationCateg
 type FilterCategory = 'all' | 'social' | 'messaging' | 'gaming' | 'system';
 
 const NOTIFICATION_ICONS: Partial<Record<NotificationType, React.ReactNode>> = {
-  like: <Heart size={16} className="text-pink-500" />,
-  dislike: <ThumbsDown size={16} className="text-red-500" />,
-  comment: <MessageCircle size={16} className="text-white" />,
-  reply: <Reply size={16} className="text-blue-400" />,
-  mention: <AtSign size={16} className="text-blue-400" />,
-  follow: <UserPlus size={16} className="text-blue-500" />,
-  follow_accepted: <UserCheck size={16} className="text-green-500" />,
-  share: <Share2 size={16} className="text-green-400" />,
-  profile_visit: <Eye size={16} className="text-gray-400" />,
-  message: <MessageSquare size={16} className="text-purple-500" />,
-  group_message: <MessageSquare size={16} className="text-indigo-500" />,
-  message_reaction: <Heart size={16} className="text-pink-400" />,
-  missed_call: <Phone size={16} className="text-red-400" />,
-  resume_game: <Gamepad2 size={16} className="text-green-400" />,
-  reward_reminder: <Award size={16} className="text-yellow-400" />,
-  tournament_reminder: <Trophy size={16} className="text-yellow-500" />,
-  challenge: <Flame size={16} className="text-orange-500" />,
-  welcome: <Bell size={16} className="text-blue-400" />,
-  verification: <Mail size={16} className="text-yellow-400" />,
-  security_alert: <Shield size={16} className="text-red-500" />,
-  maintenance: <Wrench size={16} className="text-gray-500" />,
-  friend_request: <UserPlus size={16} className="text-blue-500" />,
-  friend_request_accepted: <UserCheck size={16} className="text-green-500" />,
-  redemption: <Star size={16} className="text-yellow-400" />,
-  redemption_contribution: <Award size={16} className="text-yellow-500" />,
-  friend_ghosted: <Ghost size={16} className="text-gray-400" />,
-  purge: <AlertTriangle size={16} className="text-red-500" />,
+  like: <Heart size={14} className="text-pink-500" />,
+  dislike: <ThumbsDown size={14} className="text-red-500" />,
+  comment: <MessageCircle size={14} className="text-white" />,
+  reply: <Reply size={14} className="text-blue-400" />,
+  mention: <AtSign size={14} className="text-blue-400" />,
+  follow: <UserPlus size={14} className="text-blue-500" />,
+  follow_accepted: <UserCheck size={14} className="text-green-500" />,
+  share: <Share2 size={14} className="text-green-400" />,
+  profile_visit: <Eye size={14} className="text-gray-400" />,
+  message: <MessageSquare size={14} className="text-purple-500" />,
+  group_message: <MessageSquare size={14} className="text-indigo-500" />,
+  message_reaction: <Heart size={14} className="text-pink-400" />,
+  missed_call: <Phone size={14} className="text-red-400" />,
+  resume_game: <Gamepad2 size={14} className="text-green-400" />,
+  reward_reminder: <Award size={14} className="text-yellow-400" />,
+  tournament_reminder: <Trophy size={14} className="text-yellow-500" />,
+  challenge: <Flame size={14} className="text-orange-500" />,
+  welcome: <Bell size={14} className="text-blue-400" />,
+  verification: <Mail size={14} className="text-yellow-400" />,
+  security_alert: <Shield size={14} className="text-red-500" />,
+  maintenance: <Wrench size={14} className="text-gray-500" />,
+  friend_request: <UserPlus size={14} className="text-blue-500" />,
+  friend_request_accepted: <UserCheck size={14} className="text-green-500" />,
+  redemption: <Star size={14} className="text-yellow-400" />,
+  redemption_contribution: <Award size={14} className="text-yellow-500" />,
+  friend_ghosted: <Ghost size={14} className="text-gray-400" />,
+  purge: <AlertTriangle size={14} className="text-red-500" />,
 };
 
 const NOTIFICATION_COLORS: Partial<Record<NotificationType, string>> = {
@@ -108,7 +108,6 @@ const Notifications: React.FC = () => {
     try {
       await dismissNotifications([notificationId]);
       await api.post(`/friend-requests/${friendRequestId}/accept`);
-      await api.put('/notifications/read', { notificationIds: [notificationId] });
       toast.success(t('notifications.acceptSuccess'));
     } catch (error) {
       console.error('Error accepting friend request:', error);
@@ -120,7 +119,6 @@ const Notifications: React.FC = () => {
     try {
       await dismissNotifications([notificationId]);
       await api.post(`/friend-requests/${friendRequestId}/reject`);
-      await api.put('/notifications/read', { notificationIds: [notificationId] });
       toast.success(t('notifications.rejectSuccess'));
     } catch (error) {
       console.error('Error rejecting friend request:', error);
@@ -129,37 +127,32 @@ const Notifications: React.FC = () => {
   };
 
   const handleNotificationClick = async (notification: Notification) => {
-    try {
-      if (!notification.read) {
-        await markAsRead([notification.id]);
-      }
-    } catch (error) {
-      console.error('Failed to mark notification as read:', error);
-    }
-
     const { type, data, fromUser } = notification;
+
     const socialTypes = ['like', 'dislike', 'comment', 'reply', 'mention', 'share'];
     if (socialTypes.includes(type) && data?.postId) {
+      await markAsRead([notification.id]);
       navigate(`/home?post=${data.postId}`);
     } else if ((type === 'follow_accepted' || type === 'follow') && fromUser?.username) {
+      await markAsRead([notification.id]);
       navigate(`/profile/${fromUser.username}`);
     } else if (['message', 'group_message', 'message_reaction'].includes(type) && data?.conversationId) {
+      await markAsRead([notification.id]);
       navigate(`/messages?conversation=${data.conversationId}`);
     } else if (type === 'challenge' && data?.gameId) {
+      await markAsRead([notification.id]);
       navigate(`/puurga-games?play=${data.gameId}`);
     } else if (type === 'redemption' || type === 'redemption_contribution' || type === 'friend_ghosted') {
+      await markAsRead([notification.id]);
       navigate('/puurga-dashboard');
     } else if (fromUser?.username) {
+      await markAsRead([notification.id]);
       navigate(`/profile/${fromUser.username}`);
     }
   };
 
   const handleViewProfile = async (username: string, notificationId: string) => {
-    try {
-      await markAsRead([notificationId]);
-    } catch (error) {
-      console.error('Failed to mark notification as read:', error);
-    }
+    await markAsRead([notificationId]);
     navigate(`/profile/${username}`);
   };
 
@@ -217,37 +210,38 @@ const Notifications: React.FC = () => {
 
     if (notification.type === 'friend_request') {
       return (
-        <div key={notification.id} className={`rounded-2xl card-gradient border border-border bg-card/80 p-4 sm:p-5 shadow-theme-sm ${notification.read ? '' : `border-l-4 ${borderColor}`}`}>
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-3 min-w-0">
+        <div key={notification.id} className={`rounded-xl border border-border/60 bg-card/50 p-3 sm:p-3.5 transition-colors hover:bg-card/80 ${notification.read ? '' : `border-l-[3px] ${borderColor}`}`}>
+          <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-2.5 min-w-0">
               <ProfileLink username={fromUser.username} className="shrink-0 rounded-full">
-                <Avatar src={fromUser.avatar || DEFAULT_IMAGES.avatar} alt={fromUser.name} size="md" />
+                <Avatar src={fromUser.avatar || DEFAULT_IMAGES.avatar} alt={fromUser.name} size="sm" />
               </ProfileLink>
               <div className="min-w-0">
-                <p className="text-foreground leading-6">
+                <p className="text-[13px] text-foreground leading-snug">
                   <ProfileLink username={fromUser.username} className="font-semibold hover:text-accent">
                     {fromUser.name || t('notifications.someone')}
                   </ProfileLink>
-                  <span className="text-muted"> {getNotificationText(notification.type)}</span>
+                  {' '}
+                  <span className="text-muted">{getNotificationText(notification.type)}</span>
                 </p>
-                <p className="mt-1 text-xs text-muted-light uppercase tracking-wide">{formatDate(notification.createdAt)}</p>
+                <p className="text-[11px] text-muted-light mt-0.5">{formatDate(notification.createdAt)}</p>
               </div>
             </div>
-            <div className="flex flex-wrap items-center gap-2 flex-shrink-0">
+            <div className="flex flex-wrap items-center gap-1.5 flex-shrink-0">
               {data.friendRequestId && (
                 <>
                   <button
                     onClick={() => handleAcceptFriendRequest(data.friendRequestId!, notification.id)}
-                    className="inline-flex min-h-[42px] items-center gap-1.5 rounded-xl bg-green-500 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-green-600"
+                    className="inline-flex items-center gap-1 rounded-lg bg-green-500 px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-green-600"
                   >
-                    <UserCheck size={14} />
+                    <UserCheck size={12} />
                     <span className="hidden sm:inline">{t('notifications.accept')}</span>
                   </button>
                   <button
                     onClick={() => handleRejectFriendRequest(data.friendRequestId!, notification.id)}
-                    className="inline-flex min-h-[42px] items-center gap-1.5 rounded-xl bg-red-500/15 px-3 py-2 text-sm font-medium text-red-400 transition-colors hover:bg-red-500/25"
+                    className="inline-flex items-center gap-1 rounded-lg bg-red-500/15 px-2.5 py-1.5 text-xs font-medium text-red-400 transition-colors hover:bg-red-500/25"
                   >
-                    <UserX size={14} />
+                    <UserX size={12} />
                     <span className="hidden sm:inline">{t('notifications.decline')}</span>
                   </button>
                 </>
@@ -255,7 +249,7 @@ const Notifications: React.FC = () => {
               {fromUser.username && (
                 <button
                   onClick={() => handleViewProfile(fromUser.username, notification.id)}
-                  className="inline-flex min-h-[42px] items-center justify-center rounded-xl border border-border bg-background px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-card-hover"
+                  className="inline-flex items-center justify-center rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-card-hover"
                 >
                   {t('notifications.viewProfile')}
                 </button>
@@ -270,48 +264,44 @@ const Notifications: React.FC = () => {
       <div
         key={notification.id}
         onClick={() => handleNotificationClick(notification)}
-        className={`cursor-pointer rounded-2xl border border-border bg-card/80 p-4 sm:p-5 shadow-theme-sm transition-colors hover:bg-card ${notification.read ? '' : `border-l-4 ${borderColor}`}`}
+        className={`cursor-pointer rounded-xl border border-border/60 bg-card/50 p-3 sm:p-3.5 transition-colors hover:bg-card/80 ${notification.read ? '' : `border-l-[3px] ${borderColor}`}`}
       >
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="relative">
-              <ProfileLink username={fromUser.username} className="rounded-full inline-block">
-                <Avatar src={fromUser.avatar || DEFAULT_IMAGES.avatar} alt={fromUser.name} size="md" />
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="relative shrink-0">
+            <ProfileLink username={fromUser.username} className="rounded-full inline-block">
+              <Avatar src={fromUser.avatar || DEFAULT_IMAGES.avatar} alt={fromUser.name} size="sm" />
+            </ProfileLink>
+            {(notification.type === 'like' || notification.type === 'message_reaction') && (
+              <div className="absolute -bottom-0.5 -right-0.5 bg-pink-500 rounded-full p-0.5">
+                <Heart size={8} className="text-white fill-white" />
+              </div>
+            )}
+            {(notification.type === 'comment' || notification.type === 'reply') && (
+              <div className="absolute -bottom-0.5 -right-0.5 bg-card border border-border rounded-full p-0.5">
+                <MessageCircle size={8} className="text-foreground" />
+              </div>
+            )}
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-[13px] text-foreground leading-snug">
+              <ProfileLink username={fromUser.username} className="font-semibold hover:text-accent">
+                {fromUser.name || t('notifications.someone')}
               </ProfileLink>
-              {(notification.type === 'like' || notification.type === 'message_reaction') && (
-                <div className="absolute -bottom-1 -right-1 bg-pink-500 rounded-full p-1">
-                  <Heart size={12} className="text-white fill-white" />
-                </div>
-              )}
-              {(notification.type === 'comment' || notification.type === 'reply') && (
-                <div className="absolute -bottom-1 -right-1 bg-card border border-border rounded-full p-1">
-                  <MessageCircle size={12} className="text-black" />
-                </div>
-              )}
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="flex flex-wrap items-center gap-2 text-foreground">
-                <ProfileLink username={fromUser.username} className="font-semibold hover:text-accent">
-                  {fromUser.name || t('notifications.someone')}
-                </ProfileLink>
-                {NOTIFICATION_ICONS[notification.type]}
-                {!notification.read && (
-                  <span className="inline-flex h-2.5 w-2.5 rounded-full bg-accent" />
-                )}
-              </p>
-              <p className="mt-1 text-sm text-muted">{getNotificationText(notification.type)}</p>
-              {notification.title && (
-                <p className="mt-1 text-sm font-medium text-foreground">{notification.title}</p>
-              )}
-              <p className="mt-2 text-xs uppercase tracking-wide text-muted-light">{formatDate(notification.createdAt)}</p>
-            </div>
+              {' '}
+              <span className="text-muted">{getNotificationText(notification.type)}</span>
+              <span className="inline-block ml-1.5 align-middle">{NOTIFICATION_ICONS[notification.type]}</span>
+            </p>
+            {notification.title && (
+              <p className="text-[12px] font-medium text-foreground mt-0.5">{notification.title}</p>
+            )}
+            <p className="text-[11px] text-muted-light mt-0.5">{formatDate(notification.createdAt)}</p>
           </div>
           {fromUser.username && (
             <button
               onClick={(e) => { e.stopPropagation(); handleViewProfile(fromUser.username, notification.id); }}
-              className="inline-flex min-h-[42px] items-center justify-center rounded-xl border border-border bg-background px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-card-hover"
+              className="inline-flex items-center justify-center rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-card-hover shrink-0"
             >
-              View Profile
+              {t('notifications.viewProfile')}
             </button>
           )}
         </div>
@@ -322,25 +312,25 @@ const Notifications: React.FC = () => {
   return (
     <div className="w-full flex flex-col">
       <div className="sticky top-0 z-10 bg-background/90 backdrop-blur-md border-b border-border -mx-[var(--page-shell-pad-x,20px)] px-[var(--page-shell-pad-x,20px)]">
-        <div className="py-4 sm:py-5">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-border bg-card shadow-theme-sm">
-                <Bell size={20} className="text-accent" />
+        <div className="py-3 sm:py-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-border bg-card shadow-theme-sm">
+                <Bell size={16} className="text-accent" />
               </div>
               <div className="min-w-0">
-                <h1 className="page-title text-xl sm:text-2xl">{t('notifications.notifications')}</h1>
-                <p className="text-sm text-muted">
+                <h1 className="text-base sm:text-lg font-bold text-foreground">{t('notifications.notifications')}</h1>
+                <p className="text-xs text-muted">
                   {unreadCount > 0 ? `${unreadCount} ${t('notifications.unread')}` : t('notifications.interactionPrompt')}
                 </p>
               </div>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-1.5">
               {notifications.some((n) => !n.read) && (
                 <button
                   type="button"
                   onClick={() => void markAllAsRead()}
-                  className="inline-flex min-h-[42px] items-center justify-center rounded-xl border border-border bg-card px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-card-hover"
+                  className="inline-flex items-center justify-center rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-card-hover"
                 >
                   Mark all as read
                 </button>
@@ -353,16 +343,16 @@ const Notifications: React.FC = () => {
           </div>
         </div>
 
-        <div className="pb-3">
-          <div className="flex overflow-x-auto gap-2 scrollbar-hide">
+        <div className="pb-2.5">
+          <div className="flex overflow-x-auto gap-1.5 scrollbar-hide">
             {FILTER_CATEGORIES.map((filter) => (
               <button
                 key={filter.id}
                 onClick={() => setActiveFilter(filter.id as FilterCategory)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all duration-200 min-h-[44px] border ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all duration-200 border ${
                   activeFilter === filter.id
                     ? 'bg-foreground text-background border-foreground'
-                    : 'bg-card text-muted border-border hover:bg-card-hover hover:text-foreground'
+                    : 'bg-card text-muted border-border/60 hover:bg-card-hover hover:text-foreground'
                 }`}
               >
                 <span>{filter.label}</span>
@@ -372,15 +362,15 @@ const Notifications: React.FC = () => {
         </div>
       </div>
 
-      <div className="py-4 sm:py-6">
-          <div className="space-y-3">
+      <div className="py-3 sm:py-4">
+          <div className="space-y-1.5">
             {filteredNotifications.length === 0 ? (
-              <div className="rounded-3xl border border-border bg-card/70 px-6 py-16 text-center text-muted shadow-theme-sm">
-                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-border bg-background">
-                  <Bell size={28} className="text-muted-light" />
+              <div className="rounded-xl border border-border/60 bg-card/50 px-4 py-12 text-center text-muted">
+                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl border border-border bg-background">
+                  <Bell size={20} className="text-muted-light" />
                 </div>
-                <p className="text-lg font-semibold text-foreground">{t('notifications.noNotificationsYet')}</p>
-                <p className="mt-1 text-sm text-muted-light">{t('notifications.interactionPrompt')}</p>
+                <p className="text-sm font-semibold text-foreground">{t('notifications.noNotificationsYet')}</p>
+                <p className="mt-0.5 text-xs text-muted-light">{t('notifications.interactionPrompt')}</p>
               </div>
             ) : (
               filteredNotifications.map(notification => renderNotification(notification))

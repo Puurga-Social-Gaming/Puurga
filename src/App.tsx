@@ -33,6 +33,7 @@ const Security = retryableLazy(() => import('./pages/Security'));
 const GroupDetail = retryableLazy(() => import('./pages/GroupDetail'));
 const JoinGroup = retryableLazy(() => import('./pages/JoinGroup'));
 const Help = retryableLazy(() => import('./pages/Help'));
+const WelcomeCenter = retryableLazy(() => import('./pages/WelcomeCenter'));
 const GameLauncher = retryableLazy(() => import('./games/GameLauncher'));
 const UserProfile = retryableLazy(() => import('./pages/UserProfile'));
 const Connections = retryableLazy(() => import('./pages/Connections'));
@@ -189,6 +190,7 @@ const router = createBrowserRouter(
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/puurga-dashboard" element={<PuurgaDashboard />} />
         <Route path="/purgatory" element={<Purgatory />} />
+        <Route path="/welcome" element={<WelcomeCenter />} />
         <Route path="/help" element={<Help />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/security" element={<Security />} />

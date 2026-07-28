@@ -13,6 +13,7 @@ import { createNotification } from './createNotification';
 import { validateNotGhosted } from '../middleware/restrictGhosted';
 import { NotificationService } from '../services/notificationService';
 import { serializeMediaUrls, parseMediaUrls } from '../utils/mediaUrls';
+import { DailyMissionService } from '../services/dailyMissionService';
 import { progressionEngine } from '../services/progressionEngine';
 
 const router = express.Router();
@@ -862,6 +863,9 @@ router.post('/posts', auth, validateNotGhosted, async (req: AuthRequest, res) =>
 
     // Emit progression event (XP, future: achievements, missions)
     progressionEngine.safeEmit('PostCreated', { userId: user_id, postId: createdPost.id });
+
+    // Track daily mission progress
+    DailyMissionService.trackProgress(user_id, 'create_post').catch(() => {});
 
     console.log('Post created successfully:', createdPost.id);
     const responseImages = parseMediaUrls(createdPost.media_url || media_url)

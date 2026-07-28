@@ -15,6 +15,7 @@ import { SUPPORTED_LANGUAGES } from '../../i18n/detectLocaleLanguage';
 import { updateUserLanguage } from '../../services/languageService';
 import Avatar from '../../components/Avatar';
 import ProfileLink from '../../components/Profile/ProfileLink';
+import ProgressionSection from '../../components/Progression/ProgressionSection';
 
 const LANGUAGE_OPTIONS: { value: string; label: string }[] = [
   { value: 'en', label: 'English' },
@@ -665,6 +666,8 @@ const Settings: React.FC = () => {
             </select>
           </div>
         </SettingsSection>
+
+        <ProgressionSection />
 
         {(user?.role === 'admin' || user?.role === 'super_admin') && (
           <SettingsSection

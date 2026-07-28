@@ -20,37 +20,37 @@ function PhoneCallIcon(props: any) {
 
 const getNotificationIcon = (type: string) => {
   const icons: Record<string, React.ReactNode> = {
-    like: <Heart className="w-5 h-5 text-red-500" />,
-    dislike: <ThumbsDown className="w-5 h-5 text-red-500" />,
-    comment: <MessageCircle className="w-5 h-5 text-white" />,
-    reply: <Reply className="w-5 h-5 text-blue-400" />,
-    mention: <AtSign className="w-5 h-5 text-blue-400" />,
-    follow: <UserPlus className="w-5 h-5 text-blue-500" />,
-    follow_accepted: <UserCheck className="w-5 h-5 text-green-500" />,
-    share: <Share2 className="w-5 h-5 text-green-400" />,
-    profile_visit: <Eye className="w-5 h-5 text-gray-400" />,
-    message: <MessageSquare className="w-5 h-5 text-purple-500" />,
-    group_message: <MessageSquare className="w-5 h-5 text-indigo-500" />,
-    message_reaction: <Heart className="w-5 h-5 text-pink-400" />,
-    missed_call: <PhoneCallIcon className="w-5 h-5 text-red-400" />,
-    resume_game: <Gamepad2 className="w-5 h-5 text-green-400" />,
-    reward_reminder: <Award className="w-5 h-5 text-yellow-400" />,
-    tournament_reminder: <Trophy className="w-5 h-5 text-yellow-500" />,
-    challenge: <Flame className="w-5 h-5 text-orange-500" />,
-    game_score: <Gamepad2 className="w-5 h-5 text-cyan-400" />,
-    game_high_score: <Trophy className="w-5 h-5 text-yellow-400" />,
-    welcome: <Bell className="w-5 h-5 text-blue-400" />,
-    verification: <Mail className="w-5 h-5 text-yellow-400" />,
-    security_alert: <Shield className="w-5 h-5 text-red-500" />,
-    maintenance: <Wrench className="w-5 h-5 text-gray-500" />,
-    friend_request: <UserPlus className="w-5 h-5 text-blue-500" />,
-    friend_request_accepted: <UserCheck className="w-5 h-5 text-green-500" />,
-    redemption: <Award className="w-5 h-5 text-yellow-400" />,
-    redemption_contribution: <Star className="w-5 h-5 text-yellow-500" />,
-    friend_ghosted: <Ghost className="w-5 h-5 text-gray-400" />,
-    purge: <AlertTriangle className="w-5 h-5 text-red-500" />,
+    like: <Heart className="w-4 h-4 text-red-500" />,
+    dislike: <ThumbsDown className="w-4 h-4 text-red-500" />,
+    comment: <MessageCircle className="w-4 h-4 text-white" />,
+    reply: <Reply className="w-4 h-4 text-blue-400" />,
+    mention: <AtSign className="w-4 h-4 text-blue-400" />,
+    follow: <UserPlus className="w-4 h-4 text-blue-500" />,
+    follow_accepted: <UserCheck className="w-4 h-4 text-green-500" />,
+    share: <Share2 className="w-4 h-4 text-green-400" />,
+    profile_visit: <Eye className="w-4 h-4 text-gray-400" />,
+    message: <MessageSquare className="w-4 h-4 text-purple-500" />,
+    group_message: <MessageSquare className="w-4 h-4 text-indigo-500" />,
+    message_reaction: <Heart className="w-4 h-4 text-pink-400" />,
+    missed_call: <PhoneCallIcon className="w-4 h-4 text-red-400" />,
+    resume_game: <Gamepad2 className="w-4 h-4 text-green-400" />,
+    reward_reminder: <Award className="w-4 h-4 text-yellow-400" />,
+    tournament_reminder: <Trophy className="w-4 h-4 text-yellow-500" />,
+    challenge: <Flame className="w-4 h-4 text-orange-500" />,
+    game_score: <Gamepad2 className="w-4 h-4 text-cyan-400" />,
+    game_high_score: <Trophy className="w-4 h-4 text-yellow-400" />,
+    welcome: <Bell className="w-4 h-4 text-blue-400" />,
+    verification: <Mail className="w-4 h-4 text-yellow-400" />,
+    security_alert: <Shield className="w-4 h-4 text-red-500" />,
+    maintenance: <Wrench className="w-4 h-4 text-gray-500" />,
+    friend_request: <UserPlus className="w-4 h-4 text-blue-500" />,
+    friend_request_accepted: <UserCheck className="w-4 h-4 text-green-500" />,
+    redemption: <Award className="w-4 h-4 text-yellow-400" />,
+    redemption_contribution: <Star className="w-4 h-4 text-yellow-500" />,
+    friend_ghosted: <Ghost className="w-4 h-4 text-gray-400" />,
+    purge: <AlertTriangle className="w-4 h-4 text-red-500" />,
   };
-  return icons[type] || <Bell className="w-5 h-5 text-gray-500" />;
+  return icons[type] || <Bell className="w-4 h-4 text-gray-500" />;
 };
 
 const getNotificationText = (type: string): string => {
@@ -80,7 +80,7 @@ const getNotificationText = (type: string): string => {
     maintenance: 'Maintenance notice',
     friend_request: 'sent you a friend request',
     friend_request_accepted: 'accepted your friend request',
-    redemption: 'redeemed you from ghost mode! 🎉',
+    redemption: 'redeemed you from ghost mode!',
     redemption_contribution: 'contributed credits towards your redemption',
     friend_ghosted: 'has been ghosted (purged)',
     purge: 'purged your post',
@@ -132,7 +132,7 @@ const NotificationsDropdown: React.FC = () => {
       >
         <Bell size={20} />
         {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 bg-accent text-foreground text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+          <span className="absolute -top-1 -right-1 bg-accent text-foreground text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
             {unreadCount > 9 ? '9+' : unreadCount}
           </span>
         )}
@@ -146,19 +146,20 @@ const NotificationsDropdown: React.FC = () => {
               onClick={() => setIsOpen(false)}
             />
             <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              className="absolute right-0 mt-2 w-96 bg-black border border-gray-800 rounded-lg shadow-xl z-50 max-h-[600px] flex flex-col"
+              initial={{ opacity: 0, y: -8, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -8, scale: 0.98 }}
+              transition={{ duration: 0.15 }}
+              className="absolute right-0 mt-2 w-80 bg-card border border-border/60 rounded-xl shadow-xl z-50 max-h-[480px] flex flex-col overflow-hidden"
             >
-              <div className="p-4 border-b border-gray-800 flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-white">Notifications</h3>
+              <div className="px-3 py-2.5 border-b border-border/60 flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-foreground">Notifications</h3>
                 {unreadCount > 0 && (
                   <button
                     onClick={markAllAsRead}
-                    className="text-sm text-white hover:text-gray-300 flex items-center gap-1"
+                    className="text-[11px] text-muted hover:text-foreground flex items-center gap-1 transition-colors"
                   >
-                    <CheckCheck size={16} />
+                    <CheckCheck size={12} />
                     Mark all read
                   </button>
                 )}
@@ -166,32 +167,32 @@ const NotificationsDropdown: React.FC = () => {
 
               <div className="flex-1 overflow-y-auto">
                 {loading ? (
-                  <div className="flex items-center justify-center py-12">
-                    <Loader2 className="w-6 h-6 animate-spin text-white" />
+                  <div className="flex items-center justify-center py-10">
+                    <Loader2 className="w-5 h-5 animate-spin text-muted" />
                   </div>
                 ) : notifications.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
-                    <Bell className="w-12 h-12 text-gray-600 mb-3" />
-                    <p className="text-gray-400 text-sm">No notifications yet</p>
-                    <p className="text-gray-500 text-xs mt-1">
+                  <div className="flex flex-col items-center justify-center py-10 px-4 text-center">
+                    <Bell className="w-8 h-8 text-muted-light mb-2" />
+                    <p className="text-xs text-muted">No notifications yet</p>
+                    <p className="text-[11px] text-muted-light mt-0.5">
                       We'll notify you when something happens
                     </p>
                   </div>
                 ) : (
-                  <div className="divide-y divide-gray-800">
+                  <div className="divide-y divide-border/40">
                     {notifications.map((notification) => (
                       <div
                         key={notification.id}
                         onClick={() => handleNotificationClick(notification)}
-                        className={`p-4 cursor-pointer transition-colors ${
+                        className={`px-3 py-2.5 cursor-pointer transition-colors ${
                           notification.read
-                            ? 'hover:bg-gray-900/50'
-                            : 'bg-white/5 hover:bg-white/10'
+                            ? 'hover:bg-card-hover/50'
+                            : 'bg-accent/5 hover:bg-accent/10'
                         }`}
                       >
-                        <div className="flex items-start gap-3">
-                          <ProfileLink username={notification.fromUser.username} className="flex-shrink-0 rounded-full">
-                            <div className="w-10 h-10 rounded-full bg-gray-700 flex items-center justify-center overflow-hidden">
+                        <div className="flex items-start gap-2.5">
+                          <ProfileLink username={notification.fromUser.username} className="flex-shrink-0 rounded-full mt-0.5">
+                            <div className="w-8 h-8 rounded-full bg-muted/20 flex items-center justify-center overflow-hidden">
                               {notification.fromUser.avatar ? (
                                 <img
                                   src={notification.fromUser.avatar}
@@ -199,7 +200,7 @@ const NotificationsDropdown: React.FC = () => {
                                   className="w-full h-full object-cover"
                                 />
                               ) : (
-                                <span className="text-white font-semibold text-sm">
+                                <span className="text-foreground font-semibold text-[10px]">
                                   {notification.fromUser.name?.charAt(0) || '?'}
                                 </span>
                               )}
@@ -207,38 +208,29 @@ const NotificationsDropdown: React.FC = () => {
                           </ProfileLink>
 
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-start gap-2">
-                              <div className="flex-1">
-                                <p className="text-sm text-white">
+                            <div className="flex items-start gap-1.5">
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs text-foreground leading-snug">
                                   <ProfileLink
                                     username={notification.fromUser.username}
                                     className="font-semibold hover:text-accent"
                                   >
                                     {notification.fromUser.name || 'System'}
                                   </ProfileLink>{' '}
-                                  <span className="text-gray-400">
+                                  <span className="text-muted">
                                     {getNotificationText(notification.type)}
                                   </span>
                                 </p>
-                                <p className="text-xs text-gray-500 mt-1">
+                                <p className="text-[10px] text-muted-light mt-0.5">
                                   {formatDistanceToNow(new Date(notification.createdAt), {
                                     addSuffix: true
                                   })}
                                 </p>
                               </div>
-                              <div className="flex-shrink-0">
+                              <div className="flex-shrink-0 mt-0.5">
                                 {getNotificationIcon(notification.type)}
                               </div>
                             </div>
-
-                            {!notification.read && (
-                              <div className="mt-2">
-                                <span className="inline-flex items-center gap-1 text-xs text-white">
-                                  <div className="w-2 h-2 bg-white rounded-full" />
-                                  New
-                                </span>
-                              </div>
-                            )}
                           </div>
                         </div>
                       </div>
@@ -248,13 +240,13 @@ const NotificationsDropdown: React.FC = () => {
               </div>
 
               {notifications.length > 0 && (
-                <div className="p-3 border-t border-gray-800 text-center">
+                <div className="px-3 py-2 border-t border-border/60 text-center">
                   <button
                     onClick={() => {
                       setIsOpen(false);
-                      window.location.href = '/notifications';
+                      navigate('/notifications');
                     }}
-                    className="text-sm text-white hover:text-gray-300"
+                    className="text-xs text-muted hover:text-foreground transition-colors"
                   >
                     View all notifications
                   </button>

@@ -1,6 +1,7 @@
 import { supabaseAdmin } from '../config/supabase';
 import { wsManager } from '../websocketManager';
 import { NotificationService } from './notificationService';
+import { AnalyticsService } from './analyticsService';
 
 export const XP_REWARDS = {
   POST_CREATED: 5,
@@ -32,6 +33,9 @@ export const LEVEL_TITLES = [
 ];
 
 export class XPEngine {
+  // Deduplication: prevent duplicate XP awards within short window
+  private static recentAwards = new Map<string, number>();
+
   /**
    * Award XP to a user. Handles level calculation, DB update, transaction log,
    * WebSocket broadcast, and level-up notifications.
@@ -44,6 +48,24 @@ export class XPEngine {
     if (amount <= 0) {
       const current = await this.getUserXP(userId);
       return { xp: current.xp, level: current.level, leveledUp: false };
+    }
+
+    // Deduplication: prevent duplicate XP within 5 seconds for same user+source
+    const dedupeKey = `${userId}:${source}`;
+    const now = Date.now();
+    const lastAward = this.recentAwards.get(dedupeKey);
+    if (lastAward && now - lastAward < 5000) {
+      console.log(`XPEngine: Deduplicated XP for ${dedupeKey}`);
+      const current = await this.getUserXP(userId);
+      return { xp: current.xp, level: current.level, leveledUp: false };
+    }
+    this.recentAwards.set(dedupeKey, now);
+
+    // Cleanup old entries periodically
+    if (this.recentAwards.size > 1000) {
+      for (const [key, timestamp] of this.recentAwards) {
+        if (now - timestamp > 10000) this.recentAwards.delete(key);
+      }
     }
 
     try {
@@ -112,7 +134,13 @@ export class XPEngine {
           message: `Level Up! You are now Level ${newLevel} — ${title}`,
           metadata: { type: 'level_up', level: newLevel },
         });
+
+        // Track level up analytics
+        AnalyticsService.trackLevelUp(userId, newLevel, title, 0).catch(() => {});
       }
+
+      // Track XP awarded analytics
+      AnalyticsService.trackXPAwarded(userId, amount, source, newLevel, leveledUp).catch(() => {});
 
       return { xp: newXP, level: newLevel, leveledUp };
     } catch (error) {

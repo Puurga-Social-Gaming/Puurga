@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../../api/api';
@@ -14,6 +15,7 @@ import {
   ChevronDown,
   PenSquare,
   UsersRound,
+  X,
 } from 'lucide-react';
 import { useUser } from '../../context/UserContext';
 import { toast } from 'react-hot-toast';
@@ -21,6 +23,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import QuickActions from './QuickActions';
 import GamingDashboard from './GamingDashboard';
 import PurgeDashboard from './PurgeDashboard';
+import CreatePost from '../Post/CreatePost';
 import { DEFAULT_IMAGES } from '../../constants/defaultImages';
 
 interface UserStats {
@@ -42,6 +45,7 @@ const RightSidebar: React.FC = () => {
   });
   const [loading, setLoading] = useState(true);
   const [showMore, setShowMore] = useState(false);
+  const [createPostOpen, setCreatePostOpen] = useState(false);
 
   useEffect(() => {
     const fetchUserStats = async () => {
@@ -101,11 +105,18 @@ const RightSidebar: React.FC = () => {
 
   if (!user) return null;
 
-  const quickLinks = [
+  interface QuickLink {
+    to?: string;
+    icon: React.ElementType;
+    label: string;
+    onClick?: () => void;
+  }
+
+  const quickLinks: QuickLink[] = [
     {
-      to: '/home',
       icon: PenSquare,
       label: t('rightSidebar.createPost', 'Create Post'),
+      onClick: () => setCreatePostOpen(true),
     },
     {
       to: '/groups',
@@ -141,18 +152,32 @@ const RightSidebar: React.FC = () => {
           </div>
         </div>
         <div className="rs-quick-grid grid grid-cols-2 gap-1.5 min-w-0">
-          {quickLinks.map(({ to, icon: Icon, label }) => (
-            <Link
-              key={to}
-              to={to}
-              title={label}
-              className="rs-quick-btn min-w-0 flex flex-col items-center justify-center gap-1 px-1.5 py-2.5 rounded-xl bg-card hover:bg-highlight-light text-foreground transition-colors border border-border hover:border-highlight"
-            >
-              <Icon size={15} className="text-muted shrink-0" />
-              <span className="text-[10px] font-medium text-center leading-tight line-clamp-2 w-full break-words">
-                {label}
-              </span>
-            </Link>
+          {quickLinks.map(({ to, onClick, icon: Icon, label }) => (
+            to ? (
+              <Link
+                key={label}
+                to={to}
+                title={label}
+                className="rs-quick-btn min-w-0 flex flex-col items-center justify-center gap-1 px-1.5 py-2.5 rounded-xl bg-card hover:bg-highlight-light text-foreground transition-colors border border-border hover:border-highlight"
+              >
+                <Icon size={15} className="text-muted shrink-0" />
+                <span className="text-[10px] font-medium text-center leading-tight line-clamp-2 w-full break-words">
+                  {label}
+                </span>
+              </Link>
+            ) : (
+              <button
+                key={label}
+                onClick={onClick}
+                title={label}
+                className="rs-quick-btn min-w-0 flex flex-col items-center justify-center gap-1 px-1.5 py-2.5 rounded-xl bg-card hover:bg-highlight-light text-foreground transition-colors border border-border hover:border-highlight"
+              >
+                <Icon size={15} className="text-muted shrink-0" />
+                <span className="text-[10px] font-medium text-center leading-tight line-clamp-2 w-full break-words">
+                  {label}
+                </span>
+              </button>
+            )
           ))}
         </div>
       </div>
@@ -275,6 +300,46 @@ const RightSidebar: React.FC = () => {
           )}
         </AnimatePresence>
       </div>
+
+      {/* Create Post Modal Portal */}
+      {createPostOpen && createPortal(
+        <div className="fixed inset-0 z-[1000] flex items-end sm:items-center justify-center overflow-hidden">
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setCreatePostOpen(false)}
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+          />
+          <motion.div
+            initial={{ opacity: 0, y: '100%' }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: '100%' }}
+            transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+            className="relative w-full max-w-2xl bg-background rounded-t-2xl sm:rounded-2xl shadow-2xl z-10 max-h-[95dvh] flex flex-col border-t sm:border border-border"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="bg-background px-4 py-4 flex items-center justify-between rounded-t-2xl z-20 shrink-0">
+              <div className="w-10"></div>
+              <h2 className="text-[18px] font-bold text-foreground">Create New Post</h2>
+              <button
+                onClick={() => setCreatePostOpen(false)}
+                className="w-10 h-10 flex items-center justify-center bg-card hover:bg-card-hover text-muted hover:text-foreground rounded-full transition-colors active:scale-90"
+                aria-label="Close"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="px-4 pb-6 flex-1 overflow-y-auto scrollbar-hide">
+              <CreatePost
+                onPostCreated={() => setCreatePostOpen(false)}
+                autoExpand={true}
+              />
+            </div>
+          </motion.div>
+        </div>,
+        document.body
+      )}
     </motion.div>
   );
 };

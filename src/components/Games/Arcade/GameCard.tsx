@@ -36,9 +36,11 @@ const GameCard: React.FC<GameCardProps> = ({
       transition={{ delay: 0.05 * index, duration: 0.35, ease: [0.25, 0.46, 0.45, 0.94] }}
       className="group relative"
     >
-      <motion.button
-        type="button"
+      <motion.div
+        role="button"
+        tabIndex={0}
         onClick={onClick}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onClick?.(); }}
         whileHover={{ y: -6, scale: 1.02 }}
         whileTap={{ scale: 0.97 }}
         transition={{ type: 'spring', stiffness: 400, damping: 25 }}
@@ -48,7 +50,7 @@ const GameCard: React.FC<GameCardProps> = ({
           hover:shadow-xl hover:shadow-black/10 dark:hover:shadow-black/30
           hover:border-orange-500/30
           transition-shadow duration-300 ease-out
-          focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background cursor-pointer"
       >
         {/* Artwork */}
         <div className="relative aspect-[16/10] overflow-hidden bg-neutral-900">
@@ -143,7 +145,7 @@ const GameCard: React.FC<GameCardProps> = ({
             <ChevronRight size={14} className="text-muted group-hover:text-orange-400 transition-colors" />
           </div>
         </div>
-      </motion.button>
+      </motion.div>
     </motion.div>
   );
 };
