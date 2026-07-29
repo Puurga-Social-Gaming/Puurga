@@ -120,6 +120,34 @@ router.post('/spend', auth, async (req: AuthRequest, res) => {
   }
 });
 
+// POST /api/credits/award - Server-validated credit award (for games, rewards, etc.)
+router.post('/award', auth, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user.id;
+    const { amount, reason } = req.body;
+
+    if (typeof amount !== 'number' || !Number.isFinite(amount) || amount <= 0) {
+      return res.status(400).json({ error: 'Invalid amount' });
+    }
+
+    const result = await CreditService.awardCredits(
+      userId,
+      Math.floor(amount),
+      'game',
+      reason || 'Game reward'
+    );
+
+    if (!result.success) {
+      return res.status(400).json({ error: 'Failed to award credits' });
+    }
+
+    res.json({ success: true, credits: result.newBalance });
+  } catch (error) {
+    console.error('Error in credits award route:', error);
+    res.status(500).json({ error: 'Failed to award credits' });
+  }
+});
+
 // POST /api/credits/merge - One-time migration: merge localStorage credits into backend
 router.post('/merge', auth, async (req: AuthRequest, res) => {
   try {

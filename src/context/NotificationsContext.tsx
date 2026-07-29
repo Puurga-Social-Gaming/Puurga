@@ -14,6 +14,7 @@ interface NotificationsContextType {
   loadNotifications: () => Promise<void>;
   markAsRead: (notificationIds: string[]) => Promise<void>;
   dismissNotifications: (notificationIds: string[]) => Promise<void>;
+  clearAllNotifications: () => Promise<void>;
   markAllAsRead: () => Promise<void>;
 }
 
@@ -87,6 +88,23 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   }, [notifications, markAsRead]);
 
+  const clearAllNotifications = useCallback(async () => {
+    const allIds = notifications.map(n => n.id);
+    if (allIds.length === 0) return;
+
+    try {
+      await api.delete('/notifications', { data: { notificationIds: allIds } });
+      setNotifications([]);
+    } catch (error) {
+      // Fallback: delete one by one
+      try {
+        await dismissNotifications(allIds);
+      } catch (fallbackError) {
+        console.error('Failed to clear all notifications:', fallbackError);
+      }
+    }
+  }, [notifications, dismissNotifications]);
+
   const handleNewNotification = useCallback((notification: Notification) => {
     setNotifications(prev => [notification, ...prev]);
     // Message DMs already ring via MessagesContext WS — avoid double beep
@@ -115,6 +133,7 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
         loadNotifications,
         markAsRead,
         dismissNotifications,
+        clearAllNotifications,
         markAllAsRead
       }}
     >

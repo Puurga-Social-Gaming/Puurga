@@ -18,10 +18,9 @@ export const useCredits = () => {
         if (amount <= 0) return false;
 
         try {
-            const response = await api.post('/credits/spend', {
-                amount: -amount, // Negative = award
-                source: 'spend',
-                description: reason,
+            const response = await api.post('/credits/award', {
+                amount,
+                reason,
             });
 
             if (response.data?.success) {

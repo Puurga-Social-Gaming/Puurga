@@ -23,7 +23,7 @@ const StablePageOutlet: React.FC = () => {
         </div>
       }
     >
-      <div key={location.pathname} className="min-h-0">
+      <div key={location.pathname} className="min-h-0 h-full">
         {outlet}
       </div>
     </Suspense>

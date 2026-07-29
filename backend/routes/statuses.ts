@@ -6,6 +6,7 @@ import { normalizeImageUrl } from '../utils/url';
 import path from 'path';
 import fs from 'fs';
 import { getBidirectionalBlockedIds, getMutedIds } from '../utils/friendRelations';
+import { getUploadPath } from '../config/storage';
 
 const router = express.Router();
 
@@ -547,7 +548,7 @@ router.post('/', auth, upload.single('media'), async (req: AuthRequest, res) => 
           mediaUrl = publicUrlData.publicUrl;
         } else {
           console.log('Stories bucket not available, falling back to local disk:', uploadError.message);
-          const uploadDir = path.join(process.cwd(), 'uploads');
+          const uploadDir = getUploadPath();
           if (!fs.existsSync(uploadDir)) {
             fs.mkdirSync(uploadDir, { recursive: true });
           }
@@ -556,7 +557,7 @@ router.post('/', auth, upload.single('media'), async (req: AuthRequest, res) => 
         }
       } catch (storageError) {
         console.log('Storage error (falling back to local disk):', storageError);
-        const uploadDir = path.join(process.cwd(), 'uploads');
+        const uploadDir = getUploadPath();
         if (!fs.existsSync(uploadDir)) {
           fs.mkdirSync(uploadDir, { recursive: true });
         }

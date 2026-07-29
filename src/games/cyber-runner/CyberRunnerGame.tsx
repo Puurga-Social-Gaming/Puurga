@@ -159,8 +159,8 @@ function syncRunnerLayout(state, canvasW, canvasH) {
   state.floorY = Math.floor(canvasH * 0.74);
   state.pitY = canvasH + 80;
   state.playerScreenX = Math.max(56, Math.min(160, canvasW * 0.16));
-  state.spawnAhead = Math.max(380, canvasW * 1.35);
-  state.worldScale = Math.max(0.55, Math.min(1.15, canvasH / 640));
+  state.spawnAhead = Math.max(500, canvasW * 1.8);
+  state.worldScale = Math.max(0.50, Math.min(1.0, canvasH / 700));
   return state;
 }
 
@@ -262,8 +262,26 @@ export default function App() {
 
   const isPlaying = screen === 'playing';
 
+  // Lock viewport when playing so Layout chrome doesn't interfere
+  useEffect(() => {
+    if (!isPlaying) return;
+    const html = document.documentElement;
+    const body = document.body;
+    const prevHtmlOverflow = html.style.overflow;
+    const prevBodyOverflow = body.style.overflow;
+    const prevBodyHeight = body.style.height;
+    html.style.overflow = 'hidden';
+    body.style.overflow = 'hidden';
+    body.style.height = '100%';
+    return () => {
+      html.style.overflow = prevHtmlOverflow;
+      body.style.overflow = prevBodyOverflow;
+      body.style.height = prevBodyHeight;
+    };
+  }, [isPlaying]);
+
   return (
-    <div className="h-full min-h-0 bg-neutral-950 text-white flex flex-col font-sans selection:bg-orange-500 selection:text-black overflow-hidden pt-14">
+    <div className="h-full min-h-[100dvh] bg-neutral-950 text-white flex flex-col font-sans selection:bg-orange-500 selection:text-black overflow-hidden">
       {/* Top Header Bar — hidden during run so the arena uses full viewport */}
       {!isPlaying && (
       <header className="shrink-0 border-b border-orange-500/10 bg-neutral-900/60 backdrop-blur-md z-50 px-3 sm:px-3 sm:px-4 py-1.5 sm:py-2 sm:py-3 flex items-center justify-between">
@@ -512,6 +530,7 @@ function GameArena({
 }) {
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
+  const bgImagesRef = useRef({});
   
   // HUD state connections
   const [hudHp, setHudHp] = useState(100);
@@ -557,6 +576,7 @@ function GameArena({
     glitchWallX: -1500, // Starts significantly further back so Phase 1 is stress-free
     glitchSpeed: 1.5,   // Slow baseline speed for Phase 1
     baseAgilitySpeed: 4.8, // Baseline running physics
+    coinFlash: 0,
     viewW: 800,
     viewH: 600,
     floorY: 440,
@@ -604,7 +624,41 @@ function GameArena({
       syncRunnerLayout(gameStateRef.current, rect.width, rect.height);
     };
     resizeCanvas();
-    window.addEventListener('resize', resizeCanvas);
+
+    // Handle both resize and orientationchange for mobile rotation
+    let resizeTimer = null;
+    const handleResize = () => {
+      // Debounce: wait for browser to settle new dimensions after rotation
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(resizeCanvas, 80);
+    };
+    const handleOrientation = () => {
+      // Extra delay for orientation change — browser needs time to update viewport
+      setTimeout(resizeCanvas, 200);
+    };
+    const handleVisualViewport = () => {
+      // iOS Safari address bar show/hide and rotation
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(resizeCanvas, 100);
+    };
+    window.addEventListener('resize', handleResize);
+    window.addEventListener('orientationchange', handleOrientation);
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', handleVisualViewport);
+    }
+
+    // Load background images for each phase
+    const bgUrls = {
+      1: 'https://vhvxfnxtyrgiydztsonz.supabase.co/storage/v1/object/public/Gamebackgrounds/mixboard-image.png',
+      2: 'https://vhvxfnxtyrgiydztsonz.supabase.co/storage/v1/object/public/Gamebackgrounds/mixboard-image%20jungle.png',
+    };
+    Object.entries(bgUrls).forEach(([phase, url]) => {
+      if (!bgImagesRef.current[phase]) {
+        const img = new Image();
+        img.src = url;
+        img.onload = () => { bgImagesRef.current[phase] = img; };
+      }
+    });
 
     // Dynamic stats computations
     const initialAgility = 4.8 + stats.speed * 0.35; // Calibrated starting speed
@@ -656,9 +710,9 @@ function GameArena({
     ];
 
     gameStateRef.current.coins = [
-      { x: 500, y: floorY - 80, collected: false, value: 10 },
-      { x: 900, y: floorY - 100, collected: false, value: 10 },
-      { x: 1400, y: floorY - 120, collected: false, value: 15 }
+      { x: 500, y: floorY - 80, width: 16, height: 16, collected: false, value: 10 },
+      { x: 900, y: floorY - 100, width: 16, height: 16, collected: false, value: 10 },
+      { x: 1400, y: floorY - 120, width: 16, height: 16, collected: false, value: 15 }
     ];
 
     gameStateRef.current.lasers = [];
@@ -684,7 +738,12 @@ function GameArena({
 
     return () => {
       cancelAnimationFrame(animId);
-      window.removeEventListener('resize', resizeCanvas);
+      clearTimeout(resizeTimer);
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('orientationchange', handleOrientation);
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', handleVisualViewport);
+      }
     };
   }, [stats]);
 
@@ -957,7 +1016,7 @@ function GameArena({
 
         // Collectable Puurga Credits
         if (Math.random() < 0.65) {
-          state.coins.push({ x: itemX, y: nextPlatY - 45, collected: false, value: 10 });
+          state.coins.push({ x: itemX, y: nextPlatY - 45, width: 16, height: 16, collected: false, value: 10 });
         }
 
         // Hazards Spikes (Skip entirely during Phase 1 for friendly entry onboarding)
@@ -1127,17 +1186,33 @@ function GameArena({
         setHudCredits(state.creditsCollected);
         sfx.playCoin();
 
-        for (let i = 0; i < 5; i++) {
+        // Floating credit text
+        state.particles.push({
+          x: coin.x,
+          y: coin.y - 10,
+          vx: 0,
+          vy: -3,
+          isText: true,
+          text: `+${payout}`,
+          color: '#f59e0b',
+          life: 1.0
+        });
+
+        // Burst of gold particles
+        for (let i = 0; i < 10; i++) {
           state.particles.push({
-            x: coin.x,
-            y: coin.y,
-            vx: (Math.random() - 0.5) * 4,
-            vy: (Math.random() - 0.5) * 4,
-            size: Math.random() * 3 + 1,
-            color: '#f59e0b',
-            life: 0.35
+            x: coin.x + 8,
+            y: coin.y + 8,
+            vx: (Math.random() - 0.5) * 8,
+            vy: (Math.random() - 0.5) * 8,
+            size: Math.random() * 5 + 2,
+            color: Math.random() > 0.5 ? '#f59e0b' : '#fbbf24',
+            life: 0.5
           });
         }
+
+        // Screen flash effect
+        state.coinFlash = 6;
       }
     });
 
@@ -1253,12 +1328,37 @@ function GameArena({
       state.screenShake--;
     }
 
-    // Dynamic grid pattern background
-    const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
-    gradient.addColorStop(0, activeZoneData.bg[0]);
-    gradient.addColorStop(1, activeZoneData.bg[1]);
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    // Background image with parallax scroll — use phase-specific image
+    const currentPhase = Math.min(state.phase || 1, 2);
+    const bg = bgImagesRef.current[currentPhase] || bgImagesRef.current[1];
+    if (bg) {
+      // Scale image to cover the canvas, shifted by camera for parallax
+      const imgAspect = bg.width / bg.height;
+      const canvasAspect = canvas.width / canvas.height;
+      let drawW, drawH;
+      if (imgAspect > canvasAspect) {
+        drawH = canvas.height * 1.4;
+        drawW = drawH * imgAspect;
+      } else {
+        drawW = canvas.width * 1.4;
+        drawH = drawW / imgAspect;
+      }
+      const parallaxX = -(state.cameraX * 0.25) % drawW;
+      // Draw twice to tile seamlessly as camera scrolls
+      ctx.drawImage(bg, parallaxX - drawW, 0, drawW, drawH);
+      ctx.drawImage(bg, parallaxX, 0, drawW, drawH);
+      ctx.drawImage(bg, parallaxX + drawW, 0, drawW, drawH);
+      // Dark overlay for readability
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    } else {
+      // Fallback gradient while image loads
+      const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+      gradient.addColorStop(0, activeZoneData.bg[0]);
+      gradient.addColorStop(1, activeZoneData.bg[1]);
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
 
     ctx.strokeStyle = `${themeColor}12`;
     ctx.lineWidth = 1;
@@ -1310,17 +1410,36 @@ function GameArena({
       ctx.stroke();
     });
 
-    // Render Coins
-    ctx.fillStyle = '#f59e0b';
-    ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 1.5;
+    // Render Coins with glow
     state.coins.forEach(c => {
       if (c.collected) return;
+      const cx = c.x + 8;
+      const cy = c.y + 8;
+      const pulse = Math.sin(state.player.animFrame * 2 + c.x) * 2;
+
+      // Outer glow
+      ctx.shadowBlur = 12 + pulse;
+      ctx.shadowColor = '#f59e0b';
+      ctx.fillStyle = '#f59e0b';
       ctx.beginPath();
-      ctx.arc(c.x + 8, c.y + 8, 7, 0, Math.PI * 2);
+      ctx.arc(cx, cy, 7, 0, Math.PI * 2);
       ctx.fill();
+
+      // Inner bright core
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = '#fde68a';
+      ctx.beginPath();
+      ctx.arc(cx, cy, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Rim
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(cx, cy, 7, 0, Math.PI * 2);
       ctx.stroke();
     });
+    ctx.shadowBlur = 0;
 
     // Render Escape Portals
     state.gates.forEach(gate => {
@@ -1495,6 +1614,13 @@ function GameArena({
       ctx.stroke();
     }
 
+    // Coin collection flash overlay
+    if (state.coinFlash > 0) {
+      ctx.fillStyle = `rgba(245, 158, 11, ${state.coinFlash * 0.04})`;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      state.coinFlash--;
+    }
+
     ctx.shadowBlur = 0;
     ctx.restore();
   };
@@ -1639,9 +1765,9 @@ function GameArena({
         {/* Ghost Mode Activation overlay */}
         <div className="col-span-4 flex flex-col items-center justify-center">
           <button 
-            onTouchStart={(e) => { e.preventDefault(); triggerGhostInvincibility(); }}
+            onPointerDown={() => triggerGhostInvincibility()}
             disabled={hudGhostPercent < 100}
-            className={`w-9 h-9 sm:w-13 sm:h-13 rounded-full border flex items-center justify-center transition-all shadow-lg touch-none ${
+            className={`w-9 h-9 sm:w-12 sm:h-12 rounded-full border flex items-center justify-center transition-all shadow-lg touch-none ${
               hudGhostPercent >= 100 
                 ? 'bg-gradient-to-b from-purple-600 to-indigo-600 border-purple-400 text-white active:scale-95' 
                 : 'bg-neutral-900 border-neutral-800 text-neutral-500 cursor-not-allowed'

@@ -81,7 +81,7 @@ function Phone(props: any) {
 const Notifications: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { notifications, dismissNotifications, markAsRead, markAllAsRead, unreadCount } = useNotifications();
+  const { notifications, dismissNotifications, markAsRead, markAllAsRead, clearAllNotifications, unreadCount } = useNotifications();
   const [activeFilter, setActiveFilter] = useState<FilterCategory>('all');
 
   useEffect(() => {
@@ -333,6 +333,19 @@ const Notifications: React.FC = () => {
                   className="inline-flex items-center justify-center rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-card-hover"
                 >
                   Mark all as read
+                </button>
+              )}
+              {notifications.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (window.confirm('Clear all notifications? This cannot be undone.')) {
+                      void clearAllNotifications();
+                    }
+                  }}
+                  className="inline-flex items-center justify-center rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-xs font-medium text-red-400 transition-colors hover:bg-red-500/20"
+                >
+                  Clear all
                 </button>
               )}
               <MessageRingtoneSettings
