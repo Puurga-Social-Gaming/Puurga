@@ -1,19 +1,21 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Eye, AlertTriangle, Skull } from 'lucide-react';
-import { getPurgeTier, getNextTierThreshold, PURGE_TIER_CONFIG } from '../../types/survival';
+import { getPurgeTier, PURGE_TIER_CONFIG } from '../../types/survival';
 
 interface PurgePressureMeterProps {
   purgeCount: number;
   purgePressure: number;
   collapseRisk: number;
+  /** The threshold to display as the denominator (e.g. 250 for posts, 300 for profiles) */
+  threshold?: number;
 }
 
-const PurgePressureMeter: React.FC<PurgePressureMeterProps> = ({ purgeCount, collapseRisk }) => {
+const PurgePressureMeter: React.FC<PurgePressureMeterProps> = ({ purgeCount, collapseRisk, threshold }) => {
   const tier = getPurgeTier(purgeCount);
-  const nextThreshold = getNextTierThreshold(purgeCount);
   const tierConfig = PURGE_TIER_CONFIG[tier];
-  const progressToNext = purgeCount >= 20 ? 100 : ((purgeCount % 5) / 5) * 100;
+  const displayThreshold = threshold ?? 300;
+  const progressToNext = Math.min(100, (purgeCount / displayThreshold) * 100);
 
   return (
     <div className="flex items-center gap-1.5">
@@ -42,7 +44,7 @@ const PurgePressureMeter: React.FC<PurgePressureMeterProps> = ({ purgeCount, col
                 />
               </div>
               <span className="text-[8px] text-muted/50 tabular-nums">
-                {purgeCount}/{nextThreshold}
+                {purgeCount} / {displayThreshold}
               </span>
             </div>
           </div>

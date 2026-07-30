@@ -12,6 +12,7 @@ import { SurvivalState } from '../types/survival';
 import { SurvivalBadge } from '../components/Survival';
 import DashboardAnalyticsCharts from '../components/Dashboard/DashboardAnalyticsCharts';
 import ProfileLink from '../components/Profile/ProfileLink';
+import { formatCredits } from '../utils/formatCredits';
 import XPBar from '../components/Progression/XPBar';
 interface UserStats {
   credits: number;
@@ -299,7 +300,13 @@ const PuurgaDashboard: React.FC = () => {
       }
 
       if (Array.isArray(leaderboardData)) {
-        setLeaderboard(leaderboardData);
+        const seen = new Set<string>();
+        const unique = leaderboardData.filter((u: any) => {
+          if (seen.has(u.id)) return false;
+          seen.add(u.id);
+          return true;
+        });
+        setLeaderboard(unique);
       }
 
       if (Array.isArray(friendsData)) {
@@ -328,7 +335,13 @@ const PuurgaDashboard: React.FC = () => {
           creditsNeeded: activity.creditsNeeded,
           isFriend: activity.isFriend || false
         }));
-        setPurgingActivity(processedActivity);
+        const seenActivity = new Set<string>();
+        const uniqueActivity = processedActivity.filter((a: any) => {
+          if (seenActivity.has(a.id)) return false;
+          seenActivity.add(a.id);
+          return true;
+        });
+        setPurgingActivity(uniqueActivity);
 
         // Check for redemptions for the current user
         // We look for the most recent 'redeemed' action for the current user
@@ -369,7 +382,11 @@ const PuurgaDashboard: React.FC = () => {
             time: new Date(post.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
           };
         });
-        setFeed(prev => [...prev, ...postFeed]);
+        setFeed(prev => {
+          const seen = new Set(prev.map(e => e.id));
+          const newPosts = postFeed.filter((e: any) => !seen.has(e.id));
+          return [...prev, ...newPosts];
+        });
       }
 
       const riskLevel = Math.min((purgeData.stats.totalReceived / PURGE_THRESHOLD) * 100, 100);
@@ -605,7 +622,7 @@ const PuurgaDashboard: React.FC = () => {
 
                 return (
                   <div
-                    key={user.id}
+                    key={user.id || `leaderboard-${idx}`}
                     className={`flex items-center gap-3 p-3 rounded-xl border ${
                       isTop3
                         ? medalBg[idx]
@@ -632,7 +649,7 @@ const PuurgaDashboard: React.FC = () => {
                         </ProfileLink>
                       </div>
                       <div className="flex items-center gap-3 text-[11px] text-muted mt-0.5">
-                        <span>Credits: {user.credits?.toLocaleString() || 0}</span>
+                        <span>Credits: {formatCredits(user.credits ?? 0)}</span>
                         <span>Streak: {user.purge_streak ?? 0}</span>
                       </div>
                     </div>
@@ -640,7 +657,7 @@ const PuurgaDashboard: React.FC = () => {
                     <div className="flex items-center gap-2 shrink-0">
                       <div className="text-right">
                         <p className={`font-bold text-base tabular-nums ${isTop3 ? medalColors[idx] : 'text-accent'}`}>
-                          {user.credits?.toLocaleString() || 0}
+                          {formatCredits(user.credits ?? 0)}
                         </p>
                         <p className="text-[10px] text-muted">pts</p>
                       </div>
@@ -846,8 +863,8 @@ const PuurgaDashboard: React.FC = () => {
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {gameStats.recentGames.map((game) => (
-                    <div key={game.id} className="flex items-center justify-between bg-background/60 rounded-xl p-3 hover:bg-background/80 transition-colors">
+                  {gameStats.recentGames.map((game, idx) => (
+                    <div key={game.id || `game-${idx}`} className="flex items-center justify-between bg-background/60 rounded-xl p-3 hover:bg-background/80 transition-colors">
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 bg-accent/15 rounded-lg flex items-center justify-center">
                           <Trophy className="w-4 h-4 text-accent" />
@@ -905,7 +922,7 @@ const PuurgaDashboard: React.FC = () => {
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
                         <div className="text-right">
-                          <p className="text-accent font-bold text-sm">{friend.credits.toLocaleString()}</p>
+                          <p className="text-accent font-bold text-sm">{formatCredits(friend.credits)}</p>
                           <p className="text-orange-400 text-xs">🔥 {friend.purgeStreak}</p>
                         </div>
                         <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold border ${cfg.bg} ${cfg.text} ${cfg.border}`}>
@@ -932,9 +949,9 @@ const PuurgaDashboard: React.FC = () => {
             />
             {!collapsedSections['challenges'] && (
               <div className="space-y-2 max-h-[340px] overflow-y-auto pr-1 custom-scrollbar">
-              {challenges.map(challenge => (
+              {challenges.map((challenge, idx) => (
                 <div
-                  key={challenge.id}
+                  key={challenge.id || `challenge-${idx}`}
                   className={`w-full flex items-center justify-between p-3 rounded-xl border text-left ${challenge.completed
                       ? 'bg-green-500/10 border-green-500/40'
                       : 'bg-background/60 border-border/50'
@@ -1007,7 +1024,7 @@ const PuurgaDashboard: React.FC = () => {
                   </div>
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-red-400 font-bold text-lg leading-none">{friend.creditsNeeded.toLocaleString()}</p>
+                      <p className="text-red-400 font-bold text-lg leading-none">{formatCredits(friend.creditsNeeded)}</p>
                       <p className="text-xs text-muted">credits needed</p>
                     </div>
                     <button

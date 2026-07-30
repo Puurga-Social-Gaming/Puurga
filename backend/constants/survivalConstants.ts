@@ -14,17 +14,17 @@ export const SURVIVAL_THRESHOLDS = {
     MAX: 100,
   },
   STATE: {
-    SAFE_PURGE_LIMIT: 5,
+    SAFE_PURGE_LIMIT: 75,
     SAFE_REPUTATION_MIN: 80,
-    WARNING_PURGE_LIMIT: 5,
+    WARNING_PURGE_LIMIT: 75,
     WARNING_REPUTATION_MAX: 80,
     WARNING_INACTIVITY_MIN: 1,
-    HUNTED_PURGE_LIMIT: 10,
+    HUNTED_PURGE_LIMIT: 150,
     HUNTED_REPUTATION_MAX: 60,
-    COLLAPSING_PURGE_LIMIT: 15,
+    COLLAPSING_PURGE_LIMIT: 225,
     COLLAPSING_REPUTATION_MAX: 40,
     COLLAPSING_INACTIVITY_MIN: 3,
-    GHOSTED_PURGE_LIMIT: 20,
+    GHOSTED_PURGE_LIMIT: 300,
     GHOSTED_REPUTATION_MAX: 0,
   },
   INACTIVITY: {
@@ -83,11 +83,11 @@ export const SURVIVAL_STATES = [
 export type SurvivalState = typeof SURVIVAL_STATES[number];
 
 export const PURGE_TIERS = [
-  { min: 0, max: 4, label: 'STABLE', visibilityDrop: 0 },
-  { min: 5, max: 9, label: 'WATCHED', visibilityDrop: 10 },
-  { min: 10, max: 14, label: 'HUNTED', visibilityDrop: 25 },
-  { min: 15, max: 19, label: 'COLLAPSING', visibilityDrop: 50 },
-  { min: 20, max: Infinity, label: 'GHOSTED', visibilityDrop: 80 },
+  { min: 0, max: 74, label: 'STABLE', visibilityDrop: 0 },
+  { min: 75, max: 149, label: 'WATCHED', visibilityDrop: 10 },
+  { min: 150, max: 224, label: 'HUNTED', visibilityDrop: 25 },
+  { min: 225, max: 299, label: 'COLLAPSING', visibilityDrop: 50 },
+  { min: 300, max: Infinity, label: 'GHOSTED', visibilityDrop: 80 },
 ] as const;
 
 export type PurgeTierLabel = typeof PURGE_TIERS[number]['label'];

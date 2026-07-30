@@ -25,7 +25,6 @@ import { useSurvival } from '../../context/SurvivalContext';
 import { supabase } from '../../lib/supabaseClient';
 import { toast } from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
-import XPBar from '../Progression/XPBar';
 
 const WELCOME_VIEWED_KEY = 'puurga_welcome_viewed';
 
@@ -97,7 +96,7 @@ const MainNav: React.FC = () => {
       }
 
       toast.success('Logged out successfully!');
-      navigate('/login');
+      navigate('/onboarding/video');
     } catch (error: unknown) {
       console.error('Logout error:', error);
       let errorMessage = 'Failed to log out.';
@@ -219,10 +218,6 @@ const MainNav: React.FC = () => {
             )
           ))}
         </nav>
-
-        <div className="px-3 pt-2 shrink-0">
-          <XPBar compact />
-        </div>
 
         <div className="px-3 pb-4 pt-2 border-t border-border/40 shrink-0">
           <button

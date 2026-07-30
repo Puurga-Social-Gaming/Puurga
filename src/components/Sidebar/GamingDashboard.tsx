@@ -6,6 +6,7 @@ import { Gamepad2, Play, Trophy, Zap, ChevronLeft, ChevronRight } from 'lucide-r
 import { getGameStats, getCurrentlyPlaying, subscribeToPlayingUsers, GameStats, PlayingUser } from '../../services/purgaService';
 import { useUser } from '../../context/UserContext';
 import { GAMES_CATALOG, getTranslatedGameName } from '../../games/catalog';
+import { formatCredits } from '../../utils/formatCredits';
 
 const GAME_ICONS: Record<string, string> = {
   judgment: '⚖️',
@@ -116,7 +117,7 @@ const GamingDashboard: React.FC = () => {
       <div className="flex items-center justify-between gap-2 mb-2 min-w-0">
         <span className="text-[11px] font-semibold text-foreground flex items-center gap-1.5 min-w-0 truncate">
           <Gamepad2 size={13} className="text-muted shrink-0" />
-          <span className="truncate">{t('rightSidebar.gamingArena', 'Gaming Arena')}</span>
+          <span className="truncate">{t('rightSidebar.gamingGames', 'Games')}</span>
         </span>
         {totalPlaying > 0 && (
           <span className="flex items-center gap-1 text-[10px] text-green-500 font-medium shrink-0">
@@ -242,7 +243,7 @@ const GamingDashboard: React.FC = () => {
           <span className="text-muted">
             Credits:{' '}
             <span className="text-foreground font-medium">
-              {(user as any).credits?.toLocaleString() || 0}
+              {formatCredits((user as any).credits ?? 0)}
             </span>
           </span>
           <button

@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { Play, Clock, Trophy, Sparkles } from 'lucide-react';
@@ -20,32 +20,81 @@ const HeroBanner: React.FC<HeroBannerProps> = ({
   onPlay,
 }) => {
   const { t } = useTranslation();
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const bgVideoRef = useRef<HTMLVideoElement>(null);
+  const previewVideoRef = useRef<HTMLVideoElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [isHovering, setIsHovering] = useState(false);
 
   const displayGame = featuredGame || lastPlayedGame;
   const isCyberRunner = displayGame?.id === 'cyber-runner';
 
   useEffect(() => {
-    if (videoRef.current && isCyberRunner) {
-      videoRef.current.playbackRate = 0.7;
+    if (bgVideoRef.current && isCyberRunner) {
+      bgVideoRef.current.playbackRate = 0.7;
     }
   }, [isCyberRunner]);
 
+  // Desktop: hover to play/stop preview
+  const handleMouseEnter = useCallback(() => {
+    setIsHovering(true);
+    if (previewVideoRef.current) {
+      previewVideoRef.current.play().catch(() => {});
+    }
+  }, []);
+
+  const handleMouseLeave = useCallback(() => {
+    setIsHovering(false);
+    if (previewVideoRef.current) {
+      previewVideoRef.current.pause();
+      previewVideoRef.current.currentTime = 0;
+    }
+  }, []);
+
+  // Mobile: IntersectionObserver to play/stop preview when visible
+  useEffect(() => {
+    if (isHovering) return; // Desktop hover takes priority
+    const video = previewVideoRef.current;
+    const container = containerRef.current;
+    if (!video || !container) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          video.play().catch(() => {});
+        } else {
+          video.pause();
+          video.currentTime = 0;
+        }
+      },
+      { threshold: 0.5 }
+    );
+
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [isHovering]);
+
   if (!displayGame) return null;
 
+  const showPreviewVideo = isCyberRunner && isHovering;
+
   return (
-    <section className="relative w-full rounded-2xl overflow-hidden border border-border/30">
+    <section
+      ref={containerRef}
+      className="relative w-full rounded-2xl overflow-hidden border border-border/30"
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+    >
       {/* Dynamic blur background */}
       <div className="absolute inset-0">
         {isCyberRunner ? (
           <video
-            ref={videoRef}
+            ref={bgVideoRef}
             src={CYBER_RUNNER_VIDEO}
             autoPlay
             loop
             muted
             playsInline
-            className="absolute inset-0 w-full h-full object-cover scale-110 blur-[2px] opacity-70"
+            className={`absolute inset-0 w-full h-full object-cover scale-110 blur-[2px] transition-opacity duration-500 ${showPreviewVideo ? 'opacity-30' : 'opacity-70'}`}
           />
         ) : (
           <img
@@ -56,6 +105,22 @@ const HeroBanner: React.FC<HeroBannerProps> = ({
         )}
         <div className="absolute inset-0 bg-gradient-to-b from-background/30 via-background/40 to-background/70" />
       </div>
+
+      {/* Hover preview video overlay (desktop: hover, mobile: in viewport) */}
+      {isCyberRunner && (
+        <div className={`absolute inset-0 flex items-center justify-center transition-opacity duration-500 ${showPreviewVideo ? 'opacity-100' : 'opacity-0'}`}>
+          <video
+            ref={previewVideoRef}
+            src={CYBER_RUNNER_VIDEO}
+            muted
+            playsInline
+            loop
+            className="w-full h-full object-cover"
+          />
+          {/* Vignette overlay on top of preview */}
+          <div className="absolute inset-0 bg-gradient-to-b from-background/20 via-transparent to-background/60 pointer-events-none" />
+        </div>
+      )}
 
       {/* Gradient overlay */}
       <div className={`absolute inset-0 bg-gradient-to-r ${displayGame.gradient || 'from-orange-600/40 via-red-500/20 to-transparent'} opacity-60 pointer-events-none`} />

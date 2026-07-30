@@ -36,7 +36,7 @@ ADD COLUMN IF NOT EXISTS last_daily_login_at TIMESTAMP WITH TIME ZONE;
 CREATE TABLE IF NOT EXISTS credit_transactions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
-  amount INTEGER NOT NULL,
+  amount NUMERIC(12,2) NOT NULL,
   type TEXT NOT NULL CHECK (type IN ('earn', 'penalty')),
   source TEXT NOT NULL CHECK (source IN ('post', 'like', 'comment', 'game', 'inactivity', 'login', 'daily_bonus', 'recovery_bonus')),
   description TEXT,

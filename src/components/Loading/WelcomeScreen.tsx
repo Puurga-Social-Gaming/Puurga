@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 import PuurgaLogo from '../Icons/PuurgaLogo';
 import { Users, Flame, Gamepad2, Zap, Gift } from 'lucide-react';
 
@@ -9,11 +10,20 @@ interface WelcomeScreenProps {
   minDisplayTime?: number;
 }
 
+const features = [
+  { icon: Users, key: 'onboarding.features.connect' },
+  { icon: Flame, key: 'onboarding.features.purge' },
+  { icon: Gamepad2, key: 'onboarding.features.play' },
+  { icon: Zap, key: 'onboarding.features.earn' },
+  { icon: Gift, key: 'onboarding.features.redeem' },
+];
+
 const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ 
   username, 
   onComplete,
   minDisplayTime = 3500 
 }) => {
+  const { t } = useTranslation();
   const [progress, setProgress] = useState(0);
 
   useEffect(() => {
@@ -46,12 +56,14 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 bg-gradient-to-br from-[#0a0a0a] via-[#0f0a0f] to-[#0a0a0a] flex flex-col items-center justify-center z-[10002]"
+      className="fixed inset-0 flex flex-col items-center justify-center z-[10002]"
+      style={{ backgroundColor: 'rgb(var(--bg))', color: 'rgb(var(--fg))' }}
     >
       {/* Animated background orbs */}
       <div className="absolute inset-0 overflow-hidden">
         <motion.div
-          className="absolute top-1/4 left-1/4 w-64 h-64 bg-white/10 rounded-full blur-3xl"
+          className="absolute top-1/4 left-1/4 w-64 h-64 rounded-full blur-3xl"
+          style={{ backgroundColor: 'rgb(var(--accent) / 0.1)' }}
           animate={{
             scale: [1, 1.2, 1],
             opacity: [0.3, 0.5, 0.3],
@@ -63,7 +75,8 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
           }}
         />
         <motion.div
-          className="absolute bottom-1/4 right-1/4 w-64 h-64 bg-purple-500/10 rounded-full blur-3xl"
+          className="absolute bottom-1/4 right-1/4 w-64 h-64 rounded-full blur-3xl"
+          style={{ backgroundColor: 'rgb(var(--accent) / 0.1)' }}
           animate={{
             scale: [1.2, 1, 1.2],
             opacity: [0.5, 0.3, 0.5],
@@ -84,7 +97,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
           className="relative flex items-center justify-center"
         >
           <PuurgaLogo size={56} className="animate-pulse" />
-          <div className="absolute -inset-4 bg-white/10 rounded-full blur-2xl animate-pulse"></div>
+          <div className="absolute -inset-4 rounded-full blur-2xl animate-pulse" style={{ backgroundColor: 'rgb(var(--accent) / 0.1)' }}></div>
         </motion.div>
         
         <motion.div
@@ -93,10 +106,10 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
           transition={{ delay: 0.3, duration: 0.5 }}
           className="mt-12 text-center space-y-3"
         >
-          <p className="text-gray-400 text-lg font-medium">
-            Welcome back
+          <p className="text-lg font-medium" style={{ color: 'rgb(var(--muted))' }}>
+            {t('auth.welcomeBack', 'Welcome back')}
           </p>
-          <p className="text-gray-300 text-3xl font-bold tracking-wider">
+          <p className="text-3xl font-bold tracking-wider" style={{ color: 'rgb(var(--fg))' }}>
             {username}
           </p>
         </motion.div>
@@ -108,15 +121,15 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
           transition={{ delay: 0.6 }}
           className="mt-8 w-64 mx-auto"
         >
-          <div className="h-1 bg-gray-800 rounded-full overflow-hidden">
+          <div className="h-1 rounded-full overflow-hidden" style={{ backgroundColor: 'rgb(var(--border))' }}>
             <motion.div
-              className="h-full bg-gradient-to-r from-white to-gray-500"
-              style={{ width: `${progress}%` }}
+              className="h-full rounded-full"
+              style={{ width: `${progress}%`, backgroundColor: 'rgb(var(--accent))' }}
               transition={{ duration: 0.1 }}
             />
           </div>
-          <p className="text-gray-500 text-xs text-center mt-2">
-            Loading your feed...
+          <p className="text-xs text-center mt-2" style={{ color: 'rgb(var(--muted))' }}>
+            {t('common.loading', 'Loading...')}
           </p>
         </motion.div>
       </div>
@@ -128,26 +141,12 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
         transition={{ delay: 0.8, duration: 0.5 }}
         className="absolute bottom-12 left-0 right-0 flex justify-center gap-8 sm:gap-12"
       >
-        <div className="flex flex-col items-center gap-1.5 text-gray-700">
-          <Users size={22} />
-          <span className="text-[10px] font-medium">Connect</span>
-        </div>
-        <div className="flex flex-col items-center gap-1.5 text-gray-700">
-          <Flame size={22} />
-          <span className="text-[10px] font-medium">Purge</span>
-        </div>
-        <div className="flex flex-col items-center gap-1.5 text-gray-700">
-          <Gamepad2 size={22} />
-          <span className="text-[10px] font-medium">Play</span>
-        </div>
-        <div className="flex flex-col items-center gap-1.5 text-gray-700">
-          <Zap size={22} />
-          <span className="text-[10px] font-medium">Earn</span>
-        </div>
-        <div className="flex flex-col items-center gap-1.5 text-gray-700">
-          <Gift size={22} />
-          <span className="text-[10px] font-medium">Redeem</span>
-        </div>
+        {features.map((feature) => (
+          <div key={feature.key} className="flex flex-col items-center gap-1.5" style={{ color: 'rgb(var(--muted))' }}>
+            <feature.icon size={22} />
+            <span className="text-[10px] font-medium">{t(feature.key)}</span>
+          </div>
+        ))}
       </motion.div>
     </motion.div>
   );

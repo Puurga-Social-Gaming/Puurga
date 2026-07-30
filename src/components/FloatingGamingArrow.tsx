@@ -42,7 +42,7 @@ const FloatingGamingArrow: React.FC<FloatingGamingArrowProps> = ({ onToggleSideb
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
         onClick={handleClick}
-        className="lg:hidden fixed right-3 top-1/2 -translate-y-1/2 z-[100] flex flex-col items-center gap-1 w-16 h-16 min-h-[44px] rounded-full transition-all duration-300 bg-transparent border-transparent shadow-none hover:bg-accent/10 opacity-75 hover:opacity-100"
+        className="lg:hidden fixed right-3 top-[55%] -translate-y-1/2 z-[100] flex flex-col items-center gap-1 w-16 h-16 min-h-[44px] rounded-full transition-all duration-300 bg-transparent border-transparent shadow-none hover:bg-accent/10 opacity-75 hover:opacity-100"
         aria-label={USE_SIDEBAR ? "Toggle sidebar" : "Games Menu"}
       >
         <Gamepad2 

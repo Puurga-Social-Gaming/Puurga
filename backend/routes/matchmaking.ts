@@ -160,7 +160,7 @@ router.post('/tournaments', auth, async (req: AuthRequest, res) => {
     const { data, error } = await supabase
       .from('tournaments')
       .insert({
-        title: title || 'Puurga Arena Cup',
+        title: title || 'Puurga Games Cup',
         game_id: gameId || 'judgment',
         max_players: Math.min(16, Number(maxPlayers) || 8),
         prize_credits: Number(prizeCredits) || 100,

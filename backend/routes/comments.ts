@@ -3,7 +3,7 @@ import { supabase } from '../config/supabase';
 import { supabaseAuth as auth, AuthRequest } from '../middleware/supabaseAuth';
 import { normalizeImageUrl } from '../utils/url';
 import { logSuperAdminAction } from '../utils/auditLogger';
-import { PURGE_THRESHOLD } from '../constants/purgeConstants';
+import { POST_PURGE_THRESHOLD, PROFILE_PURGE_THRESHOLD } from '../constants/purgeConstants';
 import { CreditService } from '../services/creditService';
 import { NotificationService } from '../services/notificationService';
 import { validateNotGhosted } from '../middleware/restrictGhosted';
@@ -20,12 +20,23 @@ router.get('/posts/:postId/comments', auth, async (req: AuthRequest, res) => {
     const viewerId = req.user?.id;
 
     // Fetch comments for the post
-    const { data: comments, error: commentsError } = await supabase
+    let { data: comments, error: commentsError } = await supabase
       .from('comments')
       .select('*')
       .eq('post_id', postId)
       .eq('is_purged', false)
       .order('created_at', { ascending: true });
+
+    // Fallback if is_purged column doesn't exist
+    if (commentsError && (commentsError.code === '42703' || /column.*is_purged.*does not exist/i.test(commentsError.message))) {
+      const retry = await supabase
+        .from('comments')
+        .select('*')
+        .eq('post_id', postId)
+        .order('created_at', { ascending: true });
+      comments = retry.data;
+      commentsError = retry.error;
+    }
 
     if (commentsError) throw commentsError;
 
@@ -661,8 +672,8 @@ router.post('/comments/:id/purge', auth, async (req: AuthRequest, res) => {
       .from('comments')
       .update({
         purge_count: totalPurges,
-        is_purged: totalPurges >= PURGE_THRESHOLD,
-        purged_at: totalPurges >= PURGE_THRESHOLD ? new Date().toISOString() : null,
+        is_purged: totalPurges >= POST_PURGE_THRESHOLD,
+        purged_at: totalPurges >= POST_PURGE_THRESHOLD ? new Date().toISOString() : null,
       })
       .eq('id', id);
 
@@ -679,8 +690,8 @@ router.post('/comments/:id/purge', auth, async (req: AuthRequest, res) => {
     if (!userCountError && userPurgeCount) {
       const userTotalPurges = userPurgeCount.length;
 
-      // Check if user should go into ghost mode (PURGE_THRESHOLD+ total purges)
-      if (userTotalPurges >= PURGE_THRESHOLD) {
+      // Check if user should go into ghost mode (PROFILE_PURGE_THRESHOLD+ total purges)
+      if (userTotalPurges >= PROFILE_PURGE_THRESHOLD) {
         await supabase
           .from('profiles')
           .update({
@@ -708,7 +719,7 @@ router.post('/comments/:id/purge', auth, async (req: AuthRequest, res) => {
     res.json({
       purged,
       purges: totalPurges,
-      commentHidden: totalPurges >= 5,
+      commentHidden: totalPurges >= POST_PURGE_THRESHOLD,
     });
   } catch (error) {
     console.error('Error handling comment purge:', error);

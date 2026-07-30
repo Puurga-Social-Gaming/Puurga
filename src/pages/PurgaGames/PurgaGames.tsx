@@ -13,9 +13,11 @@ import GameCard from '../../components/Games/Arcade/GameCard';
 import SearchBar from '../../components/Games/Arcade/SearchBar';
 import CategoryFilter from '../../components/Games/Arcade/CategoryFilter';
 import NewGamePromoBanner from '../../components/Games/NewGamePromoBanner';
+import { formatCredits } from '../../utils/formatCredits';
 import { useGamePresence } from '../../shared/presence/useGamePresence';
 import { getGamePresence, type GamePresenceUser } from '../../services/challengeService';
 import { websocketService } from '../../services/websocketService';
+import { useUser } from '../../context/UserContext';
 import {
   GAMES_CATALOG,
   getTranslatedGameName,
@@ -27,6 +29,7 @@ import {
 const PurgaGames: React.FC = () => {
   const navigate = useNavigate();
   const { t } = useTranslation();
+  const { user } = useUser();
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [lastResult, setLastResult] = useState<Record<string, unknown> | null>(null);
@@ -125,38 +128,38 @@ const PurgaGames: React.FC = () => {
   };
 
   return (
-    <div className="w-full min-h-full pb-8">
-      {/* Hero Banner — scrolls away */}
-      <div className="space-y-5">
-        <HeroBanner
-          featuredGame={featuredGame}
-          lastPlayedGame={lastPlayedGame}
-          lastResult={lastResult}
-          onPlay={handlePlay}
-        />
+    <div className="h-full flex flex-col overflow-hidden">
+      <div className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-6 lg:px-8 pb-6">
+        {/* Page heading */}
+        <div className="flex flex-col items-center mb-4">
+          <Crown className="w-6 h-6 text-orange-500 mb-1" />
+          <h1 className="text-xl font-black text-foreground">
+            {t('games.puurgaArena')}
+          </h1>
+        </div>
 
-        {/* Stats strip — scrolls away */}
-        <section className="grid grid-cols-3 gap-2 sm:gap-3">
+        {/* Mobile: Stats strip at top */}
+        <section className="lg:hidden grid grid-cols-3 gap-2 sm:gap-3 mb-4">
           {[
             {
               icon: Coins,
               color: 'text-orange-500 dark:text-orange-400',
               bg: 'bg-orange-500/10',
-              value: '2,450',
+              value: formatCredits((user as any)?.credits ?? 0),
               label: t('games.credits'),
             },
             {
               icon: Trophy,
               color: 'text-amber-500 dark:text-amber-400',
               bg: 'bg-amber-500/10',
-              value: '#127',
+              value: '#--',
               label: t('games.rank'),
             },
             {
               icon: Flame,
               color: 'text-red-500 dark:text-red-400',
               bg: 'bg-red-500/10',
-              value: '47',
+              value: '0',
               label: t('games.played'),
             },
           ].map(({ icon: Icon, color, bg, value, label }) => (
@@ -175,53 +178,112 @@ const PurgaGames: React.FC = () => {
           ))}
         </section>
 
-        {/* Promo banner — scrolls away */}
-        <NewGamePromoBanner />
-      </div>
+        {/* Desktop: Hero + Stats + Promo at top */}
+        <div className="hidden lg:block space-y-5">
+          <HeroBanner
+            featuredGame={featuredGame}
+            lastPlayedGame={lastPlayedGame}
+            lastResult={lastResult}
+            onPlay={handlePlay}
+          />
 
-      {/* Sticky bar: Search + Filter + All Games header */}
-      <div className="sticky top-0 z-30 bg-background/95 backdrop-blur-md border-b border-border/40 -mx-0.5 px-0.5 pt-3 pb-3 space-y-3 shadow-[0_4px_12px_rgba(0,0,0,0.06)] dark:shadow-[0_4px_12px_rgba(0,0,0,0.3)]">
-        <SearchBar value={search} onChange={setSearch} />
-        <CategoryFilter
-          categories={categories}
-          selected={selectedCategory}
-          onSelect={setSelectedCategory}
-        />
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
-            <Crown className="w-4 h-4 text-orange-500" />
-            {selectedCategory === 'all' ? t('games.allGames') : t(`games.category.${selectedCategory.toLowerCase()}`)}
-          </h2>
-          <span className="text-[11px] text-muted">
-            {filteredGames.length} {filteredGames.length === 1 ? 'game' : 'games'}
-          </span>
+          <section className="grid grid-cols-3 gap-2 sm:gap-3">
+            {[
+              {
+                icon: Coins,
+                color: 'text-orange-500 dark:text-orange-400',
+                bg: 'bg-orange-500/10',
+              value: formatCredits((user as any)?.credits ?? 0),
+                label: t('games.credits'),
+              },
+              {
+                icon: Trophy,
+                color: 'text-amber-500 dark:text-amber-400',
+                bg: 'bg-amber-500/10',
+                value: '#--',
+                label: t('games.rank'),
+              },
+              {
+                icon: Flame,
+                color: 'text-red-500 dark:text-red-400',
+                bg: 'bg-red-500/10',
+                value: '0',
+                label: t('games.played'),
+              },
+            ].map(({ icon: Icon, color, bg, value, label }) => (
+              <div
+                key={label}
+                className={`rounded-xl ${bg} border border-border/30 px-3 py-3 flex flex-col items-center justify-center gap-1 transition-all duration-200 hover:border-orange-500/30`}
+              >
+                <Icon className={`w-4 h-4 ${color}`} />
+                <p className="text-base font-bold text-foreground tabular-nums leading-none mt-0.5">
+                  {value}
+                </p>
+                <p className="text-[9px] text-muted uppercase tracking-wider leading-none">
+                  {label}
+                </p>
+              </div>
+            ))}
+          </section>
+
+          <NewGamePromoBanner />
+        </div>
+
+        {/* Sticky bar: Search + Filter + Puurga Arena header */}
+        <div className="sticky top-0 z-30 bg-background/95 backdrop-blur-md border-b border-border/40 -mx-0.5 px-0.5 pt-3 pb-3 space-y-3 shadow-[0_4px_12px_rgba(0,0,0,0.06)] dark:shadow-[0_4px_12px_rgba(0,0,0,0.3)]">
+          <SearchBar value={search} onChange={setSearch} />
+          <CategoryFilter
+            categories={categories}
+            selected={selectedCategory}
+            onSelect={setSelectedCategory}
+          />
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
+              <Crown className="w-4 h-4 text-orange-500" />
+              {selectedCategory === 'all' ? t('games.puurgaArena') : t(`games.category.${selectedCategory.toLowerCase()}`)}
+            </h2>
+            <span className="text-[11px] text-muted">
+              {filteredGames.length} {filteredGames.length === 1 ? 'game' : 'games'}
+            </span>
+          </div>
+        </div>
+
+        {/* Game Grid — scrolls underneath the sticky bar */}
+        <section className="pt-3">
+          {filteredGames.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <Gamepad size={40} className="text-muted/30 mb-3" />
+              <p className="text-sm text-muted">{t('games.noResults')}</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+              {filteredGames.map((game, index) => {
+                const playing = presenceByGame.get(game.id) || [];
+                return (
+                  <GameCard
+                    key={game.id}
+                    game={game}
+                    index={index}
+                    onClick={() => handlePlay(game)}
+                    friendsPlayingCount={playing.length}
+                  />
+                );
+              })}
+            </div>
+          )}
+        </section>
+
+        {/* Mobile: Featured video + Promo below games */}
+        <div className="lg:hidden mt-6 space-y-5">
+          <HeroBanner
+            featuredGame={featuredGame}
+            lastPlayedGame={lastPlayedGame}
+            lastResult={lastResult}
+            onPlay={handlePlay}
+          />
+          <NewGamePromoBanner />
         </div>
       </div>
-
-      {/* Game Grid — scrolls underneath the sticky bar */}
-      <section className="pt-3">
-        {filteredGames.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12 text-center">
-            <Gamepad size={40} className="text-muted/30 mb-3" />
-            <p className="text-sm text-muted">{t('games.noResults')}</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-            {filteredGames.map((game, index) => {
-              const playing = presenceByGame.get(game.id) || [];
-              return (
-                <GameCard
-                  key={game.id}
-                  game={game}
-                  index={index}
-                  onClick={() => handlePlay(game)}
-                  friendsPlayingCount={playing.length}
-                />
-              );
-            })}
-          </div>
-        )}
-      </section>
     </div>
   );
 };

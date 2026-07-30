@@ -4,8 +4,8 @@ import { wsManager } from '../websocketManager';
 
 export type CreditSource = 'post' | 'like' | 'comment' | 'game' | 'inactivity' | 'login' | 'daily_bonus' | 'recovery_bonus' | 'redeem_user' | 'redeem_friend' | 'refund' | 'transfer' | 'package' | 'GAME_CHALLENGE' | 'certification' | 'spend' | 'merge';
 
-const CREDIT_CONFIG = {
-  AWARD_CREATE_POST: 5,
+export const CREDIT_CONFIG = {
+  AWARD_CREATE_POST: 0.20,
   AWARD_LIKE: 1,
   AWARD_RECEIVE_LIKE: 2,
   AWARD_COMMENT: 2,
@@ -50,12 +50,9 @@ export class CreditService {
 
       const currentBalance = Number((profile as { purga_points?: number }).purga_points ?? 0);
 
-      // Competitive pots / escrow refunds must never hit the daily earn cap
-      const skipCap = source === 'GAME_CHALLENGE' || source === 'refund' || source === 'transfer';
-      const wouldExceedCap = !skipCap && (currentBalance + amount) > CREDIT_CONFIG.DAILY_CREDIT_CAP;
-      const cappedAmount = wouldExceedCap
-        ? Math.max(0, CREDIT_CONFIG.DAILY_CREDIT_CAP - currentBalance)
-        : amount;
+      // No daily cap on total balance — the old check was broken (compared total balance against daily limit)
+      // Daily caps for likes/comments are already handled separately via checkAndIncrementLikeCount/CommentCount
+      const cappedAmount = amount;
 
       if (cappedAmount <= 0) {
         return { success: false, newBalance: currentBalance };

@@ -12,6 +12,7 @@ import { isTransientError } from '../utils/transientError';
 import { parseMediaUrls } from '../utils/mediaUrls';
 import { progressionEngine } from '../services/progressionEngine';
 import { DailyMissionService } from '../services/dailyMissionService';
+import { POST_PURGE_THRESHOLD } from '../constants/purgeConstants';
 
 const router = express.Router();
 
@@ -55,6 +56,7 @@ router.get('/feed', auth, async (req: AuthRequest, res) => {
       supabase
         .from('posts')
         .select(select)
+        .eq('is_hidden_from_feed', false)
         .order('created_at', { ascending: false })
         .range(from, fetchTo);
 
@@ -511,9 +513,14 @@ router.post('/:id/purge', auth, validateNotGhosted, async (req, res) => {
 
     const totalPurges = typeof count === 'number' ? count : 1;
 
+    const postUpdate: Record<string, any> = { purge_count: totalPurges };
+    if (totalPurges >= POST_PURGE_THRESHOLD) {
+      postUpdate.is_hidden_from_feed = true;
+    }
+
     const { error: updatePostError } = await supabase
       .from('posts')
-      .update({ purge_count: totalPurges })
+      .update(postUpdate)
       .eq('id', postId);
 
     if (updatePostError) {
@@ -815,6 +822,7 @@ router.post('/:postId/react', auth, validateNotGhosted, async (req: AuthRequest,
           post_id: postId,
           user_id: userId,
           type,
+          created_at: new Date().toISOString(),
         });
 
       // Award credits for likes
@@ -824,8 +832,10 @@ router.post('/:postId/react', auth, validateNotGhosted, async (req: AuthRequest,
           await CreditService.awardCredits(userId, 1, 'like', 'Like post');
           
           // Award +2 to post owner
-          const { data: post } = await supabase.from('posts').select('user_id').eq('id', postId).single();
-          if (post?.user_id && post.user_id !== userId) {
+          const { data: post, error: postError } = await supabase.from('posts').select('user_id').eq('id', postId).single();
+          if (postError) {
+            console.warn('Post not found for like credit:', postError.message);
+          } else if (post?.user_id && post.user_id !== userId) {
             await CreditService.awardCredits(post.user_id, 2, 'like', 'Receive like');
 
             // Send like notification to post owner

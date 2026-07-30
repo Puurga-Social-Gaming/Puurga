@@ -6,7 +6,7 @@ import multer from 'multer';
 import { normalizeImageUrl } from '../utils/url';
 import { isProfileVisible } from '../services/settingsService';
 import { logSuperAdminAction } from '../utils/auditLogger';
-import { CreditService } from '../services/creditService';
+import { CreditService, CREDIT_CONFIG } from '../services/creditService';
 import { validate as uuidValidate } from 'uuid';
 import { PURGE_THRESHOLD } from '../constants/purgeConstants';
 import { createNotification } from './createNotification';
@@ -69,7 +69,7 @@ router.get('/profile', auth, async (req: AuthRequest, res) => {
   try {
     const { user } = req;
     if (!user) {
-      return res.status(404).json({ error: 'User not found' });
+      return res.status(401).json({ error: 'Not authenticated' });
     }
 
     // Fetch profile from profiles table
@@ -97,8 +97,14 @@ router.get('/profile', auth, async (req: AuthRequest, res) => {
     let puurgas = 0;
     if (posts && posts.length > 0) {
       const postIds = posts.map(p => p.id);
-      const { count } = await supabase.from('likes').select('*', { count: 'exact', head: true }).in('post_id', postIds);
-      puurgas = count || 0;
+      try {
+        const { count } = await supabase.from('likes').select('*', { count: 'exact', head: true }).in('post_id', postIds);
+        puurgas = count || 0;
+      } catch {
+        // likes table may not exist - fall back to reactions
+        const { count } = await supabase.from('reactions').select('*', { count: 'exact', head: true }).in('post_id', postIds).eq('type', 'like');
+        puurgas = count || 0;
+      }
     }
 
     // Get credits from profile (prefer purga_points, fallback to credits)
@@ -857,8 +863,8 @@ router.post('/posts', auth, validateNotGhosted, async (req: AuthRequest, res) =>
       }
     }
 
-    // Award credits
-    await CreditService.awardCredits(user_id, 5, 'post', 'Create post');
+    // Award credits (0.20 credits per post)
+    await CreditService.awardCredits(user_id, CREDIT_CONFIG.AWARD_CREATE_POST, 'post', 'Create post');
     await CreditService.updateLastActiveAt(user_id);
 
     // Emit progression event (XP, future: achievements, missions)
@@ -1183,6 +1189,13 @@ router.post('/:id/purge', auth, validateNotGhosted, async (req: AuthRequest, res
     });
 
     if (becomesGhost) {
+      // Award 300 credits to purger for ghosting a user
+      try {
+        await CreditService.awardCredits(purgerId, 300, 'redeem_user', 'Ghosted a user');
+      } catch (creditError) {
+        console.error('Error awarding ghost credits:', creditError);
+      }
+
       // Send WebSocket profile update and notify friends
       wsManager.sendToUser(targetUserId, {
         type: 'profile_update',

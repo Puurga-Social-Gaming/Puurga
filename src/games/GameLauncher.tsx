@@ -1,5 +1,6 @@
 import React, { Suspense, Component, type ErrorInfo, type ReactNode } from 'react';
 import { Loader2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { getGameBySlug, type GameEntry } from './catalog';
 import ComingSoon from './_coming-soon/ComingSoon';
 
@@ -12,8 +13,8 @@ interface ErrorBoundaryState {
   error: Error | null;
 }
 
-class GameErrorBoundary extends Component<
-  { children: ReactNode; onReset: () => void },
+class GameErrorBoundaryInner extends Component<
+  { children: ReactNode; onReset: () => void; t: (key: string) => string },
   ErrorBoundaryState
 > {
   state: ErrorBoundaryState = { hasError: false, error: null };
@@ -28,16 +29,17 @@ class GameErrorBoundary extends Component<
 
   render() {
     if (this.state.hasError) {
+      const { t } = this.props;
       return (
-        <div className="flex min-h-screen items-center justify-center bg-neutral-950 px-4">
+        <div className="flex min-h-screen items-center justify-center bg-background px-4">
           <div className="text-center space-y-4 max-w-sm">
             <div className="w-16 h-16 mx-auto rounded-full bg-red-950 border border-red-800 flex items-center justify-center">
               <span className="text-2xl text-red-400">!</span>
             </div>
             <div className="space-y-1">
-              <p className="text-sm font-medium text-white">Game Unavailable</p>
-              <p className="text-xs text-neutral-400">
-                {this.state.error?.message || 'Something went wrong loading this game.'}
+              <p className="text-sm font-medium text-foreground">{t('games.launcher.gameUnavailable')}</p>
+              <p className="text-xs text-muted">
+                {this.state.error?.message || t('games.launcher.somethingWrong')}
               </p>
             </div>
             <div className="flex items-center justify-center gap-3">
@@ -47,16 +49,16 @@ class GameErrorBoundary extends Component<
                   this.setState({ hasError: false, error: null });
                   this.props.onReset();
                 }}
-                className="px-4 py-2 bg-neutral-800 border border-neutral-700 text-sm font-medium text-white rounded-xl hover:bg-neutral-700 transition-colors"
+                className="px-4 py-2 bg-card border border-border text-sm font-medium text-foreground rounded-xl hover:bg-card-hover transition-colors"
               >
-                Try again
+                {t('games.launcher.tryAgain')}
               </button>
               <button
                 type="button"
                 onClick={() => (window.location.href = '/puurga-games')}
-                className="px-4 py-2 text-sm font-medium text-neutral-400 hover:text-white transition-colors"
+                className="px-4 py-2 text-sm font-medium text-muted hover:text-foreground transition-colors"
               >
-                Back to Arena
+                {t('games.launcher.backToGames')}
               </button>
             </div>
           </div>
@@ -67,13 +69,18 @@ class GameErrorBoundary extends Component<
   }
 }
 
+function GameErrorBoundary({ children, onReset }: { children: ReactNode; onReset: () => void }) {
+  const { t } = useTranslation();
+  return <GameErrorBoundaryInner onReset={onReset} t={t}>{children}</GameErrorBoundaryInner>;
+}
+
 function GameLoader({ game }: { game: GameEntry }) {
   const GameComponent = React.lazy(game.loader);
 
   return (
     <Suspense
       fallback={
-        <div className="flex min-h-screen items-center justify-center bg-neutral-950">
+        <div className="flex min-h-screen items-center justify-center bg-background">
           <div className={`flex flex-col items-center gap-3 ${game.accentColor || 'text-orange-400'}`}>
             <Loader2 className="h-10 w-10 animate-spin" />
             <p className="text-sm font-mono tracking-widest">

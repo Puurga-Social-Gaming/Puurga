@@ -291,7 +291,7 @@ export const useAuth = () => {
       setUser(null);
       localStorage.removeItem('token');
       localStorage.removeItem('user');
-      navigate('/login');
+      navigate('/onboarding/video');
     } catch (error) {
       console.error('Logout error:', error);
       const message = error instanceof Error ? error.message : 'Logout failed';

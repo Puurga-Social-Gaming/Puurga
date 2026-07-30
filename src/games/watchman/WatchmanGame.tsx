@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Shield, Zap, Target, Play, RotateCcw, Award, ArrowLeft, Coins } from 'lucide-react';
 import { useCredits } from '../../shared/economy/useCredits';
-import { toast } from 'react-hot-toast';
+import { formatCredits } from '../../utils/formatCredits';
 
 /**
  * PATH OF THE WATCHMAN
@@ -44,6 +44,7 @@ const PathOfTheWatchman = () => {
     const [cooldowns, setCooldowns] = useState({ shield: 0, focus: 0 });
     const [combo, setCombo] = useState(0);
     const [finalCredits, setFinalCredits] = useState(0);
+    const [creditBreakdown, setCreditBreakdown] = useState<{ label: string; amount: number }[]>([]);
     const [elapsedMs, setElapsedMs] = useState(0);
     const awardedRef = useRef(false);
     const healthRef = useRef(100);
@@ -607,28 +608,31 @@ const PathOfTheWatchman = () => {
     // Award Credits Integration — server-validated via /games/finish
     useEffect(() => {
         if (gameState === 'GAMEOVER') {
-            const calcCredits = Math.floor((score / 10) * (1 + combo * 0.1));
-            setFinalCredits(calcCredits);
-
             // Award credits exactly once per game over
-            if (calcCredits > 0 && !awardedRef.current) {
+            if (!awardedRef.current) {
+                awardedRef.current = true;
                 processFullGameSession({
                     gameId: 'PATH_OF_WATCHMAN',
                     score,
                     isWin: health > 0,
                     isPerfect: false,
+                }).then((result) => {
+                    if (result && 'earned' in result) {
+                        setFinalCredits(result.earned);
+                        if ('breakdown' in result && result.breakdown) {
+                            setCreditBreakdown(result.breakdown);
+                        }
+                    }
                 });
-                toast.success(t('games.watchman.earnedCredits', { credits: calcCredits }));
-                awardedRef.current = true;
             }
         }
-    }, [gameState, score, combo, processFullGameSession]);
+    }, [gameState, score, processFullGameSession]);
 
     const CooldownButton = ({ icon: Icon, label, progress, onClick, color = COLORS.accent }: any) => (
         <button
             onClick={onClick}
             disabled={progress > 0}
-            className={`relative p-4 rounded-xl border transition-all duration-200 flex flex-col items-center justify-center gap-1
+            className={`relative p-3 sm:p-4 rounded-xl border transition-all duration-200 flex flex-col items-center justify-center gap-1
     ${progress > 0 ? 'border-gray-800 bg-gray-900 opacity-50' : 'border-gray-700 bg-gray-800 active:scale-95'}`}
         >
             <Icon size={24} color={progress > 0 ? '#4b5563' : color} />
@@ -646,15 +650,15 @@ const PathOfTheWatchman = () => {
             <div className="w-full max-w-[800px] mb-6 flex justify-between items-center z-10">
                 <button
                     onClick={() => navigate('/puurga-games')}
-                    className="flex items-center gap-2 px-4 py-2 rounded-xl bg-card hover:bg-card-hover border border-border transition-all hover:scale-105 text-foreground"
+                    className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl bg-card hover:bg-card-hover border border-border transition-all hover:scale-105 text-foreground"
                 >
-                    <ArrowLeft size={16} />
-                    <span className="font-bold text-xs uppercase tracking-widest">{t('games.watchman.back')}</span>
+                    <ArrowLeft size={14} className="sm:w-4 sm:h-4" />
+                    <span className="font-bold text-[10px] sm:text-xs uppercase tracking-widest">{t('games.watchman.back')}</span>
                 </button>
 
-                <div className="flex items-center gap-2 px-4 py-2 bg-card border border-border rounded-full">
-                    <Coins className="text-yellow-500 w-4 h-4" />
-                    <span className="font-bold text-sm text-foreground">{userBalance.toLocaleString()} CR</span>
+                <div className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2 bg-card border border-border rounded-full">
+                    <Coins className="text-yellow-500 w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                    <span className="font-bold text-xs sm:text-sm text-foreground">{formatCredits(userBalance)} CR</span>
                 </div>
             </div>
 
@@ -720,23 +724,23 @@ const PathOfTheWatchman = () => {
                 />
 
                 {gameState === 'START' && (
-                    <div className="absolute inset-0 bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center p-8 text-center">
-                        <div className="mb-6 p-4 rounded-full bg-orange-500/10 border border-orange-500/20">
-                            <Shield size={48} className="text-orange-500 animate-pulse" />
+                    <div className="absolute inset-0 bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center p-4 sm:p-8 text-center">
+                        <div className="mb-4 sm:mb-6 p-3 sm:p-4 rounded-full bg-orange-500/10 border border-orange-500/20">
+                            <Shield size={36} className="sm:w-12 sm:h-12 text-orange-500 animate-pulse" />
                         </div>
-                        <h2 className="text-4xl font-black uppercase tracking-tighter mb-2">{t('games.watchman.thePathAwaits')}</h2>
-                        <p className="text-gray-400 max-w-md mb-8 text-sm leading-relaxed">{t('games.watchman.navigateChaos')}</p>
-                        <button onClick={startGame} className="px-10 py-4 bg-orange-600 hover:bg-orange-500 text-white font-black uppercase tracking-widest rounded-full transition-all flex items-center gap-2">
-                            <Play size={20} fill="currentColor" /> {t('games.watchman.initializeRun')}
+                        <h2 className="text-2xl sm:text-4xl font-black uppercase tracking-tighter mb-2">{t('games.watchman.thePathAwaits')}</h2>
+                        <p className="text-gray-400 max-w-md mb-6 sm:mb-8 text-xs sm:text-sm leading-relaxed">{t('games.watchman.navigateChaos')}</p>
+                        <button onClick={startGame} className="w-full sm:w-auto px-6 sm:px-10 py-3 sm:py-4 bg-orange-600 hover:bg-orange-500 text-white font-black uppercase tracking-widest rounded-full transition-all flex items-center justify-center gap-2">
+                            <Play size={18} className="sm:w-5 sm:h-5" fill="currentColor" /> {t('games.watchman.initializeRun')}
                         </button>
                     </div>
                 )}
 
                 {gameState === 'GAMEOVER' && (
-                    <div className="absolute inset-0 bg-black/95 backdrop-blur-md flex flex-col items-center justify-center p-8">
-                        <h2 className="text-gray-500 uppercase tracking-widest font-bold text-sm mb-2">{t('games.watchman.runConcluded')}</h2>
-                        <div className="text-6xl font-black text-white mb-6 italic tracking-tighter">{t('games.watchman.disconnected')}</div>
-                        <div className="grid grid-cols-2 gap-4 w-full max-w-xs mb-8">
+                    <div className="absolute inset-0 bg-black/95 backdrop-blur-md flex flex-col items-center justify-center p-4 sm:p-8">
+                        <h2 className="text-gray-500 uppercase tracking-widest font-bold text-xs sm:text-sm mb-2">{t('games.watchman.runConcluded')}</h2>
+                        <div className="text-3xl sm:text-6xl font-black text-white mb-4 sm:mb-6 italic tracking-tighter">{t('games.watchman.disconnected')}</div>
+                        <div className="grid grid-cols-2 gap-3 sm:gap-4 w-full max-w-xs mb-6 sm:mb-8">
                             <div className="bg-white/5 p-4 rounded-xl border border-white/10 flex flex-col items-center">
                                 <span className="text-[10px] uppercase font-bold text-gray-400">{t('games.watchman.score')}</span>
                                 <span className="text-2xl font-black">{score}</span>
@@ -744,16 +748,28 @@ const PathOfTheWatchman = () => {
                             <div className="bg-orange-500/10 p-4 rounded-xl border border-orange-500/20 flex flex-col items-center">
                                 <span className="text-[10px] uppercase font-bold text-orange-400">{t('games.credits')}</span>
                                 <span className="text-2xl font-black text-orange-500">+{finalCredits}</span>
+                                {creditBreakdown.length > 0 && (
+                                    <div className="mt-2 w-full space-y-0.5">
+                                        {creditBreakdown.map((item, i) => (
+                                            <div key={i} className="flex justify-between text-[9px] text-gray-400">
+                                                <span>{item.label}</span>
+                                                <span className={item.amount >= 0 ? 'text-orange-400/70' : 'text-red-400/70'}>
+                                                    {item.amount >= 0 ? '+' : ''}{item.amount}
+                                                </span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                         </div>
-                        <button onClick={startGame} className="w-full max-w-xs py-4 bg-[var(--accent)] text-[var(--fg)] font-black uppercase tracking-widest rounded-xl hover:scale-105 hover:opacity-90 transition-all flex items-center justify-center gap-2">
-                            <RotateCcw size={18} /> {t('games.watchman.retryRun')}
+                        <button onClick={startGame} className="w-full max-w-xs py-3 sm:py-4 bg-[var(--accent)] text-[var(--fg)] font-black uppercase tracking-widest rounded-xl hover:scale-105 hover:opacity-90 transition-all flex items-center justify-center gap-2 text-sm sm:text-base">
+                            <RotateCcw size={16} className="sm:w-[18px] sm:h-[18px]" /> {t('games.watchman.retryRun')}
                         </button>
                     </div>
                 )}
             </div>
 
-            <div className="w-full max-w-[800px] mt-6 grid grid-cols-3 gap-4">
+            <div className="w-full max-w-[800px] mt-6 grid grid-cols-3 gap-2 sm:gap-4">
                 <CooldownButton icon={Shield} label={t('games.watchman.shieldBurst')} progress={cooldowns.shield} onClick={triggerShield} />
                 <CooldownButton icon={Zap} label={t('games.watchman.focusMode')} progress={cooldowns.focus} onClick={triggerFocus} />
                 <button

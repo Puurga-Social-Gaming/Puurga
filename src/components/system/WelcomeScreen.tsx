@@ -25,12 +25,12 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onContinue, fadeOut = fal
       animate={{ opacity: fadeOut ? 0 : 1 }}
       transition={{ duration: 0.5 }}
       style={{ pointerEvents: fadeOut ? 'none' : 'auto' }}
-      className="fixed inset-0 z-[9999] bg-gradient-to-br from-[#0a0a0a] via-[#0f0a0f] to-[#0a0a0a] flex flex-col items-center justify-center"
+      className="fixed inset-0 z-[9999] bg-gradient-to-br from-background via-background-secondary to-background flex flex-col items-center justify-center"
     >
       {/* Animated background orbs */}
       <div className="absolute inset-0 overflow-hidden">
         <motion.div
-          className="absolute top-1/4 left-1/4 w-64 h-64 bg-white/10 rounded-full blur-3xl"
+          className="absolute top-1/4 left-1/4 w-64 h-64 bg-accent/10 rounded-full blur-3xl"
           animate={{
             scale: [1, 1.2, 1],
             opacity: [0.3, 0.5, 0.3],
@@ -42,7 +42,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onContinue, fadeOut = fal
           }}
         />
         <motion.div
-          className="absolute bottom-1/4 right-1/4 w-64 h-64 bg-purple-500/10 rounded-full blur-3xl"
+          className="absolute bottom-1/4 right-1/4 w-64 h-64 bg-highlight/10 rounded-full blur-3xl"
           animate={{
             scale: [1.2, 1, 1.2],
             opacity: [0.5, 0.3, 0.5],
@@ -60,7 +60,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onContinue, fadeOut = fal
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.5 }}
-          className="text-3xl md:text-4xl font-bold text-center text-white mb-4"
+          className="text-3xl md:text-4xl font-bold text-center text-foreground mb-4"
         >
           {t('onboarding.intro.title')}
         </motion.h1>
@@ -69,7 +69,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onContinue, fadeOut = fal
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.2, duration: 0.5 }}
-          className="text-gray-400 text-base md:text-lg leading-relaxed text-center mb-8"
+          className="text-muted text-base md:text-lg leading-relaxed text-center mb-8"
         >
           {t('onboarding.intro.description')}
         </motion.p>
@@ -86,10 +86,10 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onContinue, fadeOut = fal
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: 0.5 + index * 0.1 }}
-              className="flex flex-col items-center gap-1.5 p-3 bg-white/5 border border-white/10 rounded-xl"
+              className="flex flex-col items-center gap-1.5 p-3 bg-card/50 border border-border rounded-xl"
             >
-              <feature.icon size={20} className="text-white/80" />
-              <span className="text-[10px] text-gray-400 font-medium">
+              <feature.icon size={20} className="text-foreground/80" />
+              <span className="text-[10px] text-muted font-medium">
                 {t(feature.key)}
               </span>
             </motion.div>
@@ -101,7 +101,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onContinue, fadeOut = fal
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.7, duration: 0.5 }}
           onClick={onContinue}
-          className="flex items-center justify-center gap-2 w-full p-4 bg-transparent border-2 border-white text-white font-semibold rounded-xl hover:bg-white/10 transition-all hover:scale-[1.02] active:scale-[0.98]"
+          className="flex items-center justify-center gap-2 w-full p-4 bg-transparent border-2 border-foreground text-foreground font-semibold rounded-xl hover:bg-foreground/10 transition-all hover:scale-[1.02] active:scale-[0.98]"
         >
           {t('common.continue')}
           <ArrowRight size={20} />

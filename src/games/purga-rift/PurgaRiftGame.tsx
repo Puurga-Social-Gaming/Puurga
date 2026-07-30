@@ -6,6 +6,7 @@ import {
   Volume2, VolumeX, Flame, ShoppingBag, EyeOff,
   Coins, ArrowRight, Share2, Play, Award
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useCredits } from '../../hooks/useCredits';
 
 // Web Audio Synthesis class for immersive high-fidelity sci-fi sounds
@@ -195,6 +196,7 @@ const SHOP_ITEMS = [
 ];
 
 export default function PurgaRiftGame() {
+  const { t } = useTranslation();
   const { balance, addCredits, spendCredits, mergeLocalCredits } = useCredits();
   const [view, setView] = useState('hub'); // hub, game, shop, leaderboard, social, gameover
   const [score, setScore] = useState(0);
@@ -696,7 +698,7 @@ export default function PurgaRiftGame() {
   const inActiveRun = view === 'game';
 
   return (
-    <div className={`h-full min-h-0 w-full relative flex flex-col text-neutral-100 overflow-hidden font-sans select-none bg-neutral-950 ${inActiveRun ? '' : 'pt-14'}`}>
+    <div className={`h-[100dvh] max-h-[100dvh] w-full relative flex flex-col text-neutral-100 overflow-hidden font-sans select-none bg-neutral-950 ${inActiveRun ? '' : 'pt-14'}`}>
       
       {/* Background canvas representation */}
       <canvas ref={canvasRef} className="absolute inset-0 w-full h-full pointer-events-none z-0" />
@@ -713,10 +715,10 @@ export default function PurgaRiftGame() {
           </div>
           <div className="min-w-0">
             <h1 className="text-xs sm:text-sm font-bold tracking-[0.2em] sm:tracking-[0.25em] text-neutral-100 uppercase truncate">
-              Purga <span className="text-violet-400">Rift</span>
+              {t('games.purgaRift.title')}
             </h1>
             {!inActiveRun && (
-            <p className="text-[10px] text-neutral-400 tracking-wider hidden sm:block truncate">"Trust Nothing. Predict Everything."</p>
+            <p className="text-[10px] text-neutral-400 tracking-wider hidden sm:block truncate">"{t('games.purgaRift.tagline')}"</p>
             )}
           </div>
         </div>
@@ -725,7 +727,7 @@ export default function PurgaRiftGame() {
         <div className="flex items-center space-x-3">
           <div className="bg-neutral-900/90 border border-violet-500/20 px-2 sm:px-3 py-0.5 sm:py-1 rounded-full flex items-center space-x-2 text-xs">
             <Coins className="w-3.5 h-3.5 text-yellow-400 animate-spin-slow" />
-            <span className="font-bold text-yellow-300">{puurgaPoints} pts</span>
+            <span className="font-bold text-yellow-300">{puurgaPoints} {t('games.purgaRift.pts')}</span>
           </div>
 
           <button 
@@ -743,7 +745,7 @@ export default function PurgaRiftGame() {
               onClick={() => setView('hub')} 
               className="px-1.5 sm:px-2 py-0.5 sm:py-1 bg-neutral-900 border border-neutral-800 rounded-lg text-xs hover:bg-neutral-800 text-neutral-300 transition"
             >
-              Exit to Hub
+              {t('games.purgaRift.exitToHub')}
             </button>
           )}
         </div>
@@ -754,39 +756,39 @@ export default function PurgaRiftGame() {
         
         {/* ================= VIEW: HUB / DASHBOARD ================= */}
         {view === 'hub' && (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 w-full animate-fadeIn">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 w-full animate-fadeIn">
             
             {/* LEFT AREA: Profile Card, Titles & Play Buttons */}
-            <div className="lg:col-span-8 space-y-6">
+            <div className="lg:col-span-8 space-y-4 sm:space-y-6">
               
               {/* Premium Player Digital Card */}
-              <div className="relative rounded-2xl border border-violet-500/20 bg-gradient-to-br from-neutral-900/95 to-neutral-950 p-6 overflow-hidden">
+              <div className="relative rounded-2xl border border-violet-500/20 bg-gradient-to-br from-neutral-900/95 to-neutral-950 p-4 sm:p-6 overflow-hidden">
                 <div className="absolute top-0 right-0 w-32 h-32 bg-violet-600/10 rounded-full blur-2xl pointer-events-none" />
                 
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                  <div className="flex items-center space-x-4">
-                    <div className="w-14 h-14 rounded-xl bg-violet-950/80 border border-violet-500 flex items-center justify-center text-3xl shadow-lg">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
+                  <div className="flex items-center space-x-3 sm:space-x-4">
+                    <div className="w-10 h-10 sm:w-14 sm:h-14 rounded-xl bg-violet-950/80 border border-violet-500 flex items-center justify-center text-2xl sm:text-3xl shadow-lg shrink-0">
                       👁️
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <div className="flex items-center space-x-2">
-                        <h2 className="text-xl font-bold text-white tracking-wide">Puurga Operator</h2>
-                        <span className="px-2 py-0.5 bg-violet-950 border border-violet-500 text-violet-300 text-[10px] rounded uppercase tracking-widest font-mono">
+                        <h2 className="text-base sm:text-xl font-bold text-white tracking-wide truncate">{t('games.purgaRift.operator')}</h2>
+                        <span className="px-1.5 sm:px-2 py-0.5 bg-violet-950 border border-violet-500 text-violet-300 text-[8px] sm:text-[10px] rounded uppercase tracking-widest font-mono shrink-0">
                           {activeTitle}
                         </span>
                       </div>
-                      <p className="text-xs text-neutral-400 mt-0.5 font-mono">ID: {crypto.randomUUID().slice(0, 8).toUpperCase()}</p>
+                      <p className="text-[10px] sm:text-xs text-neutral-400 mt-0.5 font-mono truncate">ID: {crypto.randomUUID().slice(0, 8).toUpperCase()}</p>
                     </div>
                   </div>
 
-                  <div className="flex space-x-4">
-                    <div className="bg-neutral-900/60 p-3 rounded-lg border border-neutral-800 text-center min-w-[70px]">
-                      <span className="block text-xl font-extrabold text-white">43</span>
-                      <span className="text-[10px] text-neutral-500 uppercase tracking-widest">Max Lvl</span>
+                  <div className="flex space-x-3 sm:space-x-4 shrink-0">
+                    <div className="bg-neutral-900/60 p-2 sm:p-3 rounded-lg border border-neutral-800 text-center min-w-[60px] sm:min-w-[70px]">
+                      <span className="block text-lg sm:text-xl font-extrabold text-white">43</span>
+                      <span className="text-[8px] sm:text-[10px] text-neutral-500 uppercase tracking-widest">{t('games.purgaRift.maxLvl')}</span>
                     </div>
-                    <div className="bg-neutral-900/60 p-3 rounded-lg border border-neutral-800 text-center min-w-[70px]">
-                      <span className="block text-xl font-extrabold text-yellow-400">{puurgaPoints}</span>
-                      <span className="text-[10px] text-neutral-500 uppercase tracking-widest">Points</span>
+                    <div className="bg-neutral-900/60 p-2 sm:p-3 rounded-lg border border-neutral-800 text-center min-w-[60px] sm:min-w-[70px]">
+                      <span className="block text-lg sm:text-xl font-extrabold text-yellow-400">{puurgaPoints}</span>
+                      <span className="text-[8px] sm:text-[10px] text-neutral-500 uppercase tracking-widest">{t('games.purgaRift.points')}</span>
                     </div>
                   </div>
                 </div>
@@ -794,93 +796,93 @@ export default function PurgaRiftGame() {
                 <div className="border-t border-neutral-800/60 mt-6 pt-4 flex flex-wrap gap-2">
                   <span className="px-2 py-1 bg-emerald-950/30 border border-emerald-500/20 text-emerald-400 text-xs rounded-md flex items-center gap-1.5">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
-                    Daily Rift Available
+                    {t('games.purgaRift.dailyRiftAvailable')}
                   </span>
                   <span className="px-2 py-1 bg-amber-950/30 border border-amber-500/20 text-amber-400 text-xs rounded-md flex items-center gap-1.5">
                     <Flame className="w-3.5 h-3.5 text-amber-400" />
-                    Boss Rift Active
+                    {t('games.purgaRift.bossRiftActive')}
                   </span>
                 </div>
               </div>
 
               {/* Core Game Modes Selector */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
                 
                 {/* Standard Practice/Rift Run */}
-                <div className="group relative rounded-xl border border-violet-500/20 bg-neutral-900/45 p-4 sm:p-6 hover:border-violet-500/60 transition duration-300 flex flex-col justify-between">
+                <div className="group relative rounded-xl border border-violet-500/20 bg-neutral-900/45 p-3 sm:p-6 hover:border-violet-500/60 transition duration-300 flex flex-col justify-between">
                   <div>
-                    <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-violet-950/50 flex items-center justify-center mb-4">
+                    <div className="w-7 h-7 sm:w-10 sm:h-10 rounded-lg bg-violet-950/50 flex items-center justify-center mb-2 sm:mb-4">
                     </div>
-                    <h3 className="text-lg font-bold text-neutral-100 group-hover:text-violet-300 transition">Enter The Rift</h3>
-                    <p className="text-xs text-neutral-400 mt-2 leading-relaxed">
-                      Scale dynamically mutating visual signals. Build correct pattern strings, survive memory blackouts, and ignore deceptive matrix messages.
+                    <h3 className="text-base sm:text-lg font-bold text-neutral-100 group-hover:text-violet-300 transition">{t('games.purgaRift.enterTheRift')}</h3>
+                    <p className="text-[10px] sm:text-xs text-neutral-400 mt-1 sm:mt-2 leading-relaxed hidden sm:block">
+                      {t('games.purgaRift.enterRiftDesc')}
                     </p>
                   </div>
                   <button 
                     onClick={() => startNewGame('normal')}
-                    className="mt-6 w-full py-2 sm:py-2.5 rounded-lg bg-violet-600 hover:bg-violet-500 text-white font-semibold text-xs sm:text-sm transition tracking-wider flex items-center justify-center gap-2 shadow-lg hover:shadow-violet-600/20"
+                    className="mt-3 sm:mt-6 w-full py-2 sm:py-2.5 rounded-lg bg-violet-600 hover:bg-violet-500 text-white font-semibold text-xs sm:text-sm transition tracking-wider flex items-center justify-center gap-2 shadow-lg hover:shadow-violet-600/20"
                   >
                     <Play className="w-4 h-4 fill-current" />
-                    START DESCENT
+                    {t('games.purgaRift.startDescent')}
                   </button>
                 </div>
 
                 {/* Instant Shadow Rift Option */}
-                <div className="group relative rounded-xl border border-rose-500/20 bg-neutral-900/45 p-4 sm:p-6 hover:border-rose-500/60 transition duration-300 flex flex-col justify-between">
-                  <div className="absolute top-3 right-3 px-2 py-0.5 bg-rose-950/80 border border-rose-500 text-rose-400 text-[9px] rounded font-mono uppercase tracking-widest">
-                    3x Rewards
+                <div className="group relative rounded-xl border border-rose-500/20 bg-neutral-900/45 p-3 sm:p-6 hover:border-rose-500/60 transition duration-300 flex flex-col justify-between">
+                  <div className="absolute top-2 right-2 sm:top-3 sm:right-3 px-1.5 sm:px-2 py-0.5 bg-rose-950/80 border border-rose-500 text-rose-400 text-[8px] sm:text-[9px] rounded font-mono uppercase tracking-widest">
+                    {t('games.purgaRift.threeXRewards')}
                   </div>
                   <div>
-                    <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-rose-950/50 flex items-center justify-center mb-4">
-                      <Skull className="w-5 h-5 text-rose-400" />
+                    <div className="w-7 h-7 sm:w-10 sm:h-10 rounded-lg bg-rose-950/50 flex items-center justify-center mb-2 sm:mb-4">
+                      <Skull className="w-4 h-4 sm:w-5 sm:h-5 text-rose-400" />
                     </div>
-                    <h3 className="text-lg font-bold text-neutral-100 group-hover:text-rose-300 transition">Shadow Rift Mode</h3>
-                    <p className="text-xs text-neutral-400 mt-2 leading-relaxed">
-                      Extreme difficulty mode. Dissonant visuals, highly deceptive guidelines, strict timers, and one-mistake instadeath threshold rules.
+                    <h3 className="text-base sm:text-lg font-bold text-neutral-100 group-hover:text-rose-300 transition">{t('games.purgaRift.shadowRiftMode')}</h3>
+                    <p className="text-[10px] sm:text-xs text-neutral-400 mt-1 sm:mt-2 leading-relaxed hidden sm:block">
+                      {t('games.purgaRift.shadowRiftDesc')}
                     </p>
                   </div>
                   <button 
                     onClick={() => startNewGame('shadow')}
-                    className="mt-6 w-full py-2 sm:py-2.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-semibold text-xs sm:text-sm transition tracking-wider flex items-center justify-center gap-2 shadow-lg hover:shadow-rose-600/20"
+                    className="mt-3 sm:mt-6 w-full py-2 sm:py-2.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-semibold text-xs sm:text-sm transition tracking-wider flex items-center justify-center gap-2 shadow-lg hover:shadow-rose-600/20"
                   >
                     <Skull className="w-4 h-4" />
-                    SURVIVAL RUN
+                    {t('games.purgaRift.survivalRun')}
                   </button>
                 </div>
 
               </div>
 
               {/* Daily & Sunday Boss Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
                 
                 {/* Daily Challenge Card */}
-                <div className="rounded-xl border border-neutral-800 bg-neutral-900/60 p-5 flex items-center justify-between">
-                  <div>
-                    <span className="text-[10px] text-violet-400 font-mono tracking-widest uppercase block mb-1">24-Hour Trial</span>
-                    <h4 className="text-sm font-bold text-white">Daily Unified Rift Puzzle</h4>
-                    <p className="text-xs text-neutral-400 mt-1">Identical signals for all operators.</p>
+                <div className="rounded-xl border border-neutral-800 bg-neutral-900/60 p-3 sm:p-5 flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <span className="text-[9px] sm:text-[10px] text-violet-400 font-mono tracking-widest uppercase block mb-0.5 sm:mb-1">{t('games.purgaRift.hourTrial')}</span>
+                    <h4 className="text-xs sm:text-sm font-bold text-white truncate">{t('games.purgaRift.dailyUnifiedPuzzle')}</h4>
+                    <p className="text-[10px] sm:text-xs text-neutral-400 mt-0.5 sm:mt-1 hidden sm:block">{t('games.purgaRift.identicalSignals')}</p>
                   </div>
                   <button 
                     onClick={() => startNewGame('normal')} 
-                    className="p-2.5 rounded-lg bg-neutral-800 border border-neutral-700 hover:bg-neutral-700 text-violet-400 hover:text-white transition"
+                    className="p-2 sm:p-2.5 rounded-lg bg-neutral-800 border border-neutral-700 hover:bg-neutral-700 text-violet-400 hover:text-white transition shrink-0"
                   >
                     <ArrowRight className="w-4 h-4" />
                   </button>
                 </div>
 
                 {/* Weekly Sunday Boss Rift */}
-                <div className="rounded-xl border border-amber-500/30 bg-gradient-to-r from-amber-950/20 to-neutral-900 p-5 flex items-center justify-between">
-                  <div>
-                    <span className="text-[10px] text-amber-400 font-mono tracking-widest uppercase block mb-1">Weekly Event</span>
-                    <h4 className="text-sm font-bold text-white flex items-center gap-1.5">
-                      Sunday Boss Rift
-                      <Award className="w-4 h-4 text-amber-400" />
+                <div className="rounded-xl border border-amber-500/30 bg-gradient-to-r from-amber-950/20 to-neutral-900 p-3 sm:p-5 flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <span className="text-[9px] sm:text-[10px] text-amber-400 font-mono tracking-widest uppercase block mb-0.5 sm:mb-1">{t('games.purgaRift.weeklyEvent')}</span>
+                    <h4 className="text-xs sm:text-sm font-bold text-white flex items-center gap-1 sm:gap-1.5 truncate">
+                      {t('games.purgaRift.sundayBossRift')}
+                      <Award className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400 shrink-0" />
                     </h4>
-                    <p className="text-xs text-neutral-400 mt-1">100 levels of pure predictive strategy.</p>
+                    <p className="text-[10px] sm:text-xs text-neutral-400 mt-0.5 sm:mt-1 hidden sm:block">{t('games.purgaRift.hundredLevels')}</p>
                   </div>
                   <button 
                     onClick={() => startNewGame('normal')} 
-                    className="p-2.5 rounded-lg bg-amber-950/60 border border-amber-500/40 hover:bg-amber-900 text-amber-300 transition"
+                    className="p-2 sm:p-2.5 rounded-lg bg-amber-950/60 border border-amber-500/40 hover:bg-amber-900 text-amber-300 transition shrink-0"
                   >
                     <ArrowRight className="w-4 h-4" />
                   </button>
@@ -891,88 +893,88 @@ export default function PurgaRiftGame() {
             </div>
 
             {/* RIGHT AREA: Live Social Feed, Battles panel, Shop shortcut */}
-            <div className="lg:col-span-4 space-y-6">
+            <div className="lg:col-span-4 space-y-4 sm:space-y-6">
               
               {/* Rift Battles & Friends Arena */}
-              <div className="rounded-2xl border border-neutral-800 bg-neutral-900/90 p-5">
-                <div className="flex items-center justify-between mb-4 pb-2 border-b border-neutral-800/80">
-                  <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                    <Users className="w-4 h-4 text-violet-400" />
-                    Simulated Battles
+              <div className="rounded-2xl border border-neutral-800 bg-neutral-900/90 p-3 sm:p-5">
+                <div className="flex items-center justify-between mb-3 sm:mb-4 pb-2 border-b border-neutral-800/80">
+                  <h3 className="text-xs sm:text-sm font-bold text-white uppercase tracking-wider flex items-center gap-1.5 sm:gap-2">
+                    <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-violet-400" />
+                    {t('games.purgaRift.simulatedBattles')}
                   </h3>
-                  <span className="text-[10px] bg-amber-950 text-amber-400 px-2 py-0.5 rounded-full font-bold">
-                    AI Opponents
+                  <span className="text-[8px] sm:text-[10px] bg-amber-950 text-amber-400 px-1.5 sm:px-2 py-0.5 rounded-full font-bold">
+                    {t('games.purgaRift.aiOpponents')}
                   </span>
                 </div>
 
-                <div className="space-y-3 max-h-[220px] overflow-y-auto custom-scrollbar">
+                <div className="space-y-2 sm:space-y-3 max-h-[180px] sm:max-h-[220px] overflow-y-auto custom-scrollbar">
                   {DEFAULT_FRIENDS.map((friend) => (
-                    <div key={friend.id} className="p-3 bg-neutral-950/70 border border-neutral-800/80 rounded-xl flex items-center justify-between">
-                      <div className="flex items-center space-x-3">
-                        <div className="relative w-9 h-9 bg-neutral-900 border border-neutral-700 rounded-full flex items-center justify-center text-lg">
+                    <div key={friend.id} className="p-2 sm:p-3 bg-neutral-950/70 border border-neutral-800/80 rounded-xl flex items-center justify-between gap-2">
+                      <div className="flex items-center space-x-2 sm:space-x-3 min-w-0">
+                        <div className="relative w-8 h-8 sm:w-9 sm:h-9 bg-neutral-900 border border-neutral-700 rounded-full flex items-center justify-center text-base sm:text-lg shrink-0">
                           {friend.avatar}
                         </div>
-                        <div>
-                          <div className="flex items-center space-x-1.5">
-                            <h4 className="text-xs font-bold text-neutral-200">{friend.name}</h4>
-                            <span className="text-[9px] text-violet-400 font-mono">{friend.badge}</span>
+                        <div className="min-w-0">
+                          <div className="flex items-center space-x-1 sm:space-x-1.5">
+                            <h4 className="text-[10px] sm:text-xs font-bold text-neutral-200 truncate">{friend.name}</h4>
+                            <span className="text-[8px] sm:text-[9px] text-violet-400 font-mono shrink-0">{friend.badge}</span>
                           </div>
-                          <p className="text-[10px] text-neutral-500">Peak Lvl: {friend.level}</p>
+                          <p className="text-[9px] sm:text-[10px] text-neutral-500">Lvl {friend.level}</p>
                         </div>
                       </div>
 
                       <button 
                         onClick={() => initiateSimulatedBattle(friend)}
-                        className="px-2 py-1 bg-violet-950 hover:bg-violet-900 text-violet-300 text-[10px] font-bold uppercase rounded border border-violet-500/30 transition"
+                        className="px-1.5 sm:px-2 py-0.5 sm:py-1 bg-violet-950 hover:bg-violet-900 text-violet-300 text-[9px] sm:text-[10px] font-bold uppercase rounded border border-violet-500/30 transition shrink-0"
                       >
-                        Duel
+                        {t('games.purgaRift.duel')}
                       </button>
                     </div>
                   ))}
                 </div>
-                <p className="text-[9px] text-neutral-600 mt-3 text-center italic">Opponents are AI-simulated for practice. No real-time multiplayer available.</p>
+                <p className="text-[8px] sm:text-[9px] text-neutral-600 mt-2 sm:mt-3 text-center italic">{t('games.purgaRift.aiSimulated')}</p>
               </div>
 
               {/* Quick Cosmetic Shop Redirection Banner */}
-              <div className="rounded-xl bg-gradient-to-tr from-violet-900 to-indigo-950 p-5 border border-violet-500/30 text-center">
-                <ShoppingBag className="w-8 h-8 text-violet-400 mx-auto mb-3" />
-                <h4 className="text-sm font-bold text-white">Operator Customization</h4>
-                <p className="text-xs text-neutral-300 mt-1 leading-relaxed">
-                  Redeem Puurga Points for legendary custom themes, titles, and glowing profile effects.
+              <div className="rounded-xl bg-gradient-to-tr from-violet-900 to-indigo-950 p-4 sm:p-5 border border-violet-500/30 text-center">
+                <ShoppingBag className="w-6 h-6 sm:w-8 sm:h-8 text-violet-400 mx-auto mb-2 sm:mb-3" />
+                <h4 className="text-xs sm:text-sm font-bold text-white">{t('games.purgaRift.operatorCustomization')}</h4>
+                <p className="text-[10px] sm:text-xs text-neutral-300 mt-1 leading-relaxed hidden sm:block">
+                  {t('games.purgaRift.operatorCustomDesc')}
                 </p>
                 <button 
                   onClick={() => setView('shop')}
-                  className="mt-4 w-full py-2 bg-neutral-950 border border-neutral-800 hover:bg-neutral-900 text-white rounded-lg text-xs font-semibold uppercase tracking-wider transition"
+                  className="mt-3 sm:mt-4 w-full py-1.5 sm:py-2 bg-neutral-950 border border-neutral-800 hover:bg-neutral-900 text-white rounded-lg text-[10px] sm:text-xs font-semibold uppercase tracking-wider transition"
                 >
-                  Enter Cosmetic Terminal
+                  {t('games.purgaRift.enterCosmeticTerminal')}
                 </button>
               </div>
 
               {/* Game High scores Showcase */}
-              <div className="rounded-xl border border-neutral-800 bg-neutral-900/60 p-4">
-                <h4 className="text-xs font-bold text-neutral-400 tracking-wider uppercase mb-3 flex items-center gap-1.5">
-                  <Trophy className="w-3.5 h-3.5 text-yellow-500" />
-                  Personal Best Scores
+              <div className="rounded-xl border border-neutral-800 bg-neutral-900/60 p-3 sm:p-4">
+                <h4 className="text-[10px] sm:text-xs font-bold text-neutral-400 tracking-wider uppercase mb-2 sm:mb-3 flex items-center gap-1.5">
+                  <Trophy className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-yellow-500" />
+                  {t('games.purgaRift.personalBestScores')}
                 </h4>
-                <div className="space-y-2">
+                <div className="space-y-1.5 sm:space-y-2">
                   {localLeaderboard.slice(0, 5).length > 0 ? (
                     localLeaderboard.slice(0, 5).map((entry, idx) => (
-                      <div key={idx} className="flex justify-between text-xs py-1 border-b border-neutral-800/40 last:border-0">
+                      <div key={idx} className="flex justify-between text-[10px] sm:text-xs py-1 border-b border-neutral-800/40 last:border-0">
                         <span className="text-neutral-300 font-medium">#{idx + 1} — Lvl {entry.level}</span>
                         <span className={`font-mono font-bold ${idx === 0 ? 'text-yellow-400' : 'text-neutral-400'}`}>
-                          {entry.score.toLocaleString()} pts
+                          {entry.score.toLocaleString()}
                         </span>
                       </div>
                     ))
                   ) : (
-                    <p className="text-xs text-neutral-500 text-center py-2">No games played yet</p>
+                    <p className="text-[10px] sm:text-xs text-neutral-500 text-center py-2">{t('games.purgaRift.noGamesPlayedYet')}</p>
                   )}
                 </div>
                 <button 
                   onClick={() => setView('leaderboard')}
-                  className="mt-3 text-[11px] text-violet-400 hover:underline block text-center w-full"
+                  className="mt-2 sm:mt-3 text-[10px] sm:text-[11px] text-violet-400 hover:underline block text-center w-full"
                 >
-                  View Full Standings
+                  {t('games.purgaRift.viewFullStandings')}
                 </button>
               </div>
 
@@ -991,18 +993,18 @@ export default function PurgaRiftGame() {
               {/* Score & Current Streak */}
               <div className="flex items-center space-x-4">
                 <div>
-                    <span className="text-[9px] text-neutral-500 uppercase tracking-widest block font-mono">Score</span>
+                    <span className="text-[9px] text-neutral-500 uppercase tracking-widest block font-mono">{t('games.purgaRift.score')}</span>
                   <span className="text-sm sm:text-base font-extrabold text-white font-mono">{score}</span>
                 </div>
                 <div className="h-6 w-[1px] bg-neutral-800" />
                 <div>
-                  <span className="text-[9px] text-neutral-500 uppercase tracking-widest block font-mono">Level</span>
+                  <span className="text-[9px] text-neutral-500 uppercase tracking-widest block font-mono">{t('games.purgaRift.level')}</span>
                   <span className="text-sm sm:text-base font-extrabold text-violet-400 font-mono">{level}</span>
                 </div>
                 <div className="h-6 w-[1px] bg-neutral-800" />
                 <div className="flex items-center space-x-1">
                   <Flame className="w-3 h-3 text-amber-500 animate-pulse" />
-                  <span className="text-[10px] font-bold text-amber-400">{streak} streak</span>
+                  <span className="text-[10px] font-bold text-amber-400">{streak} {t('games.purgaRift.streakLabel')}</span>
                 </div>
               </div>
 
@@ -1044,25 +1046,25 @@ export default function PurgaRiftGame() {
                 {customEvent === 'Blackout' && (
                   <div className="bg-neutral-950 border border-neutral-700 text-neutral-200 px-3 py-1.5 rounded-lg text-[10px] text-center flex items-center justify-center gap-1.5">
                     <EyeOff className="w-3 h-3 text-violet-400 animate-pulse" />
-                    <span><strong>BLACKOUT:</strong> Sequence hides in 2s. Memorize instantly!</span>
+                    <span>{t('games.purgaRift.events.blackout')}</span>
                   </div>
                 )}
                 {customEvent === 'Mirror' && (
                   <div className="bg-amber-950/40 border border-amber-500/30 text-amber-300 px-3 py-1.5 rounded-lg text-[10px] text-center flex items-center justify-center gap-1.5">
                     <AlertTriangle className="w-3 h-3 text-amber-500" />
-                    <span><strong>MIRROR:</strong> Button layout reversed!</span>
+                    <span>{t('games.purgaRift.events.mirror')}</span>
                   </div>
                 )}
                 {customEvent === 'TimeCollapse' && (
                   <div className="bg-rose-950/40 border border-rose-500/30 text-rose-300 px-3 py-1.5 rounded-lg text-[10px] text-center flex items-center justify-center gap-1.5">
                     <Zap className="w-3 h-3 text-rose-500" />
-                    <span><strong>TIME COLLAPSE:</strong> Countdown tripled!</span>
+                    <span>{t('games.purgaRift.events.timeCollapse')}</span>
                   </div>
                 )}
                 {customEvent === 'RiftStorm' && (
                   <div className="bg-emerald-950/40 border border-emerald-500/30 text-emerald-300 px-3 py-1.5 rounded-lg text-[10px] text-center flex items-center justify-center gap-1.5">
                     <Award className="w-3 h-3 text-emerald-500 animate-spin-slow" />
-                    <span><strong>RIFT STORM:</strong> Double points active!</span>
+                    <span>{t('games.purgaRift.events.riftStorm')}</span>
                   </div>
                 )}
               </div>
@@ -1080,7 +1082,7 @@ export default function PurgaRiftGame() {
 
               {/* Timer Progress Ring Bar */}
               <div className="absolute top-2 right-2 flex items-center space-x-1 bg-neutral-900 border border-neutral-800 px-1.5 py-0.5 rounded-md font-mono text-[10px]">
-                <span className="text-neutral-500">TTL:</span>
+                <span className="text-neutral-500">{t('games.purgaRift.ttl')}</span>
                 <span className={`font-bold ${timerLeft <= 4 ? 'text-rose-500 animate-ping' : 'text-emerald-400'}`}>
                   {timerLeft}s
                 </span>
@@ -1094,7 +1096,7 @@ export default function PurgaRiftGame() {
                   {gameMode === 'shadow' ? '⚡ SHADOW RIFT ⚡' : `PHASE ${Math.ceil(level / 10)}: LVL ${level}`}
                 </span>
                 <h3 className="text-base sm:text-xl font-bold text-white mt-1">
-                  {isMemorySequence ? 'Replicate Sequence' : 'Decipher the Pattern'}
+                  {isMemorySequence ? t('games.purgaRift.replicateSequence') : t('games.purgaRift.decipherPattern')}
                 </h3>
               </div>
 
@@ -1191,22 +1193,22 @@ export default function PurgaRiftGame() {
 
         {/* ================= VIEW: THE REWARDS / TITLE SHOP TERMINAL ================= */}
         {view === 'shop' && (
-          <div className="max-w-4xl w-full mx-auto animate-fadeIn">
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h2 className="text-xl font-extrabold text-white tracking-wide">Rift Customization Terminal</h2>
-                <p className="text-xs text-neutral-400 mt-1">Redeem your hard-earned Puurga Points for permanent profile tags & styling adjustments</p>
+          <div className="max-w-4xl w-full mx-auto animate-fadeIn overflow-y-auto">
+            <div className="flex items-center justify-between mb-4 sm:mb-6 gap-2">
+              <div className="min-w-0">
+                <h2 className="text-base sm:text-xl font-extrabold text-white tracking-wide truncate">{t('games.purgaRift.riftCustomizationTerminal')}</h2>
+                <p className="text-[10px] sm:text-xs text-neutral-400 mt-0.5 sm:mt-1 hidden sm:block">{t('games.purgaRift.riftCustomDesc')}</p>
               </div>
 
               {/* Wallet tracker */}
-              <div className="bg-neutral-900 border border-violet-500/30 px-4 py-2 rounded-xl flex items-center space-x-2">
-                <Coins className="w-4 h-4 text-yellow-400" />
-                <span className="text-sm font-black text-yellow-300">{puurgaPoints} Puurga Points</span>
+              <div className="bg-neutral-900 border border-violet-500/30 px-2 sm:px-4 py-1 sm:py-2 rounded-xl flex items-center space-x-1.5 sm:space-x-2 shrink-0">
+                <Coins className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-yellow-400" />
+                <span className="text-xs sm:text-sm font-black text-yellow-300">{puurgaPoints}</span>
               </div>
             </div>
 
             {/* GRID OF COSMETICS */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6">
               {SHOP_ITEMS.map((item) => {
                 const isUnlocked = unlockedCosmetics.includes(item.id);
                 const isActive = activeTheme === item.id || activeTitle === item.label;
@@ -1214,13 +1216,13 @@ export default function PurgaRiftGame() {
                 return (
                   <div 
                     key={item.id} 
-                    className={`relative rounded-xl border bg-neutral-900/50 p-4 sm:p-5 flex flex-col justify-between transition duration-200 ${
+                    className={`relative rounded-xl border bg-neutral-900/50 p-3 sm:p-5 flex flex-col justify-between transition duration-200 ${
                       isActive ? 'border-violet-500 shadow-lg shadow-violet-600/10' : 'border-neutral-800'
                     }`}
                   >
                     <div>
                       {/* Rarity Tag */}
-                      <span className={`text-[9px] px-2 py-0.5 rounded font-mono font-bold uppercase tracking-widest ${
+                      <span className={`text-[8px] sm:text-[9px] px-1.5 sm:px-2 py-0.5 rounded font-mono font-bold uppercase tracking-widest ${
                         item.rarity === 'Legendary' ? 'bg-rose-950 text-rose-400' :
                         item.rarity === 'Epic' ? 'bg-violet-950 text-violet-400' :
                         item.rarity === 'Rare' ? 'bg-cyan-950 text-cyan-400' : 'bg-neutral-800 text-neutral-400'
@@ -1230,20 +1232,20 @@ export default function PurgaRiftGame() {
 
                       {/* Title Display or Visual representation box */}
                       {item.type === 'theme' ? (
-                        <div className={`w-full h-12 rounded-lg border bg-gradient-to-r ${item.previewColor} my-3 opacity-80`} />
+                        <div className={`w-full h-8 sm:h-12 rounded-lg border bg-gradient-to-r ${item.previewColor} my-2 sm:my-3 opacity-80`} />
                       ) : (
-                        <div className="w-full py-2 px-3 rounded bg-neutral-950 border border-neutral-800 text-center font-mono text-xs text-violet-400 my-3 font-bold">
+                        <div className="w-full py-1.5 sm:py-2 px-2 sm:px-3 rounded bg-neutral-950 border border-neutral-800 text-center font-mono text-[10px] sm:text-xs text-violet-400 my-2 sm:my-3 font-bold">
                           [{item.label}]
                         </div>
                       )}
 
-                      <h3 className="text-sm font-bold text-white mt-2">{item.name}</h3>
-                      <p className="text-xs text-neutral-400 mt-1 leading-relaxed">{item.description}</p>
+                      <h3 className="text-xs sm:text-sm font-bold text-white mt-1.5 sm:mt-2">{item.name}</h3>
+                      <p className="text-[10px] sm:text-xs text-neutral-400 mt-0.5 sm:mt-1 leading-relaxed hidden sm:block">{item.description}</p>
                     </div>
 
-                    <div className="mt-5 pt-3 border-t border-neutral-800/60 flex items-center justify-between">
-                      <span className="text-xs text-neutral-500 font-bold uppercase tracking-wider">
-                        {isUnlocked ? 'Owned' : `${item.price} pts`}
+                    <div className="mt-3 sm:mt-5 pt-2 sm:pt-3 border-t border-neutral-800/60 flex items-center justify-between">
+                      <span className="text-[10px] sm:text-xs text-neutral-500 font-bold uppercase tracking-wider">
+                        {isUnlocked ? t('games.purgaRift.shop.owned') : `${item.price} pts`}
                       </span>
 
                       {isUnlocked ? (
@@ -1259,7 +1261,7 @@ isActive
                               : 'bg-neutral-800 text-white hover:bg-neutral-700'
                           }`}
                         >
-                          {isActive ? 'Active' : 'Equip'}
+                          {isActive ? t('games.purgaRift.shop.active') : t('games.purgaRift.shop.equip')}
                         </button>
                       ) : (
                         <button
@@ -1271,7 +1273,7 @@ isActive
                               : 'bg-neutral-900 border border-neutral-800 text-neutral-600 cursor-not-allowed'
                           }`}
                         >
-                          Unlock
+                          {t('games.purgaRift.shop.unlock')}
                         </button>
                       )}
                     </div>
@@ -1288,7 +1290,7 @@ isActive
             <div className="flex items-center space-x-3 mb-6 pb-4 border-b border-neutral-800">
               <Trophy className="w-6 h-6 text-yellow-400" />
               <div>
-                <h2 className="text-xl font-extrabold text-white">Personal Best Scores</h2>
+                <h2 className="text-xl font-extrabold text-white">{t('games.purgaRift.personalBestScores')}</h2>
                 <p className="text-xs text-neutral-400">Your top scores tracked locally on this device</p>
               </div>
             </div>
@@ -1319,7 +1321,7 @@ isActive
               ) : (
                 <div className="text-center py-12 text-neutral-500">
                   <Trophy className="w-12 h-12 mx-auto mb-3 opacity-30" />
-                  <p className="text-sm">No scores yet. Start a run to set your first personal best!</p>
+                  <p className="text-sm">{t('games.purgaRift.noScoresYet')}</p>
                 </div>
               )}
             </div>
@@ -1337,22 +1339,22 @@ isActive
               </div>
             </div>
 
-            <h2 className="text-3xl font-extrabold text-white tracking-wide uppercase">Rift Connection Terminated</h2>
+            <h2 className="text-3xl font-extrabold text-white tracking-wide uppercase">{t('games.purgaRift.riftTerminated')}</h2>
             <p className="text-xs text-neutral-400 mt-2 max-w-sm mx-auto leading-relaxed">
-              Your consciousness returned to normal coordinates. You withstood mutations and distortions up to:
+              {t('games.purgaRift.riftTerminatedDesc')}
             </p>
 
             {/* Performance Stats Dashboard Grid */}
             <div className="grid grid-cols-2 gap-4 w-full max-w-sm my-8">
               <div className="bg-neutral-900 border border-neutral-800 p-3 sm:p-4 rounded-xl">
-                <span className="text-[10px] text-neutral-500 uppercase tracking-widest block font-mono">Survived Levels</span>
+                <span className="text-[10px] text-neutral-500 uppercase tracking-widest block font-mono">{t('games.purgaRift.survivedLevels')}</span>
                 <span className="text-3xl font-black text-violet-400 font-mono block mt-1">{level}</span>
-                <span className="text-[9px] text-neutral-400 block mt-1 font-sans">Beating 97% of operators</span>
+                <span className="text-[9px] text-neutral-400 block mt-1 font-sans">{t('games.purgaRift.beatingPercent', { percent: 97 })}</span>
               </div>
               <div className="bg-neutral-900 border border-neutral-800 p-3 sm:p-4 rounded-xl">
-                <span className="text-[10px] text-neutral-500 uppercase tracking-widest block font-mono">Final High Score</span>
+                <span className="text-[10px] text-neutral-500 uppercase tracking-widest block font-mono">{t('games.purgaRift.finalHighScore')}</span>
                 <span className="text-3xl font-black text-yellow-400 font-mono block mt-1">{score}</span>
-                <span className="text-[9px] text-neutral-400 block mt-1 font-sans">Puurga points secured</span>
+                <span className="text-[9px] text-neutral-400 block mt-1 font-sans">{t('games.purgaRift.pointsSecured')}</span>
               </div>
             </div>
 
@@ -1364,15 +1366,15 @@ isActive
                   <span className={`text-[10px] font-black px-2 py-0.5 rounded ${
                     score > battleOpponentScore ? 'bg-emerald-950 text-emerald-400 border border-emerald-500/30' : 'bg-rose-950 text-rose-400 border border-rose-500/30'
                   }`}>
-                    {score > battleOpponentScore ? 'VICTORY' : 'DEFEAT'}
+                    {score > battleOpponentScore ? t('games.purgaRift.victory') : t('games.purgaRift.defeat')}
                   </span>
                 </div>
                 <div className="flex justify-between items-center mt-3">
                   <div className="text-left">
-                    <span className="text-xs font-bold text-neutral-300 block">Your Score</span>
+                    <span className="text-xs font-bold text-neutral-300 block">{t('games.purgaRift.yourScore')}</span>
                     <span className="text-lg font-mono font-extrabold text-white">{score}</span>
                   </div>
-                  <div className="text-neutral-600 font-bold">VS</div>
+                  <div className="text-neutral-600 font-bold">{t('games.purgaRift.vs')}</div>
                   <div className="text-right">
                     <span className="text-xs font-bold text-neutral-300 block">{battleOpponent.name}</span>
                     <span className="text-lg font-mono font-extrabold text-rose-400">{battleOpponentScore}</span>
@@ -1388,14 +1390,14 @@ isActive
                 className="flex-1 py-2.5 sm:py-3 bg-violet-600 hover:bg-violet-500 text-white font-semibold rounded-xl text-sm transition tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-violet-600/10"
               >
                 <RotateCcw className="w-4 h-4" />
-                DESCENT AGAIN
+                {t('games.purgaRift.descentAgain')}
               </button>
 
               <button 
                 onClick={() => setView('hub')}
                 className="flex-1 py-2.5 sm:py-3 bg-neutral-900 border border-neutral-800 hover:bg-neutral-800 text-neutral-200 font-semibold rounded-xl text-sm transition"
               >
-                EXIT TO MAIN HUB
+                {t('games.purgaRift.exitToMainHub')}
               </button>
             </div>
 
@@ -1403,7 +1405,7 @@ isActive
             <div className="mt-8 border-t border-neutral-800/80 pt-6 w-full max-w-xs flex flex-col items-center">
               <span className="text-xs text-neutral-500 mb-3 flex items-center gap-1.5 font-mono">
                 <Share2 className="w-3.5 h-3.5" />
-                CHALLENGE YOUR CIRCLE
+                {t('games.purgaRift.challengeCircle')}
               </span>
               <button 
                 onClick={() => {
@@ -1412,7 +1414,7 @@ isActive
                 }}
                 className="px-4 py-1.5 bg-neutral-900 border border-neutral-800 text-neutral-400 hover:text-white rounded-lg text-xs tracking-wider transition uppercase"
               >
-                Copy Challenge Invite Link
+                {t('games.purgaRift.copyInviteLink')}
               </button>
             </div>
 

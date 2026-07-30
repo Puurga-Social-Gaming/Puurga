@@ -101,7 +101,7 @@ const MobileSideMenu: React.FC<MobileSideMenuProps> = ({ open, onClose }) => {
         /* ignore */
       }
       toast.success(t('navigation.logoutSuccess', 'Logged out successfully'));
-      navigate('/login');
+      navigate('/onboarding/video');
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : 'Failed to log out';
       toast.error(msg);

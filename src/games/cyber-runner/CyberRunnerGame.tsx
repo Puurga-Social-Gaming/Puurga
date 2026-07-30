@@ -6,6 +6,7 @@ import {
   Compass, Skull, RefreshCw, Flame, Award, Play, AlertTriangle, ArrowRight,
   Info, Volume2, VolumeX, Crosshair, ZapOff, CheckCircle2, ChevronRight, Target
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useCredits } from '../../hooks/useCredits';
 
 const ZONES_CONFIG = {
@@ -165,6 +166,7 @@ function syncRunnerLayout(state, canvasW, canvasH) {
 }
 
 export default function App() {
+  const { t } = useTranslation();
   const { balance, addCredits, spendCredits, mergeLocalCredits } = useCredits();
   const [screen, setScreen] = useState('menu'); 
   const [credits, setCredits] = useState(() => {
@@ -281,41 +283,41 @@ export default function App() {
   }, [isPlaying]);
 
   return (
-    <div className="h-full min-h-[100dvh] bg-neutral-950 text-white flex flex-col font-sans selection:bg-orange-500 selection:text-black overflow-hidden">
+    <div className="h-[100dvh] max-h-[100dvh] bg-background text-foreground flex flex-col font-sans selection:bg-orange-500 selection:text-black overflow-hidden">
       {/* Top Header Bar — hidden during run so the arena uses full viewport */}
       {!isPlaying && (
-      <header className="shrink-0 border-b border-orange-500/10 bg-neutral-900/60 backdrop-blur-md z-50 px-3 sm:px-3 sm:px-4 py-1.5 sm:py-2 sm:py-3 flex items-center justify-between">
-        <div className="flex items-center space-x-3 cursor-pointer" onClick={() => setScreen('menu')}>
-          <div className="w-8 h-8 sm:w-10 sm:h-10 rounded bg-gradient-to-tr from-orange-600 to-orange-400 flex items-center justify-center shadow-lg shadow-orange-500/20">
-            <Flame className="w-6 h-6 text-black" fill="currentColor" />
+      <header className="shrink-0 border-b border-orange-500/10 bg-card/60 backdrop-blur-md z-50 px-2 sm:px-4 py-1 sm:py-3 flex items-center justify-between gap-2">
+        <div className="flex items-center space-x-2 sm:space-x-3 cursor-pointer min-w-0" onClick={() => setScreen('menu')}>
+          <div className="w-7 h-7 sm:w-10 sm:h-10 rounded bg-gradient-to-tr from-orange-600 to-orange-400 flex items-center justify-center shadow-lg shadow-orange-500/20 shrink-0">
+            <Flame className="w-5 h-5 sm:w-6 sm:h-6 text-black" fill="currentColor" />
           </div>
-          <div>
-            <h1 className="text-xl font-black tracking-wider uppercase bg-clip-text text-transparent bg-gradient-to-r from-white via-orange-400 to-orange-500">
-              Purga <span className="text-sm font-light text-orange-500">Shadow Runner v2</span>
+          <div className="min-w-0">
+            <h1 className="text-base sm:text-xl font-black tracking-wider uppercase bg-clip-text text-transparent bg-gradient-to-r from-white via-orange-400 to-orange-500 truncate">
+              Purga <span className="text-xs sm:text-sm font-light text-orange-500">Shadow Runner</span>
             </h1>
-            <p className="text-[10px] uppercase tracking-widest text-neutral-400">Tactical Stickman Slicing Engine</p>
+            <p className="text-[8px] sm:text-[10px] uppercase tracking-widest text-muted hidden sm:block">Tactical Stickman Slicing Engine</p>
           </div>
         </div>
 
-        <div className="flex items-center space-x-4">
-          <div className="flex items-center space-x-3">
-            <div className="flex items-center space-x-1 bg-neutral-900 px-2 sm:px-2.5 sm:px-3 py-0.5 sm:py-1 sm:py-1.5 rounded border border-orange-500/20">
-              <Coins className="w-4 h-4 text-orange-400" />
-              <span className="text-sm font-mono font-bold text-orange-300">{credits}</span>
-              <span className="text-[10px] text-neutral-400 ml-1">Credits</span>
+        <div className="flex items-center space-x-2 sm:space-x-4 shrink-0">
+          <div className="flex items-center space-x-1.5 sm:space-x-3">
+            <div className="flex items-center space-x-1 bg-card px-1.5 sm:px-3 py-0.5 sm:py-1.5 rounded border border-orange-500/20">
+              <Coins className="w-3 h-3 sm:w-4 sm:h-4 text-orange-400" />
+              <span className="text-xs sm:text-sm font-mono font-bold text-orange-300">{credits}</span>
+              <span className="text-[8px] sm:text-[10px] text-muted ml-0.5 sm:ml-1 hidden sm:inline">{t('games.cyberRunner.credits')}</span>
             </div>
-            <div className="flex items-center space-x-1 bg-neutral-900 px-2 sm:px-2.5 sm:px-3 py-0.5 sm:py-1 sm:py-1.5 rounded border border-neutral-700">
-              <Sparkles className="w-4 h-4 text-cyan-400" />
-              <span className="text-sm font-mono font-bold text-cyan-300">{purgaPoints}</span>
-              <span className="text-[10px] text-neutral-400 ml-1">Points</span>
+            <div className="flex items-center space-x-1 bg-card px-1.5 sm:px-3 py-0.5 sm:py-1.5 rounded border border-border-light">
+              <Sparkles className="w-3 h-3 sm:w-4 sm:h-4 text-cyan-400" />
+              <span className="text-xs sm:text-sm font-mono font-bold text-cyan-300">{purgaPoints}</span>
+              <span className="text-[8px] sm:text-[10px] text-muted ml-0.5 sm:ml-1 hidden sm:inline">{t('games.cyberRunner.points')}</span>
             </div>
           </div>
 
           <button 
             onClick={handleMuteToggle} 
-            className="p-1.5 sm:p-2 rounded bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-neutral-400 hover:text-white transition-colors"
+            className="p-1 sm:p-2 rounded bg-card-hover hover:bg-card-hover border border-border-light text-muted hover:text-foreground transition-colors"
           >
-            {isMuted ? <VolumeX className="w-4 h-4 sm:w-5 sm:h-5" /> : <Volume2 className="w-4 h-4 sm:w-5 sm:h-5" />}
+            {isMuted ? <VolumeX className="w-3.5 h-3.5 sm:w-5 sm:h-5" /> : <Volume2 className="w-3.5 h-3.5 sm:w-5 sm:h-5" />}
           </button>
         </div>
       </header>
@@ -409,114 +411,121 @@ export default function App() {
 }
 
 function MainMenu({ setScreen, stats, credits, purgaPoints, equippedSkin }) {
-  return (
-    <div className="flex-grow max-w-6xl mx-auto w-full px-3 sm:px-4 py-6 sm:py-8 flex flex-col justify-center">
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
-        
-        <div className="lg:col-span-7 space-y-6">
-          <div className="inline-flex items-center space-x-2 bg-orange-500/10 border border-orange-500/30 text-orange-400 px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-full text-xs font-semibold uppercase tracking-wider">
-            <Zap className="w-3.5 h-3.5 fill-current animate-pulse" />
-            <span>Gradual Phase Progression Enabled</span>
-          </div>
+  const { t } = useTranslation();
+  const [showHowToPlay, setShowHowToPlay] = useState(false);
 
-          <h2 className="text-3xl sm:text-6xl font-black tracking-tight leading-none uppercase">
-            RUN. COMBAT. <br/>
-            <span className="text-orange-500 bg-clip-text text-transparent bg-gradient-to-r from-orange-500 via-orange-400 to-yellow-300">
-              SURVIVE & ASCEND.
-            </span>
+  return (
+    <div className="flex-grow max-w-6xl mx-auto w-full px-3 sm:px-4 py-4 sm:py-8 flex flex-col justify-center">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-8 items-center">
+        
+        {/* Left column — title + actions */}
+        <div className="lg:col-span-7 space-y-3 sm:space-y-6">
+          <h2 className="text-2xl sm:text-6xl font-black tracking-tight leading-none uppercase">
+            {t('games.cyberRunner.runTitle')}
           </h2>
 
-          <p className="text-neutral-400 text-base max-w-lg leading-relaxed">
-            Take command of an agile vector stickman runner. Start in the calm Boot Sector and survive progressive, faster overclocking network phases. Execute double jumps, slides, and neon slashes to secure your run!
-          </p>
+          {/* Primary action */}
+          <button 
+            onClick={() => { sfx.playJump(); setScreen('playing'); }}
+            className="w-full sm:w-auto px-6 sm:px-8 py-3 sm:py-4 bg-gradient-to-r from-orange-600 to-orange-500 hover:from-orange-500 hover:to-orange-400 text-black font-extrabold text-base sm:text-lg uppercase tracking-wider rounded-lg shadow-xl shadow-orange-500/25 transform active:scale-95 transition-all flex items-center justify-center space-x-3 animate-pulse"
+          >
+            <Play className="w-5 h-5 sm:w-6 sm:h-6 fill-black stroke-black" />
+            <span>{t('games.cyberRunner.launchRun')}</span>
+          </button>
 
-          <div className="flex flex-wrap gap-4 pt-2">
-            <button 
-              onClick={() => { sfx.playJump(); setScreen('playing'); }}
-              className="px-6 sm:px-8 py-3 sm:py-4 bg-gradient-to-r from-orange-600 to-orange-500 hover:from-orange-500 hover:to-orange-400 text-black font-extrabold text-base sm:text-lg uppercase tracking-wider rounded-lg shadow-xl shadow-orange-500/25 transform active:scale-95 transition-all flex items-center space-x-3 animate-pulse"
-            >
-              <Play className="w-5 h-5 sm:w-6 sm:h-6 fill-black stroke-black" />
-              <span>LAUNCH RUN</span>
-            </button>
-
+          {/* Secondary actions — compact grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
             <button 
               onClick={() => { sfx.playCoin(); setScreen('upgrades'); }}
-              className="px-5 sm:px-6 py-3 sm:py-4 bg-neutral-900 hover:bg-neutral-800 border border-neutral-700 hover:border-orange-500/30 text-white font-bold rounded-lg transition-all flex items-center space-x-2"
+              className="flex items-center gap-2 px-3 sm:px-4 py-2.5 sm:py-3 bg-card hover:bg-card-hover border border-border-light hover:border-orange-500/30 text-foreground font-bold rounded-lg transition-all text-sm"
             >
-              <Shield className="w-5 h-5 text-orange-500" />
-              <span>Cyber Tech Labs</span>
+              <Shield className="w-4 h-4 text-orange-500 shrink-0" />
+              <span className="truncate">{t('games.cyberRunner.cyberTechLabs')}</span>
+            </button>
+
+            <button 
+              onClick={() => { sfx.playCoin(); setScreen('cosmetics'); }}
+              className="flex items-center gap-2 px-3 sm:px-4 py-2.5 sm:py-3 bg-card hover:bg-card-hover border border-border-light hover:border-orange-500/30 text-foreground font-bold rounded-lg transition-all text-sm"
+            >
+              <ShoppingBag className="w-4 h-4 text-orange-500 shrink-0" />
+              <span className="truncate">{t('games.cyberRunner.cosmeticStore')}</span>
+            </button>
+
+            <button 
+              onClick={() => { sfx.playCoin(); setScreen('challenges'); }}
+              className="flex items-center gap-2 px-3 sm:px-4 py-2.5 sm:py-3 bg-card hover:bg-card-hover border border-border-light hover:border-orange-500/30 text-foreground font-bold rounded-lg transition-all text-sm"
+            >
+              <Award className="w-4 h-4 text-orange-500 shrink-0" />
+              <span className="truncate">{t('games.cyberRunner.challenges')}</span>
+            </button>
+
+            <button 
+              onClick={() => setShowHowToPlay(!showHowToPlay)}
+              className="flex items-center gap-2 px-3 sm:px-4 py-2.5 sm:py-3 bg-card hover:bg-card-hover border border-border-light hover:border-orange-500/30 text-foreground font-bold rounded-lg transition-all text-sm"
+            >
+              <Info className="w-4 h-4 text-orange-500 shrink-0" />
+              <span className="truncate">{t('games.cyberRunner.howToPlay', 'How to Play')}</span>
+              <ChevronRight className={`w-3 h-3 ml-auto transition-transform ${showHowToPlay ? 'rotate-90' : ''}`} />
             </button>
           </div>
 
-          <div className="p-3 bg-neutral-900/50 rounded-lg border border-neutral-800 flex items-center space-x-3 text-xs text-neutral-400 max-w-md">
-            <Info className="w-4 h-4 text-orange-500 flex-shrink-0" />
-            <p><strong>Controls Schema:</strong> [Space/Up Arrow] - Jump, [S/Down Arrow] - Slide Under High Lasers, [J] - Strike/Neon Sword. Perfectly tuned dynamic virtual gamepad included below!</p>
-          </div>
+          {/* Collapsible How to Play */}
+          {showHowToPlay && (
+            <div className="p-3 bg-card/50 rounded-lg border border-border text-xs text-muted space-y-2 animate-in slide-in-from-top-2">
+              <p><strong className="text-orange-400">{t('games.cyberRunner.controlsTitle')}</strong> {t('games.cyberRunner.controlsDesc')}</p>
+              <p className="text-neutral-500">{t('games.cyberRunner.description')}</p>
+            </div>
+          )}
         </div>
 
-        {/* Dashboard Panels */}
-        <div className="lg:col-span-5 grid grid-cols-2 gap-4">
-          
-          <div className="bg-gradient-to-b from-neutral-900 to-neutral-950 p-4 sm:p-5 rounded-xl border border-neutral-800 hover:border-orange-500/20 transition-all col-span-2">
-            <div className="flex justify-between items-center mb-3">
-              <span className="text-xs uppercase text-neutral-400 tracking-wider flex items-center gap-1.5 font-bold">
-                <User className="w-4 h-4 text-orange-500" /> Cyber-Runner Diagnostics
+        {/* Right column — stats + progress */}
+        <div className="lg:col-span-5 space-y-3 sm:space-y-4">
+          {/* Compact stats row */}
+          <div className="bg-gradient-to-b from-card to-background p-3 sm:p-5 rounded-xl border border-border">
+            <div className="flex justify-between items-center mb-2 sm:mb-3">
+              <span className="text-xs uppercase text-muted tracking-wider flex items-center gap-1.5 font-bold">
+                <User className="w-4 h-4 text-orange-500" /> {t('games.cyberRunner.diagnostics')}
               </span>
-              <span className="text-[10px] text-orange-500 font-mono">ACTIVE: {equippedSkin}</span>
+              <span className="text-[10px] text-orange-500 font-mono">{t('games.cyberRunner.active', { skin: equippedSkin })}</span>
             </div>
             
-            <div className="grid grid-cols-2 gap-3 text-sm">
-              <div className="bg-neutral-900/80 p-2 sm:p-2.5 rounded border border-neutral-800">
-                <p className="text-xs text-neutral-500">Agility Speed</p>
-                <div className="flex items-center gap-1.5 font-mono font-bold mt-1 text-orange-300">
-                  <Zap className="w-3.5 h-3.5" /> Lvl {stats.speed}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 text-sm">
+              <div className="bg-card/80 p-1.5 sm:p-2.5 rounded border border-border text-center">
+                <p className="text-[9px] sm:text-xs text-muted">{t('games.cyberRunner.agilitySpeed')}</p>
+                <div className="flex items-center justify-center gap-1 font-mono font-bold mt-0.5 sm:mt-1 text-orange-300 text-xs sm:text-sm">
+                  <Zap className="w-3 h-3" /> {stats.speed}
                 </div>
               </div>
-              <div className="bg-neutral-900/80 p-2 sm:p-2.5 rounded border border-neutral-800">
-                <p className="text-xs text-neutral-500">Blade Strength</p>
-                <div className="flex items-center gap-1.5 font-mono font-bold mt-1 text-orange-300">
-                  <Sword className="w-3.5 h-3.5" /> Lvl {stats.strength}
+              <div className="bg-card/80 p-1.5 sm:p-2.5 rounded border border-border text-center">
+                <p className="text-[9px] sm:text-xs text-muted">{t('games.cyberRunner.bladeStrength')}</p>
+                <div className="flex items-center justify-center gap-1 font-mono font-bold mt-0.5 sm:mt-1 text-orange-300 text-xs sm:text-sm">
+                  <Sword className="w-3 h-3" /> {stats.strength}
                 </div>
               </div>
-              <div className="bg-neutral-900/80 p-2 sm:p-2.5 rounded border border-neutral-800">
-                <p className="text-xs text-neutral-500">Integrity Shield</p>
-                <div className="flex items-center gap-1.5 font-mono font-bold mt-1 text-orange-300">
-                  <Heart className="w-3.5 h-3.5" /> Lvl {stats.health}
+              <div className="bg-card/80 p-1.5 sm:p-2.5 rounded border border-border text-center">
+                <p className="text-[9px] sm:text-xs text-muted">{t('games.cyberRunner.integrityShield')}</p>
+                <div className="flex items-center justify-center gap-1 font-mono font-bold mt-0.5 sm:mt-1 text-orange-300 text-xs sm:text-sm">
+                  <Heart className="w-3 h-3" /> {stats.health}
                 </div>
               </div>
-              <div className="bg-neutral-900/80 p-2 sm:p-2.5 rounded border border-neutral-800">
-                <p className="text-xs text-neutral-500">Solder Luck</p>
-                <div className="flex items-center gap-1.5 font-mono font-bold mt-1 text-orange-300">
-                  <Sparkles className="w-3.5 h-3.5" /> Lvl {stats.luck}
+              <div className="bg-card/80 p-1.5 sm:p-2.5 rounded border border-border text-center">
+                <p className="text-[9px] sm:text-xs text-muted">{t('games.cyberRunner.solderLuck')}</p>
+                <div className="flex items-center justify-center gap-1 font-mono font-bold mt-0.5 sm:mt-1 text-orange-300 text-xs sm:text-sm">
+                  <Sparkles className="w-3 h-3" /> {stats.luck}
                 </div>
               </div>
             </div>
           </div>
 
+          {/* Check Progress — prominent on mobile */}
           <button 
-            onClick={() => { sfx.playCoin(); setScreen('cosmetics'); }}
-            className="group bg-neutral-900 hover:bg-neutral-800/80 p-4 rounded-xl border border-neutral-800 hover:border-orange-500/30 text-left transition-all"
+            onClick={() => { sfx.playCoin(); setScreen('upgrades'); }}
+            className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/30 text-orange-400 font-bold rounded-lg transition-all text-sm"
           >
-            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-orange-500/10 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-              <ShoppingBag className="w-5 h-5 text-orange-500" />
-            </div>
-            <h4 className="font-bold text-sm">Cosmetic Store</h4>
-            <p className="text-xs text-neutral-400 mt-1">Unlock rare neon skins and custom sword swings.</p>
+            <Target className="w-4 h-4" />
+            <span>{t('games.cyberRunner.checkProgress', 'Check My Progress')}</span>
+            <ChevronRight className="w-4 h-4 ml-auto" />
           </button>
-
-          <button 
-            onClick={() => { sfx.playCoin(); setScreen('challenges'); }}
-            className="group bg-neutral-900 hover:bg-neutral-800/80 p-4 rounded-xl border border-neutral-800 hover:border-orange-500/30 text-left transition-all"
-          >
-            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-orange-500/10 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-              <Award className="w-5 h-5 text-orange-500" />
-            </div>
-            <h4 className="font-bold text-sm">Challenges</h4>
-            <p className="text-xs text-neutral-400 mt-1">Check system milestones for credit bonuses.</p>
-          </button>
-
-
-
         </div>
       </div>
     </div>
@@ -528,6 +537,7 @@ function GameArena({
   setCredits, setPurgaPoints, setRunSummary, credits, purgaPoints, saveUserData,
   dailyChallenges, setDailyChallenges
 }) {
+  const { t } = useTranslation();
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
   const bgImagesRef = useRef({});
@@ -780,7 +790,7 @@ function GameArena({
       sfx.playPhaseUp();
 
       // Spawn bright visual banner trigger
-      setPhaseBumperText(`PHASE ${detectedPhase} ACTIVATED: SPEED & HAZARDS INCREASED!`);
+      setPhaseBumperText(t('games.cyberRunner.phaseActivated', { phase: detectedPhase }));
       setTimeout(() => {
         setPhaseBumperText(null);
       }, 3000);
@@ -836,7 +846,7 @@ function GameArena({
 
     // Warning alert systems
     if (player.x - state.glitchWallX < 320) {
-      setHudAlert("WARNING: FIREWALL REACHING COMPROMISING THRESHOLD!");
+      setHudAlert(t('games.cyberRunner.warning'));
     } else {
       setHudAlert(null);
     }
@@ -1637,7 +1647,7 @@ function GameArena({
   return (
     <div 
       ref={containerRef} 
-      className="h-full min-h-0 w-full bg-neutral-900 select-none overflow-hidden flex flex-col"
+      className="h-full min-h-0 w-full bg-background select-none overflow-hidden flex flex-col"
       style={{ touchAction: 'none' }}
     >
       <div data-runner-playfield className="relative flex-1 min-h-0 w-full">
@@ -1659,12 +1669,12 @@ function GameArena({
 
       {/* HUD left container */}
       <div className="absolute top-2 left-2 sm:top-4 sm:left-4 z-20 space-y-0.5 pointer-events-none max-w-[44%]">
-        <div className="bg-neutral-950/90 p-1 sm:p-2 rounded-lg border border-neutral-800 w-full max-w-[9rem] sm:max-w-[14rem] shadow-xl">
-          <div className="flex justify-between items-center text-[9px] text-neutral-400 font-mono mb-0.5 uppercase font-bold">
-            <span>INTEGRITY</span>
+        <div className="bg-background/90 p-1 sm:p-2 rounded-lg border border-border w-full max-w-[9rem] sm:max-w-[14rem] shadow-xl">
+          <div className="flex justify-between items-center text-[9px] text-muted font-mono mb-0.5 uppercase font-bold">
+            <span>{t('games.cyberRunner.integrity')}</span>
             <span>{hudHp}/{hudMaxHp}</span>
           </div>
-          <div className="w-full bg-neutral-900 h-2 rounded-full overflow-hidden border border-neutral-800">
+          <div className="w-full bg-card h-2 rounded-full overflow-hidden border border-border">
             <div 
               className="bg-gradient-to-r from-red-600 via-orange-500 to-green-500 h-full transition-all duration-100" 
               style={{ width: `${Math.max(0, (hudHp / hudMaxHp) * 100)}%` }}
@@ -1673,9 +1683,9 @@ function GameArena({
         </div>
 
         {/* Dynamic Phase Display Indicator on HUD */}
-        <div className="inline-flex items-center space-x-1 bg-neutral-950/90 px-1.5 py-0.5 rounded-lg border border-orange-500/30 text-orange-400 font-black text-[10px] uppercase tracking-wider">
+        <div className="inline-flex items-center space-x-1 bg-background/90 px-1.5 py-0.5 rounded-lg border border-orange-500/30 text-orange-400 font-black text-[10px] uppercase tracking-wider">
           <Target className="w-3 h-3" />
-          <span>PHASE {currentPhase}/5</span>
+          <span>{t('games.cyberRunner.phase', { current: currentPhase })}</span>
         </div>
 
         {hudCombo > 1 && (
@@ -1687,13 +1697,13 @@ function GameArena({
       </div>
 
       <div className="absolute top-2 right-2 sm:top-4 sm:right-4 z-20 space-y-0.5 text-right pointer-events-none">
-        <div className="bg-neutral-950/80 px-1.5 sm:px-3 py-0.5 sm:py-1 rounded-lg border border-neutral-800 shadow-xl">
-          <p className="text-[8px] sm:text-[9px] text-neutral-500 uppercase font-mono font-bold">DIST</p>
-          <p className="text-sm sm:text-base font-black font-mono text-white">{hudDistance}m</p>
+        <div className="bg-background/80 px-1.5 sm:px-3 py-0.5 sm:py-1 rounded-lg border border-border shadow-xl">
+          <p className="text-[8px] sm:text-[9px] text-muted uppercase font-mono font-bold">{t('games.cyberRunner.dist')}</p>
+          <p className="text-sm sm:text-base font-black font-mono text-foreground">{hudDistance}m</p>
         </div>
 
-        <div className="bg-neutral-950/80 px-1.5 sm:px-3 py-0.5 rounded-lg border border-neutral-800 shadow-xl">
-          <p className="text-[8px] sm:text-[9px] text-neutral-500 uppercase font-mono font-bold">CRED</p>
+        <div className="bg-background/80 px-1.5 sm:px-3 py-0.5 rounded-lg border border-border shadow-xl">
+          <p className="text-[8px] sm:text-[9px] text-muted uppercase font-mono font-bold">{t('games.cyberRunner.cred')}</p>
           <p className="text-xs sm:text-sm font-black font-mono text-orange-400 flex items-center justify-end gap-1">
             <Coins className="w-3 h-3 sm:w-4 sm:h-4 text-orange-400" /> {hudCredits}
           </p>
@@ -1703,15 +1713,15 @@ function GameArena({
 
       {/* Gateway Escaping prompts */}
       {showExitChoice && (
-        <div className="absolute inset-0 bg-neutral-950/90 backdrop-blur-md z-30 flex items-center justify-center p-4">
-          <div className="bg-neutral-900 border-2 border-orange-500 p-6 sm:p-8 rounded-xl max-w-sm sm:max-w-md w-full text-center space-y-6 shadow-2xl">
+        <div className="absolute inset-0 bg-background/90 backdrop-blur-md z-30 flex items-center justify-center p-4">
+          <div className="bg-card border-2 border-orange-500 p-6 sm:p-8 rounded-xl max-w-sm sm:max-w-md w-full text-center space-y-6 shadow-2xl">
             <div className="w-12 h-12 sm:w-16 sm:h-16 bg-orange-500/10 border border-orange-500 text-orange-500 rounded-full flex items-center justify-center mx-auto">
               <Compass className="w-8 h-8 animate-spin" />
             </div>
 
             <div className="space-y-2">
-              <h3 className="text-2xl font-black tracking-wider uppercase text-white">GATEWAY DETECTED</h3>
-              <p className="text-neutral-400 text-sm">
+              <h3 className="text-2xl font-black tracking-wider uppercase text-foreground">GATEWAY DETECTED</h3>
+              <p className="text-muted text-sm">
                 You have reached an escape gateway. Do you wish to retreat safely and claim all collected credits or take risks to dive deeper into progressive phases?
               </p>
             </div>
@@ -1719,7 +1729,7 @@ function GameArena({
             <div className="grid grid-cols-2 gap-4">
               <button 
                 onClick={() => handleGateChoice(true)}
-                className="w-full py-2.5 sm:py-3 bg-neutral-800 hover:bg-neutral-700 border border-neutral-600 text-white font-bold rounded-lg"
+                className="w-full py-2.5 sm:py-3 bg-card-hover hover:bg-card-hover border border-border-light text-foreground font-bold rounded-lg"
               >
                 DECAMP & SECURE
               </button>
@@ -1735,7 +1745,7 @@ function GameArena({
       )}
 
       {/* Dynamic Gamepad Controls overlays */}
-      <div className="shrink-0 z-30 p-1 pb-[max(0.25rem,env(safe-area-inset-bottom))] bg-neutral-950/95 border-t border-neutral-800 w-full grid grid-cols-12 gap-0.5 items-center touch-none">
+      <div className="shrink-0 z-30 p-1 pb-[max(0.25rem,env(safe-area-inset-bottom))] bg-background/95 border-t border-border w-full grid grid-cols-12 gap-0.5 items-center touch-none">
         
         {/* Directional control panel */}
         <div className="col-span-4 flex items-center justify-start gap-1 sm:gap-2">
@@ -1745,7 +1755,7 @@ function GameArena({
             onTouchCancel={(e) => { e.preventDefault(); gameStateRef.current.keys['ArrowLeft'] = false; }}
             onMouseDown={() => { gameStateRef.current.keys['ArrowLeft'] = true; }}
             onMouseUp={() => { gameStateRef.current.keys['ArrowLeft'] = false; }}
-            className="w-9 h-9 sm:w-12 sm:h-12 bg-neutral-900 border border-neutral-800 text-white font-bold rounded-xl flex items-center justify-center active:bg-orange-500 active:text-black transition-all shadow-md select-none touch-none"
+            className="w-9 h-9 sm:w-12 sm:h-12 bg-card border border-border text-foreground font-bold rounded-xl flex items-center justify-center active:bg-orange-500 active:text-black transition-all shadow-md select-none touch-none"
           >
             ←
           </button>
@@ -1756,7 +1766,7 @@ function GameArena({
             onTouchCancel={(e) => { e.preventDefault(); gameStateRef.current.keys['ArrowRight'] = false; }}
             onMouseDown={() => { gameStateRef.current.keys['ArrowRight'] = true; }}
             onMouseUp={() => { gameStateRef.current.keys['ArrowRight'] = false; }}
-            className="w-9 h-9 sm:w-12 sm:h-12 bg-neutral-900 border border-neutral-800 text-white font-bold rounded-xl flex items-center justify-center active:bg-orange-500 active:text-black transition-all shadow-md select-none touch-none"
+            className="w-9 h-9 sm:w-12 sm:h-12 bg-card border border-border text-foreground font-bold rounded-xl flex items-center justify-center active:bg-orange-500 active:text-black transition-all shadow-md select-none touch-none"
           >
             →
           </button>
@@ -1770,12 +1780,12 @@ function GameArena({
             className={`w-9 h-9 sm:w-12 sm:h-12 rounded-full border flex items-center justify-center transition-all shadow-lg touch-none ${
               hudGhostPercent >= 100 
                 ? 'bg-gradient-to-b from-purple-600 to-indigo-600 border-purple-400 text-white active:scale-95' 
-                : 'bg-neutral-900 border-neutral-800 text-neutral-500 cursor-not-allowed'
+                : 'bg-card border-border text-muted cursor-not-allowed'
             }`}
           >
             <Sparkles className="w-4 h-4 animate-pulse" />
           </button>
-          <span className="text-[9px] text-neutral-500 font-mono">{Math.floor(hudGhostPercent)}%</span>
+          <span className="text-[9px] text-muted font-mono">{Math.floor(hudGhostPercent)}%</span>
         </div>
 
         {/* Action controls button pad */}
@@ -1787,10 +1797,10 @@ function GameArena({
             onTouchCancel={(e) => { e.preventDefault(); gameStateRef.current.keys['ArrowDown'] = false; }}
             onMouseDown={() => { gameStateRef.current.keys['ArrowDown'] = true; }}
             onMouseUp={() => { gameStateRef.current.keys['ArrowDown'] = false; }}
-            className="w-9 h-9 sm:w-12 sm:h-12 bg-neutral-900 border border-neutral-800 text-white font-bold rounded-xl flex flex-col items-center justify-center active:bg-orange-500 active:text-black transition-all select-none touch-none"
+            className="w-9 h-9 sm:w-12 sm:h-12 bg-card border border-border text-foreground font-bold rounded-xl flex flex-col items-center justify-center active:bg-orange-500 active:text-black transition-all select-none touch-none"
           >
             <Shield className="w-3 h-3 sm:w-4 sm:h-4 text-cyan-400" />
-            <span className="text-[6px] sm:text-[7px] font-bold mt-0.5">SLIDE</span>
+            <span className="text-[6px] sm:text-[7px] font-bold mt-0.5">{t('games.cyberRunner.slide')}</span>
           </button>
 
           <button 
@@ -1799,10 +1809,10 @@ function GameArena({
             onTouchCancel={(e) => { e.preventDefault(); gameStateRef.current.keys['ArrowUp'] = false; }}
             onMouseDown={() => { gameStateRef.current.keys['ArrowUp'] = true; }}
             onMouseUp={() => { gameStateRef.current.keys['ArrowUp'] = false; }}
-            className="w-9 h-9 sm:w-12 sm:h-12 bg-neutral-900 border border-neutral-800 text-white font-bold rounded-xl flex flex-col items-center justify-center active:bg-orange-500 active:text-black transition-all select-none touch-none"
+            className="w-9 h-9 sm:w-12 sm:h-12 bg-card border border-border text-foreground font-bold rounded-xl flex flex-col items-center justify-center active:bg-orange-500 active:text-black transition-all select-none touch-none"
           >
             <ChevronRight className="w-3 h-3 sm:w-4 sm:h-4 -rotate-90 text-green-400" />
-            <span className="text-[6px] sm:text-[7px] font-bold mt-0.5">JUMP</span>
+            <span className="text-[6px] sm:text-[7px] font-bold mt-0.5">{t('games.cyberRunner.jump')}</span>
           </button>
 
           <button 
@@ -1810,7 +1820,7 @@ function GameArena({
             className="w-10 h-10 sm:w-14 sm:h-14 bg-gradient-to-tr from-orange-600 to-orange-400 border border-orange-400 text-black font-extrabold rounded-2xl flex flex-col items-center justify-center active:scale-95 transition-all shadow-lg select-none touch-none"
           >
             <Sword className="w-4 h-4 sm:w-5 sm:h-5 stroke-black" />
-            <span className="text-[7px] sm:text-[8px] font-black mt-0.5">ATTACK</span>
+            <span className="text-[7px] sm:text-[8px] font-black mt-0.5">{t('games.cyberRunner.attack')}</span>
           </button>
         </div>
 
@@ -1820,6 +1830,7 @@ function GameArena({
 }
 
 function UpgradesScreen({ setScreen, stats, setStats, gear, setGear, credits, setCredits, saveUserData }) {
+  const { t } = useTranslation();
   const { spendCredits: spendCreditsBackend } = useCredits();
   const statUpgrades = [
     { key: 'speed', name: 'Nano Thruster Modules', desc: 'Increases progressive runner agility & pace scaling', icon: Zap, color: 'text-orange-400' },
@@ -1873,49 +1884,49 @@ function UpgradesScreen({ setScreen, stats, setStats, gear, setGear, credits, se
   };
 
   return (
-    <div className="flex-grow max-w-5xl mx-auto w-full px-3 sm:px-4 py-6 sm:py-8 space-y-8">
-      <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-3xl font-black uppercase tracking-wider">Cybernetics Laboratory</h2>
-          <p className="text-sm text-neutral-400">Install processor optimizations & purchase defensive gear components.</p>
+    <div className="flex-1 min-h-0 overflow-y-auto max-w-5xl mx-auto w-full px-3 sm:px-4 py-4 sm:py-8 space-y-4 sm:space-y-8">
+      <div className="flex justify-between items-center gap-2">
+        <div className="min-w-0">
+          <h2 className="text-xl sm:text-3xl font-black uppercase tracking-wider truncate">{t('games.cyberRunner.cyberneticsLab')}</h2>
+          <p className="text-xs sm:text-sm text-muted hidden sm:block">Install processor optimizations & purchase defensive gear components.</p>
         </div>
         <button 
           onClick={() => { sfx.playJump(); setScreen('menu'); }}
-          className="px-5 py-2.5 bg-neutral-900 border border-neutral-700 hover:border-orange-500 rounded-lg text-sm font-bold transition-all"
+          className="px-3 sm:px-5 py-1.5 sm:py-2.5 bg-card border border-border-light hover:border-orange-500 rounded-lg text-xs sm:text-sm font-bold transition-all shrink-0"
         >
-          Return to Menu
+          {t('games.cyberRunner.returnToMenu')}
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-8">
         
         {/* Core Optimizations */}
-        <div className="bg-neutral-900/60 rounded-xl p-4 sm:p-6 border border-neutral-800 space-y-4">
-          <h3 className="text-xl font-extrabold uppercase border-b border-neutral-800 pb-3">Solder Optimization</h3>
-          <div className="space-y-4">
+        <div className="bg-card/60 rounded-xl p-3 sm:p-6 border border-border space-y-3 sm:space-y-4">
+          <h3 className="text-base sm:text-xl font-extrabold uppercase border-b border-border pb-2 sm:pb-3">{t('games.cyberRunner.solderOptimization')}</h3>
+          <div className="space-y-2 sm:space-y-4">
             {statUpgrades.map(stat => {
               const currentLvl = stats[stat.key];
               const cost = Math.floor(100 * Math.pow(1.4, currentLvl));
               const IconComp = stat.icon;
 
               return (
-                <div key={stat.key} className="p-3 sm:p-4 bg-neutral-950 rounded-lg border border-neutral-800 flex items-center justify-between gap-4">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-8 h-8 sm:w-10 sm:h-10 rounded bg-neutral-900 flex items-center justify-center">
-                      <IconComp className={`w-5 h-5 ${stat.color}`} />
+                <div key={stat.key} className="p-2 sm:p-4 bg-background rounded-lg border border-border flex items-center justify-between gap-2 sm:gap-4">
+                  <div className="flex items-center space-x-2 sm:space-x-3 min-w-0">
+                    <div className="w-7 h-7 sm:w-10 sm:h-10 rounded bg-card flex items-center justify-center shrink-0">
+                      <IconComp className={`w-4 h-4 sm:w-5 sm:h-5 ${stat.color}`} />
                     </div>
-                    <div>
-                      <h4 className="font-bold text-sm text-white">{stat.name}</h4>
-                      <p className="text-xs text-neutral-400">{stat.desc}</p>
-                      <span className="text-[10px] text-neutral-500 font-mono">Current level: {currentLvl}</span>
+                    <div className="min-w-0">
+                      <h4 className="font-bold text-xs sm:text-sm text-foreground truncate">{stat.name}</h4>
+                      <p className="text-[10px] sm:text-xs text-muted hidden sm:block">{stat.desc}</p>
+                      <span className="text-[9px] sm:text-[10px] text-muted font-mono">Lvl {currentLvl}</span>
                     </div>
                   </div>
 
                   <button 
                     onClick={() => buyUpgrade(stat.key)}
-                    className="px-3 sm:px-4 py-1.5 sm:py-2 bg-orange-500 text-black font-extrabold text-xs rounded hover:bg-orange-400 transition-colors whitespace-nowrap"
+                    className="px-2 sm:px-4 py-1 sm:py-2 bg-orange-500 text-black font-extrabold text-[10px] sm:text-xs rounded hover:bg-orange-400 transition-colors whitespace-nowrap shrink-0"
                   >
-                    UPGRADE ({cost} PC)
+                    UPGRADE ({cost})
                   </button>
                 </div>
               );
@@ -1924,13 +1935,13 @@ function UpgradesScreen({ setScreen, stats, setStats, gear, setGear, credits, se
         </div>
 
         {/* Chassis Upgrades shop */}
-        <div className="bg-neutral-900/60 rounded-xl p-6 border border-neutral-800 space-y-6">
-          <h3 className="text-xl font-extrabold uppercase border-b border-neutral-800 pb-3">Chassis Components</h3>
-          <div className="space-y-4">
+        <div className="bg-card/60 rounded-xl p-3 sm:p-6 border border-border space-y-3 sm:space-y-6">
+          <h3 className="text-base sm:text-xl font-extrabold uppercase border-b border-border pb-2 sm:pb-3">{t('games.cyberRunner.chassisComponents')}</h3>
+          <div className="space-y-3 sm:space-y-4">
             {Object.keys(gearOptions).map(slot => (
-              <div key={slot} className="bg-neutral-950 p-3 sm:p-4 rounded-lg border border-neutral-800">
-                <span className="text-xs font-bold uppercase text-orange-400">{slot} SLOT</span>
-                <div className="grid grid-cols-3 gap-2 mt-2">
+              <div key={slot} className="bg-background p-2 sm:p-4 rounded-lg border border-border">
+                <span className="text-[10px] sm:text-xs font-bold uppercase text-orange-400">{slot} SLOT</span>
+                <div className="grid grid-cols-3 gap-1.5 sm:gap-2 mt-1.5 sm:mt-2">
                   {gearOptions[slot].map(item => {
                     const active = gear[slot] === item.name;
                     return (
@@ -1938,13 +1949,13 @@ function UpgradesScreen({ setScreen, stats, setStats, gear, setGear, credits, se
                         key={item.name}
                         disabled={active}
                         onClick={() => buyGear(slot, item)}
-                        className={`p-1.5 sm:p-2 rounded text-left border text-xs flex flex-col justify-between h-16 sm:h-20 transition-all ${
-                          active ? 'border-orange-500 bg-orange-500/10' : 'border-neutral-800 bg-neutral-900 hover:border-neutral-700'
+                        className={`p-1 sm:p-2 rounded text-left border text-[10px] sm:text-xs flex flex-col justify-between h-14 sm:h-20 transition-all ${
+                          active ? 'border-orange-500 bg-orange-500/10' : 'border-border bg-card hover:border-border-light'
                         }`}
                       >
                         <span className="font-bold block truncate w-full">{item.name}</span>
-                        <span className="text-[10px] text-neutral-400 block">{item.stat}</span>
-                        <span className="text-[10px] font-mono text-orange-300 block">{item.cost > 0 ? `${item.cost} PC` : 'FREE'}</span>
+                        <span className="text-[8px] sm:text-[10px] text-muted block hidden sm:block">{item.stat}</span>
+                        <span className="text-[8px] sm:text-[10px] font-mono text-orange-300 block">{item.cost > 0 ? `${item.cost}` : 'FREE'}</span>
                       </button>
                     );
                   })}
@@ -1964,6 +1975,7 @@ function CosmeticsScreen({
   equippedSkin, setEquippedSkin, ownedTrails, setOwnedTrails, 
   equippedTrail, setEquippedTrail, saveUserData 
 }) {
+  const { t } = useTranslation();
   const skinsList = [
     { name: 'Default', rarity: 'Common', desc: 'Standard matrix grid stick skeleton frame', cost: 0 },
     { name: 'Silver Runner', rarity: 'Rare', desc: 'Premium chromium alloy jointed vector lines', cost: 800 },
@@ -2006,49 +2018,49 @@ function CosmeticsScreen({
   };
 
   return (
-    <div className="flex-grow max-w-4xl mx-auto w-full px-3 sm:px-4 py-6 sm:py-8 space-y-8">
-      <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-3xl font-black uppercase tracking-wider">Visual Customizers</h2>
-          <p className="text-sm text-neutral-400">Modify vector stick layouts and trailing neon color frequencies.</p>
+    <div className="flex-1 min-h-0 overflow-y-auto max-w-4xl mx-auto w-full px-3 sm:px-4 py-4 sm:py-8 space-y-4 sm:space-y-8">
+      <div className="flex justify-between items-center gap-2">
+        <div className="min-w-0">
+          <h2 className="text-xl sm:text-3xl font-black uppercase tracking-wider truncate">{t('games.cyberRunner.visualCustomizers')}</h2>
+          <p className="text-xs sm:text-sm text-muted hidden sm:block">Modify vector stick layouts and trailing neon color frequencies.</p>
         </div>
         <button 
           onClick={() => { sfx.playJump(); setScreen('menu'); }}
-          className="px-5 py-2.5 bg-neutral-900 border border-neutral-700 hover:border-orange-500 rounded-lg text-sm font-bold transition-all"
+          className="px-3 sm:px-5 py-1.5 sm:py-2.5 bg-card border border-border-light hover:border-orange-500 rounded-lg text-xs sm:text-sm font-bold transition-all shrink-0"
         >
-          Return to Menu
+          {t('games.cyberRunner.returnToMenu')}
         </button>
       </div>
 
-      <div className="bg-neutral-900/60 p-4 sm:p-6 rounded-xl border border-neutral-800 space-y-4">
-        <h3 className="text-lg font-extrabold uppercase tracking-wider text-white border-b border-neutral-800 pb-2">Skins</h3>
+      <div className="bg-card/60 p-3 sm:p-6 rounded-xl border border-border space-y-2 sm:space-y-4">
+        <h3 className="text-sm sm:text-lg font-extrabold uppercase tracking-wider text-foreground border-b border-border pb-1.5 sm:pb-2">Skins</h3>
         {skinsList.map(skin => {
           const owned = ownedSkins.includes(skin.name);
           const equipped = equippedSkin === skin.name;
 
           return (
-            <div key={skin.name} className="p-3 sm:p-4 bg-neutral-950 rounded-lg border border-neutral-800 flex items-center justify-between">
-              <div>
-                <h4 className="font-bold text-sm text-white">{skin.name}</h4>
-                <p className="text-xs text-neutral-400 mt-0.5">{skin.desc}</p>
-                <span className="text-[10px] uppercase font-bold text-orange-500">{skin.rarity}</span>
+            <div key={skin.name} className="p-2 sm:p-4 bg-background rounded-lg border border-border flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <h4 className="font-bold text-xs sm:text-sm text-foreground truncate">{skin.name}</h4>
+                <p className="text-[10px] sm:text-xs text-muted mt-0.5 hidden sm:block">{skin.desc}</p>
+                <span className="text-[9px] sm:text-[10px] uppercase font-bold text-orange-500">{skin.rarity}</span>
               </div>
 
               {equipped ? (
-                <span className="px-2.5 sm:px-3 py-0.5 sm:py-1 bg-green-500/10 border border-green-500/30 text-green-400 text-xs rounded font-bold">EQUIPPED</span>
+                <span className="px-2 sm:px-3 py-0.5 sm:py-1 bg-green-500/10 border border-green-500/30 text-green-400 text-[10px] sm:text-xs rounded font-bold shrink-0">EQUIPPED</span>
               ) : owned ? (
                 <button 
                   onClick={() => { setEquippedSkin(skin.name); sfx.playCoin(); }}
-                  className="px-2.5 sm:px-3 py-0.5 sm:py-1 bg-neutral-800 text-white text-xs rounded hover:bg-neutral-700 font-bold"
+                  className="px-2 sm:px-3 py-0.5 sm:py-1 bg-neutral-800 text-white text-[10px] sm:text-xs rounded hover:bg-neutral-700 font-bold shrink-0"
                 >
                   EQUIP
                 </button>
               ) : (
                 <button 
                   onClick={() => buySkin(skin)}
-                  className="px-2.5 sm:px-3 py-0.5 sm:py-1 bg-orange-500 text-black text-xs font-bold rounded hover:bg-orange-400"
+                  className="px-2 sm:px-3 py-0.5 sm:py-1 bg-orange-500 text-black text-[10px] sm:text-xs font-bold rounded hover:bg-orange-400 shrink-0"
                 >
-                  BUY ({skin.cost} PC)
+                  BUY ({skin.cost})
                 </button>
               )}
             </div>
@@ -2056,35 +2068,35 @@ function CosmeticsScreen({
         })}
       </div>
 
-      <div className="bg-neutral-900/60 p-4 sm:p-6 rounded-xl border border-neutral-800 space-y-4">
-        <h3 className="text-lg font-extrabold uppercase tracking-wider text-white border-b border-neutral-800 pb-2">Trails</h3>
+      <div className="bg-neutral-900/60 p-3 sm:p-6 rounded-xl border border-neutral-800 space-y-2 sm:space-y-4">
+        <h3 className="text-sm sm:text-lg font-extrabold uppercase tracking-wider text-white border-b border-neutral-800 pb-1.5 sm:pb-2">Trails</h3>
         {trailsList.map(trail => {
           const owned = ownedTrails.includes(trail.name);
           const equipped = equippedTrail === trail.name;
 
           return (
-            <div key={trail.name} className="p-3 sm:p-4 bg-neutral-950 rounded-lg border border-neutral-800 flex items-center justify-between">
-              <div>
-                <h4 className="font-bold text-sm text-white">{trail.name}</h4>
-                <p className="text-xs text-neutral-400 mt-0.5">{trail.desc}</p>
-                <span className="text-[10px] uppercase font-bold text-orange-500">{trail.rarity}</span>
+            <div key={trail.name} className="p-2 sm:p-4 bg-neutral-950 rounded-lg border border-neutral-800 flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <h4 className="font-bold text-xs sm:text-sm text-white truncate">{trail.name}</h4>
+                <p className="text-[10px] sm:text-xs text-neutral-400 mt-0.5 hidden sm:block">{trail.desc}</p>
+                <span className="text-[9px] sm:text-[10px] uppercase font-bold text-orange-500">{trail.rarity}</span>
               </div>
 
               {equipped ? (
-                <span className="px-2.5 sm:px-3 py-0.5 sm:py-1 bg-green-500/10 border border-green-500/30 text-green-400 text-xs rounded font-bold">EQUIPPED</span>
+                <span className="px-2 sm:px-3 py-0.5 sm:py-1 bg-green-500/10 border border-green-500/30 text-green-400 text-[10px] sm:text-xs rounded font-bold shrink-0">EQUIPPED</span>
               ) : owned ? (
                 <button 
                   onClick={() => { setEquippedTrail(trail.name); sfx.playCoin(); }}
-                  className="px-2.5 sm:px-3 py-0.5 sm:py-1 bg-neutral-800 text-white text-xs rounded hover:bg-neutral-700 font-bold"
+                  className="px-2 sm:px-3 py-0.5 sm:py-1 bg-neutral-800 text-white text-[10px] sm:text-xs rounded hover:bg-neutral-700 font-bold shrink-0"
                 >
                   EQUIP
                 </button>
               ) : (
                 <button 
                   onClick={() => buyTrail(trail)}
-                  className="px-2.5 sm:px-3 py-0.5 sm:py-1 bg-orange-500 text-black text-xs font-bold rounded hover:bg-orange-400"
+                  className="px-2 sm:px-3 py-0.5 sm:py-1 bg-orange-500 text-black text-[10px] sm:text-xs font-bold rounded hover:bg-orange-400 shrink-0"
                 >
-                  BUY ({trail.cost} PC)
+                  BUY ({trail.cost})
                 </button>
               )}
             </div>
@@ -2096,6 +2108,7 @@ function CosmeticsScreen({
 }
 
 function ChallengesScreen({ setScreen, dailyChallenges, setDailyChallenges, setCredits, saveUserData }) {
+  const { t } = useTranslation();
   const claimReward = (challenge) => {
     if (challenge.current >= challenge.target && !challenge.claimed) {
       const updated = dailyChallenges.map(c => c.id === challenge.id ? { ...c, claimed: true } : c);
@@ -2110,55 +2123,55 @@ function ChallengesScreen({ setScreen, dailyChallenges, setDailyChallenges, setC
   };
 
   return (
-    <div className="flex-grow max-w-4xl mx-auto w-full px-3 sm:px-4 py-6 sm:py-8 space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-3xl font-black uppercase tracking-wider">Protocol Missions</h2>
-          <p className="text-sm text-neutral-400">Complete server objectives to secure extra credits bounties.</p>
+    <div className="flex-1 min-h-0 overflow-y-auto max-w-4xl mx-auto w-full px-3 sm:px-4 py-4 sm:py-8 space-y-4 sm:space-y-6">
+      <div className="flex justify-between items-center gap-2">
+        <div className="min-w-0">
+          <h2 className="text-xl sm:text-3xl font-black uppercase tracking-wider truncate">{t('games.cyberRunner.protocolMissions')}</h2>
+          <p className="text-xs sm:text-sm text-neutral-400 hidden sm:block">{t('games.cyberRunner.protocolDesc')}</p>
         </div>
         <button 
           onClick={() => { sfx.playJump(); setScreen('menu'); }}
-          className="px-5 py-2.5 bg-neutral-900 border border-neutral-700 hover:border-orange-500 rounded-lg text-sm font-bold transition-all"
+          className="px-3 sm:px-5 py-1.5 sm:py-2.5 bg-neutral-900 border border-neutral-700 hover:border-orange-500 rounded-lg text-xs sm:text-sm font-bold transition-all shrink-0"
         >
-          Return to Menu
+          {t('games.cyberRunner.returnToMenu')}
         </button>
       </div>
 
-      <div className="bg-neutral-900/60 p-4 sm:p-6 rounded-xl border border-neutral-800 space-y-4">
+      <div className="bg-neutral-900/60 p-3 sm:p-6 rounded-xl border border-neutral-800 space-y-2 sm:space-y-4">
         {dailyChallenges.map(challenge => {
           const progressPercent = Math.min(100, (challenge.current / challenge.target) * 100);
           const completed = challenge.current >= challenge.target;
 
           return (
-            <div key={challenge.id} className="p-3 sm:p-4 bg-neutral-950 rounded-lg border border-neutral-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div className="flex-grow space-y-2">
-                <div className="flex items-center space-x-2">
-                  <CheckCircle2 className={`w-5 h-5 ${completed ? 'text-green-500' : 'text-neutral-600'}`} />
-                  <h4 className="font-bold text-sm text-white">{challenge.text}</h4>
+            <div key={challenge.id} className="p-2 sm:p-4 bg-neutral-950 rounded-lg border border-neutral-800 flex flex-col md:flex-row md:items-center justify-between gap-2 sm:gap-4">
+              <div className="flex-grow space-y-1 sm:space-y-2">
+                <div className="flex items-center space-x-1.5 sm:space-x-2">
+                  <CheckCircle2 className={`w-4 h-4 sm:w-5 sm:h-5 ${completed ? 'text-green-500' : 'text-neutral-600'} shrink-0`} />
+                  <h4 className="font-bold text-xs sm:text-sm text-white truncate">{challenge.text}</h4>
                 </div>
                 
-                <div className="w-full bg-neutral-900 h-2 rounded-full overflow-hidden">
+                <div className="w-full bg-neutral-900 h-1.5 sm:h-2 rounded-full overflow-hidden">
                   <div className="bg-orange-500 h-full" style={{ width: `${progressPercent}%` }}></div>
                 </div>
                 
-                <div className="flex justify-between text-[10px] text-neutral-400 font-mono">
-                  <span>Progress: {challenge.current} / {challenge.target}</span>
-                  <span>Payout: {challenge.reward} Puurga Credits</span>
+                <div className="flex justify-between text-[9px] sm:text-[10px] text-neutral-400 font-mono">
+                  <span>{challenge.current}/{challenge.target}</span>
+                  <span>{challenge.reward} PC</span>
                 </div>
               </div>
 
-              <div>
+              <div className="shrink-0">
                 {challenge.claimed ? (
-                  <span className="px-3 sm:px-4 py-1.5 sm:py-2 bg-green-500/10 border border-green-500/30 text-green-400 text-xs rounded font-bold block text-center md:w-32 font-mono">CLAIMED</span>
+                  <span className="px-2 sm:px-4 py-1 sm:py-2 bg-green-500/10 border border-green-500/30 text-green-400 text-[10px] sm:text-xs rounded font-bold block text-center md:w-32 font-mono">{t('games.cyberRunner.claimed')}</span>
                 ) : completed ? (
                   <button 
                     onClick={() => claimReward(challenge)}
-                    className="w-full md:w-32 py-1.5 sm:py-2 bg-orange-500 hover:bg-orange-400 text-black font-extrabold text-xs rounded transition-colors font-mono"
+                    className="w-full md:w-32 py-1 sm:py-2 bg-orange-500 hover:bg-orange-400 text-black font-extrabold text-[10px] sm:text-xs rounded transition-colors font-mono"
                   >
-                    CLAIM REWARD
+                    {t('games.cyberRunner.claimReward')}
                   </button>
                 ) : (
-                  <span className="px-3 sm:px-4 py-1.5 sm:py-2 bg-neutral-900 border border-neutral-800 text-neutral-500 text-xs rounded font-bold block text-center md:w-32 font-mono">LOCKED</span>
+                  <span className="px-2 sm:px-4 py-1 sm:py-2 bg-neutral-900 border border-neutral-800 text-neutral-500 text-[10px] sm:text-xs rounded font-bold block text-center md:w-32 font-mono">{t('games.cyberRunner.locked')}</span>
                 )}
               </div>
             </div>
@@ -2172,6 +2185,7 @@ function ChallengesScreen({ setScreen, dailyChallenges, setDailyChallenges, setC
 function GameOverScreen({ 
   setScreen, runSummary, credits, setCredits, purgaPoints, setPurgaPoints, saveUserData 
 }) {
+  const { t } = useTranslation();
   const { addCredits: addCreditsToBackend } = useCredits();
   
   const claimRewards = () => {
@@ -2198,43 +2212,43 @@ function GameOverScreen({
   };
 
   return (
-    <div className="flex-grow max-w-xl mx-auto w-full px-3 sm:px-4 py-6 sm:py-8 flex flex-col justify-center space-y-8">
-      <div className="bg-neutral-900 p-6 sm:p-8 rounded-2xl border-2 border-red-500/40 text-center space-y-6 shadow-2xl shadow-red-500/10">
-        <div className="w-12 h-12 sm:w-16 sm:h-16 bg-red-500/10 border border-red-500 text-red-500 rounded-full flex items-center justify-center mx-auto animate-bounce">
-          <Skull className="w-8 h-8" />
+    <div className="flex-1 min-h-0 overflow-y-auto max-w-xl mx-auto w-full px-3 sm:px-4 py-4 sm:py-8 flex flex-col justify-center">
+      <div className="bg-neutral-900 p-4 sm:p-8 rounded-2xl border-2 border-red-500/40 text-center space-y-4 sm:space-y-6 shadow-2xl shadow-red-500/10">
+        <div className="w-10 h-10 sm:w-16 sm:h-16 bg-red-500/10 border border-red-500 text-red-500 rounded-full flex items-center justify-center mx-auto animate-bounce">
+          <Skull className="w-6 h-6 sm:w-8 sm:h-8" />
         </div>
 
-        <div className="space-y-2">
-          <h2 className="text-4xl font-black tracking-widest uppercase text-red-500">CONNECTION LOSS</h2>
-          <p className="text-neutral-400 text-sm font-medium">
-            Reason: <span className="text-white font-bold">{runSummary.reason}</span> inside network zone floor {runSummary.ascendedFloor}
+        <div className="space-y-1 sm:space-y-2">
+          <h2 className="text-2xl sm:text-4xl font-black tracking-widest uppercase text-red-500">{t('games.cyberRunner.connectionLoss')}</h2>
+          <p className="text-neutral-400 text-xs sm:text-sm font-medium">
+            {t('games.cyberRunner.reason')} <span className="text-white font-bold">{runSummary.reason}</span> zone {runSummary.ascendedFloor}
           </p>
         </div>
 
-        <div className="grid grid-cols-2 gap-4 text-left">
-          <div className="bg-neutral-950 p-4 rounded border border-neutral-800">
-            <span className="text-[10px] text-neutral-500 uppercase font-mono block font-bold">RUN DISPLACEMENT</span>
-            <span className="text-xl sm:text-2xl font-black font-mono text-white block mt-1">{runSummary.distance}m</span>
+        <div className="grid grid-cols-2 gap-2 sm:gap-4 text-left">
+          <div className="bg-neutral-950 p-2.5 sm:p-4 rounded border border-neutral-800">
+            <span className="text-[9px] sm:text-[10px] text-neutral-500 uppercase font-mono block font-bold">{t('games.cyberRunner.runDisplacement')}</span>
+            <span className="text-lg sm:text-2xl font-black font-mono text-white block mt-0.5 sm:mt-1">{runSummary.distance}m</span>
           </div>
-          <div className="bg-neutral-950 p-4 rounded border border-neutral-800">
-            <span className="text-[10px] text-neutral-500 uppercase font-mono block font-bold">CREDITS SECURED</span>
-            <span className="text-xl sm:text-2xl font-black font-mono text-orange-400 block mt-1">+{runSummary.creditsCollected} PC</span>
+          <div className="bg-neutral-950 p-2.5 sm:p-4 rounded border border-neutral-800">
+            <span className="text-[9px] sm:text-[10px] text-neutral-500 uppercase font-mono block font-bold">{t('games.cyberRunner.creditsSecured')}</span>
+            <span className="text-lg sm:text-2xl font-black font-mono text-orange-400 block mt-0.5 sm:mt-1">+{runSummary.creditsCollected}</span>
           </div>
-          <div className="bg-neutral-950 p-4 rounded border border-neutral-800">
-            <span className="text-[10px] text-neutral-500 uppercase font-mono block font-bold">HOSTS DEFEATED</span>
-            <span className="text-xl sm:text-2xl font-black font-mono text-white block mt-1">{runSummary.enemiesKilled} CRAWLERS</span>
+          <div className="bg-neutral-950 p-2.5 sm:p-4 rounded border border-neutral-800">
+            <span className="text-[9px] sm:text-[10px] text-neutral-500 uppercase font-mono block font-bold">{t('games.cyberRunner.hostsDefeated')}</span>
+            <span className="text-lg sm:text-2xl font-black font-mono text-white block mt-0.5 sm:mt-1">{runSummary.enemiesKilled}</span>
           </div>
-          <div className="bg-neutral-950 p-4 rounded border border-neutral-800">
-            <span className="text-[10px] text-neutral-500 uppercase font-mono block font-bold">MAX COMBOS MET</span>
-            <span className="text-xl sm:text-2xl font-black font-mono text-orange-500 block mt-1">x{runSummary.maxCombo} Combo</span>
+          <div className="bg-neutral-950 p-2.5 sm:p-4 rounded border border-neutral-800">
+            <span className="text-[9px] sm:text-[10px] text-neutral-500 uppercase font-mono block font-bold">{t('games.cyberRunner.maxCombos')}</span>
+            <span className="text-lg sm:text-2xl font-black font-mono text-orange-500 block mt-0.5 sm:mt-1">x{runSummary.maxCombo}</span>
           </div>
         </div>
 
         <button 
           onClick={claimRewards}
-          className="w-full py-3 sm:py-4 bg-gradient-to-r from-orange-600 to-orange-500 hover:from-orange-500 hover:to-orange-400 text-black font-extrabold text-base sm:text-lg uppercase tracking-wider rounded-lg shadow-xl shadow-orange-500/25 transition-all transform active:scale-95"
+          className="w-full py-2.5 sm:py-4 bg-gradient-to-r from-orange-600 to-orange-500 hover:from-orange-500 hover:to-orange-400 text-black font-extrabold text-sm sm:text-lg uppercase tracking-wider rounded-lg shadow-xl shadow-orange-500/25 transition-all transform active:scale-95"
         >
-          CLAIM & RETREAT TO NEXUS
+          {t('games.cyberRunner.claimRetreat')}
         </button>
       </div>
     </div>

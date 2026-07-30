@@ -3,6 +3,12 @@ import { supabase } from '../lib/supabaseClient';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { websocketService } from '../services/websocketService';
 import { normalizeAppUser } from '../utils/userProfile';
+import { showCreditToast } from '../components/Credits/CreditChangeToast';
+import toast from 'react-hot-toast';
+
+// Flag to prevent duplicate toasts between useCredits API calls and WebSocket events
+let _creditApiPending = false;
+export function setCreditApiPending(value: boolean) { _creditApiPending = value; }
 
 // Types
 export type AccountStatus = 'active' | 'warned' | 'penalized' | 'restricted';
@@ -232,6 +238,17 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
       if (user && payload.userId === user.id) {
         console.log('Global credit sync:', payload.credits);
         updateUser({ credits: payload.credits });
+
+        // Show toast for backend-initiated credit changes (not from useCredits API calls)
+        if (!_creditApiPending && payload.change && payload.change !== 0) {
+          const source = payload.source || 'unknown';
+          const toastData = {
+            amount: payload.change,
+            source,
+            newBalance: payload.credits,
+          };
+          toast.success(showCreditToast(toastData), { duration: 4000, icon: payload.change > 0 ? '🪙' : undefined });
+        }
       }
     },
     onProfileUpdate: (payload) => {

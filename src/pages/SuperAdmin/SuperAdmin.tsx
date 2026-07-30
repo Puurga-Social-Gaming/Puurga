@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useUser } from '../../context/UserContext';
 import { useNavigate } from 'react-router-dom';
 import api from '../../lib/axios';
+import { formatCredits } from '../../utils/formatCredits';
 import { 
   Users, 
   Search, 
@@ -1553,7 +1554,7 @@ const SuperAdmin: React.FC = () => {
                         <div className="flex items-center justify-center gap-4">
                           <div className="text-center min-w-[2.5rem]">
                             <div className="text-sm font-black text-foreground tabular-nums leading-none">
-                              {Number(u.purga_points ?? u.credits ?? 0).toLocaleString()}
+                              {formatCredits(Number(u.purga_points ?? u.credits ?? 0))}
                             </div>
                             <div className="text-[9px] uppercase font-bold text-muted-light mt-1">Pts</div>
                           </div>

@@ -37,39 +37,39 @@ const GAME_ECONOMY_SERVER: Record<string, {
   penalties: Record<string, number>;
 }> = {
   SWORD_OF_JUDGMENT: {
-    scoreToCreditsRatio: 0.1,
-    completion: 15,
-    win: 25,
-    perfectScore: 75,
-    penalties: { corruption: 10, missedTarget: 2 },
+    scoreToCreditsRatio: 0.02,
+    completion: 0.75,
+    win: 1.25,
+    perfectScore: 3.75,
+    penalties: { corruption: 0.5, missedTarget: 0.1 },
   },
   PATH_OF_WATCHMAN: {
-    scoreToCreditsRatio: 0.08,
-    completion: 20,
-    win: 50,
+    scoreToCreditsRatio: 0.02,
+    completion: 1,
+    win: 2.5,
     perfectScore: 0,
-    penalties: { corruption: 5 },
+    penalties: { corruption: 0.25 },
   },
   REDEMPTION: {
-    scoreToCreditsRatio: 1.0,
-    completion: 20,
+    scoreToCreditsRatio: 0.02,
+    completion: 1,
     win: 0,
-    perfectScore: 50,
-    penalties: { wrongAnswer: 5 },
+    perfectScore: 2.5,
+    penalties: { wrongAnswer: 0.25 },
   },
   PURGA_RIFT: {
-    scoreToCreditsRatio: 0.12,
-    completion: 25,
-    win: 40,
-    perfectScore: 80,
-    penalties: { wrongAnswer: 8 },
+    scoreToCreditsRatio: 0.02,
+    completion: 1.25,
+    win: 2,
+    perfectScore: 4,
+    penalties: { wrongAnswer: 0.4 },
   },
   CYBER_RUNNER: {
-    scoreToCreditsRatio: 0.1,
-    completion: 20,
-    win: 35,
-    perfectScore: 70,
-    penalties: { missedTarget: 3, corruption: 5 },
+    scoreToCreditsRatio: 0.02,
+    completion: 1,
+    win: 1.75,
+    perfectScore: 3.5,
+    penalties: { missedTarget: 0.15, corruption: 0.25 },
   },
 };
 
@@ -79,27 +79,50 @@ function calculateServerReward(
   isWin: boolean,
   isPerfect: boolean,
   metadata?: Record<string, unknown>
-): { credits: number; isWin: boolean; isPerfect: boolean } {
+): { credits: number; isWin: boolean; isPerfect: boolean; breakdown: { label: string; amount: number }[] } {
   const rules = GAME_ECONOMY_SERVER[gameId];
   if (!rules) {
-    // Unknown game — conservative default
-    return { credits: Math.min(10, Math.floor(score * 0.05)), isWin, isPerfect };
+    const credits = Math.min(5, Math.floor(score * 0.02));
+    return { credits, isWin, isPerfect, breakdown: [{ label: 'Game reward', amount: credits }] };
   }
 
-  let earned = Math.floor(score * rules.scoreToCreditsRatio);
-  earned += rules.completion;
-  if (isWin && rules.win) earned += rules.win;
-  if (isPerfect && rules.perfectScore) earned += rules.perfectScore;
+  const breakdown: { label: string; amount: number }[] = [];
+  let earned = 0;
 
-  // Apply penalties from metadata
+  const scoreBonus = Math.floor(score * rules.scoreToCreditsRatio);
+  if (scoreBonus > 0) {
+    earned += scoreBonus;
+    breakdown.push({ label: 'Score bonus', amount: scoreBonus });
+  }
+
+  if (rules.completion > 0) {
+    earned += rules.completion;
+    breakdown.push({ label: 'Completion bonus', amount: rules.completion });
+  }
+
+  if (isWin && rules.win > 0) {
+    earned += rules.win;
+    breakdown.push({ label: 'Victory bonus', amount: rules.win });
+  }
+
+  if (isPerfect && rules.perfectScore > 0) {
+    earned += rules.perfectScore;
+    breakdown.push({ label: 'Perfect bonus', amount: rules.perfectScore });
+  }
+
   if (rules.penalties && metadata) {
     for (const [key, penalty] of Object.entries(rules.penalties)) {
       const hits = Number(metadata[key]) || 0;
-      earned -= penalty * hits;
+      if (hits > 0) {
+        const penaltyAmount = penalty * hits;
+        earned -= penaltyAmount;
+        const label = key.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase());
+        breakdown.push({ label: `${label} (${hits}×)`, amount: -penaltyAmount });
+      }
     }
   }
 
-  return { credits: Math.max(0, earned), isWin, isPerfect };
+  return { credits: Math.max(0, earned), isWin, isPerfect, breakdown };
 }
 
 const router = express.Router();
@@ -523,6 +546,7 @@ router.post('/finish', auth, async (req: AuthRequest, res) => {
       score: floorScore,
       isWin: reward.isWin,
       isPerfect: reward.isPerfect,
+      breakdown: reward.breakdown,
     });
   } catch (error) {
     console.error('Error in game finish:', error);

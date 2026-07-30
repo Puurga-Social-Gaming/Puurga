@@ -12,6 +12,7 @@ import {
     ArrowLeft
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useCredits } from '../../shared/economy/useCredits';
 import { GAME_ECONOMY } from '../../shared/economy/GameEconomy';
 
@@ -89,7 +90,7 @@ const SCENARIOS = [
 // --- COMPONENTS ---
 
 const StatCard = ({ icon: Icon, label, value, subValue, color, borderColor }: any) => (
-    <div className={`bg-card border ${borderColor || 'border-border'} rounded-lg p-3 flex flex-col items-center justify-center shadow-theme-sm min-w-[80px] flex-1`}>
+    <div className={`bg-card border ${borderColor || 'border-border'} rounded-lg p-2 sm:p-3 flex flex-col items-center justify-center shadow-theme-sm min-w-0 flex-1`}>
         <Icon className={`w-5 h-5 mb-1 ${color}`} />
         <span className="text-xl font-bold text-foreground">{value}</span>
         <span className="text-[10px] uppercase tracking-wider text-muted">{label}</span>
@@ -120,6 +121,7 @@ const ActionButton = ({ onClick, disabled, variant = 'primary', children, classN
 // 3. Main Application
 export default function RedemptionGame() {
     // --- HOOKS ---
+    const { t } = useTranslation();
     const { balance, spendCredits, processFullGameSession } = useCredits(); // Using central credit system
     const [view, setView] = useState('dashboard');
 
@@ -138,7 +140,8 @@ export default function RedemptionGame() {
         currentIndex: 0,
         score: 0,
         correctCount: 0,
-        history: [] as any[]
+        history: [] as any[],
+        creditsEarned: 0,
     });
 
     const [timeLeft, setTimeLeft] = useState(GAME_CONFIG.timeLimit);
@@ -170,7 +173,8 @@ export default function RedemptionGame() {
             currentIndex: 0,
             score: 0,
             correctCount: 0,
-            history: []
+            history: [],
+            creditsEarned: 0,
         });
 
         setTimeLeft(GAME_CONFIG.timeLimit);
@@ -257,7 +261,7 @@ export default function RedemptionGame() {
 
         // --- CREDIT INTEGRATION ---
         // Process credits via centralized system with penalties for wrong answers
-        await processFullGameSession({
+        const creditResult = await processFullGameSession({
             gameId: 'REDEMPTION',
             score: session.score,
             isPerfect: perfectSession,
@@ -265,9 +269,13 @@ export default function RedemptionGame() {
             wrongAnswers: wrongAnswers
         });
 
+        // Store the actual credits awarded for display in summary
+        if (creditResult && 'earned' in creditResult) {
+            setSession(prev => ({ ...prev, creditsEarned: creditResult.earned }));
+        }
+
         setStats(prev => ({
             ...prev,
-            // credits: ... handled by useCredits
             dailyPlays: prev.dailyPlays + 1,
             integrityStreak: newStreak,
             intercessionTokens: newTokens
@@ -312,16 +320,16 @@ export default function RedemptionGame() {
                 </div>
 
                 <div className="relative z-10">
-                    <h2 className="text-accent/80 text-xs font-bold tracking-widest uppercase mb-1">Current Standing</h2>
+                    <h2 className="text-accent/80 text-xs font-bold tracking-widest uppercase mb-1">{t('games.redemption.currentStanding')}</h2>
                     <h1 className="text-3xl font-black text-foreground mb-6 tracking-tight">
-                        {stats.isGhost ? "GHOST STATUS" : "ACTIVE CITIZEN"}
+                        {stats.isGhost ? t('games.redemption.ghostStatus') : t('games.redemption.activeCitizen')}
                     </h1>
 
                     <div className="flex gap-4">
                         {/* UPDATED: Credits from Balance */}
-                        <StatCard icon={Zap} label="Credits" value={balance} color="text-accent" borderColor="border-accent/20" />
-                        <StatCard icon={Trophy} label="Streak" value={stats.integrityStreak} color="text-foreground" />
-                        <StatCard icon={Users} label="Tokens" value={stats.intercessionTokens} color="text-yellow-500" />
+                        <StatCard icon={Zap} label={t('games.redemption.credits')} value={balance} color="text-accent" borderColor="border-accent/20" />
+                        <StatCard icon={Trophy} label={t('games.redemption.streak')} value={stats.integrityStreak} color="text-foreground" />
+                        <StatCard icon={Users} label={t('games.redemption.tokens')} value={stats.intercessionTokens} color="text-yellow-500" />
                     </div>
                 </div>
             </div>
@@ -331,38 +339,38 @@ export default function RedemptionGame() {
                 <div className="flex items-center gap-3">
                     <Clock className="w-5 h-5 text-muted" />
                     <div>
-                        <div className="text-sm font-medium text-foreground">Daily Allocation</div>
-                        <div className="text-xs text-muted">Resets in 04:12:00</div>
+                        <div className="text-sm font-medium text-foreground">{t('games.redemption.dailyAllocation')}</div>
+                        <div className="text-xs text-muted">{t('games.redemption.resetsIn')}</div>
                     </div>
                 </div>
                 <div className="text-right">
                     <span className="text-lg font-bold text-accent">{GAME_CONFIG.maxDailyPlays - stats.dailyPlays}</span>
-                    <span className="text-sm text-muted">/{GAME_CONFIG.maxDailyPlays} left</span>
+                    <span className="text-sm text-muted">/{GAME_CONFIG.maxDailyPlays} {t('games.redemption.left')}</span>
                 </div>
             </div>
 
             {/* Main Actions */}
             <div className="space-y-3">
-                <ActionButton
-                    onClick={startGame}
-                    disabled={stats.dailyPlays >= GAME_CONFIG.maxDailyPlays}
-                    className="h-16 text-lg relative overflow-hidden group border-0"
-                >
-                    Start Session
-                </ActionButton>
+                    <ActionButton
+                        onClick={startGame}
+                        disabled={stats.dailyPlays >= GAME_CONFIG.maxDailyPlays}
+                        className="h-16 text-lg relative overflow-hidden group border-0"
+                    >
+                        {t('games.redemption.startSession')}
+                    </ActionButton>
 
-                <ActionButton
-                    variant="secondary"
-                    onClick={() => setView('shop')}
-                    className="h-14"
-                >
-                    Redemption Center
-                </ActionButton>
-            </div>
+                    <ActionButton
+                        variant="secondary"
+                        onClick={() => setView('shop')}
+                        className="h-14"
+                    >
+                        {t('games.redemption.redemptionCenter')}
+                    </ActionButton>
+                </div>
 
-            {/* Lore/Footer */}
-            <div className="text-center pt-4">
-                <p className="text-xs text-muted italic">"Integrity is the currency of the future."</p>
+                {/* Lore/Footer */}
+                <div className="text-center pt-4">
+                    <p className="text-xs text-muted italic">"{t('games.redemption.quote')}"</p>
             </div>
         </div>
     );
@@ -384,7 +392,7 @@ export default function RedemptionGame() {
                         )}
 
                         <h2 className={`text-2xl font-bold mb-2 ${feedback.type === 'correct' ? 'text-green-500' : 'text-red-500'}`}>
-                            {feedback.type === 'correct' ? 'Restoration Achieved' : 'Judgment Failed'}
+                            {feedback.type === 'correct' ? t('games.redemption.restorationAchieved') : t('games.redemption.judgmentFailed')}
                         </h2>
 
                         <p className="text-center text-foreground mb-6 leading-relaxed">
@@ -393,12 +401,12 @@ export default function RedemptionGame() {
 
                         <div className="bg-background-secondary border border-border rounded-lg py-2 px-6 flex items-center gap-2 mb-8">
                             <Zap className="w-4 h-4 text-accent" />
-                            <span className="text-accent font-bold">+{feedback.points} Credits</span>
+                            <span className="text-accent font-bold">+{feedback.points} {t('games.redemption.credits')}</span>
                         </div>
                     </div>
 
                     <ActionButton onClick={nextScenario}>
-                        {session.currentIndex < session.scenarios.length - 1 ? 'Next Scenario' : 'Complete Session'}
+                        {session.currentIndex < session.scenarios.length - 1 ? t('games.redemption.nextScenario') : t('games.redemption.completeSession')}
                     </ActionButton>
                 </div>
             );
@@ -409,7 +417,7 @@ export default function RedemptionGame() {
                 {/* Header / Timer */}
                 <div className="flex justify-between items-center mb-6">
                     <div className="text-xs text-muted font-bold tracking-widest uppercase">
-                        Scenario {session.currentIndex + 1}/{session.scenarios.length}
+                        {t('games.redemption.scenario', { current: session.currentIndex + 1, total: session.scenarios.length })}
                     </div>
                     <div className={`flex items-center gap-2 font-mono font-bold ${timeLeft <= 5 ? 'text-accent animate-pulse' : 'text-muted'}`}>
                         <Clock className="w-4 h-4" />
@@ -445,7 +453,7 @@ export default function RedemptionGame() {
                         >
                             <span>{choice.text}</span>
                             <span className="opacity-0 group-hover:opacity-100 text-accent text-xs uppercase tracking-wider transition-opacity font-bold">
-                                Select
+                                {t('games.redemption.select')}
                             </span>
                         </button>
                     ))}
@@ -468,24 +476,23 @@ export default function RedemptionGame() {
                     )}
                 </div>
 
-                <h2 className="text-2xl font-bold text-foreground mb-2">Session Complete</h2>
-                <p className="text-muted mb-8">Your choices have been weighed.</p>
+                <h2 className="text-2xl font-bold text-foreground mb-2">{t('games.redemption.sessionComplete')}</h2>
+                <p className="text-muted mb-8">{t('games.redemption.choicesWeighed')}</p>
 
                 <div className="grid grid-cols-2 gap-4 mb-8">
                     <div className="bg-card p-4 rounded-lg border border-border">
-                        <div className="text-muted text-xs uppercase tracking-wider mb-1">Earned</div>
-                        {/* Note: This shows Score, but credits are calculated separately via processGameResult */}
-                        <div className="text-2xl font-bold text-accent">{session.score} Credits</div>
+                        <div className="text-muted text-xs uppercase tracking-wider mb-1">{t('games.redemption.earned')}</div>
+                        <div className="text-2xl font-bold text-accent">{session.creditsEarned} {t('games.redemption.credits')}</div>
                     </div>
                     <div className="bg-card p-4 rounded-lg border border-border">
-                        <div className="text-muted text-xs uppercase tracking-wider mb-1">Accuracy</div>
+                        <div className="text-muted text-xs uppercase tracking-wider mb-1">{t('games.redemption.accuracy')}</div>
                         <div className={`text-2xl font-bold ${perfectScore ? 'text-green-500' : 'text-foreground'}`}>
                             {Math.round((session.correctCount / session.scenarios.length) * 100)}%
                         </div>
                     </div>
                 </div>
 
-                <ActionButton onClick={() => setView('dashboard')}>Return to Dashboard</ActionButton>
+                <ActionButton onClick={() => setView('dashboard')}>{t('games.redemption.returnToDashboard')}</ActionButton>
             </div>
         );
     };
@@ -496,19 +503,19 @@ export default function RedemptionGame() {
                 <button onClick={() => setView('dashboard')} className="p-2 hover:bg-card-hover rounded-full transition-colors">
                     <XCircle className="w-6 h-6 text-muted" />
                 </button>
-                <h2 className="text-xl font-bold text-foreground">Redemption Center</h2>
+                <h2 className="text-xl font-bold text-foreground">{t('games.redemption.redemptionCenter')}</h2>
             </div>
 
             <div className="bg-card p-4 rounded-lg mb-6 flex justify-between items-center border border-border">
                 <div>
-                    <div className="text-xs text-muted uppercase tracking-wider">Balance</div>
+                    <div className="text-xs text-muted uppercase tracking-wider">{t('games.redemption.balance')}</div>
                     <div className="text-2xl font-bold text-accent flex items-center gap-2">
                         <Zap className="w-5 h-5" />
-                        {balance} Credits
+                        {balance} {t('games.redemption.credits')}
                     </div>
                 </div>
                 <div className="text-right">
-                    <div className="text-xs text-muted uppercase tracking-wider">Tokens</div>
+                    <div className="text-xs text-muted uppercase tracking-wider">{t('games.redemption.tokens')}</div>
                     <div className="text-xl font-bold text-foreground flex items-center justify-end gap-2">
                         <Users className="w-4 h-4 text-yellow-500" />
                         {stats.intercessionTokens}
@@ -525,11 +532,11 @@ export default function RedemptionGame() {
                                 <RefreshCcw className="w-5 h-5 text-green-500" />
                             </div>
                             <div>
-                                <h3 className="font-bold text-foreground">Atonement</h3>
-                                <p className="text-xs text-muted mt-1">Reduces your purge count by 1.</p>
+                                <h3 className="font-bold text-foreground">{t('games.redemption.atonement')}</h3>
+                                <p className="text-xs text-muted mt-1">{t('games.redemption.atonementDesc')}</p>
                             </div>
                         </div>
-                        <span className="text-sm font-bold text-accent">{COSTS.purgeReduction} Credits</span>
+                        <span className="text-sm font-bold text-accent">{COSTS.purgeReduction} {t('games.redemption.credits')}</span>
                     </div>
                     <ActionButton
                         variant="outline"
@@ -537,7 +544,7 @@ export default function RedemptionGame() {
                         disabled={balance < COSTS.purgeReduction || stats.purgeCount === 0}
                         onClick={() => handleShopPurchase('purge')}
                     >
-                        {stats.purgeCount === 0 ? "Purge Count is 0" : "Redeem Self"}
+                        {stats.purgeCount === 0 ? t('games.redemption.purgeCountZero') : t('games.redemption.redeemSelf')}
                     </ActionButton>
                 </div>
 
@@ -549,11 +556,11 @@ export default function RedemptionGame() {
                                 <Shield className="w-5 h-5 text-red-400" />
                             </div>
                             <div>
-                                <h3 className="font-bold text-foreground">Resurrection</h3>
-                                <p className="text-xs text-muted mt-1">Removes Ghost Status immediately.</p>
+                                <h3 className="font-bold text-foreground">{t('games.redemption.resurrection')}</h3>
+                                <p className="text-xs text-muted mt-1">{t('games.redemption.resurrectionDesc')}</p>
                             </div>
                         </div>
-                        <span className="text-sm font-bold text-accent">{COSTS.removeGhost} Credits</span>
+                        <span className="text-sm font-bold text-accent">{COSTS.removeGhost} {t('games.redemption.credits')}</span>
                     </div>
                     <ActionButton
                         variant="outline"
@@ -561,7 +568,7 @@ export default function RedemptionGame() {
                         disabled={balance < COSTS.removeGhost || !stats.isGhost}
                         onClick={() => handleShopPurchase('ghost')}
                     >
-                        {!stats.isGhost ? "Status Normal" : "Restore Visibility"}
+                        {!stats.isGhost ? t('games.redemption.statusNormal') : t('games.redemption.restoreVisibility')}
                     </ActionButton>
                 </div>
 
@@ -576,13 +583,13 @@ export default function RedemptionGame() {
                                 <Users className="w-5 h-5 text-accent" />
                             </div>
                             <div>
-                                <h3 className="font-bold text-foreground">Intercession</h3>
-                                <p className="text-xs text-muted mt-1 max-w-[200px]">Use your standing to vouch for another user, reducing their penalties.</p>
+                                <h3 className="font-bold text-foreground">{t('games.redemption.intercession')}</h3>
+                                <p className="text-xs text-muted mt-1 max-w-[200px]">{t('games.redemption.intercessionDesc')}</p>
                             </div>
                         </div>
                         <div className="text-right">
-                            <div className="text-sm font-bold text-accent">{COSTS.intercession} Credits</div>
-                            <div className="text-xs font-bold text-yellow-500">+ 1 Token</div>
+                            <div className="text-sm font-bold text-accent">{COSTS.intercession} {t('games.redemption.credits')}</div>
+                            <div className="text-xs font-bold text-yellow-500">{t('games.redemption.plusToken')}</div>
                         </div>
                     </div>
 
@@ -594,7 +601,7 @@ export default function RedemptionGame() {
                             disabled={balance < COSTS.intercession || stats.intercessionTokens < 1}
                             onClick={() => handleShopPurchase('intercede')}
                         >
-                            Intercede
+                            {t('games.redemption.intercede')}
                         </ActionButton>
                     </div>
                 </div>
@@ -604,9 +611,9 @@ export default function RedemptionGame() {
     );
 
     return (
-        <div className="w-full text-foreground flex flex-col pb-4">
+        <div className="w-full text-foreground flex flex-col h-full min-h-0">
             {/* App Bar — horizontal padding comes from Layout page-shell */}
-            <div className="pb-3 mb-1 flex items-center justify-between border-b border-border sticky top-0 z-40 bg-background/90 backdrop-blur-md">
+            <div className="shrink-0 pb-3 mb-1 flex items-center justify-between border-b border-border sticky top-0 z-40 bg-background/90 backdrop-blur-md px-3 sm:px-4">
                 <div className="flex items-center gap-2.5 min-w-0">
                     <Link
                         to="/puurga-games"
@@ -618,46 +625,48 @@ export default function RedemptionGame() {
                         <Shield className="w-4 h-4 text-accent" />
                     </div>
                     <div className="min-w-0">
-                        <h1 className="font-bold text-lg tracking-tight text-foreground leading-tight">Redemption</h1>
-                        <p className="text-[11px] text-muted">Paths of restoration</p>
+                        <h1 className="font-bold text-base sm:text-lg tracking-tight text-foreground leading-tight">{t('games.redemption.title')}</h1>
+                        <p className="text-[10px] sm:text-[11px] text-muted">{t('games.redemption.subtitle')}</p>
                     </div>
                 </div>
-                <div className="flex items-center gap-1.5 text-xs font-mono text-muted bg-card border border-border rounded-full px-2.5 py-1.5 shadow-theme-sm shrink-0">
-                    <Zap className="w-3.5 h-3.5 text-accent" />
+                <div className="flex items-center gap-1.5 text-[10px] sm:text-xs font-mono text-muted bg-card border border-border rounded-full px-2 sm:px-2.5 py-1 sm:py-1.5 shadow-theme-sm shrink-0">
+                    <Zap className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-accent" />
                     <span className="tabular-nums text-foreground font-semibold">{balance}</span>
                 </div>
             </div>
 
-            <div className="flex-1 py-4">
-                {view === 'dashboard' && renderDashboard()}
-                {view === 'game' && renderGame()}
-                {view === 'summary' && renderSummary()}
-                {view === 'shop' && renderShop()}
+            <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain integrated-game-scroll px-3 sm:px-4">
+                <div className="py-4">
+                    {view === 'dashboard' && renderDashboard()}
+                    {view === 'game' && renderGame()}
+                    {view === 'summary' && renderSummary()}
+                    {view === 'shop' && renderShop()}
+                </div>
             </div>
 
-            <div className="sticky bottom-20 lg:bottom-0 z-30 mt-2 border-t border-border bg-background/95 backdrop-blur-md py-2 flex justify-around items-center text-muted">
+            <div className="shrink-0 sticky bottom-20 lg:bottom-0 z-30 mt-2 border-t border-border bg-background/95 backdrop-blur-md py-2 px-3 sm:px-4 flex justify-around items-center text-muted">
                 <button
                     type="button"
-                    className={`p-2 rounded-xl flex flex-col items-center gap-1 min-w-[4.5rem] transition-colors ${view === 'dashboard' ? 'text-foreground bg-card border border-border' : 'hover:text-foreground'}`}
+                    className={`p-2 rounded-xl flex flex-col items-center gap-1 min-w-[4rem] sm:min-w-[4.5rem] transition-colors ${view === 'dashboard' ? 'text-foreground bg-card border border-border' : 'hover:text-foreground'}`}
                     onClick={() => setView('dashboard')}
                 >
-                    <Shield className="w-5 h-5" />
-                    <span className="text-[10px] font-medium">Home</span>
+                    <Shield className="w-4 h-4 sm:w-5 sm:h-5" />
+                    <span className="text-[9px] sm:text-[10px] font-medium">{t('games.redemption.home')}</span>
                 </button>
                 <button
                     type="button"
-                    className={`p-2 rounded-xl flex flex-col items-center gap-1 min-w-[4.5rem] transition-colors ${view === 'shop' ? 'text-foreground bg-card border border-border' : 'hover:text-foreground'}`}
+                    className={`p-2 rounded-xl flex flex-col items-center gap-1 min-w-[4rem] sm:min-w-[4.5rem] transition-colors ${view === 'shop' ? 'text-foreground bg-card border border-border' : 'hover:text-foreground'}`}
                     onClick={() => setView('shop')}
                 >
-                    <Users className="w-5 h-5" />
-                    <span className="text-[10px] font-medium">Redeem</span>
+                    <Users className="w-4 h-4 sm:w-5 sm:h-5" />
+                    <span className="text-[9px] sm:text-[10px] font-medium">{t('games.redemption.redeem')}</span>
                 </button>
                 <Link
                     to="/puurga-games"
-                    className="p-2 rounded-xl flex flex-col items-center gap-1 min-w-[4.5rem] hover:text-foreground transition-colors"
+                    className="p-2 rounded-xl flex flex-col items-center gap-1 min-w-[4rem] sm:min-w-[4.5rem] hover:text-foreground transition-colors"
                 >
-                    <ArrowLeft className="w-5 h-5" />
-                    <span className="text-[10px] font-medium">Exit</span>
+                    <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
+                    <span className="text-[9px] sm:text-[10px] font-medium">{t('games.redemption.exit')}</span>
                 </Link>
             </div>
         </div>

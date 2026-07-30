@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 
-/** Prevents Arena / app shell from scrolling behind embedded games */
+/** Prevents Games / app shell from scrolling behind embedded games */
 export function useIntegratedGameViewportLock(): void {
   useEffect(() => {
     const html = document.documentElement;

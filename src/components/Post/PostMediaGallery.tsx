@@ -352,7 +352,7 @@ const PostMediaGallery: React.FC<PostMediaGalleryProps> = ({
             index={0}
             fill={false}
             className="relative w-full"
-            imgClassName="w-full max-h-96 object-cover"
+            imgClassName="w-full h-52 sm:h-64 object-cover"
             {...tileProps}
           />
         </div>

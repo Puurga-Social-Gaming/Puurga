@@ -13,6 +13,7 @@ import {
   CreditCard,
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import { formatCredits } from '../../utils/formatCredits';
 import api from '../../lib/axios';
 import { useUser } from '../../context/UserContext';
 import CertificationBadges from './CertificationBadges';
@@ -209,7 +210,7 @@ const CertificationPanel: React.FC = () => {
             <div className="rounded-xl border border-border/70 bg-background/50 px-3 py-3 text-center">
               <p className="text-[10px] uppercase tracking-wider text-muted mb-1">Balance</p>
               <p className="text-lg font-bold tabular-nums text-accent">
-                {points.toLocaleString()}
+                {formatCredits(points)}
               </p>
               <p className="text-[10px] text-muted">pts</p>
             </div>
@@ -336,7 +337,7 @@ const CertificationPanel: React.FC = () => {
                         <div className="flex justify-between text-[10px] text-muted mb-1">
                           <span>Points</span>
                           <span className="tabular-nums">
-                            {points.toLocaleString()} / {(cert.minPoints || 0).toLocaleString()}
+                            {formatCredits(points)} / {formatCredits(cert.minPoints || 0)}
                           </span>
                         </div>
                         <div className="h-1.5 rounded-full bg-background overflow-hidden">
@@ -477,7 +478,7 @@ const CertificationPanel: React.FC = () => {
                             {!cert.canAfford && (
                               <p className="text-[10px] text-center text-muted">
                                 Need{' '}
-                                {((cert.pricePoints ?? cert.price) - points).toLocaleString()} more
+                                {formatCredits((cert.pricePoints ?? cert.price) - points)} more
                                 pts
                                 {(cert.priceCdf ?? 0) > 0 ? ' — or pay with money' : ''}
                               </p>

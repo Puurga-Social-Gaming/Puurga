@@ -42,7 +42,7 @@ const IntegratedGameShell: React.FC<PuurgaGameProps> = ({ onExit }) => {
           className="absolute top-[max(0.5rem,env(safe-area-inset-top))] left-3 z-[10000] flex items-center gap-2 rounded-xl border border-white/10 bg-black/60 px-3 py-1.5 sm:px-4 sm:py-2 text-sm font-medium text-white backdrop-blur-md transition hover:bg-black/80"
         >
           <ArrowLeft className="h-4 w-4" />
-          <span className="hidden sm:inline">Back to Arena</span>
+          <span className="hidden sm:inline">Back to Games</span>
         </button>
       )}
       <Suspense fallback={<GameLoadingFallback />}>

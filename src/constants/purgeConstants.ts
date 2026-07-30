@@ -1,11 +1,14 @@
 // Purge system constants
-export const PURGE_THRESHOLD = 20;
+export const POST_PURGE_THRESHOLD = 250; // Purges to remove a post from public feed
+export const PROFILE_PURGE_THRESHOLD = 300; // Purges to trigger ghost mode on a profile
+export const PURGE_THRESHOLD = PROFILE_PURGE_THRESHOLD;
+
 export const PURGE_TIER_LABELS: Record<number, string> = {
   0: 'STABLE',
-  5: 'WATCHED',
-  10: 'HUNTED',
-  15: 'COLLAPSING',
-  20: 'GHOSTED',
+  75: 'WATCHED',
+  150: 'HUNTED',
+  225: 'COLLAPSING',
+  300: 'GHOSTED',
 };
 
 export const PURGE_TIER_MESSAGES: Record<string, string> = {

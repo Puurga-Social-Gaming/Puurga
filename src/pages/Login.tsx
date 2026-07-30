@@ -166,23 +166,24 @@ const Login: React.FC = () => {
       initial={{ x: 0 }}
       animate={{ x: 0 }}
       transition={{ type: "spring", duration: 0.5 }}
-      className="min-h-screen bg-[#0a0a0a] flex items-center justify-center px-4 dark"
+      className="min-h-screen flex items-center justify-center px-4"
+      style={{ backgroundColor: 'rgb(var(--bg))', color: 'rgb(var(--fg))' }}
     >
       <div className="login-container w-full max-w-md space-y-8 transition-transform duration-300">
         <div className="text-center">
-          <PuurgaLogo size={48} className="mx-auto text-white" />
-          <h2 className="mt-6 text-3xl font-bold text-white">{t('auth.welcomeBack')}</h2>
-          <p className="mt-2 text-gray-400">{t('auth.signInToAccount')}</p>
+          <PuurgaLogo size={48} className="mx-auto" />
+          <h2 className="mt-6 text-3xl font-bold" style={{ color: 'rgb(var(--fg))' }}>{t('auth.welcomeBack')}</h2>
+          <p className="mt-2" style={{ color: 'rgb(var(--muted))' }}>{t('auth.signInToAccount')}</p>
         </div>
 
         <div className="mt-8 space-y-4">
           <GoogleSignInButton onClick={handleGoogleSignIn} isLoading={oauthLoading} />
           <div className="relative">
             <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-[#2d2d2d]" />
+              <div className="w-full border-t" style={{ borderColor: 'rgb(var(--border))' }} />
             </div>
             <div className="relative flex justify-center text-sm">
-              <span className="px-2 bg-[#0a0a0a] text-gray-400">{t('auth.orSignInWithEmail')}</span>
+              <span className="px-2" style={{ backgroundColor: 'rgb(var(--bg))', color: 'rgb(var(--muted))' }}>{t('auth.orSignInWithEmail')}</span>
             </div>
           </div>
         </div>
@@ -201,7 +202,7 @@ const Login: React.FC = () => {
 
           <div className="space-y-4">
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-300">
+              <label htmlFor="email" className="block text-sm font-medium" style={{ color: 'rgb(var(--fg-secondary))' }}>
                 {t('auth.emailAddress') || 'Email address'}
               </label>
               <input
@@ -210,13 +211,14 @@ const Login: React.FC = () => {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                  className="mt-1 block w-full rounded-lg bg-[#1a1a1a] border border-[#2d2d2d] px-4 py-2 text-white focus:ring-2 focus:ring-white focus:border-transparent transition-all duration-200"
+                className="mt-1 block w-full rounded-lg border px-4 py-2 focus:ring-2 focus:ring-white focus:border-transparent transition-all duration-200"
+                style={{ backgroundColor: 'rgb(var(--card))', borderColor: 'rgb(var(--border))', color: 'rgb(var(--fg))' }}
                 placeholder={t('auth.enterEmail') || 'Enter your email'}
               />
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-300">
+              <label htmlFor="password" className="block text-sm font-medium" style={{ color: 'rgb(var(--fg-secondary))' }}>
                 {t('auth.password') || 'Password'}
               </label>
               <div className="relative">
@@ -226,13 +228,15 @@ const Login: React.FC = () => {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="mt-1 block w-full rounded-lg bg-[#1a1a1a] border border-[#2d2d2d] px-4 py-2 text-white focus:ring-2 focus:ring-white focus:border-transparent pr-10 transition-all duration-200"
+                  className="mt-1 block w-full rounded-lg border px-4 py-2 focus:ring-2 focus:ring-white focus:border-transparent pr-10 transition-all duration-200"
+                  style={{ backgroundColor: 'rgb(var(--card))', borderColor: 'rgb(var(--border))', color: 'rgb(var(--fg))' }}
                   placeholder={t('auth.enterPassword') || 'Enter your password'}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white"
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 hover:opacity-80"
+                  style={{ color: 'rgb(var(--muted))' }}
                 >
                   {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                 </button>
@@ -246,13 +250,14 @@ const Login: React.FC = () => {
                   type="checkbox"
                   checked={rememberMe}
                   onChange={(e) => setRememberMe(e.target.checked)}
-                  className="h-4 w-4 rounded border-gray-300 text-white focus:ring-white bg-[#1a1a1a]"
+                  className="h-4 w-4 rounded border focus:ring-white"
+                  style={{ borderColor: 'rgb(var(--border))', backgroundColor: 'rgb(var(--card))' }}
                 />
-                <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-300">
+                <label htmlFor="remember-me" className="ml-2 block text-sm" style={{ color: 'rgb(var(--fg-secondary))' }}>
                   {t('auth.rememberMe') || 'Remember me'}
                 </label>
               </div>
-              <Link to="/forgot-password" className="text-sm text-white hover:text-gray-300">
+              <Link to="/forgot-password" className="text-sm hover:opacity-80" style={{ color: 'rgb(var(--fg))' }}>
                 {t('auth.forgotPassword') || 'Forgot password?'}
               </Link>
             </div>
@@ -267,12 +272,13 @@ const Login: React.FC = () => {
             {loading ? (t('auth.signingIn') || 'Signing in...') : (t('auth.login') || 'Sign in')}
           </Button>
 
-          <p className="text-center text-sm text-gray-400">
+          <p className="text-center text-sm" style={{ color: 'rgb(var(--muted))' }}>
             {t('auth.dontHaveAccount')}{' '}
             <Link
               to="/register"
               onClick={handleRegisterClick}
-              className="font-medium text-white hover:text-gray-300"
+              className="font-medium hover:opacity-80"
+              style={{ color: 'rgb(var(--fg))' }}
             >
               {t('auth.signUp')}
             </Link>

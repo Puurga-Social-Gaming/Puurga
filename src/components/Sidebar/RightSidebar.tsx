@@ -81,7 +81,7 @@ const RightSidebar: React.FC = () => {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       toast.success('Logged out');
-      navigate('/login');
+      navigate('/onboarding/video');
     } catch {
       toast.error('Failed to log out');
     }

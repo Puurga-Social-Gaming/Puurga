@@ -72,7 +72,7 @@ const MatchmakingPanel: React.FC = () => {
   const createTournament = async () => {
     try {
       await api.post('/matchmaking/tournaments', {
-        title: 'Puurga Arena Cup',
+        title: 'Puurga Games Cup',
         gameId: 'judgment',
         maxPlayers: 8,
         prizeCredits: 100,
@@ -117,7 +117,7 @@ const MatchmakingPanel: React.FC = () => {
             className="mt-2 text-xs px-3 py-1.5 rounded-lg bg-accent text-black font-semibold cursor-pointer hover:opacity-90 transition-opacity"
             onClick={() => navigate('/puurga-games?play=judgment')}
           >
-            Enter arena
+            Enter game
           </button>
         </div>
       )}

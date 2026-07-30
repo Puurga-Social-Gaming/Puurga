@@ -6,6 +6,7 @@ import { getGhostedFriends, redeemFriend, GhostedFriend } from '../../services/p
 import { useUser } from '../../context/UserContext';
 import { toast } from 'react-hot-toast';
 import ProfileLink from '../Profile/ProfileLink';
+import { formatCredits } from '../../utils/formatCredits';
 
 const PurgeDashboard: React.FC = () => {
   const { t } = useTranslation();
@@ -161,7 +162,7 @@ const PurgeDashboard: React.FC = () => {
                   <div className="flex items-center gap-1 text-[10px] text-muted">
                     <Coins size={10} />
                     <span className={userCredits >= friend.creditsRequired ? 'text-foreground/70' : 'text-red-500/70'}>
-                      {(friend.creditsRequired ?? 0).toLocaleString()}
+                      {formatCredits(friend.creditsRequired ?? 0)}
                     </span>
                   </div>
                 </div>
@@ -186,7 +187,7 @@ const PurgeDashboard: React.FC = () => {
       {userCredits > 0 && (
         <div className="mt-3 pt-3 border-t border-border px-1 flex items-center justify-between text-xs">
           <span className="text-muted">Available Credits</span>
-          <span className="text-foreground font-medium">{userCredits.toLocaleString()}</span>
+          <span className="text-foreground font-medium">{formatCredits(userCredits)}</span>
         </div>
       )}
     </div>

@@ -4,13 +4,13 @@
 
 CREATE OR REPLACE FUNCTION update_credit_balance(
   p_user_id UUID,
-  p_amount INTEGER,
+  p_amount NUMERIC(12,2),
   p_source TEXT,
   p_description TEXT
-) RETURNS INTEGER AS $$
+) RETURNS NUMERIC(12,2) AS $$
 DECLARE
-  v_current INTEGER;
-  v_new INTEGER;
+  v_current NUMERIC(12,2);
+  v_new NUMERIC(12,2);
 BEGIN
   -- Read current balance
   SELECT COALESCE(purga_points, 0) INTO v_current
@@ -42,10 +42,10 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- RPC wrapper for Supabase client calls
 CREATE OR REPLACE FUNCTION rpc_update_credit_balance(
-  p_amount INTEGER,
+  p_amount NUMERIC(12,2),
   p_source TEXT,
   p_description TEXT
-) RETURNS INTEGER AS $$
+) RETURNS NUMERIC(12,2) AS $$
 BEGIN
   RETURN update_credit_balance(
     auth.uid(),

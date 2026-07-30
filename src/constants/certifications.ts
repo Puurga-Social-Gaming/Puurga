@@ -99,6 +99,8 @@ export function getCertification(slug?: string | null): CertificationType | null
   return CERTIFICATION_TYPES.find((c) => c.slug === slug) || null;
 }
 
+import { formatCredits } from '../utils/formatCredits';
+
 export function formatCertPrice(price: number): string {
-  return `${price.toLocaleString()} pts`;
+  return `${formatCredits(price)} pts`;
 }

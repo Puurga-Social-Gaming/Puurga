@@ -22,7 +22,7 @@ import PurgeIcon from '../Icons/PurgeIcon';
 import InlineTranslate from '../InlineTranslate';
 import CertificationBadges from '../Profile/CertificationBadges';
 import { downloadPostCapture } from '../../utils/downloadPostCapture';
-import { PURGE_THRESHOLD } from '../../constants/purgeConstants';
+import { POST_PURGE_THRESHOLD } from '../../constants/purgeConstants';
 
 interface PostProps {
   post: PostType;
@@ -575,13 +575,13 @@ const Post: React.FC<PostProps> = ({ post, onUpdate, variant = 'feed' }) => {
 
           {/* Purge progress indicator */}
           {(() => {
-            const ratio = localPurges / PURGE_THRESHOLD;
-            const color = localPurges >= 16 ? 'bg-red-500'
-              : localPurges >= 11 ? 'bg-orange-500'
-              : localPurges >= 6 ? 'bg-yellow-500'
+            const ratio = localPurges / POST_PURGE_THRESHOLD;
+            const color = localPurges >= 200 ? 'bg-red-500'
+              : localPurges >= 150 ? 'bg-orange-500'
+              : localPurges >= 75 ? 'bg-yellow-500'
               : 'bg-green-500';
             return (
-              <div className="px-3 pb-1" title={`${localPurges}/${PURGE_THRESHOLD} purges before removal`}>
+              <div className="px-3 pb-1" title={`${localPurges} / ${POST_PURGE_THRESHOLD} purges before removal`}>
                 <div className="h-0.5 w-full bg-muted/10 rounded-full overflow-hidden">
                   <div
                     className={`h-full ${color} rounded-full transition-all duration-700`}
@@ -613,6 +613,9 @@ const Post: React.FC<PostProps> = ({ post, onUpdate, variant = 'feed' }) => {
               </motion.div>
             )}
           </AnimatePresence>
+          {variant === 'feed' && (
+            <div className="h-6 w-full bg-gradient-to-t from-background/60 to-transparent pointer-events-none" />
+          )}
         </div>
 
         {/* Lightbox */}

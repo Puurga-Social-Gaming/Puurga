@@ -4,7 +4,8 @@ import { ReputationEngine } from './reputation-engine';
 import { SurvivalEngine } from './survival-engine';
 import { PurgatoryEngine } from './purgatory-engine';
 import { AllianceEngine } from '../social/alliance-engine';
-import { PURGE_THRESHOLD } from '../../constants/purgeConstants';
+import { PURGE_THRESHOLD, PROFILE_PURGE_THRESHOLD } from '../../constants/purgeConstants';
+import { CreditService } from '../creditService';
 import {
   PURGE_TIERS,
   PURGE_RATE_LIMITS,
@@ -176,12 +177,12 @@ export class PurgeEngine {
     const newVisibilityScore = Math.max(VISIBILITY.MIN, VISIBILITY.DEFAULT - tier.visibilityDrop);
 
     let purgePressure = state?.purge_pressure || 0;
-    if (purgeCount <= 4) purgePressure = 0;
-    else if (purgeCount <= 9) purgePressure = (purgeCount - 4) * 20;
-    else if (purgeCount <= 14) purgePressure = 100;
+    if (purgeCount <= 74) purgePressure = 0;
+    else if (purgeCount <= 149) purgePressure = Math.min(100, Math.floor(((purgeCount - 74) / 75) * 100));
+    else if (purgeCount <= 224) purgePressure = Math.min(100, Math.floor(((purgeCount - 149) / 75) * 100));
     else purgePressure = 100;
 
-    const collapseRisk = Math.min(100, Math.floor((purgeCount / PURGE_THRESHOLD) * 100));
+    const collapseRisk = Math.min(100, Math.floor((purgeCount / PROFILE_PURGE_THRESHOLD) * 100));
 
     const now = new Date().toISOString();
 
@@ -231,7 +232,7 @@ export class PurgeEngine {
     }
 
     let ghostTriggered = false;
-    if (purgeCount >= PURGE_THRESHOLD) {
+    if (purgeCount >= PROFILE_PURGE_THRESHOLD) {
       try {
         const { data: targetProfile } = await supabase
           .from('profiles')
@@ -255,6 +256,13 @@ export class PurgeEngine {
           }
 
           ghostTriggered = true;
+
+          // Award 300 credits to the purger for ghosting a user
+          try {
+            await CreditService.awardCredits(purgerUserId, 300, 'redeem_user', 'Ghosted a user');
+          } catch (e) {
+            console.warn('Ghost reward credit award skipped:', e);
+          }
         }
       } catch (e) {
         console.warn('Ghost trigger skipped:', e);

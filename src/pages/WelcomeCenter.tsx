@@ -461,7 +461,7 @@ export default function WelcomeCenter() {
                 <GameCard
                   title="Cyber Runner"
                   description="Endless runner through a neon-drenched cyberpunk city."
-                  reward="Up to 25 credits per win"
+                  reward="Earn credits per run"
                   time="~3 min"
                   color="bg-cyan-500/10 border border-cyan-500/20"
                   icon={<Gamepad2 size={18} className="text-cyan-400" />}
@@ -469,7 +469,7 @@ export default function WelcomeCenter() {
                 <GameCard
                   title="Sword of Judgment"
                   description="Battle through hordes in this action-packed arena fighter."
-                  reward="Up to 25 credits per win"
+                  reward="Earn credits per battle"
                   time="~5 min"
                   color="bg-red-500/10 border border-red-500/20"
                   icon={<Gamepad2 size={18} className="text-red-400" />}
@@ -477,7 +477,7 @@ export default function WelcomeCenter() {
                 <GameCard
                   title="Purga Rift"
                   description="Strategic puzzle game set in a collapsing dimension."
-                  reward="Up to 20 credits per win"
+                  reward="Earn credits per match"
                   time="~4 min"
                   color="bg-violet-500/10 border border-violet-500/20"
                   icon={<Gamepad2 size={18} className="text-violet-400" />}
@@ -485,7 +485,7 @@ export default function WelcomeCenter() {
                 <GameCard
                   title="Redemption"
                   description="The ultimate ghost survival challenge. Redeem yourself."
-                  reward="Up to 30 credits per win"
+                  reward="Earn credits per session"
                   time="~6 min"
                   color="bg-amber-500/10 border border-amber-500/20"
                   icon={<Gamepad2 size={18} className="text-amber-400" />}

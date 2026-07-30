@@ -7,6 +7,8 @@ const INACTIVITY_CONFIG = {
   WARN_THRESHOLD_DAYS: 5,
   PENALIZED_THRESHOLD_DAYS: 7,
   RESTRICTED_THRESHOLD_DAYS: 14,
+  DISABLED_THRESHOLD_DAYS: 40,
+  GHOST_DURATION_DAYS: 60,
   PENALTY_INTERVAL_HOURS: 48,
 };
 
@@ -37,13 +39,17 @@ export class InactivityService {
     const intervalMs = intervalHours * 60 * 60 * 1000;
     this.intervalId = setInterval(() => {
       this.checkInactiveUsers();
+      this.checkGhostExpiry();
     }, intervalMs);
 
     console.log(
       `InactivityService: Scheduler started (every ${intervalHours} hours, activity column: ${lastActiveCol})`
     );
 
-    setTimeout(() => this.checkInactiveUsers(), 5000);
+    setTimeout(() => {
+      this.checkInactiveUsers();
+      this.checkGhostExpiry();
+    }, 5000);
   }
 
   static stopScheduler(): void {
@@ -105,6 +111,55 @@ export class InactivityService {
     return results;
   }
 
+  static async checkGhostExpiry(): Promise<void> {
+    try {
+      console.log('InactivityService: Checking ghost expiry...');
+
+      const { data: ghostedProfiles, error } = await supabaseAdmin
+        .from('profiles')
+        .select('id, ghosted_at')
+        .eq('is_ghost', true)
+        .not('ghosted_at', 'is', null);
+
+      if (error) {
+        console.error('InactivityService: Error fetching ghosted profiles', error);
+        return;
+      }
+
+      const now = new Date();
+      const ghostDurationMs = INACTIVITY_CONFIG.GHOST_DURATION_DAYS * 24 * 60 * 60 * 1000;
+
+      for (const profile of ghostedProfiles || []) {
+        const ghostedAt = new Date(profile.ghosted_at);
+        const timeSinceGhosted = now.getTime() - ghostedAt.getTime();
+
+        if (timeSinceGhosted >= ghostDurationMs) {
+          console.log(`InactivityService: Unghosting user ${profile.id} (ghost duration expired)`);
+
+          await supabaseAdmin
+            .from('profiles')
+            .update({
+              is_ghost: false,
+              ghosted_at: null,
+              account_status: 'active',
+            })
+            .eq('id', profile.id);
+
+          wsManager.sendToUser(profile.id, {
+            type: 'profile_update',
+            payload: {
+              userId: profile.id,
+              isGhost: false,
+              message: 'Your ghost period has expired. Welcome back!',
+            },
+          });
+        }
+      }
+    } catch (error) {
+      console.error('InactivityService: Error checking ghost expiry', error);
+    }
+  }
+
   private static async processUserInactivity(
     profile: Record<string, unknown>,
     now: Date,
@@ -142,7 +197,11 @@ export class InactivityService {
     let newStatus = 'active';
     let penalty = 0;
 
-    if (daysInactive >= INACTIVITY_CONFIG.RESTRICTED_THRESHOLD_DAYS) {
+    if (daysInactive >= INACTIVITY_CONFIG.DISABLED_THRESHOLD_DAYS) {
+      newLevel = 4;
+      newStatus = 'disabled';
+      penalty = 0;
+    } else if (daysInactive >= INACTIVITY_CONFIG.RESTRICTED_THRESHOLD_DAYS) {
       newLevel = 3;
       newStatus = 'restricted';
       penalty = INACTIVITY_CONFIG.PENALTY_INTERVAL_HOURS >= 48 ? 15 : 0;
@@ -186,7 +245,7 @@ export class InactivityService {
       statusUpdate.inactivity_level = newLevel;
       statusUpdate.account_status = newStatus;
     }
-    statusUpdate.is_restricted = newStatus === 'restricted';
+    statusUpdate.is_restricted = newStatus === 'restricted' || newStatus === 'disabled';
     await supabaseAdmin.from('profiles').update(statusUpdate).eq('id', userId);
 
     return {

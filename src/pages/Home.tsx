@@ -5,7 +5,6 @@ import { useNavigate } from 'react-router-dom';
 import { Post, ReactionCount } from '../types';
 import PostList from '../components/Post/PostList';
 import StatusBar from '../components/StatusBar/StatusBar';
-import NewGamePromoBanner from '../components/Games/NewGamePromoBanner';
 import api from '../api/api';
 import { supabase } from '../lib/supabaseClient';
 import FloatingCreateButton from '../components/Post/FloatingCreateButton';
@@ -362,6 +361,12 @@ export default function Home() {
     fetchPosts(page + 1);
   };
 
+  const handleScrollToTop = () => {
+    const mainScroll = document.querySelector('.app-main-scroll');
+    if (mainScroll) mainScroll.scrollTo({ top: 0, behavior: 'smooth' });
+    fetchPosts(1);
+  };
+
   // Infinite scroll with Intersection Observer
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -425,7 +430,6 @@ export default function Home() {
     <div className="relative w-full">
       {/* Status Bar — scrolls with content, hides under the fixed header */}
       <div className="w-full pb-2">
-        <NewGamePromoBanner className="mb-3" />
         <StatusBar onViewerStateChange={setIsStatusViewerOpen} />
       </div>
 
@@ -453,13 +457,6 @@ export default function Home() {
                     </p>
                   </div>
                 )}
-                {!isLoadingMore && hasMore && !loadMoreError && (
-                  <div className="py-3 flex justify-center pb-16">
-                    <p className="text-[10px] text-muted/70 uppercase tracking-wider">
-                      Scroll for more
-                    </p>
-                  </div>
-                )}
                 {loadMoreError && (
                   <div className="py-4 flex justify-center pb-16">
                     <button
@@ -471,7 +468,19 @@ export default function Home() {
                     </button>
                   </div>
                 )}
-                <div ref={sentinelRef} className="h-8" />
+                {!hasMore && !loading && posts.length > 0 && (
+                  <div className="pt-2 pb-6 flex justify-center">
+                    <button
+                      type="button"
+                      onClick={handleScrollToTop}
+                      className="px-4 py-2 rounded-full bg-accent/10 text-accent text-xs font-medium hover:bg-accent/20 transition-colors"
+                    >
+                      Check for new posts
+                    </button>
+                  </div>
+                )}
+                {!hasMore && posts.length > 0 && <div className="h-1" />}
+                {hasMore && <div ref={sentinelRef} className="h-8" />}
               </>
             )}
 
@@ -589,7 +598,7 @@ export default function Home() {
             {!isStatusViewerOpen && (
               <button
                 onClick={() => setSidebarOpen(!sidebarOpen)}
-                className="fixed right-3 top-1/2 -translate-y-1/2 z-[60] lg:hidden flex flex-col items-center gap-1 w-16 h-16 min-h-[44px] rounded-full bg-transparent border-transparent shadow-none flex items-center justify-center transition-all duration-300 hover:scale-110"
+                className="fixed right-3 top-[55%] -translate-y-1/2 z-[60] lg:hidden flex flex-col items-center gap-1 w-16 h-16 min-h-[44px] rounded-full bg-transparent border-transparent shadow-none flex items-center justify-center transition-all duration-300 hover:scale-110"
               >
                 {sidebarOpen ? (
                   <ChevronLeft className="w-5 h-5 text-foreground" />
@@ -627,13 +636,6 @@ export default function Home() {
                   </p>
                 </div>
               )}
-              {!isLoadingMore && hasMore && !loadMoreError && (
-                <div className="py-3 flex justify-center pb-16">
-                  <p className="text-[10px] text-muted/70 uppercase tracking-wider">
-                    Scroll for more
-                  </p>
-                </div>
-              )}
               {loadMoreError && (
                 <div className="py-4 flex justify-center pb-16">
                   <button
@@ -645,7 +647,19 @@ export default function Home() {
                   </button>
                 </div>
               )}
-              <div ref={sentinelRef} className="h-8" />
+              {!hasMore && !loading && posts.length > 0 && (
+                <div className="pt-2 pb-6 flex justify-center">
+                  <button
+                    type="button"
+                    onClick={handleScrollToTop}
+                    className="px-4 py-2 rounded-full bg-accent/10 text-accent text-xs font-medium hover:bg-accent/20 transition-colors"
+                  >
+                    Check for new posts
+                  </button>
+                </div>
+              )}
+              {!hasMore && posts.length > 0 && <div className="h-1" />}
+              {hasMore && <div ref={sentinelRef} className="h-8" />}
             </>
           )}
         </div>

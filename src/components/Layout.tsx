@@ -15,6 +15,7 @@ function isFullBleedPath(pathname: string): boolean {
   if (pathname.startsWith('/messages')) return true;
   if (/^\/groups\/[^/]+$/.test(pathname)) return true;
   if (pathname.startsWith('/games')) return true;
+  if (pathname === '/puurga-games') return true;
   return false;
 }
 

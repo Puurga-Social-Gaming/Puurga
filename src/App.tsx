@@ -40,6 +40,7 @@ const Connections = retryableLazy(() => import('./pages/Connections'));
 const UserList = retryableLazy(() => import('./pages/Admin/UserList'));
 const SuperAdmin = retryableLazy(() => import('./pages/SuperAdmin/SuperAdmin'));
 import VideoScreen from './components/Onboarding/VideoScreen';
+import GifScreen from './components/Onboarding/GifScreen';
 import AuthCallback from './pages/AuthCallback';
 import LanguageScreen from './components/Onboarding/LanguageScreen';
 import WelcomeScreenWrapper from './components/Onboarding/WelcomeScreenWrapper';
@@ -69,9 +70,8 @@ const RootRedirect: React.FC = () => {
   const navigate = useNavigate();
   const { hash, search } = window.location;
 
-  if (!localStorage.getItem('hasSeenIntro')) {
-    return <Navigate to="/onboarding/video" replace />;
-  }
+  // Always redirect to intro video — intro plays on every launch
+  // (removed hasSeenIntro gate per requirement: intro plays every time)
 
   // 1. Immediate synchronous check for recovery token
   // If we see it, don't wait for effects or auth states, just go there.
@@ -123,7 +123,7 @@ const RootRedirect: React.FC = () => {
     return <Navigate to={`/login${search}${hash}`} replace />;
   }
 
-  return <Navigate to="/login" replace />;
+  return <Navigate to="/onboarding/video" replace />;
 };
 
 const PublicSuspense: React.FC = () => (
@@ -150,6 +150,7 @@ const router = createBrowserRouter(
         <Route element={<RootLayout />}>
           <Route path="/splash" element={<Navigate to="/onboarding/video" replace />} />
           <Route path="/onboarding/video" element={<VideoScreen />} />
+          <Route path="/onboarding/gif" element={<GifScreen />} />
           <Route path="/onboarding/language" element={<LanguageScreen />} />
           <Route path="/onboarding/welcome" element={<WelcomeScreenWrapper />} />
           <Route path="/login" element={<Login />} />

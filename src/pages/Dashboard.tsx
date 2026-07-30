@@ -8,6 +8,8 @@ import { Link } from 'react-router-dom';
 import { useCredits } from '../hooks/useCredits';
 import { useWebSocket } from '../hooks/useWebSocket';
 import api from '../lib/axios';
+import { formatCredits } from '../utils/formatCredits';
+import { AnimatedCreditCounter } from '../components/Credits/AnimatedCreditCounter';
 
 interface DashboardStats {
   credits: number;
@@ -79,7 +81,7 @@ const Dashboard: React.FC = () => {
 
   useWebSocket({ onCreditUpdate, onNotification });
 
-  const creditsDisplay = balance > 0 ? balance.toLocaleString() : (statsData.display.credits || '0');
+  const creditsDisplay = balance > 0 ? formatCredits(balance) : (statsData.display.credits || '0');
 
   const stats = [
     {
@@ -171,8 +173,8 @@ const Dashboard: React.FC = () => {
             </div>
             <div>
               <p className="text-xs text-muted font-semibold uppercase tracking-widest mb-0.5">Your Purga Credits</p>
-              <p className="text-4xl sm:text-5xl font-bold text-foreground tabular-nums">
-                {loading ? '—' : creditsDisplay}
+              <p className="text-4xl sm:text-5xl font-bold text-foreground">
+                {loading ? '—' : <AnimatedCreditCounter value={balance} />}
               </p>
             </div>
           </div>

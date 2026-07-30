@@ -92,6 +92,7 @@ const SurvivalStatusBar: React.FC = () => {
           purgeCount={survivalState.purge_count}
           purgePressure={survivalState.purge_pressure || 0}
           collapseRisk={survivalState.collapse_risk || 0}
+          threshold={300}
         />
 
         {(survivalState.visibility_score !== undefined && survivalState.visibility_score < 80) && (

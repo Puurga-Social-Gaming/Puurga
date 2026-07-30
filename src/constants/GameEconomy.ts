@@ -33,15 +33,15 @@ export const GAME_ECONOMY: Record<string, GameEconomyRules> = {
     REDEMPTION: {
         id: 'redemption',
         name: 'Redemption: Paths of Restoration',
-        // 1 Score Point = 1 Credit
-        scoreToCreditsRatio: 1.0,
+        // 50 tokens = 1 credit
+        scoreToCreditsRatio: 0.02,
         rewards: {
-            completion: 20,
-            perfectScore: 50,
-            dailyBonus: 100
+            completion: 1,
+            perfectScore: 2.5,
+            dailyBonus: 5
         },
         penalties: {
-            wrongAnswer: 5 // Lose 5 credits for each wrong answer
+            wrongAnswer: 0.25
         },
         costs: {
             purgeReduction: 150,
@@ -52,66 +52,66 @@ export const GAME_ECONOMY: Record<string, GameEconomyRules> = {
     SWORD_OF_JUDGMENT: {
         id: 'sword_of_judgment',
         name: 'Sword of Judgment',
-        // 10 Score Points = 1 Credit (slicing game earns lots of points quickly)
-        scoreToCreditsRatio: 0.1,
+        // 50 tokens = 1 credit
+        scoreToCreditsRatio: 0.02,
         rewards: {
-            completion: 15,
-            win: 25,
-            perfectScore: 75 // No corruption hits during game
+            completion: 0.75,
+            win: 1.25,
+            perfectScore: 3.75
         },
         penalties: {
-            corruption: 10, // Hitting a bomb/skull loses credits
-            missedTarget: 2 // Missing a fruit/icon costs credits
+            corruption: 0.5,
+            missedTarget: 0.1
         }
     },
     PATH_OF_WATCHMAN: {
         id: 'path_of_watchman',
         name: 'Path of the Watchman',
-        // Balanced ratio for action game
-        scoreToCreditsRatio: 0.08,
+        // 50 tokens = 1 credit
+        scoreToCreditsRatio: 0.02,
         rewards: {
-            completion: 20,
-            win: 50 // Surviving the full game
+            completion: 1,
+            win: 2.5
         },
         penalties: {
-            corruption: 5 // Getting hit by enemies
+            corruption: 0.25
         }
     },
     PURGA_RIFT: {
         id: 'purga_rift',
         name: 'Purga Rift',
-        scoreToCreditsRatio: 0.12,
+        scoreToCreditsRatio: 0.02,
         rewards: {
-            completion: 25,
-            win: 40,
-            perfectScore: 80,
+            completion: 1.25,
+            win: 2,
+            perfectScore: 4,
         },
         penalties: {
-            wrongAnswer: 8,
+            wrongAnswer: 0.4,
         },
     },
     CYBER_RUNNER: {
         id: 'cyber_runner',
         name: 'Cyber Runner',
-        scoreToCreditsRatio: 0.1,
+        scoreToCreditsRatio: 0.02,
         rewards: {
-            completion: 20,
-            win: 35,
-            perfectScore: 70,
+            completion: 1,
+            win: 1.75,
+            perfectScore: 3.5,
         },
         penalties: {
-            missedTarget: 3,
-            corruption: 5,
+            missedTarget: 0.15,
+            corruption: 0.25,
         },
     },
     // Template for future games
     TEMPLATE_GAME: {
         id: 'template',
         name: 'Template Game',
-        scoreToCreditsRatio: 0.5, // 2 Score Points = 1 Credit
+        scoreToCreditsRatio: 0.02,
         rewards: {
-            completion: 10,
-            win: 50
+            completion: 0.5,
+            win: 2.5
         }
     }
 };

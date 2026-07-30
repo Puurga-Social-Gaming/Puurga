@@ -199,7 +199,8 @@ class WebSocketService {
     socket.onerror = () => {
           if (this.ws !== socket) return;
           // Browser fires onerror then onclose — avoid double-noisy logs
-          if (IS_DEV && this.reconnectAttempts === 0) {
+          // Only warn once per connection attempt in dev
+          if (IS_DEV && this.reconnectAttempts <= 1) {
             console.warn('[WebSocket] Connection error — will retry');
           }
         };
@@ -230,7 +231,9 @@ class WebSocketService {
 
     this.reconnectAttempts++;
     const delay = Math.min(this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1), 30000);
-    this.log(`Reconnect in ${delay}ms (${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
+    if (IS_DEV) {
+      this.log(`Reconnect in ${delay}ms (${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
+    }
 
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;

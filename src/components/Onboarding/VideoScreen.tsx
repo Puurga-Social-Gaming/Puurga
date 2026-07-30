@@ -21,7 +21,7 @@ const VideoScreen = () => {
   const isDesktop = useMediaQuery('(min-width: 1024px)');
   const videoFile = isDesktop ? DESKTOP_FILE : MOBILE_FILE;
 
-  const proceedToNext = useCallback(() => {
+  const proceedToNext = useCallback(async () => {
     if (proceedLocked.current) return;
     proceedLocked.current = true;
     if (document.fullscreenElement) {
@@ -29,8 +29,9 @@ const VideoScreen = () => {
     }
     setIsExiting(true);
     useOnboardingAudioStore.getState().startAudio();
+
     setTimeout(() => {
-      navigate('/onboarding/language');
+      navigate('/onboarding/gif');
     }, EXIT_FADE_MS);
   }, [navigate]);
 
@@ -130,7 +131,7 @@ const VideoScreen = () => {
 
   return (
     <div
-      className={isDesktop ? 'fixed inset-0' : 'min-h-screen flex flex-col items-center justify-center p-4'}
+      className="fixed inset-0"
       style={{
         backgroundColor: 'rgb(var(--bg))',
         color: 'rgb(var(--fg))',
@@ -138,19 +139,10 @@ const VideoScreen = () => {
         transition: `opacity ${EXIT_FADE_MS}ms ease-in-out`,
       }}
     >
-      {isDesktop ? (
-        <video
-          {...videoProps}
-          className="w-full h-full object-cover"
-        />
-      ) : (
-        <div className="w-full mx-auto max-w-sm aspect-[9/16]">
-          <video
-            {...videoProps}
-            className="w-full h-full rounded-xl object-contain"
-          />
-        </div>
-      )}
+      <video
+        {...videoProps}
+        className="w-full h-full object-cover"
+      />
     </div>
   );
 };

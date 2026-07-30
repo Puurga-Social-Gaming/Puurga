@@ -260,23 +260,24 @@ const Register: React.FC = () => {
       initial={{ x: 0 }}
       animate={{ x: 0 }}
       transition={{ type: "spring", duration: 0.5 }}
-      className="min-h-screen bg-[#0a0a0a] flex items-center justify-center px-4 dark"
+      className="min-h-screen flex items-center justify-center px-4"
+      style={{ backgroundColor: 'rgb(var(--bg))', color: 'rgb(var(--fg))' }}
     >
       <div className="register-container w-full max-w-md space-y-8 transition-transform duration-300">
         <div className="text-center">
-          <PuurgaLogo size={48} className="mx-auto text-white" />
-          <h2 className="mt-6 text-3xl font-bold text-white">{t('auth.joinPuurga')}</h2>
-          <p className="mt-2 text-gray-400">{t('auth.connectWithCommunity')}</p>
+          <PuurgaLogo size={48} className="mx-auto" />
+          <h2 className="mt-6 text-3xl font-bold" style={{ color: 'rgb(var(--fg))' }}>{t('auth.joinPuurga')}</h2>
+          <p className="mt-2" style={{ color: 'rgb(var(--muted))' }}>{t('auth.connectWithCommunity')}</p>
         </div>
 
         <div className="space-y-4">
           <GoogleSignInButton onClick={handleGoogleSignIn} isLoading={oauthLoading} />
           <div className="relative">
             <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-[#2d2d2d]" />
+              <div className="w-full border-t" style={{ borderColor: 'rgb(var(--border))' }} />
             </div>
             <div className="relative flex justify-center text-sm">
-              <span className="px-2 bg-[#0a0a0a] text-gray-400">{t('auth.orRegisterWithEmail')}</span>
+              <span className="px-2" style={{ backgroundColor: 'rgb(var(--bg))', color: 'rgb(var(--muted))' }}>{t('auth.orRegisterWithEmail')}</span>
             </div>
           </div>
         </div>
@@ -290,7 +291,7 @@ const Register: React.FC = () => {
           
           <div className="space-y-4">
             <div>
-              <label htmlFor="name" className="block text-sm font-medium text-gray-300">
+              <label htmlFor="name" className="block text-sm font-medium" style={{ color: 'rgb(var(--fg-secondary))' }}>
                 {t('auth.fullName')}
               </label>
               <div className="relative">
@@ -299,9 +300,10 @@ const Register: React.FC = () => {
                   type="text"
                   value={name}
                   onChange={(e) => handleFieldChange('name', e.target.value)}
-                  className={`mt-1 block w-full rounded-lg bg-[#1a1a1a] border px-4 py-2 text-white focus:ring-2 focus:ring-white focus:border-transparent focus:border-transparent transition-all duration-200 ${
-                    validations.name.valid ? 'border-[#2d2d2d]' : 'border-red-500'
+                  className={`mt-1 block w-full rounded-lg border px-4 py-2 focus:ring-2 focus:ring-white focus:border-transparent transition-all duration-200 ${
+                    validations.name.valid ? '' : 'border-red-500'
                   }`}
+                  style={{ backgroundColor: 'rgb(var(--card))', borderColor: validations.name.valid ? 'rgb(var(--border))' : undefined, color: 'rgb(var(--fg))' }}
                   placeholder={t('auth.enterName')}
                 />
                 {name && (
@@ -320,7 +322,7 @@ const Register: React.FC = () => {
             </div>
 
             <div>
-              <label htmlFor="username" className="block text-sm font-medium text-gray-300">
+              <label htmlFor="username" className="block text-sm font-medium" style={{ color: 'rgb(var(--fg-secondary))' }}>
                 {t('auth.username')}
               </label>
               <div className="relative">
@@ -329,9 +331,10 @@ const Register: React.FC = () => {
                   type="text"
                   value={username}
                   onChange={(e) => handleFieldChange('username', e.target.value)}
-                  className={`mt-1 block w-full rounded-lg bg-[#1a1a1a] border px-4 py-2 text-white focus:ring-2 focus:ring-white focus:border-transparent focus:border-transparent transition-all duration-200 ${
-                    validations.username.valid ? 'border-[#2d2d2d]' : 'border-red-500'
+                  className={`mt-1 block w-full rounded-lg border px-4 py-2 focus:ring-2 focus:ring-white focus:border-transparent transition-all duration-200 ${
+                    validations.username.valid ? '' : 'border-red-500'
                   }`}
+                  style={{ backgroundColor: 'rgb(var(--card))', borderColor: validations.username.valid ? 'rgb(var(--border))' : undefined, color: 'rgb(var(--fg))' }}
                   placeholder={t('auth.chooseUsername')}
                 />
                 {username && (
@@ -350,7 +353,7 @@ const Register: React.FC = () => {
             </div>
             
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-300">
+              <label htmlFor="email" className="block text-sm font-medium" style={{ color: 'rgb(var(--fg-secondary))' }}>
                 {t('auth.emailAddress')}
               </label>
               <div className="relative">
@@ -359,9 +362,10 @@ const Register: React.FC = () => {
                   type="email"
                   value={email}
                   onChange={(e) => handleFieldChange('email', e.target.value)}
-                  className={`mt-1 block w-full rounded-lg bg-[#1a1a1a] border px-4 py-2 text-white focus:ring-2 focus:ring-white focus:border-transparent focus:border-transparent transition-all duration-200 ${
-                    validations.email.valid ? 'border-[#2d2d2d]' : 'border-red-500'
+                  className={`mt-1 block w-full rounded-lg border px-4 py-2 focus:ring-2 focus:ring-white focus:border-transparent transition-all duration-200 ${
+                    validations.email.valid ? '' : 'border-red-500'
                   }`}
+                  style={{ backgroundColor: 'rgb(var(--card))', borderColor: validations.email.valid ? 'rgb(var(--border))' : undefined, color: 'rgb(var(--fg))' }}
                   placeholder={t('auth.enterEmail')}
                 />
                 {email && (
@@ -380,7 +384,7 @@ const Register: React.FC = () => {
             </div>
             
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-300">
+              <label htmlFor="password" className="block text-sm font-medium" style={{ color: 'rgb(var(--fg-secondary))' }}>
                 {t('auth.password')}
               </label>
               <div className="relative">
@@ -389,28 +393,30 @@ const Register: React.FC = () => {
                   type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(e) => handleFieldChange('password', e.target.value)}
-                  className={`mt-1 block w-full rounded-lg bg-[#1a1a1a] border px-4 py-2 text-white focus:ring-2 focus:ring-white focus:border-transparent focus:border-transparent pr-10 transition-all duration-200 ${
-                    validations.password.valid ? 'border-[#2d2d2d]' : 'border-red-500'
+                  className={`mt-1 block w-full rounded-lg border px-4 py-2 focus:ring-2 focus:ring-white focus:border-transparent pr-10 transition-all duration-200 ${
+                    validations.password.valid ? '' : 'border-red-500'
                   }`}
+                  style={{ backgroundColor: 'rgb(var(--card))', borderColor: validations.password.valid ? 'rgb(var(--border))' : undefined, color: 'rgb(var(--fg))' }}
                   placeholder={t('auth.choosePassword')}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white"
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 hover:opacity-80"
+                  style={{ color: 'rgb(var(--muted))' }}
                 >
                   {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                 </button>
               </div>
               {password && (
                 <div className="mt-2">
-                  <div className="h-1 w-full bg-gray-200 rounded-full overflow-hidden">
+                  <div className="h-1 w-full rounded-full overflow-hidden" style={{ backgroundColor: 'rgb(var(--border))' }}>
                     <div
                       className={`h-full ${getPasswordStrengthColor()} transition-all duration-300`}
                       style={{ width: `${(calculatePasswordStrength(password) / 4) * 100}%` }}
                     />
                   </div>
-                  <p className="mt-1 text-sm text-gray-400">
+                  <p className="mt-1 text-sm" style={{ color: 'rgb(var(--muted))' }}>
                     Password strength: {['Weak', 'Fair', 'Good', 'Strong'][calculatePasswordStrength(password) - 1] || 'Very Weak'}
                   </p>
                 </div>
@@ -421,7 +427,7 @@ const Register: React.FC = () => {
             </div>
 
             <div>
-              <label htmlFor="verifyPassword" className="block text-sm font-medium text-gray-300">
+              <label htmlFor="verifyPassword" className="block text-sm font-medium" style={{ color: 'rgb(var(--fg-secondary))' }}>
                 {t('auth.confirmPassword')}
               </label>
               <div className="relative">
@@ -430,15 +436,17 @@ const Register: React.FC = () => {
                   type={showVerifyPassword ? "text" : "password"}
                   value={verifyPassword}
                   onChange={(e) => handleFieldChange('verifyPassword', e.target.value)}
-                  className={`mt-1 block w-full rounded-lg bg-[#1a1a1a] border px-4 py-2 text-white focus:ring-2 focus:ring-white focus:border-transparent focus:border-transparent pr-10 transition-all duration-200 ${
-                    validations.verifyPassword.valid ? 'border-[#2d2d2d]' : 'border-red-500'
+                  className={`mt-1 block w-full rounded-lg border px-4 py-2 focus:ring-2 focus:ring-white focus:border-transparent pr-10 transition-all duration-200 ${
+                    validations.verifyPassword.valid ? '' : 'border-red-500'
                   }`}
+                  style={{ backgroundColor: 'rgb(var(--card))', borderColor: validations.verifyPassword.valid ? 'rgb(var(--border))' : undefined, color: 'rgb(var(--fg))' }}
                   placeholder={t('auth.verifyPassword')}
                 />
                 <button
                   type="button"
                   onClick={() => setShowVerifyPassword(!showVerifyPassword)}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white"
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 hover:opacity-80"
+                  style={{ color: 'rgb(var(--muted))' }}
                 >
                   {showVerifyPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                 </button>
@@ -458,12 +466,13 @@ const Register: React.FC = () => {
             {loading ? t('auth.creatingAccount') : t('auth.createAccount')}
           </Button>
           
-          <p className="text-center text-sm text-gray-400">
+          <p className="text-center text-sm" style={{ color: 'rgb(var(--muted))' }}>
             {t('auth.alreadyHaveAccount')}{' '}
             <Link 
               to="/login" 
               onClick={handleSignInClick}
-              className="font-medium text-white hover:text-gray-300"
+              className="font-medium hover:opacity-80"
+              style={{ color: 'rgb(var(--fg))' }}
             >
               {t('auth.signIn')}
             </Link>

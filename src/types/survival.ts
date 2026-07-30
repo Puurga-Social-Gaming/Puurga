@@ -200,25 +200,25 @@ export const THREAT_COLORS: Record<string, string> = {
 export type PurgeTier = 'STABLE' | 'WATCHED' | 'HUNTED' | 'COLLAPSING' | 'GHOSTED';
 
 export const PURGE_TIER_CONFIG: Record<PurgeTier, { min: number; max: number; visibilityDrop: number; label: string; color: string; barColor: string }> = {
-  STABLE: { min: 0, max: 4, visibilityDrop: 0, label: 'Stable', color: 'text-green-400 border-green-500/30 bg-green-500/10', barColor: 'bg-green-500' },
-  WATCHED: { min: 5, max: 9, visibilityDrop: 10, label: 'Watched', color: 'text-amber-400 border-amber-500/30 bg-amber-500/10', barColor: 'bg-amber-500' },
-  HUNTED: { min: 10, max: 14, visibilityDrop: 25, label: 'Hunted', color: 'text-orange-400 border-orange-500/30 bg-orange-500/10', barColor: 'bg-orange-500' },
-  COLLAPSING: { min: 15, max: 19, visibilityDrop: 50, label: 'Collapsing', color: 'text-red-500 border-red-500/30 bg-red-500/10', barColor: 'bg-red-500' },
-  GHOSTED: { min: 20, max: Infinity, visibilityDrop: 80, label: 'Ghosted', color: 'text-gray-400 border-gray-500/30 bg-gray-500/10', barColor: 'bg-gray-400' },
+  STABLE: { min: 0, max: 74, visibilityDrop: 0, label: 'Stable', color: 'text-green-400 border-green-500/30 bg-green-500/10', barColor: 'bg-green-500' },
+  WATCHED: { min: 75, max: 149, visibilityDrop: 10, label: 'Watched', color: 'text-amber-400 border-amber-500/30 bg-amber-500/10', barColor: 'bg-amber-500' },
+  HUNTED: { min: 150, max: 224, visibilityDrop: 25, label: 'Hunted', color: 'text-orange-400 border-orange-500/30 bg-orange-500/10', barColor: 'bg-orange-500' },
+  COLLAPSING: { min: 225, max: 299, visibilityDrop: 50, label: 'Collapsing', color: 'text-red-500 border-red-500/30 bg-red-500/10', barColor: 'bg-red-500' },
+  GHOSTED: { min: 300, max: Infinity, visibilityDrop: 80, label: 'Ghosted', color: 'text-gray-400 border-gray-500/30 bg-gray-500/10', barColor: 'bg-gray-400' },
 };
 
 export function getPurgeTier(purgeCount: number): PurgeTier {
-  if (purgeCount >= 20) return 'GHOSTED';
-  if (purgeCount >= 15) return 'COLLAPSING';
-  if (purgeCount >= 10) return 'HUNTED';
-  if (purgeCount >= 5) return 'WATCHED';
+  if (purgeCount >= 300) return 'GHOSTED';
+  if (purgeCount >= 225) return 'COLLAPSING';
+  if (purgeCount >= 150) return 'HUNTED';
+  if (purgeCount >= 75) return 'WATCHED';
   return 'STABLE';
 }
 
 export function getNextTierThreshold(purgeCount: number): number {
-  if (purgeCount < 5) return 5;
-  if (purgeCount < 10) return 10;
-  if (purgeCount < 15) return 15;
-  if (purgeCount < 20) return 20;
-  return 20;
+  if (purgeCount < 75) return 75;
+  if (purgeCount < 150) return 150;
+  if (purgeCount < 225) return 225;
+  if (purgeCount < 300) return 300;
+  return 300;
 }

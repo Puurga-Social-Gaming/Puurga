@@ -18,6 +18,7 @@ import { SurvivalBadge } from '../components/Survival';
 import CertificationBadges from '../components/Profile/CertificationBadges';
 import CertificationPanel from '../components/Profile/CertificationPanel';
 import { DEFAULT_IMAGES } from '../constants/defaultImages';
+import { formatCredits } from '../utils/formatCredits';
 import CreditTransactionHistory from '../components/Credits/CreditTransactionHistory';
 import CreditTransferPanel from '../components/Credits/CreditTransferPanel';
 import {
@@ -211,7 +212,7 @@ const Profile: React.FC = () => {
     { value: profileData.stats?.followers || 0, label: t('profile.followers') },
     { value: profileData.stats?.following || 0, label: t('profile.following') },
     { value: profileData.stats?.puurgas || 0, label: t('profile.puurgas') },
-    { value: profileData.stats?.credits || profileData.credits || 0, label: 'Credits', accent: true },
+    { value: formatCredits(profileData.stats?.credits || profileData.credits || 0), label: 'Credits', accent: true },
   ];
 
   return (

@@ -35,8 +35,7 @@ const OnboardingAudioManager: React.FC = () => {
       audioRef.current.preload = 'auto';
     }
 
-    const seen = localStorage.getItem('hasSeenIntro');
-    const enabled = !seen;
+    const enabled = true;
     useOnboardingAudioStore.getState().initialize(enabled);
 
     if (!enabled) return;

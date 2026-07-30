@@ -74,7 +74,7 @@ app.use(helmet({
       scriptSrc: ["'self'", "'unsafe-inline'"],
       styleSrc: ["'self'", "'unsafe-inline'"],
       imgSrc: ["'self'", 'data:', 'blob:', 'https://*.supabase.co', '*'],
-      connectSrc: ["'self'", 'https://*.supabase.co', 'wss://*.supabase.co', 'ws://www.puurga.com', 'wss://www.puurga.com'],
+      connectSrc: ["'self'", 'https://*.supabase.co', 'wss://*.supabase.co', 'ws:', 'wss:'],
       fontSrc: ["'self'", 'data:', 'https://fonts.gstatic.com'],
       reportUri: '/api/security/csp-report'
     }
@@ -119,25 +119,36 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Serve uploaded files statically
+// Serve uploaded files statically — try multiple paths so dev and production both work
+const backendUploadsPath = path.resolve(__dirname, 'uploads');
 const storagePath = path.resolve(__dirname, '..', 'storage', 'media', 'uploads');
 const fallbackStoragePath = path.resolve(__dirname, '..', '..', 'storage', 'media', 'uploads');
-const backendUploadsPath = path.resolve(__dirname, 'uploads');
+const prodStoragePath = '/var/www/app/storage/media/uploads';
 
-const getStaticUploadPath = () => {
-  if (fs.existsSync(backendUploadsPath)) return backendUploadsPath;
-  if (fs.existsSync(storagePath)) return storagePath;
-  return fallbackStoragePath;
+const getStaticUploadPaths = (): string[] => {
+  return [backendUploadsPath, storagePath, fallbackStoragePath, prodStoragePath].filter(p => {
+    try { return fs.existsSync(p); } catch { return false; }
+  });
 };
 
-app.use('/uploads', express.static(getStaticUploadPath(), {
-  setHeaders: (res) => {
-    res.set('Access-Control-Allow-Origin', '*');
-    res.set('Access-Control-Allow-Methods', 'GET');
-    res.set('Cache-Control', 'public, max-age=31557600');
-    res.set('Cross-Origin-Resource-Policy', 'cross-origin');
-  }
-}));
+const staticPaths = getStaticUploadPaths();
+if (staticPaths.length === 0) {
+  console.warn('⚠️ No upload directories found — uploads will 404');
+} else {
+  console.log('Serving uploads from:', staticPaths);
+}
+
+// Mount each valid path (earliest wins)
+for (const uploadDir of staticPaths) {
+  app.use('/uploads', express.static(uploadDir, {
+    setHeaders: (res) => {
+      res.set('Access-Control-Allow-Origin', '*');
+      res.set('Access-Control-Allow-Methods', 'GET');
+      res.set('Cache-Control', 'public, max-age=31557600');
+      res.set('Cross-Origin-Resource-Policy', 'cross-origin');
+    }
+  }));
+}
 
 // Serve static files from public directory
 app.use(express.static(path.join(__dirname, '../public'), {
@@ -148,7 +159,7 @@ app.use(express.static(path.join(__dirname, '../public'), {
   }
 }));
 
-console.log('Serving uploads from:', getUploadPath());
+console.log('Serving uploads from:', staticPaths);
 console.log('Serving public files from:', path.join(__dirname, '../public'));
 
 // Request logging middleware

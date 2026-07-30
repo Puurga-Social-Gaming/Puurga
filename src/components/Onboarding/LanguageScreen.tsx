@@ -2,14 +2,14 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
-import { Globe, ChevronRight } from 'lucide-react';
+import { Globe } from 'lucide-react';
 import { detectLocaleLanguage } from '../../i18n/detectLocaleLanguage';
 
 const LANGUAGES = [
   { code: 'en', name: 'English', nativeName: 'English' },
-  { code: 'fr', name: 'French', nativeName: 'Français' },
-  { code: 'es', name: 'Spanish', nativeName: 'Español' },
-  { code: 'pt', name: 'Portuguese', nativeName: 'Português' },
+  { code: 'fr', name: 'French', nativeName: 'Francais' },
+  { code: 'es', name: 'Spanish', nativeName: 'Espanol' },
+  { code: 'pt', name: 'Portuguese', nativeName: 'Portugues' },
   { code: 'sw', name: 'Swahili', nativeName: 'Kiswahili' },
   { code: 'zh', name: 'Chinese', nativeName: '中文' },
   { code: 'ar', name: 'Arabic', nativeName: 'العربية' },
@@ -25,17 +25,14 @@ const LanguageScreen: React.FC = () => {
     return detectLocaleLanguage();
   })();
   const [selectedLang, setSelectedLang] = useState<string>(detected);
+  const [navigating, setNavigating] = useState(false);
 
   const handleLanguageSelect = async (langCode: string) => {
+    if (navigating) return;
     setSelectedLang(langCode);
+    setNavigating(true);
     await i18n.changeLanguage(langCode);
     localStorage.setItem('i18nextLng', langCode);
-  };
-
-  const handleContinue = async () => {
-    const lang = selectedLang || detectLocaleLanguage();
-    await i18n.changeLanguage(lang);
-    localStorage.setItem('i18nextLng', lang);
     localStorage.setItem('hasSeenIntro', 'true');
     navigate('/onboarding/welcome');
   };
@@ -69,23 +66,12 @@ const LanguageScreen: React.FC = () => {
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: index * 0.05 }}
               onClick={() => handleLanguageSelect(lang.code)}
-              className="flex items-center justify-between p-4 rounded-xl transition-all group"
+              disabled={navigating}
+              className="flex items-center justify-between p-4 rounded-xl transition-all group disabled:opacity-50"
               style={{
                 backgroundColor: selectedLang === lang.code ? 'rgb(var(--accent))' : 'rgb(var(--card))',
                 border: selectedLang === lang.code ? '2px solid rgb(var(--accent))' : '1px solid rgb(var(--border))',
                 color: selectedLang === lang.code ? '#000' : 'rgb(var(--fg))',
-              }}
-              onMouseEnter={(e) => {
-                if (selectedLang !== lang.code) {
-                  (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgb(var(--accent))';
-                  (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'rgb(var(--card-hover))';
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (selectedLang !== lang.code) {
-                  (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgb(var(--border))';
-                  (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'rgb(var(--card))';
-                }
               }}
             >
               <div className="text-left">
@@ -96,26 +82,9 @@ const LanguageScreen: React.FC = () => {
                   {lang.name}
                 </p>
               </div>
-              <ChevronRight size={18} style={{ color: 'rgb(var(--muted))' }} />
             </motion.button>
           ))}
         </div>
-
-        <motion.button
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.5 }}
-          onClick={handleContinue}
-          disabled={!selectedLang}
-          className="w-full mt-6 p-4 font-medium rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          style={
-            selectedLang
-              ? { backgroundColor: 'rgb(var(--accent))', color: '#000' }
-              : { backgroundColor: 'rgba(var(--muted), 0.2)', color: 'rgb(var(--muted))' }
-          }
-        >
-          {t('common.continue') || 'Continue'}
-        </motion.button>
       </motion.div>
     </div>
   );

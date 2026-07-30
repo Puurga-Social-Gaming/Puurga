@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
 import * as THREE from 'three';
+import { useTranslation } from 'react-i18next';
 import { useCredits } from '../../shared/economy/useCredits';
 import toast from 'react-hot-toast';
 
@@ -41,6 +42,7 @@ const EMOJI_CONFIG: Record<EmojiType, { emoji: string; points: number; color: st
 };
 
 const PurgaSlicer: React.FC<PurgaSlicerProps> = ({ className }) => {
+  const { t } = useTranslation();
   const mountRef = useRef<HTMLDivElement>(null);
   const trailCanvasRef = useRef<HTMLCanvasElement>(null);
   const sceneRef = useRef<THREE.Scene>();
@@ -70,11 +72,14 @@ const PurgaSlicer: React.FC<PurgaSlicerProps> = ({ className }) => {
   const [level, setLevel] = useState(1);
   const [showSettings, setShowSettings] = useState(false);
   const [creditsEarned, setCreditsEarned] = useState(0);
+  const [creditBreakdown, setCreditBreakdown] = useState<{ label: string; amount: number }[]>([]);
   const [selectedBackground, setSelectedBackground] = useState('sheol_embers');
   const [customBgUrl, setCustomBgUrl] = useState<string | null>(null);
   const [selectedBlade, setSelectedBlade] = useState('blade_of_valor');
   const [multiplierActive, setMultiplierActive] = useState(false);
   const [frozenCount, setFrozenCount] = useState(0);
+  const [optionsTab, setOptionsTab] = useState<'menu' | 'history' | 'sound' | 'settings'>('menu');
+  const [runHistory, setRunHistory] = useState<{ score: number; level: number; coins: number; timestamp: number; credits: number }[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const normalizeBackgroundId = (bgId: string) => {
@@ -95,6 +100,13 @@ const PurgaSlicer: React.FC<PurgaSlicerProps> = ({ className }) => {
   useEffect(() => { comboRef.current = combo; }, [combo]);
   useEffect(() => { scoreRef.current = score; }, [score]);
   useEffect(() => { levelRef.current = level; }, [level]);
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('perga_run_history');
+      if (stored) setRunHistory(JSON.parse(stored));
+    } catch {}
+  }, []);
 
   useEffect(() => {
     const storedBg = normalizeBackgroundId(localStorage.getItem('perga_bg') || 'sheol_embers');
@@ -690,6 +702,7 @@ const PurgaSlicer: React.FC<PurgaSlicerProps> = ({ className }) => {
     setFrozenCount(0);
     totalCoinsSlicedRef.current = 0;
     setShowSettings(false);
+    setOptionsTab('menu');
     setCreditsEarned(0);
     gameEndedRef.current = false;
     if (sceneRef.current) {
@@ -715,6 +728,7 @@ const PurgaSlicer: React.FC<PurgaSlicerProps> = ({ className }) => {
     setFrozenCount(0);
     totalCoinsSlicedRef.current = 0;
     setShowSettings(false);
+    setOptionsTab('menu');
     setCreditsEarned(0);
     gameEndedRef.current = false;
     if (sceneRef.current) {
@@ -736,6 +750,9 @@ const PurgaSlicer: React.FC<PurgaSlicerProps> = ({ className }) => {
           missedTargets: 0
         });
         setCreditsEarned(result.net);
+        if ('breakdown' in result && result.breakdown) {
+          setCreditBreakdown(result.breakdown);
+        }
         const currentHigh = Number(localStorage.getItem('perga_high_score') || '0');
         if (score > currentHigh) localStorage.setItem('perga_high_score', String(score));
         const gamesPlayed = Number(localStorage.getItem('perga_games_played') || '0');
@@ -744,6 +761,10 @@ const PurgaSlicer: React.FC<PurgaSlicerProps> = ({ className }) => {
           game: 'Judgment', net: result.net, score, timestamp: Date.now(),
           details: `Lives: ${lives}, Combo: ${combo}, Level: ${level}, Coins: ${totalCoinsSlicedRef.current}`
         }));
+        const newRun = { score, level, coins: totalCoinsSlicedRef.current, timestamp: Date.now(), credits: result.net };
+        const updatedHistory = [newRun, ...runHistory].slice(0, 20);
+        setRunHistory(updatedHistory);
+        localStorage.setItem('perga_run_history', JSON.stringify(updatedHistory));
       };
       processCredits();
     }
@@ -767,7 +788,7 @@ const PurgaSlicer: React.FC<PurgaSlicerProps> = ({ className }) => {
   const buyBackground = async (id: string, cost: number) => {
     const owned = new Set((localStorage.getItem('perga_owned_backgrounds') || 'sheol_embers').split(',').map(normalizeBackgroundId).filter(Boolean));
     if (owned.has(id)) { setSelectedBackground(id); return; }
-    if (balance < cost) { toast.error('Insufficient credits'); return; }
+    if (balance < cost) { toast.error(t('games.judgment.insufficientCredits')); return; }
     const success = await spendCredits(cost, `Purchased background: ${id}`);
     if (success) {
       owned.add(id);
@@ -780,7 +801,7 @@ const PurgaSlicer: React.FC<PurgaSlicerProps> = ({ className }) => {
     const key = 'perga_owned_blades';
     const owned = new Set((localStorage.getItem(key) || 'blade_of_valor').split(',').map(normalizeBladeId).filter(Boolean));
     if (owned.has(id)) { setSelectedBlade(id); return; }
-    if (balance < cost) { toast.error('Insufficient credits'); return; }
+    if (balance < cost) { toast.error(t('games.judgment.insufficientCredits')); return; }
     const success = await spendCredits(cost, `Purchased blade: ${id}`);
     if (success) {
       owned.add(id);
@@ -792,7 +813,7 @@ const PurgaSlicer: React.FC<PurgaSlicerProps> = ({ className }) => {
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-    if (file.size > 2 * 1024 * 1024) { toast.error('Image too large (max 2MB)'); return; }
+    if (file.size > 2 * 1024 * 1024) { toast.error(t('games.judgment.imageTooLarge')); return; }
     const reader = new FileReader();
     reader.onload = (e) => {
       const result = e.target?.result as string;
@@ -800,15 +821,21 @@ const PurgaSlicer: React.FC<PurgaSlicerProps> = ({ className }) => {
       setSelectedBackground('custom');
       localStorage.setItem('perga_custom_bg', result);
       localStorage.setItem('perga_bg', 'custom');
-      toast.success('Background uploaded!');
+      toast.success(t('games.judgment.backgroundUploaded'));
     };
     reader.readAsDataURL(file);
   };
 
   return (
     <div
-      className={`relative w-full min-h-screen ${className}`}
-      style={{ backgroundColor: '#0b0b0b', touchAction: 'none', overscrollBehavior: 'contain', WebkitUserSelect: 'none', userSelect: 'none' }}
+      className={`relative w-full min-h-screen pb-20 ${className}`}
+      style={{
+        backgroundColor: '#0b0b0b',
+        overscrollBehavior: 'contain',
+        WebkitUserSelect: 'none',
+        userSelect: 'none',
+        touchAction: gameState === 'playing' ? 'none' : 'auto'
+      }}
     >
       <div className="absolute inset-0">
         <div className="absolute inset-0 bg-gradient-to-b from-black via-[#0b0b0b] to-black" />
@@ -820,33 +847,33 @@ const PurgaSlicer: React.FC<PurgaSlicerProps> = ({ className }) => {
             <canvas ref={trailCanvasRef} className="absolute inset-0 pointer-events-none rounded-2xl" />
 
             {/* HUD */}
-            <div className="absolute top-3 left-3 right-3 sm:top-4 sm:left-4 sm:right-4 flex justify-between items-start text-white pointer-events-none">
-              <div className="pointer-events-auto rounded-2xl px-3 py-2 sm:px-4 sm:py-3 bg-black/55 backdrop-blur-md border border-orange-500/20 shadow-lg shadow-black/40">
-                <div className="text-[10px] uppercase font-bold tracking-widest text-gray-400">Sword of Judgment</div>
-                <div className="mt-1 grid grid-cols-3 gap-x-4 gap-y-1">
-                  <div className="text-xs sm:text-sm"><span className="text-gray-400">Score</span> <span className="font-bold">{score}</span></div>
-                  <div className="text-xs sm:text-sm"><span className="text-gray-400">Lives</span> <span className="font-bold">{lives}</span></div>
-                  <div className="text-xs sm:text-sm"><span className="text-gray-400">Combo</span> <span className="font-bold">x{combo}</span></div>
-                  <div className="text-xs sm:text-sm"><span className="text-gray-400">Level</span> <span className="font-bold text-orange-400">{level}</span></div>
-                  <div className="text-xs sm:text-sm"><span className="text-gray-400">Coins</span> <span className="font-bold">{totalCoinsSlicedRef.current}</span></div>
+            <div className="absolute top-2 left-2 right-2 sm:top-3 sm:left-3 sm:right-3 flex justify-between items-start text-white pointer-events-none">
+              <div className="pointer-events-auto rounded-xl px-2 py-1.5 sm:px-3 sm:py-2 bg-black/55 backdrop-blur-md border border-orange-500/20 shadow-lg shadow-black/40">
+                <div className="text-[9px] uppercase font-bold tracking-widest text-gray-400">{t('games.judgment.title')}</div>
+                <div className="mt-0.5 grid grid-cols-3 gap-x-3 gap-y-0.5">
+                  <div className="text-[10px] sm:text-xs"><span className="text-gray-400">{t('games.judgment.score')}</span> <span className="font-bold">{score}</span></div>
+                  <div className="text-[10px] sm:text-xs"><span className="text-gray-400">{t('games.judgment.lives')}</span> <span className="font-bold">{lives}</span></div>
+                  <div className="text-[10px] sm:text-xs"><span className="text-gray-400">{t('games.judgment.combo')}</span> <span className="font-bold">x{combo}</span></div>
+                  <div className="text-[10px] sm:text-xs"><span className="text-gray-400">{t('games.judgment.level')}</span> <span className="font-bold text-orange-400">{level}</span></div>
+                  <div className="text-[10px] sm:text-xs"><span className="text-gray-400">{t('games.judgment.coins')}</span> <span className="font-bold">{totalCoinsSlicedRef.current}</span></div>
                   {multiplierActive && (
-                    <div className="text-xs sm:text-sm animate-pulse"><span className="text-yellow-400 font-black">2x ACTIVE</span></div>
+                    <div className="text-[10px] sm:text-xs animate-pulse"><span className="text-yellow-400 font-black">{t('games.judgment.multiplierActive')}</span></div>
                   )}
                   {frozenCount > 0 && (
-                    <div className="text-xs sm:text-sm"><span className="text-cyan-400">❄️ {frozenCount}</span></div>
+                    <div className="text-[10px] sm:text-xs"><span className="text-cyan-400">❄️ {frozenCount}</span></div>
                   )}
                 </div>
               </div>
-              <div className="flex gap-2 pointer-events-auto">
+              <div className="flex gap-1.5 pointer-events-auto">
                 {gameState === 'playing' && (
-                  <button onClick={pauseGame} className="bg-black/55 hover:bg-black/75 backdrop-blur-md border border-orange-500/20 px-3 py-2 rounded-xl text-xs sm:text-sm font-bold uppercase tracking-widest">
-                    <span className="hidden sm:inline">Pause</span><span className="sm:hidden">⏸️</span>
+                  <button onClick={pauseGame} className="bg-black/55 hover:bg-black/75 backdrop-blur-md border border-orange-500/20 px-2 py-1.5 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-widest">
+                    <span className="hidden sm:inline">{t('games.judgment.pause')}</span><span className="sm:hidden">⏸️</span>
                   </button>
                 )}
-                <button onClick={() => setShowSettings(true)} className="bg-black/55 hover:bg-black/75 backdrop-blur-md border border-orange-500/20 px-3 py-2 rounded-xl text-xs sm:text-sm font-bold uppercase tracking-widest">⚙️</button>
+                <button onClick={() => setShowSettings(true)} className="bg-black/55 hover:bg-black/75 backdrop-blur-md border border-orange-500/20 px-2 py-1.5 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-widest">⚙️</button>
                 {gameState === 'playing' && (
-                  <button onClick={resetGame} className="bg-black/55 hover:bg-black/75 backdrop-blur-md border border-orange-500/20 px-3 py-2 rounded-xl text-xs sm:text-sm font-bold uppercase tracking-widest">
-                    <span className="hidden sm:inline">Reset</span><span className="sm:hidden">🔄</span>
+                  <button onClick={resetGame} className="bg-black/55 hover:bg-black/75 backdrop-blur-md border border-orange-500/20 px-2 py-1.5 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-widest">
+                    <span className="hidden sm:inline">{t('games.judgment.reset')}</span><span className="sm:hidden">🔄</span>
                   </button>
                 )}
               </div>
@@ -855,42 +882,42 @@ const PurgaSlicer: React.FC<PurgaSlicerProps> = ({ className }) => {
             {/* Settings */}
             {showSettings && (
               <div className="absolute inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center p-2 sm:p-6 z-50">
-                <div className="w-full max-w-2xl bg-[#0b0b0b] border border-orange-500/25 rounded-2xl p-4 sm:p-6 text-white max-h-[90vh] overflow-y-auto">
-                  <div className="flex items-center justify-between mb-3 sm:mb-4">
-                    <div className="text-lg sm:text-xl font-bold text-orange-400">The Tabernacle</div>
-                    <button onClick={() => setShowSettings(false)} className="bg-black/60 hover:bg-black/80 border border-orange-500/20 px-2 sm:px-3 py-1 sm:py-2 rounded-lg text-xs sm:text-sm">Close</button>
+                <div className="w-full max-w-2xl bg-[#0b0b0b] border border-orange-500/25 rounded-2xl p-3 sm:p-5 text-white max-h-[85vh] overflow-y-auto">
+                  <div className="flex items-center justify-between mb-2 sm:mb-3">
+                    <div className="text-sm sm:text-base font-bold text-orange-400">{t('games.judgment.theTabernacle')}</div>
+                    <button onClick={() => setShowSettings(false)} className="bg-black/60 hover:bg-black/80 border border-orange-500/20 px-2 py-1 rounded-lg text-[10px] sm:text-xs">{t('games.judgment.close')}</button>
                   </div>
-                  <div className="text-xs sm:text-sm text-gray-300 mb-4 sm:mb-6">
-                    Slice coins to earn. Use snowflakes to freeze. Grab bombs to clear. Avoid skulls. Phoenix grants 2x power.
+                  <div className="text-[10px] sm:text-xs text-gray-300 mb-3 sm:mb-4">
+                    {t('games.judgment.settingsInstructions')}
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                     <div>
-                      <div className="font-semibold mb-3">Hallowed Grounds</div>
-                      <div className="space-y-2">
+                      <div className="font-semibold mb-2 text-xs">{t('games.judgment.hallowedGrounds')}</div>
+                      <div className="space-y-1.5">
                         <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept="image/*" className="hidden" />
-                        <button onClick={() => fileInputRef.current?.click()} className={`w-full text-left px-3 sm:px-4 py-2 sm:py-3 rounded-lg border transition-colors ${selectedBackground === 'custom' ? 'border-orange-500 bg-orange-500/10' : 'border-[#222] bg-black/40 hover:border-orange-500/40'}`}>
-                          <div className="flex items-center justify-between"><span className="font-medium text-sm sm:text-base">Custom Image</span><span className="text-xs sm:text-sm text-blue-400">Upload</span></div>
+                        <button onClick={() => fileInputRef.current?.click()} className={`w-full text-left px-2.5 py-1.5 rounded-lg border transition-colors ${selectedBackground === 'custom' ? 'border-orange-500 bg-orange-500/10' : 'border-[#222] bg-black/40 hover:border-orange-500/40'}`}>
+                          <div className="flex items-center justify-between"><span className="font-medium text-[11px] sm:text-xs">{t('games.judgment.customImage')}</span><span className="text-[10px] text-blue-400">{t('games.judgment.upload')}</span></div>
                         </button>
                         {backgrounds.map(bg => {
                           const owned = new Set((localStorage.getItem('perga_owned_backgrounds') || 'sheol_embers').split(',').map(normalizeBackgroundId).filter(Boolean)).has(bg.id);
                           const active = selectedBackground === bg.id;
                           return (
-                            <button key={bg.id} onClick={() => buyBackground(bg.id, bg.cost)} className={`w-full text-left px-3 sm:px-4 py-2 sm:py-3 rounded-lg border transition-colors ${active ? 'border-orange-500 bg-orange-500/10' : 'border-[#222] bg-black/40 hover:border-orange-500/40'}`}>
-                              <div className="flex items-center justify-between"><span className="font-medium text-sm sm:text-base">{bg.name}</span><span className="text-xs sm:text-sm text-orange-300">{owned ? 'Owned' : `${bg.cost} pts`}</span></div>
+                            <button key={bg.id} onClick={() => buyBackground(bg.id, bg.cost)} className={`w-full text-left px-2.5 py-1.5 rounded-lg border transition-colors ${active ? 'border-orange-500 bg-orange-500/10' : 'border-[#222] bg-black/40 hover:border-orange-500/40'}`}>
+                              <div className="flex items-center justify-between"><span className="font-medium text-[11px] sm:text-xs">{bg.name}</span><span className="text-[10px] text-orange-300">{owned ? t('games.judgment.owned') : `${bg.cost} ${t('games.judgment.pts')}`}</span></div>
                             </button>
                           );
                         })}
                       </div>
                     </div>
                     <div>
-                      <div className="font-semibold mb-3">Righteous Blades</div>
-                      <div className="space-y-2">
+                      <div className="font-semibold mb-2 text-xs">{t('games.judgment.righteousBlades')}</div>
+                      <div className="space-y-1.5">
                         {blades.map(b => {
                           const owned = new Set((localStorage.getItem('perga_owned_blades') || 'blade_of_valor').split(',').map(normalizeBladeId).filter(Boolean)).has(b.id);
                           const active = selectedBlade === b.id;
                           return (
-                            <button key={b.id} onClick={() => buyBlade(b.id, b.cost)} className={`w-full text-left px-3 sm:px-4 py-2 sm:py-3 rounded-lg border transition-colors ${active ? 'border-orange-500 bg-orange-500/10' : 'border-[#222] bg-black/40 hover:border-orange-500/40'}`}>
-                              <div className="flex items-center justify-between"><span className="font-medium text-sm sm:text-base">{b.name}</span><span className="text-xs sm:text-sm text-orange-300">{owned ? 'Owned' : `${b.cost} pts`}</span></div>
+                            <button key={b.id} onClick={() => buyBlade(b.id, b.cost)} className={`w-full text-left px-2.5 py-1.5 rounded-lg border transition-colors ${active ? 'border-orange-500 bg-orange-500/10' : 'border-[#222] bg-black/40 hover:border-orange-500/40'}`}>
+                              <div className="flex items-center justify-between"><span className="font-medium text-[11px] sm:text-xs">{b.name}</span><span className="text-[10px] text-orange-300">{owned ? t('games.judgment.owned') : `${b.cost} ${t('games.judgment.pts')}`}</span></div>
                             </button>
                           );
                         })}
@@ -902,27 +929,97 @@ const PurgaSlicer: React.FC<PurgaSlicerProps> = ({ className }) => {
             )}
 
             {/* Menu */}
-            {gameState === 'menu' && (
+            {gameState === 'menu' && optionsTab === 'menu' && (
               <div className="absolute inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center">
                 <div className="text-center text-white px-4 sm:px-6 max-w-xl">
-                  <div className="mb-5 sm:mb-6 inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-orange-500/10 border border-orange-500/20">
-                    <div className="text-3xl">⚔️</div>
+                  <div className="mb-3 inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-orange-500/10 border border-orange-500/20">
+                    <div className="text-2xl">⚔️</div>
                   </div>
-                  <h1 className="text-3xl sm:text-4xl font-black tracking-tighter uppercase italic mb-2">
-                    Sword of <span className="text-orange-500">Judgment</span>
+                  <h1 className="text-xl sm:text-2xl font-black tracking-tighter uppercase italic mb-1">
+                    {t('games.judgment.title').split(' ').slice(0, 2).join(' ')} <span className="text-orange-500">{t('games.judgment.title').split(' ').slice(2).join(' ')}</span>
                   </h1>
-                  <p className="text-sm sm:text-base text-gray-300 mb-2">Survive. Slice. Ascend.</p>
-                  <div className="text-xs text-gray-400 mb-4 space-y-1">
-                    <p>🪙 <b>Coin</b> — Slice for points & combo</p>
-                    <p>❄️ <b>Snowflake</b> — Freezes nearby icons</p>
-                    <p>💣 <b>Bomb</b> — Explodes all on screen</p>
-                    <p>💀 <b>Skull</b> — Lose a life if missed</p>
-                    <p>🔥 <b>Phoenix</b> — 4s of 2x score (rare!)</p>
+                  <p className="text-xs text-gray-300 mb-1">{t('games.judgment.tagline')}</p>
+                  <div className="text-[10px] text-gray-400 mb-3 space-y-0.5">
+                    <p>🪙 <b>{t('games.judgment.coin')}</b> — {t('games.judgment.coinDesc')}</p>
+                    <p>❄️ <b>{t('games.judgment.snowflake')}</b> — {t('games.judgment.snowflakeDesc')}</p>
+                    <p>💣 <b>{t('games.judgment.bomb')}</b> — {t('games.judgment.bombDesc')}</p>
+                    <p>💀 <b>{t('games.judgment.skull')}</b> — {t('games.judgment.skullDesc')}</p>
+                    <p>🔥 <b>{t('games.judgment.phoenix')}</b> — {t('games.judgment.phoenixDesc')}</p>
                   </div>
-                  <div className="text-xs sm:text-sm text-gray-400 mb-6">Hold and drag to slice. Survive as long as you can.</div>
-                  <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center">
-                    <button onClick={startGame} className="px-8 py-4 rounded-full bg-orange-600 hover:bg-orange-500 font-black uppercase tracking-widest">Initialize Run</button>
-                    <button onClick={() => setShowSettings(true)} className="px-6 py-4 rounded-full bg-white/10 hover:bg-white/15 border border-white/10 font-black uppercase tracking-widest">The Tabernacle</button>
+                  <div className="text-[10px] text-gray-400 mb-4">{t('games.judgment.instructions')}</div>
+                  <button onClick={startGame} className="px-5 py-2.5 rounded-full bg-orange-600 hover:bg-orange-500 font-bold uppercase tracking-widest text-xs">{t('games.judgment.initializeRun')}</button>
+                  <div className="flex gap-2 justify-center mt-3">
+                    <button onClick={() => setOptionsTab('history')} className="px-3 py-1.5 rounded-full bg-white/10 hover:bg-white/15 border border-white/10 font-semibold text-[10px] uppercase tracking-wider">{t('games.judgment.history')}</button>
+                    <button onClick={() => setOptionsTab('sound')} className="px-3 py-1.5 rounded-full bg-white/10 hover:bg-white/15 border border-white/10 font-semibold text-[10px] uppercase tracking-wider">{t('games.judgment.sound')}</button>
+                    <button onClick={() => setOptionsTab('settings')} className="px-3 py-1.5 rounded-full bg-white/10 hover:bg-white/15 border border-white/10 font-semibold text-[10px] uppercase tracking-wider">{t('games.judgment.gameSettings')}</button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* History Tab */}
+            {gameState === 'menu' && optionsTab === 'history' && (
+              <div className="absolute inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3">
+                <div className="w-full max-w-lg bg-[#0b0b0b] border border-orange-500/25 rounded-2xl p-4 text-white max-h-[80vh] overflow-y-auto">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="text-sm font-bold text-orange-400">{t('games.judgment.history')}</div>
+                    <button onClick={() => setOptionsTab('menu')} className="bg-black/60 hover:bg-black/80 border border-orange-500/20 px-2 py-1 rounded-lg text-[10px]">{t('games.judgment.back')}</button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 mb-3">
+                    <div className="bg-white/5 p-2 rounded-xl border border-white/10">
+                      <div className="text-[9px] uppercase font-bold tracking-widest text-gray-400">{t('games.judgment.highScore')}</div>
+                      <div className="text-base font-black text-orange-400">{localStorage.getItem('perga_high_score') || '0'}</div>
+                    </div>
+                    <div className="bg-white/5 p-2 rounded-xl border border-white/10">
+                      <div className="text-[9px] uppercase font-bold tracking-widest text-gray-400">{t('games.judgment.gamesPlayed')}</div>
+                      <div className="text-base font-black">{localStorage.getItem('perga_games_played') || '0'}</div>
+                    </div>
+                  </div>
+                  {runHistory.length === 0 ? (
+                    <div className="text-center text-gray-500 py-6 text-xs">{t('games.judgment.noRunsYet')}</div>
+                  ) : (
+                    <div className="space-y-1.5">
+                      {runHistory.map((run, i) => (
+                        <div key={i} className="flex items-center justify-between bg-white/5 px-2.5 py-1.5 rounded-lg border border-white/5">
+                          <div className="flex gap-3 text-[10px]">
+                            <span className="text-orange-400 font-bold">{run.score}</span>
+                            <span className="text-gray-400">Lv.{run.level}</span>
+                            <span className="text-gray-400">{run.coins} 🪙</span>
+                          </div>
+                          <div className="text-[9px] text-gray-500">{new Date(run.timestamp).toLocaleDateString()}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Sound Tab */}
+            {gameState === 'menu' && optionsTab === 'sound' && (
+              <div className="absolute inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3">
+                <div className="w-full max-w-lg bg-[#0b0b0b] border border-orange-500/25 rounded-2xl p-4 text-white">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="text-sm font-bold text-orange-400">{t('games.judgment.sound')}</div>
+                    <button onClick={() => setOptionsTab('menu')} className="bg-black/60 hover:bg-black/80 border border-orange-500/20 px-2 py-1 rounded-lg text-[10px]">{t('games.judgment.back')}</button>
+                  </div>
+                  <div className="bg-white/5 border border-white/10 rounded-xl p-4 text-center">
+                    <div className="text-gray-400 text-xs">{t('games.judgment.stillBeingImplemented')}</div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Game Settings Tab */}
+            {gameState === 'menu' && optionsTab === 'settings' && (
+              <div className="absolute inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3">
+                <div className="w-full max-w-lg bg-[#0b0b0b] border border-orange-500/25 rounded-2xl p-4 text-white">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="text-sm font-bold text-orange-400">{t('games.judgment.gameSettings')}</div>
+                    <button onClick={() => setOptionsTab('menu')} className="bg-black/60 hover:bg-black/80 border border-orange-500/20 px-2 py-1 rounded-lg text-[10px]">{t('games.judgment.back')}</button>
+                  </div>
+                  <div className="bg-white/5 border border-white/10 rounded-xl p-4 text-center">
+                    <div className="text-gray-400 text-xs">{t('games.judgment.stillBeingImplemented')}</div>
                   </div>
                 </div>
               </div>
@@ -932,9 +1029,9 @@ const PurgaSlicer: React.FC<PurgaSlicerProps> = ({ className }) => {
             {gameState === 'paused' && (
               <div className="absolute inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center">
                 <div className="text-center text-white px-4">
-                  <div className="text-xs uppercase font-bold tracking-widest text-gray-400 mb-2">Run Paused</div>
-                  <h2 className="text-3xl sm:text-4xl font-black tracking-tighter uppercase italic mb-5">Stand By</h2>
-                  <button onClick={pauseGame} className="px-8 py-4 rounded-full bg-orange-600 hover:bg-orange-500 font-black uppercase tracking-widest">Resume</button>
+                  <div className="text-[10px] uppercase font-bold tracking-widest text-gray-400 mb-1">{t('games.judgment.runPaused')}</div>
+                  <h2 className="text-xl sm:text-2xl font-black tracking-tighter uppercase italic mb-3">{t('games.judgment.standBy')}</h2>
+                  <button onClick={pauseGame} className="px-6 py-3 rounded-full bg-orange-600 hover:bg-orange-500 font-bold uppercase tracking-widest text-xs">{t('games.judgment.resume')}</button>
                 </div>
               </div>
             )}
@@ -942,38 +1039,50 @@ const PurgaSlicer: React.FC<PurgaSlicerProps> = ({ className }) => {
             {/* Game Over */}
             {gameState === 'gameOver' && (
               <div className="absolute inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center">
-                <div className="text-center text-white px-4 max-w-md">
-                  <div className="mb-4 inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-orange-500/10 border border-orange-500/20">
-                    <div className="text-3xl">🕯️</div>
+                <div className="text-center text-white px-3 max-w-sm">
+                  <div className="mb-3 inline-flex items-center justify-center w-10 h-10 rounded-2xl bg-orange-500/10 border border-orange-500/20">
+                    <div className="text-xl">🕯️</div>
                   </div>
-                  <div className="text-xs uppercase font-bold tracking-widest text-gray-400 mb-2">Run Concluded</div>
-                  <h2 className="text-4xl font-black tracking-tighter uppercase italic mb-2">
-                    Judgment <span className="text-orange-500">Rendered</span>
+                  <div className="text-[10px] uppercase font-bold tracking-widest text-gray-400 mb-1">{t('games.judgment.runConcluded')}</div>
+                  <h2 className="text-xl sm:text-2xl font-black tracking-tighter uppercase italic mb-1">
+                    {t('games.judgment.title').split(' ').slice(0, 2).join(' ')} <span className="text-orange-500">{t('games.judgment.title').split(' ').slice(2).join(' ')}</span>
                   </h2>
-                  <div className="text-sm font-bold mb-5" style={{ color: lives <= 0 ? '#fb7185' : '#f97316' }}>
-                    {lives <= 0 ? 'Lives Depleted' : 'Run Ended'}
+                  <div className="text-xs font-bold mb-3" style={{ color: lives <= 0 ? '#fb7185' : '#f97316' }}>
+                    {lives <= 0 ? t('games.judgment.livesDepleted') : t('games.judgment.runEnded')}
                   </div>
-                  <div className="grid grid-cols-2 gap-3 w-full mb-6">
-                    <div className="bg-white/5 p-4 rounded-2xl border border-white/10">
-                      <div className="text-[10px] uppercase font-bold tracking-widest text-gray-400">Score</div>
-                      <div className="text-2xl font-black">{score}</div>
+                  <div className="grid grid-cols-2 gap-2 w-full mb-4">
+                    <div className="bg-white/5 p-2.5 rounded-xl border border-white/10">
+                      <div className="text-[9px] uppercase font-bold tracking-widest text-gray-400">{t('games.judgment.score')}</div>
+                      <div className="text-lg font-black">{score}</div>
                     </div>
-                    <div className="bg-white/5 p-4 rounded-2xl border border-white/10">
-                      <div className="text-[10px] uppercase font-bold tracking-widest text-gray-400">Level</div>
-                      <div className="text-2xl font-black text-orange-400">{level}</div>
+                    <div className="bg-white/5 p-2.5 rounded-xl border border-white/10">
+                      <div className="text-[9px] uppercase font-bold tracking-widest text-gray-400">{t('games.judgment.level')}</div>
+                      <div className="text-lg font-black text-orange-400">{level}</div>
                     </div>
-                    <div className="bg-white/5 p-4 rounded-2xl border border-white/10">
-                      <div className="text-[10px] uppercase font-bold tracking-widest text-gray-400">Coins Sliced</div>
-                      <div className="text-2xl font-black">{totalCoinsSlicedRef.current}</div>
+                    <div className="bg-white/5 p-2.5 rounded-xl border border-white/10">
+                      <div className="text-[9px] uppercase font-bold tracking-widest text-gray-400">{t('games.judgment.coinsSliced')}</div>
+                      <div className="text-lg font-black">{totalCoinsSlicedRef.current}</div>
                     </div>
-                    <div className="bg-orange-500/10 p-4 rounded-2xl border border-orange-500/20">
-                      <div className="text-[10px] uppercase font-bold tracking-widest text-orange-300">Credits</div>
-                      <div className="text-2xl font-black text-orange-500">+{creditsEarned}</div>
+                    <div className="bg-orange-500/10 p-2.5 rounded-xl border border-orange-500/20">
+                      <div className="text-[9px] uppercase font-bold tracking-widest text-orange-300">{t('games.judgment.credits')}</div>
+                      <div className="text-lg font-black text-orange-500">+{creditsEarned}</div>
+                      {creditBreakdown.length > 0 && (
+                        <div className="mt-1 space-y-0.5">
+                          {creditBreakdown.map((item, i) => (
+                            <div key={i} className="flex justify-between text-[8px] text-gray-400">
+                              <span>{item.label}</span>
+                              <span className={item.amount >= 0 ? 'text-orange-400/70' : 'text-red-400/70'}>
+                                {item.amount >= 0 ? '+' : ''}{item.amount}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
-                  <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                    <button onClick={startGame} className="px-8 py-4 rounded-full bg-orange-600 hover:bg-orange-500 font-black uppercase tracking-widest">Retry Run</button>
-                    <button onClick={resetGame} className="px-8 py-4 rounded-full bg-white/10 hover:bg-white/15 border border-white/10 font-black uppercase tracking-widest">Main Menu</button>
+                  <div className="flex flex-col sm:flex-row gap-2 justify-center">
+                    <button onClick={startGame} className="px-5 py-2.5 rounded-full bg-orange-600 hover:bg-orange-500 font-bold uppercase tracking-widest text-xs">{t('games.judgment.retryRun')}</button>
+                    <button onClick={resetGame} className="px-5 py-2.5 rounded-full bg-white/10 hover:bg-white/15 border border-white/10 font-bold uppercase tracking-widest text-xs">{t('games.judgment.mainMenu')}</button>
                   </div>
                 </div>
               </div>
