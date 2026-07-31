@@ -62,6 +62,7 @@ const SupabaseImage: React.FC<SupabaseImageProps> = ({
       alt={alt}
       className={className}
       style={style}
+      loading="lazy"
       crossOrigin="anonymous"
       onError={(e) => {
         if (onError) onError(e);
