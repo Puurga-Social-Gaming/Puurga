@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X, ChevronLeft, ChevronRight } from 'lucide-react';
-import SupabaseImage from '../UI/SupabaseImage';
-import SupabaseVideo from '../UI/SupabaseVideo';
+import SupabaseImage from '../ui/SupabaseImage';
+import SupabaseVideo from '../ui/SupabaseVideo';
 import { isVideoUrl } from '../../utils/mediaUrls';
 
 interface PostMediaGalleryProps {

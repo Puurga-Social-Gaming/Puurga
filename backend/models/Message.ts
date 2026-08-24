@@ -1,7 +1,5 @@
 import { Model, DataTypes } from 'sequelize';
 import sequelize from '../config/database';
-import User from './User';
-import Conversation from './Conversation';
 
 interface MessageAttributes {
   id?: string;
@@ -35,8 +33,8 @@ class Message extends Model<MessageAttributes> implements MessageAttributes {
   };
 
   // Add proper typing for associations
-  public readonly User?: User;
-  public readonly Conversation?: Conversation;
+  public readonly User?: any;
+  public readonly Conversation?: any;
 }
 
 Message.init(
@@ -89,15 +87,6 @@ Message.init(
   }
 );
 
-// Define associations
-Message.belongsTo(User, {
-  foreignKey: 'senderId',
-  as: 'sender'
-});
-
-Message.belongsTo(Conversation, {
-  foreignKey: 'conversationId',
-  as: 'conversation'
-});
+// Define associations will be set up in associations.ts to avoid circular dependencies
 
 export default Message; 

@@ -22,7 +22,7 @@ const sequelize = new Sequelize({
   port: parseInt(process.env.DB_PORT || '5432'),
   logging: false,
   define: {
-    timestamps: true,
+    timestamps: false,
     underscored: true,
   },
 });

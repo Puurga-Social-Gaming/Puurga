@@ -1,7 +1,7 @@
 import { Model, DataTypes } from 'sequelize';
 import sequelize from '../config/database';
 
-interface LikeAttributes {
+interface PostPurgeAttributes {
   id?: string;
   post_id: string;
   user_id: string;
@@ -18,7 +18,7 @@ interface LikeAttributes {
   };
 }
 
-class Like extends Model<LikeAttributes> implements LikeAttributes {
+class PostPurge extends Model<PostPurgeAttributes> implements PostPurgeAttributes {
   public id!: string;
   public post_id!: string;
   public user_id!: string;
@@ -39,7 +39,7 @@ class Like extends Model<LikeAttributes> implements LikeAttributes {
   public readonly Post?: any;
 }
 
-Like.init({
+PostPurge.init({
   id: {
     type: DataTypes.UUID,
     defaultValue: DataTypes.UUIDV4,
@@ -67,12 +67,12 @@ Like.init({
   }
 }, {
   sequelize,
-  modelName: 'Like',
-  tableName: 'likes',
+  modelName: 'PostPurge',
+  tableName: 'post_purges',
   timestamps: true,
   underscored: true
 });
 
 // Define associations will be set up in associations.ts to avoid circular dependencies
 
-export default Like;
+export default PostPurge;

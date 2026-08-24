@@ -1,7 +1,5 @@
 import { Model, DataTypes } from 'sequelize';
 import sequelize from '../config/database';
-import User from './User';
-import Post from './Post';
 
 interface CommentAttributes {
   id?: string;
@@ -10,6 +8,7 @@ interface CommentAttributes {
   content: string;
   created_at?: Date;
   updated_at?: Date;
+  is_purged?: boolean;
   user?: {
     id: string;
     name: string;
@@ -25,6 +24,7 @@ class Comment extends Model<CommentAttributes> implements CommentAttributes {
   public content!: string;
   public readonly created_at!: Date;
   public readonly updated_at!: Date;
+  public is_purged?: boolean;
   public user?: {
     id: string;
     name: string;
@@ -33,8 +33,8 @@ class Comment extends Model<CommentAttributes> implements CommentAttributes {
   };
 
   // Add proper typing for associations
-  public readonly User?: User;
-  public readonly Post?: Post;
+  public readonly User?: any;
+  public readonly Post?: any;
 }
 
 Comment.init({
@@ -63,6 +63,10 @@ Comment.init({
     type: DataTypes.TEXT,
     allowNull: false
   },
+  is_purged: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  },
   created_at: {
     type: DataTypes.DATE,
     defaultValue: DataTypes.NOW
@@ -79,25 +83,6 @@ Comment.init({
   underscored: true
 });
 
-// Define associations with proper aliases
-Comment.belongsTo(User, { 
-  foreignKey: 'user_id',
-  as: 'user'  // This matches the 'as' in our queries
-});
-
-Comment.belongsTo(Post, { 
-  foreignKey: 'post_id',
-  as: 'post'  // Add alias for post association
-});
-
-Post.hasMany(Comment, { 
-  foreignKey: 'post_id',
-  as: 'postComments'  // Changed from 'comments' to 'postComments' to avoid collision
-});
-
-User.hasMany(Comment, { 
-  foreignKey: 'user_id',
-  as: 'userComments'  // Changed from 'comments' to 'userComments' for consistency
-});
+// Define associations will be set up in associations.ts to avoid circular dependencies
 
 export default Comment; 

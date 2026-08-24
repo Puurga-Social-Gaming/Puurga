@@ -13,7 +13,7 @@ import CallRoom from '../components/Call/CallRoom';
 import CallNotification from '../components/Call/CallNotification';
 import { supabase } from '../lib/supabaseClient';
 import api from '../lib/axios';
-import SupabaseVideo from '../components/UI/SupabaseVideo';
+import SupabaseVideo from '../components/ui/SupabaseVideo';
 import RichText from '../components/RichText/RichText';
 import ContentTranslator from '../components/ContentTranslator';
 import { extractUrls } from '../utils/linkParser';

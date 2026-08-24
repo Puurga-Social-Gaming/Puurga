@@ -1,6 +1,6 @@
 import express from 'express';
-import { supabase } from '../config/supabase';
-import { supabaseAuth as auth, AuthRequest } from '../middleware/supabaseAuth';
+import { auth, AuthRequest } from '../middleware/auth';
+import { Notification, Profile, User, sequelize } from '../models';
 import { NotificationService } from '../services/notificationService';
 import { normalizeImageUrl } from '../utils/url';
 import { getBidirectionalBlockedIds } from '../utils/friendRelations';
@@ -15,23 +15,21 @@ router.get('/', auth, async (req: AuthRequest, res) => {
     const offset = (page - 1) * limit;
     const type = req.query.type as string | undefined;
 
-    let query = supabase
-      .from('notifications')
-      .select('*', { count: 'exact' })
-      .eq('receiver_id', req.user.id)
-      .order('created_at', { ascending: false })
-      .range(offset, offset + limit - 1);
+    const whereClause: any = { receiver_id: req.user.id };
 
     if (type && type !== 'all') {
       const categoryTypes = getTypesForCategory(type);
       if (categoryTypes.length > 0) {
-        query = query.in('type', categoryTypes);
+        whereClause.type = categoryTypes;
       }
     }
 
-    const { data: notifications, count, error } = await query;
-
-    if (error) throw error;
+    const { rows: notifications, count } = await Notification.findAndCountAll({
+      where: whereClause,
+      order: [['created_at', 'DESC']],
+      limit: limit,
+      offset: offset
+    });
 
     const safeNotifications = notifications || [];
     if (safeNotifications.length === 0) {
@@ -58,12 +56,12 @@ router.get('/', auth, async (req: AuthRequest, res) => {
     const profileMap = new Map<string, any>();
     if (senderIds.length > 0) {
       const [profilesRes, usersRes] = await Promise.all([
-        supabase.from('profiles').select('id, full_name, username, avatar_url').in('id', senderIds),
-        supabase.from('users').select('id, avatar_url').in('id', senderIds),
+        Profile.findAll({ where: { id: senderIds }, attributes: ['id', 'full_name', 'username', 'avatar_url'] }),
+        User.findAll({ where: { id: senderIds }, attributes: ['id', 'avatar_url'] }),
       ]);
 
-      const profiles = (profilesRes.data || []) as any[];
-      const usersTbl = (usersRes.data || []) as any[];
+      const profiles = profilesRes as any[];
+      const usersTbl = usersRes as any[];
 
       for (const p of profiles) profileMap.set(p.id, p);
       for (const u of usersTbl) {
@@ -216,18 +214,28 @@ router.post('/push/subscribe', auth, async (req: AuthRequest, res) => {
     if (!endpoint || !p256dh || !authKey) {
       return res.status(400).json({ error: 'Missing subscription data' });
     }
-    const { error } = await supabase
-      .from('push_subscriptions')
-      .upsert({
-        user_id: req.user.id,
-        endpoint,
-        p256dh,
-        auth: authKey,
-        user_agent: req.headers['user-agent'] || null,
-        updated_at: new Date().toISOString(),
-      }, { onConflict: 'user_id,endpoint' });
-
-    if (error) throw error;
+    try {
+      await sequelize.query(
+        `INSERT INTO push_subscriptions (user_id, endpoint, p256dh, auth, user_agent, updated_at)
+         VALUES (:user_id, :endpoint, :p256dh, :auth, :user_agent, :updated_at)
+         ON CONFLICT (user_id, endpoint) DO UPDATE SET p256dh = EXCLUDED.p256dh, auth = EXCLUDED.auth, user_agent = EXCLUDED.user_agent, updated_at = EXCLUDED.updated_at`,
+        {
+          replacements: {
+            user_id: req.user.id,
+            endpoint,
+            p256dh,
+            auth: authKey,
+            user_agent: req.headers['user-agent'] || null,
+            updated_at: new Date().toISOString()
+          }
+        }
+      );
+    } catch (error: any) {
+      if (error.parent?.code === '42P01') {
+        return res.status(503).json({ error: 'Push subscriptions not available yet.' });
+      }
+      throw error;
+    }
     res.json({ message: 'Push subscription saved' });
   } catch (error) {
     console.error('Error saving push subscription:', error);
@@ -242,11 +250,20 @@ router.post('/push/unsubscribe', auth, async (req: AuthRequest, res) => {
     if (!endpoint) {
       return res.status(400).json({ error: 'Missing endpoint' });
     }
-    await supabase
-      .from('push_subscriptions')
-      .delete()
-      .eq('user_id', req.user.id)
-      .eq('endpoint', endpoint);
+    try {
+      await sequelize.query(
+        `DELETE FROM push_subscriptions WHERE user_id = :user_id AND endpoint = :endpoint`,
+        {
+          replacements: { user_id: req.user.id, endpoint }
+        }
+      );
+    } catch (error: any) {
+      if (error.parent?.code === '42P01') {
+        // Table doesn't exist, safely ignore
+      } else {
+        throw error;
+      }
+    }
 
     res.json({ message: 'Push subscription removed' });
   } catch (error) {

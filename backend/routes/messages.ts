@@ -9,6 +9,8 @@ import { validateNotGhosted } from '../middleware/restrictGhosted';
 import { getAcceptedFriendIds, getPendingOutgoingIds, areBlocked, getBidirectionalBlockedIds } from '../utils/friendRelations';
 import { TranslationService } from '../services/translationService';
 import { DailyMissionService } from '../services/dailyMissionService';
+import { Message, Conversation, ConversationParticipant, User, Profile, sequelize, Op } from '../models';
+import { QueryTypes } from 'sequelize';
 
 const router = express.Router();
 
@@ -20,34 +22,25 @@ router.get('/conversations', auth, async (req: AuthRequest, res) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    // Get conversation IDs where user is a participant
-    const { data: userConversations, error: convError } = await supabase
-      .from('conversation_participants')
-      .select('conversation_id')
-      .eq('user_id', user.id);
-
-    if (convError) {
-      if (convError.code === '42P01') {
-        return res.json([]);
-      }
-      throw convError;
-    }
+    // Get conversation IDs where user is a participant from local database
+    const userConversations = await ConversationParticipant.findAll({
+      where: { userId: user.id },
+      attributes: ['conversationId']
+    });
 
     if (!userConversations || userConversations.length === 0) {
       return res.json([]);
     }
 
-    const allConversationIds = userConversations.map(c => c.conversation_id);
+    const allConversationIds = userConversations.map((c: any) => c.conversationId);
 
-    // Get top 50 most recent conversations
-    const { data: conversations, error } = await supabase
-      .from('conversations')
-      .select('id, created_at, updated_at')
-      .in('id', allConversationIds)
-      .order('updated_at', { ascending: false })
-      .limit(50);
-
-    if (error) throw error;
+    // Get top 50 most recent conversations from local database
+    const conversations = await Conversation.findAll({
+      where: { id: allConversationIds as any[] },
+      attributes: ['id', 'createdAt', 'updatedAt'],
+      order: [['updatedAt', 'DESC']],
+      limit: 50
+    });
 
     const targetConversations = conversations || [];
     const targetIds = targetConversations.map(c => c.id);
@@ -56,37 +49,37 @@ router.get('/conversations', auth, async (req: AuthRequest, res) => {
       return res.json([]);
     }
 
-    // Bulk fetch all participants for these conversations
-    const { data: allParticipants } = await supabase
-      .from('conversation_participants')
-      .select('conversation_id, user_id')
-      .in('conversation_id', targetIds)
-      .neq('user_id', user.id); // Exclude current user
+    // Bulk fetch all participants for these conversations from local database
+    const allParticipants = await ConversationParticipant.findAll({
+      where: {
+        conversationId: targetIds as any[],
+        userId: { [Op.ne]: user.id }
+      },
+      attributes: ['conversationId', 'userId']
+    });
 
-    // Bulk fetch profiles for these participants
-    const participantUserIds = [...new Set((allParticipants || []).map(p => p.user_id))];
+    // Bulk fetch profiles for these participants from local database
+    const participantUserIds = [...new Set(allParticipants.map((p: any) => p.userId))];
 
     const profilesMap = new Map();
     if (participantUserIds.length > 0) {
-      const { data: profiles } = await supabase
-        .from('profiles')
-        .select('id, full_name, username, avatar_url, show_online_status')
-        .in('id', participantUserIds);
+      const profiles = await Profile.findAll({
+        where: { id: participantUserIds as any[] },
+        attributes: ['id', 'full_name', 'username', 'avatar_url', 'show_online_status']
+      });
 
-      if (profiles) {
-        profiles.forEach(p => profilesMap.set(p.id, p));
-      }
+      profiles.forEach((p: any) => profilesMap.set(p.id, p));
     }
 
     // Group participants by conversation ID
     const conversationParticipants = new Map();
-    (allParticipants || []).forEach(p => {
-      const profile = profilesMap.get(p.user_id);
+    (allParticipants || []).forEach((p: any) => {
+      const profile = profilesMap.get(p.userId);
       if (profile) {
-        if (!conversationParticipants.has(p.conversation_id)) {
-          conversationParticipants.set(p.conversation_id, []);
+        if (!conversationParticipants.has(p.conversationId)) {
+          conversationParticipants.set(p.conversationId, []);
         }
-        conversationParticipants.get(p.conversation_id).push({
+        conversationParticipants.get(p.conversationId).push({
           id: profile.id,
           full_name: profile.full_name || 'Unknown User',
           username: profile.username || 'unknown',
@@ -100,19 +93,18 @@ router.get('/conversations', auth, async (req: AuthRequest, res) => {
     const unreadCountsMap = new Map();
     if (targetIds.length > 0) {
       try {
-        const { data: unreadCounts, error: unreadError } = await supabase
-          .from('messages')
-          .select('conversation_id')
-          .in('conversation_id', targetIds)
-          .neq('from_user_id', user.id)
-          .eq('read', false);
+        const unreadCounts = await Message.findAll({
+          where: {
+            conversationId: targetIds as any[],
+            senderId: { [Op.ne]: user.id },
+            read: false
+          },
+          attributes: ['conversationId']
+        });
 
-        if (!unreadError && unreadCounts) {
-          unreadCounts.forEach((msg: any) => {
-            unreadCountsMap.set(msg.conversation_id, (unreadCountsMap.get(msg.conversation_id) || 0) + 1);
-          });
-        }
-        // If unreadError (e.g. 'read' column doesn't exist), just leave counts at 0
+        unreadCounts.forEach((msg: any) => {
+          unreadCountsMap.set(msg.conversationId, (unreadCountsMap.get(msg.conversationId) || 0) + 1);
+        });
       } catch {
         // Gracefully ignore - unread counts will be 0
       }
@@ -121,35 +113,26 @@ router.get('/conversations', auth, async (req: AuthRequest, res) => {
     // Fetch latest messages for ALL conversations in one query (to avoid N+1 problem)
     const latestMessagesMap = new Map();
     if (targetIds.length > 0) {
-      // Get the latest message for each conversation using a window function approach
-      // Since Supabase doesn't support window functions easily, we'll fetch all messages
-      // and filter client-side (better than N queries)
-      const { data: allMessages } = await supabase
-        .from('messages')
-        .select(`
-          id, content, created_at, from_user_id, conversation_id, is_deleted,
-          profiles!messages_from_user_id_fkey(id, full_name, username, avatar_url)
-        `)
-        .in('conversation_id', targetIds)
-        .order('created_at', { ascending: false })
-        .limit(targetIds.length * 8);
+      // Get latest messages for all conversations using raw SQL for better performance
+      const allMessages = await sequelize.query(
+        `SELECT m.id, m.content, m.created_at, m.sender_id as from_user_id, m.conversation_id, m.is_deleted,
+                p.id as profile_id, p.full_name, p.username, p.avatar_url
+         FROM messages m
+         LEFT JOIN profiles p ON m.sender_id = p.id
+         WHERE m.conversation_id = ANY($1)
+         ORDER BY m.created_at DESC
+         LIMIT $2`,
+        {
+          replacements: [targetIds, targetIds.length * 8],
+          type: QueryTypes.SELECT
+        }
+      );
 
-      let hiddenLatest = new Set<string>();
-      try {
-        const { data: trashRows } = await supabase
-          .from('message_trash')
-          .select('message_id')
-          .eq('user_id', user.id)
-          .eq('scope', 'me')
-          .in('conversation_id', targetIds);
-        hiddenLatest = new Set((trashRows || []).map((r: any) => r.message_id));
-      } catch {
-        /* ignore */
-      }
+      // Skip message_trash for now - table may not exist in local DB
+      // This can be added later if needed
 
       if (allMessages && allMessages.length > 0) {
         allMessages.forEach((msg: any) => {
-          if (hiddenLatest.has(msg.id)) return;
           if (!latestMessagesMap.has(msg.conversation_id)) {
             latestMessagesMap.set(msg.conversation_id, msg);
           }
@@ -213,14 +196,14 @@ router.get('/conversations/:conversationId/messages', auth, async (req: AuthRequ
     }
 
     // Verify user is participant in this conversation
-    const { data: participant, error: participantError } = await supabase
-      .from('conversation_participants')
-      .select('id')
-      .eq('conversation_id', conversationId)
-      .eq('user_id', user.id)
-      .single();
+    const participant = await ConversationParticipant.findOne({
+      where: {
+        conversationId: conversationId,
+        userId: user.id
+      }
+    });
 
-    if (participantError || !participant) {
+    if (!participant) {
       return res.status(403).json({ error: 'Not authorized to view this conversation' });
     }
 

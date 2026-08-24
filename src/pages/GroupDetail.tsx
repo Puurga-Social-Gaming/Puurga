@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import api from '../api/api';
 import toast from 'react-hot-toast';
 import { useUser } from '../context/UserContext';
-import SupabaseVideo from '../components/UI/SupabaseVideo';
+import SupabaseVideo from '../components/ui/SupabaseVideo';
 import RichText from '../components/RichText/RichText';
 import ContentTranslator from '../components/ContentTranslator';
 import { extractUrls } from '../utils/linkParser';

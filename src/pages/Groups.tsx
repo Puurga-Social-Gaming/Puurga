@@ -5,7 +5,7 @@ import { motion } from 'framer-motion';
 import api from '../api/api';
 import toast from 'react-hot-toast';
 import CreateGroupModal from '../components/CreateGroupModal';
-import Button from '../components/UI/Button';
+import Button from '../components/ui/Button';
 import { useSurvival } from '../context/SurvivalContext';
 import { Alliance, PendingAllianceRequest } from '../types/survival';
 import Avatar from '../components/Avatar';

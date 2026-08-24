@@ -8,7 +8,7 @@ import { useUser } from '../../context/UserContext';
 import type { Post } from '../../types';
 import Spinner from '../../components/Spinner';
 import { DEFAULT_IMAGES } from '../../constants/defaultImages';
-import Button from '../UI/Button';
+import Button from '../ui/Button';
 import VideoCropModal from './VideoCropModal';
 
 import { retryableLazy } from '../../utils/retryableLazy';

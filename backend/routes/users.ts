@@ -15,6 +15,8 @@ import { NotificationService } from '../services/notificationService';
 import { serializeMediaUrls, parseMediaUrls } from '../utils/mediaUrls';
 import { DailyMissionService } from '../services/dailyMissionService';
 import { progressionEngine } from '../services/progressionEngine';
+import { User, Profile, Post, Like, Friendship, FriendRequest, Comment, sequelize, Op } from '../models';
+import { QueryTypes } from 'sequelize';
 
 const router = express.Router();
 
@@ -72,43 +74,44 @@ router.get('/profile', auth, async (req: AuthRequest, res) => {
       return res.status(401).json({ error: 'Not authenticated' });
     }
 
-    // Fetch profile from profiles table
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', user.id)
-      .single();
+    // Fetch profile from local database
+    const profile = await Profile.findByPk(user.id);
 
-    if (profileError || !profile) {
+    if (!profile) {
       return res.status(404).json({ error: 'Profile not found' });
     }
 
-    // Calculate stats
-    const [
-      { count: followersCount },
-      { count: followingCount },
-      { data: posts }
-    ] = await Promise.all([
-      supabase.from('friends').select('*', { count: 'exact', head: true }).eq('user_id_2', user.id),
-      supabase.from('friends').select('*', { count: 'exact', head: true }).eq('user_id_1', user.id),
-      supabase.from('posts').select('id').eq('user_id', user.id)
+    // Calculate stats using local database
+    const [followersCount, followingCount, posts] = await Promise.all([
+      Friendship.count({ where: { friend_id: user.id, status: 'accepted' } }),
+      Friendship.count({ where: { user_id: user.id, status: 'accepted' } }),
+      Post.findAll({ 
+        where: { user_id: user.id },
+        attributes: ['id']
+      })
     ]);
 
     let puurgas = 0;
     if (posts && posts.length > 0) {
-      const postIds = posts.map(p => p.id);
+      const postIds = posts.map((p: any) => p.id);
       try {
-        const { count } = await supabase.from('likes').select('*', { count: 'exact', head: true }).in('post_id', postIds);
-        puurgas = count || 0;
+        puurgas = await Like.count({ 
+          where: { post_id: postIds as any[] }
+        });
       } catch {
         // likes table may not exist - fall back to reactions
-        const { count } = await supabase.from('reactions').select('*', { count: 'exact', head: true }).in('post_id', postIds).eq('type', 'like');
-        puurgas = count || 0;
+        puurgas = await sequelize.query(
+          `SELECT COUNT(*) as count FROM reactions WHERE post_id = ANY($1) AND type = 'like'`,
+          {
+            replacements: [postIds],
+            type: QueryTypes.SELECT
+          }
+        ).then((result: any) => result[0]?.count || 0);
       }
     }
 
     // Get credits from profile (prefer purga_points, fallback to credits)
-    const credits = Number(profile.purga_points ?? profile.credits ?? 0);
+    const credits = Number(profile.purga_points ?? 0);
 
     // Return profile with both snake_case and camelCase for compatibility
     // Prefer auth-resolved name/username (middleware heals "New User" placeholders)
@@ -128,9 +131,9 @@ router.get('/profile', auth, async (req: AuthRequest, res) => {
       certificationSlug: profile.certification_slug || null,
       logo_certified: Boolean(profile.logo_certified),
       logoCertified: Boolean(profile.logo_certified),
-      account_status: profile.account_status || (profile.is_restricted ? 'restricted' : 'active'),
-      inactivity_level: profile.inactivity_level || 0,
-      last_active_at: profile.last_active_at || profile.last_seen,
+      account_status: 'active',
+      inactivity_level: 0,
+      last_active_at: profile.updated_at,
       stats: {
         followers: followersCount || 0,
         following: followingCount || 0,
@@ -195,16 +198,18 @@ router.get('/gallery', auth, async (req: AuthRequest, res) => {
       }
     }
 
-    // 2. Get all post images
-    const { data: posts, error: postsError } = await supabase
-      .from('posts')
-      .select('id, media_url, created_at')
-      .eq('user_id', userId)
-      .not('media_url', 'is', null)
-      .order('created_at', { ascending: false });
+    // 2. Get all post images from local database
+    const posts = await Post.findAll({
+      where: { 
+        user_id: userId,
+        media_url: { [Op.ne]: null as any }
+      },
+      attributes: ['id', 'media_url', 'created_at'],
+      order: [['created_at', 'DESC']]
+    });
 
-    if (!postsError && posts) {
-      posts.forEach((post) => {
+    if (posts) {
+      posts.forEach((post: any) => {
         if (post.media_url) {
           let images: string[] = [];
           try {
@@ -815,24 +820,16 @@ router.post('/posts', auth, validateNotGhosted, async (req: AuthRequest, res) =>
 
     console.log('Inserting post (safe):', { user_id, media_url: media_url?.substring(0, 100) });
 
-    let { data, error } = await supabase
-      .from('posts')
-      .insert([safePostData])
-      .select();
+    // Insert post into local database
+    const createdPost = await Post.create({
+      user_id,
+      content: content || '',
+      media_url: media_url || undefined,
+    });
 
-    if (error) {
-      console.error('❌ Supabase insert error (safe insert):', error);
-      return res.status(500).json({ 
-        error: 'Failed to create post', 
-        details: error.message,
-        hint: error.hint,
-        code: error.code
-      });
-    }
-
-    const createdPost = data && data[0];
     if (!createdPost) {
-      return res.status(500).json({ error: 'Post insert returned no data' });
+      console.error('❌ Local database insert error');
+      return res.status(500).json({ error: 'Failed to create post' });
     }
 
     console.log('Post inserted successfully:', createdPost.id);
@@ -849,17 +846,13 @@ router.post('/posts', auth, validateNotGhosted, async (req: AuthRequest, res) =>
     if (typeof background_index === 'number') extraFields.background_index = background_index;
 
     if (Object.keys(extraFields).length > 0) {
-      const { error: updateError } = await supabase
-        .from('posts')
-        .update(extraFields)
-        .eq('id', createdPost.id);
-
-      if (updateError) {
-        // Non-fatal: columns may not exist yet, just log and continue
-        console.warn('⚠️  Could not set extra post fields (columns may not exist):', updateError.message);
-      } else {
+      try {
+        await Post.update(extraFields, { where: { id: createdPost.id } });
         // Merge extra fields into the response
         Object.assign(createdPost, extraFields);
+      } catch (updateError: any) {
+        // Non-fatal: columns may not exist yet, just log and continue
+        console.warn('⚠️  Could not set extra post fields (columns may not exist):', updateError.message);
       }
     }
 
@@ -900,27 +893,29 @@ router.get('/posts/feed', auth, async (req: AuthRequest, res) => {
   try {
     const currentUserId = req.user.id;
 
-    // 1) Fetch posts
-    const { data: posts, error: postsError } = await supabase
-      .from('posts')
-      .select('*')
-      .order('created_at', { ascending: false });
-    if (postsError) throw postsError;
+    // 1) Fetch posts from local database
+    const posts = await Post.findAll({
+      order: [['created_at', 'DESC']]
+    });
 
     let safePosts = posts || [];
     if (safePosts.length === 0) {
       return res.json([]);
     }
 
-    // 2) Get current user's friends for visibility filtering
-    const { data: friendships } = await supabase
-      .from('friends')
-      .select('user_id_1, user_id_2')
-      .or(`user_id_1.eq.${currentUserId},user_id_2.eq.${currentUserId}`);
+    // 2) Get current user's friends for visibility filtering from local database
+    const friendships = await Friendship.findAll({
+      where: {
+        [Op.or]: [
+          { user_id: currentUserId },
+          { friend_id: currentUserId }
+        ]
+      }
+    });
 
     const friendIds = new Set(
-      (friendships || []).map(f =>
-        f.user_id_1 === currentUserId ? f.user_id_2 : f.user_id_1
+      (friendships || []).map((f: any) =>
+        f.user_id === currentUserId ? f.friend_id : f.user_id
       )
     );
 
@@ -952,19 +947,21 @@ router.get('/posts/feed', auth, async (req: AuthRequest, res) => {
     // 4) Collect unique user_ids
     const userIds = Array.from(new Set(safePosts.map(p => p.user_id).filter(Boolean)));
 
-    // 5) Fetch profile data from profiles and avatar from users (if table exists)
-    const [profilesRes, usersRes] = await Promise.all([
-      supabase.from('profiles').select('id, full_name, username, avatar_url').in('id', userIds),
-      supabase.from('users').select('id, avatar_url').in('id', userIds),
-    ]);
+    // 5) Fetch profile data from local database
+    const profiles = await Profile.findAll({
+      where: { id: userIds as any[] },
+      attributes: ['id', 'full_name', 'username', 'avatar_url']
+    });
 
-    const profiles = (profilesRes.data || []) as Array<{ id: string; full_name?: string | null; username?: string | null; avatar_url?: string | null }>;
-    const usersTbl = Array.isArray(usersRes.data) ? (usersRes.data as Array<{ id: string; avatar_url?: string | null }>) : [];
+    const users = await User.findAll({
+      where: { id: userIds as any[] },
+      attributes: ['id', 'avatar']
+    });
 
     const profileMap = new Map<string, { id: string; full_name?: string | null; username?: string | null; avatar_url?: string | null }>();
     for (const p of profiles) profileMap.set(p.id, p);
     const usersMap = new Map<string, { id: string; avatar_url?: string | null }>();
-    for (const u of usersTbl) usersMap.set(u.id, u);
+    for (const u of users) usersMap.set(u.id, { id: u.id, avatar_url: u.avatar });
 
     // Use the shared normalizeImageUrl function
     // Note: This function returns relative paths for local files and keeps Supabase URLs as absolute
@@ -1039,27 +1036,13 @@ router.get('/:id/stats', auth, async (req: AuthRequest, res) => {
       return res.status(400).json({ error: 'Invalid user id' });
     }
 
-    // Posts by the user
-    const { data: posts, error: postsError } = await supabase
-      .from('posts')
-      .select('id')
-      .eq('user_id', userId);
-    if (postsError) {
-      const code = (postsError as any).code;
-      const msg = String((postsError as any).message || (postsError as any).details || '').toLowerCase();
-      if (
-        code === '42P01' ||
-        code === '42703' ||
-        msg.includes('fetch failed') ||
-        msg.includes('timeout') ||
-        msg.includes('network')
-      ) {
-        return res.json({ followers: 0, following: 0, posts: 0, puurgas: 0 });
-      }
-      throw postsError;
-    }
+    // Posts by the user from local database
+    const posts = await Post.findAll({
+      where: { user_id: userId },
+      attributes: ['id']
+    });
 
-    const postIds: string[] = (posts || []).map((p: { id: string }) => p.id);
+    const postIds: string[] = (posts || []).map((p: any) => p.id);
 
     // Prefer followers table (mutual follows). Fallback to friends graph.
     let followersCount = 0;
@@ -1253,18 +1236,17 @@ router.get('/profile/:username_or_id', auth, async (req: AuthRequest, res) => {
       return res.status(400).json({ error: 'Username or ID is required' });
     }
 
-    let query = supabase.from('profiles').select('*');
-
+    // Find user from local database
+    let profile;
     if (uuidValidate(username_or_id)) {
-      query = query.eq('id', username_or_id);
+      profile = await Profile.findByPk(username_or_id);
     } else {
-      query = query.eq('username', username_or_id.toLowerCase());
+      profile = await Profile.findOne({
+        where: { username: username_or_id.toLowerCase() }
+      });
     }
 
-    // Find user
-    const { data: profile, error: profileError } = await query.single();
-
-    if (profileError || !profile) {
+    if (!profile) {
       return res.status(404).json({ error: 'User not found' });
     }
 
@@ -1291,41 +1273,47 @@ router.get('/profile/:username_or_id', auth, async (req: AuthRequest, res) => {
       });
     }
 
-    // Get friends count
-    const { count: friendsCount } = await supabase
-      .from('friends')
-      .select('*', { count: 'exact', head: true })
-      .or(`user_id.eq.${profile.id},friend_id.eq.${profile.id}`);
+    // Get friends count from local database
+    const friendsCount = await Friendship.count({
+      where: {
+        [Op.or]: [
+          { user_id: profile.id },
+          { friend_id: profile.id }
+        ]
+      }
+    });
 
-    // Get posts count
-    const { count: postsCount } = await supabase
-      .from('posts')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', profile.id);
+    // Get posts count from local database
+    const postsCount = await Post.count({
+      where: { user_id: profile.id }
+    });
 
     // Check if current user is friends with this user
     let isFriend = false;
     let hasPendingRequest = false;
 
     if (currentUserId && currentUserId !== profile.id) {
-      // Check friendship
-      const { data: friendship } = await supabase
-        .from('friends')
-        .select('id')
-        .or(`and(user_id.eq.${currentUserId},friend_id.eq.${profile.id}),and(user_id.eq.${profile.id},friend_id.eq.${currentUserId})`)
-        .maybeSingle();
+      // Check friendship from local database
+      const friendship = await Friendship.findOne({
+        where: {
+          [Op.or]: [
+            { user_id: currentUserId, friend_id: profile.id },
+            { user_id: profile.id, friend_id: currentUserId }
+          ]
+        }
+      });
 
       isFriend = !!friendship;
 
-      // Check pending friend request
+      // Check pending friend request from local database
       if (!isFriend) {
-        const { data: pendingRequest } = await supabase
-          .from('friend_requests')
-          .select('id')
-          .eq('from_user_id', currentUserId)
-          .eq('to_user_id', profile.id)
-          .eq('status', 'pending')
-          .maybeSingle();
+        const pendingRequest = await FriendRequest.findOne({
+          where: {
+            sender_id: currentUserId,
+            receiver_id: profile.id,
+            status: 'pending'
+          }
+        });
 
         hasPendingRequest = !!pendingRequest;
       }
@@ -1392,52 +1380,42 @@ router.get('/:username/posts', auth, async (req: AuthRequest, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    // Get user's posts
-    const { data: posts, error: postsError } = await supabase
-      .from('posts')
-      .select('*')
-      .eq('user_id', profile.id)
-      .order('created_at', { ascending: false });
-
-    if (postsError) {
-      throw postsError;
-    }
+    // Get user's posts from local database
+    const posts = await Post.findAll({
+      where: { user_id: profile.id },
+      order: [['created_at', 'DESC']]
+    });
 
     // Get like counts and check if current user liked each post
     const currentUserId = req.user?.id;
     const postsWithData = await Promise.all(
-      (posts || []).map(async (post) => {
-        // Get like count
-        const { count: likeCount } = await supabase
-          .from('likes')
-          .select('*', { count: 'exact', head: true })
-          .eq('post_id', post.id);
+      (posts || []).map(async (post: any) => {
+        // Get like count from local database
+        const likeCount = await Like.count({ where: { post_id: post.id } });
 
-        // Get comment count
-        const { count: commentCount } = await supabase
-          .from('comments')
-          .select('*', { count: 'exact', head: true })
-          .eq('post_id', post.id);
+        // Get comment count from local database
+        const commentCount = await Comment.count({ where: { post_id: post.id } });
 
         // Check if current user liked the post
         let liked = false;
         let purged = false;
         if (currentUserId) {
-          const { data: userLike } = await supabase
-            .from('likes')
-            .select('id')
-            .eq('post_id', post.id)
-            .eq('user_id', currentUserId)
-            .maybeSingle();
+          const userLike = await Like.findOne({
+            where: {
+              post_id: post.id,
+              user_id: currentUserId
+            }
+          });
           liked = !!userLike;
 
-          const { data: userPurge } = await supabase
-            .from('post_purges')
-            .select('id')
-            .eq('post_id', post.id)
-            .eq('user_id', currentUserId)
-            .maybeSingle();
-          purged = !!userPurge;
+          const userPurge = await sequelize.query(
+            `SELECT id FROM post_purges WHERE post_id = ? AND user_id = ? LIMIT 1`,
+            {
+              replacements: [post.id, currentUserId],
+              type: QueryTypes.SELECT
+            }
+          );
+          purged = !!userPurge[0];
         }
 
         // Process media URL

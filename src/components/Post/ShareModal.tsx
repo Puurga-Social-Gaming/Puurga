@@ -17,7 +17,7 @@ import { getAcceptedFriends } from '../../services/friendService';
 import api from '../../lib/axios';
 import Avatar from '../Avatar';
 import { useUser } from '../../context/UserContext';
-import Button from '../UI/Button';
+import Button from '../ui/Button';
 import { isVideoUrl } from '../../utils/mediaUrls';
 
 interface Friend {

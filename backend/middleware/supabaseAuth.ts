@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { supabase } from '../config/supabase';
+import { User, Profile } from '../models';
 
 export interface AuthUser {
   id: string;
@@ -140,54 +141,90 @@ async function buildAuthUser(
   email: string,
   meta: Record<string, string | undefined> = {}
 ): Promise<AuthUser> {
+  let user: any = null;
   let profile: any = null;
 
   try {
-    const { data, error: profileError } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .maybeSingle();
+    // Try to get user from local database first
+    user = await User.findByPk(userId);
+    
+    if (!user) {
+      // Fallback to Supabase profiles if local user not found
+      console.warn(`supabaseAuth: Local user not found for ${userId}, checking Supabase`);
+      const { data, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .maybeSingle();
 
-    if (profileError) {
-      if (!isTransientAuthError(profileError)) {
-        console.warn('supabaseAuth: profiles fetch error (non-fatal):', profileError.message);
+      if (profileError) {
+        if (!isTransientAuthError(profileError)) {
+          console.warn('supabaseAuth: profiles fetch error (non-fatal):', profileError.message);
+        }
+      } else {
+        profile = data;
       }
     } else {
-      profile = data;
+      // Get local profile if user exists
+      try {
+        profile = await Profile.findByPk(userId);
+      } catch (profileError) {
+        console.warn('supabaseAuth: Local profile fetch failed:', profileError);
+      }
     }
   } catch (error) {
-    if (!isTransientAuthError(error)) {
-      console.warn('supabaseAuth: profiles fetch threw (non-fatal):', error);
+    console.warn('supabaseAuth: local database fetch threw (non-fatal):', error);
+    
+    // Fallback to Supabase
+    try {
+      const { data, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .maybeSingle();
+
+      if (!profileError) {
+        profile = data;
+      }
+    } catch (fallbackError) {
+      console.warn('supabaseAuth: Supabase fallback also failed:', fallbackError);
     }
   }
 
   let full_name =
-    pickName(profile?.full_name, meta.full_name, meta.name, email.split('@')[0]) ||
+    pickName(profile?.full_name, user?.name, meta.full_name, meta.name, email.split('@')[0]) ||
     email ||
     'User';
 
   let username =
-    pickUsername(profile?.username, meta.username, email.split('@')[0]) ||
+    pickUsername(profile?.username, user?.username, meta.username, email.split('@')[0]) ||
     `user_${userId.slice(0, 8)}`;
 
+  // Update local profile if it has placeholder data
   if (profile && (isPlaceholderName(profile.full_name) || isPlaceholderUsername(profile.username))) {
     const healed = {
       full_name,
       username,
-      email: email.trim().toLowerCase() || profile.email || null,
-      updated_at: new Date().toISOString(),
+      email: email.trim().toLowerCase() || profile.email || user?.email || null,
+      updated_at: new Date(),
     };
+    
     try {
-      const { data: updated } = await supabase
-        .from('profiles')
-        .update(healed)
-        .eq('id', userId)
-        .select('full_name, username')
-        .maybeSingle();
-      if (updated) {
-        full_name = updated.full_name || full_name;
-        username = updated.username || username;
+      // Try to update local profile first
+      if (profile instanceof Profile) {
+        await profile.update(healed);
+      } else {
+        // Fallback to Supabase
+        const { data: updated } = await supabase
+          .from('profiles')
+          .update(healed)
+          .eq('id', userId)
+          .select('full_name, username')
+          .maybeSingle();
+        if (updated) {
+          full_name = updated.full_name || full_name;
+          username = updated.username || username;
+        }
       }
     } catch {
       // non-fatal
@@ -199,15 +236,15 @@ async function buildAuthUser(
     full_name,
     email,
     username,
-    role: (profile?.role as AuthUser['role']) || 'user',
-    is_private: Boolean(profile?.is_private ?? false),
-    hide_from_suggestions: Boolean(profile?.hide_from_suggestions ?? false),
-    message_requests: (profile?.message_requests as AuthUser['message_requests']) || 'everyone',
-    show_read_receipts: Boolean(profile?.show_read_receipts ?? true),
-    show_online_status: Boolean(profile?.show_online_status ?? true),
-    comment_privacy: (profile?.comment_privacy as AuthUser['comment_privacy']) || 'everyone',
-    story_privacy: (profile?.story_privacy as AuthUser['story_privacy']) || 'everyone',
-    is_blocked: Boolean(profile?.is_blocked ?? false),
+    role: (user?.role || profile?.role as AuthUser['role']) || 'user',
+    is_private: Boolean(user?.is_private ?? profile?.is_private ?? false),
+    hide_from_suggestions: Boolean(user?.hide_from_suggestions ?? profile?.hide_from_suggestions ?? false),
+    message_requests: (user?.message_requests || profile?.message_requests as AuthUser['message_requests']) || 'everyone',
+    show_read_receipts: Boolean(user?.show_read_receipts ?? profile?.show_read_receipts ?? true),
+    show_online_status: Boolean(user?.show_online_status ?? profile?.show_online_status ?? true),
+    comment_privacy: (user?.comment_privacy || profile?.comment_privacy as AuthUser['comment_privacy']) || 'everyone',
+    story_privacy: (user?.story_privacy || profile?.story_privacy as AuthUser['story_privacy']) || 'everyone',
+    is_blocked: Boolean(user?.is_blocked ?? profile?.is_blocked ?? false),
   };
 }
 

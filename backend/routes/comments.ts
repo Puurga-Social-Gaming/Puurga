@@ -1,6 +1,6 @@
 import express from 'express';
-import { supabase } from '../config/supabase';
-import { supabaseAuth as auth, AuthRequest } from '../middleware/supabaseAuth';
+import { auth, AuthRequest } from '../middleware/auth';
+import { Comment, Profile, Post, sequelize } from '../models';
 import { normalizeImageUrl } from '../utils/url';
 import { logSuperAdminAction } from '../utils/auditLogger';
 import { POST_PURGE_THRESHOLD, PROFILE_PURGE_THRESHOLD } from '../constants/purgeConstants';
@@ -8,6 +8,8 @@ import { CreditService } from '../services/creditService';
 import { NotificationService } from '../services/notificationService';
 import { validateNotGhosted } from '../middleware/restrictGhosted';
 import { areBlocked, getBidirectionalBlockedIds } from '../utils/friendRelations';
+import { supabase } from '../config/supabase';
+import { QueryTypes } from 'sequelize';
 import { DailyMissionService } from '../services/dailyMissionService';
 import { progressionEngine } from '../services/progressionEngine';
 
@@ -19,26 +21,22 @@ router.get('/posts/:postId/comments', auth, async (req: AuthRequest, res) => {
     const { postId } = req.params;
     const viewerId = req.user?.id;
 
-    // Fetch comments for the post
-    let { data: comments, error: commentsError } = await supabase
-      .from('comments')
-      .select('*')
-      .eq('post_id', postId)
-      .eq('is_purged', false)
-      .order('created_at', { ascending: true });
-
-    // Fallback if is_purged column doesn't exist
-    if (commentsError && (commentsError.code === '42703' || /column.*is_purged.*does not exist/i.test(commentsError.message))) {
-      const retry = await supabase
-        .from('comments')
-        .select('*')
-        .eq('post_id', postId)
-        .order('created_at', { ascending: true });
-      comments = retry.data;
-      commentsError = retry.error;
+    let comments: any[] = [];
+    try {
+      comments = await Comment.findAll({
+        where: { post_id: postId, is_purged: false },
+        order: [['created_at', 'ASC']]
+      });
+    } catch (err: any) {
+      if (err.name === 'SequelizeDatabaseError' && err.message.includes('is_purged')) {
+        comments = await Comment.findAll({
+          where: { post_id: postId },
+          order: [['created_at', 'ASC']]
+        });
+      } else {
+        throw err;
+      }
     }
-
-    if (commentsError) throw commentsError;
 
     let safeComments = comments || [];
     if (safeComments.length === 0) {
@@ -62,12 +60,10 @@ router.get('/posts/:postId/comments', auth, async (req: AuthRequest, res) => {
     const userIds = Array.from(new Set(safeComments.map(c => c.user_id).filter(Boolean)));
 
     // Fetch user profiles
-    const { data: profiles, error: profilesError } = await supabase
-      .from('profiles')
-      .select('id, full_name, username, avatar_url')
-      .in('id', userIds);
-
-    if (profilesError) throw profilesError;
+    const profiles = await Profile.findAll({
+      where: { id: userIds },
+      attributes: ['id', 'full_name', 'username', 'avatar_url']
+    });
 
     const profileMap = new Map();
     (profiles || []).forEach(p => profileMap.set(p.id, p));
@@ -76,12 +72,18 @@ router.get('/posts/:postId/comments', auth, async (req: AuthRequest, res) => {
     const commentIds = safeComments.map((c) => c.id);
     const likesByComment = new Map<string, { count: number; likedByMe: boolean }>();
     if (commentIds.length > 0) {
-      const { data: likeRows, error: likesError } = await supabase
-        .from('comment_likes')
-        .select('comment_id, user_id')
-        .in('comment_id', commentIds);
+      let likeRows: any[] = [];
+      try {
+        const [rows] = await sequelize.query(
+          `SELECT comment_id, user_id FROM comment_likes WHERE comment_id IN (:commentIds)`,
+          { replacements: { commentIds } }
+        );
+        likeRows = rows as any[];
+      } catch (err: any) {
+        // Ignore if table doesn't exist
+      }
 
-      if (!likesError && likeRows) {
+      if (likeRows.length > 0) {
         for (const row of likeRows) {
           const prev = likesByComment.get(row.comment_id) || { count: 0, likedByMe: false };
           prev.count += 1;
@@ -93,12 +95,17 @@ router.get('/posts/:postId/comments', auth, async (req: AuthRequest, res) => {
 
     const purgesByComment = new Map<string, { count: number; purgedByMe: boolean }>();
     if (commentIds.length > 0) {
-      const { data: purgeRows } = await supabase
-        .from('purges')
-        .select('target_id, actor_id')
-        .eq('target_type', 'comment')
-        .in('target_id', commentIds);
-      if (purgeRows) {
+      let purgeRows: any[] = [];
+      try {
+        const [rows] = await sequelize.query(
+          `SELECT target_id, actor_id FROM purges WHERE target_type = 'comment' AND target_id IN (:commentIds)`,
+          { replacements: { commentIds } }
+        );
+        purgeRows = rows as any[];
+      } catch (err: any) {
+        // Ignore if table doesn't exist
+      }
+      if (purgeRows.length > 0) {
         for (const row of purgeRows) {
           const prev = purgesByComment.get(row.target_id) || { count: 0, purgedByMe: false };
           prev.count += 1;
@@ -162,13 +169,16 @@ router.post('/posts/:postId/comments', auth, validateNotGhosted, async (req: Aut
     }
 
     // Check if post exists
-    const { data: post, error: postError } = await supabase
-      .from('posts')
-      .select('id, user_id')
-      .eq('id', postId)
-      .single();
+    const [postResults] = await sequelize.query(
+      `SELECT id, user_id FROM posts WHERE id = ? LIMIT 1`,
+      {
+        replacements: [postId],
+        type: QueryTypes.SELECT
+      }
+    );
+    const post = (postResults as any)[0];
 
-    if (postError || !post) {
+    if (!post) {
       return res.status(404).json({ error: 'Post not found' });
     }
 
@@ -199,28 +209,24 @@ router.post('/posts/:postId/comments', auth, validateNotGhosted, async (req: Aut
       while (currentId && guard < 5) {
         guard += 1;
         const lookupId = currentId;
-        const { data, error: rowError } = await supabase
-          .from('comments')
-          .select('id, user_id, post_id, parent_id')
-          .eq('id', lookupId)
-          .maybeSingle();
+        let row: any = null;
+        let fetchError = false;
+        try {
+          row = await Comment.findByPk(lookupId, { attributes: ['id', 'user_id', 'post_id', 'parent_id'] });
+        } catch (err: any) {
+          fetchError = true;
+        }
 
-        const row = data as CommentParentRow | null;
-
-        if (rowError || !row || row.post_id !== postId) {
+        if (fetchError || !row || row.post_id !== postId) {
           // Column parent_id may be absent — validate without it once
           if (guard === 1) {
-            const retry = await supabase
-              .from('comments')
-              .select('id, user_id, post_id')
-              .eq('id', requestedParentId)
-              .maybeSingle();
-            if (retry.error || !retry.data || retry.data.post_id !== postId) {
+            row = await Comment.findByPk(requestedParentId, { attributes: ['id', 'user_id', 'post_id'] });
+            if (!row || row.post_id !== postId) {
               return res.status(400).json({ error: 'Invalid parent comment' });
             }
-            firstParent = retry.data as CommentParentRow;
-            resolvedParentId = retry.data.id;
-            replyNotifyUserId = retry.data.user_id;
+            firstParent = { id: row.id, user_id: row.user_id, post_id: row.post_id };
+            resolvedParentId = row.id;
+            replyNotifyUserId = row.user_id;
           }
           break;
         }
@@ -249,41 +255,17 @@ router.post('/posts/:postId/comments', auth, validateNotGhosted, async (req: Aut
       created_at: new Date().toISOString(),
     };
     if (resolvedParentId) insertPayload.parent_id = resolvedParentId;
-    if (bodyLanguage) insertPayload.language = String(bodyLanguage).split(/[-_]/)[0];
-
-    // Create the comment — if parent_id column missing, fail clearly (do not orphan replies)
+    if (bodyLanguage) insertPayload.language = String(bodyLanguage).split(/[-_]/)[0];    // Create the comment — if parent_id column missing, fail clearly (do not orphan replies)
     let comment: any = null;
-    {
-      const { data, error: commentError } = await supabase
-        .from('comments')
-        .insert(insertPayload)
-        .select()
-        .single();
-
-      if (commentError) {
-        const code = (commentError as any).code;
-        const msg = String(commentError.message || '');
-        if (resolvedParentId && (code === '42703' || /parent_id/i.test(msg))) {
-          return res.status(503).json({
-            error: 'Comment replies require migration 20260724_comment_replies.sql',
-            code: 'PARENT_ID_MISSING',
-          });
-        }
-        if (code === '42703' || /language/i.test(msg)) {
-          const softPayload = { ...insertPayload };
-          delete softPayload.language;
-          const { data: fallback, error: fallbackError } = await supabase
-            .from('comments')
-            .insert(softPayload)
-            .select()
-            .single();
-          if (fallbackError) throw fallbackError;
-          comment = fallback;
-        } else {
-          throw commentError;
-        }
+    try {
+      comment = await Comment.create(insertPayload as any);
+    } catch (err: any) {
+      if (err.name === 'SequelizeDatabaseError' && /column.*does not exist/i.test(err.message)) {
+        const fallbackPayload = { ...insertPayload };
+        delete fallbackPayload.language;
+        comment = await Comment.create(fallbackPayload as any);
       } else {
-        comment = data;
+        throw err;
       }
     }
 

@@ -15,7 +15,7 @@ import { useSurvival } from '../../context/SurvivalContext';
 import { useUser } from '../../context/UserContext';
 import { BACKGROUND_PRESETS, getPostBackgroundPreset } from '../../constants/postBackgrounds';
 
-import SupabaseVideo from '../UI/SupabaseVideo';
+import SupabaseVideo from '../ui/SupabaseVideo';
 import Avatar from '../Avatar';
 import RichText from '../RichText/RichText';
 import PurgeIcon from '../Icons/PurgeIcon';
