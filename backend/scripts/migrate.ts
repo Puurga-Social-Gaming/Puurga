@@ -89,14 +89,36 @@ function collectMigrations(): MigrationFile[] {
 async function runTs(file: string) {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const mod = require(file);
+
+  // Resolve the up() function — supports both export styles
+  //   Style A (Sequelize CLI):  export = { async up(queryInterface) { ... } }
+  //   Style B (direct):         export async function up() { ... }
+  //   Style C (default export): export default { up() { ... } }
+  let upFn: Function | undefined;
   if (typeof mod.up === 'function') {
-    await mod.up();
+    upFn = mod.up;
   } else if (typeof mod.default?.up === 'function') {
-    await mod.default.up();
+    upFn = mod.default.up;
+  }
+
+  if (!upFn) {
+    throw new Error(`Migration has no exported 'up' function: ${file}`);
+  }
+
+  // Detect Style A by checking how many parameters the function declares.
+  // Style A functions declare at least one param (queryInterface).
+  // Style B functions declare zero params.
+  const needsQueryInterface = upFn.length > 0;
+
+  if (needsQueryInterface) {
+    // Provide the Sequelize queryInterface so old CLI-style migrations work
+    const qi = sequelize.getQueryInterface();
+    await upFn(qi, sequelize.constructor);
   } else {
-    throw new Error(`Migration ${file} has no exported 'up' function`);
+    await upFn();
   }
 }
+
 
 async function runSql(file: string) {
   const sql = fs.readFileSync(file, 'utf8');
