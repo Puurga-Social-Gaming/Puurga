@@ -1,41 +1,55 @@
 #!/bin/bash
 
 # Puurga Deployment Script
-# This script is triggered by GitHub Actions or run manually
+# Triggered by GitHub Actions or run manually on the VPS.
+# Runs: git pull → install → build → MIGRATE → restart
+
+set -e   # Stop on any error
 
 echo "🚀 Starting Deployment..."
-# export PATH=$PATH:/root/.nvm/versions/node/v20.10.0/bin
 
 # 1. Navigate to project directory
-cd /var/www/Puurga || exit
+cd /home/lezoapp/projects/Puurga || exit 1
 
 # 2. Pull latest changes
 echo "📥 Pulling latest code..."
 git fetch origin main
 git reset --hard origin/main
 
-# 3. Install Dependencies
-echo "📦 Installing Frontend Dependencies..."
+# 3. Install dependencies
+echo "📦 Installing frontend dependencies..."
 npm install --quiet
 
-echo "📦 Installing Backend Dependencies..."
-cd backend || exit
+echo "📦 Installing backend dependencies..."
+cd backend
 npm install --quiet
+
+# 4. Run database migrations BEFORE building
+#    Uses ts-node so migrations run from source (no compile step needed)
+#    Safe to run every deploy — already-applied migrations are skipped.
+echo "🗄️  Running database migrations..."
+npm run migrate
+
 cd ..
 
-# 4. Build Project
-echo "🏗️ Building Project..."
+# 5. Build Project
+echo "🏗️  Building backend..."
+cd backend && npm run build && cd ..
+
+echo "🏗️  Building frontend..."
 npm run build
 
-# 5. Update Nginx config if changed
+# 6. Update Nginx config if changed
 echo "🔧 Updating Nginx config..."
-cp /var/www/Puurga/deployment/nginx.conf /etc/nginx/sites-available/puurga 2>/dev/null || \
-cp /var/www/Puurga/backend/nginx.conf /etc/nginx/sites-available/puurga 2>/dev/null || true
-nginx -t && systemctl reload nginx || echo "⚠️ Nginx config unchanged or test failed"
+cp /home/lezoapp/projects/Puurga/nginx-puurga-fixed.conf /etc/nginx/sites-available/puurga 2>/dev/null || true
+sudo nginx -t && sudo systemctl reload nginx || echo "⚠️  Nginx config unchanged or test failed"
 
-# 6. Restart Services
-echo "🔄 Restarting Backend..."
-pm2 restart backend
-pm2 restart puurga-backend 2>/dev/null || true
+# 7. Restart backend
+echo "🔄 Restarting backend..."
+pm2 restart puurga-backend
 
-echo "✅ Deployment Complete!"
+echo ""
+echo "✅ Deployment complete!"
+echo "   → Migrations applied"
+echo "   → Backend rebuilt and restarted"
+echo "   → Frontend rebuilt"
