@@ -1,5 +1,5 @@
 import { Response, NextFunction } from 'express';
-import { supabase } from '../config/supabase';
+import { requireSupabase } from '../config/supabase';
 import { AuthRequest } from './supabaseAuth';
 
 export const validateNotGhosted = async (req: AuthRequest, res: Response, next: NextFunction) => {
@@ -14,7 +14,8 @@ export const validateNotGhosted = async (req: AuthRequest, res: Response, next: 
       return next();
     }
 
-    const { data: profile } = await supabase
+    const supabaseClient = requireSupabase();
+    const { data: profile } = await supabaseClient
       .from('profiles')
       .select('is_ghost')
       .eq('id', userId)

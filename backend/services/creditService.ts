@@ -1,6 +1,8 @@
-import { supabaseAdmin } from '../config/supabase';
+import { requireSupabaseAdmin, isSupabaseAvailable } from '../config/supabase';
 import { getCreditSchemaSupport } from '../lib/creditSchema';
 import { wsManager } from '../websocketManager';
+import { Profile, sequelize } from '../models';
+import { QueryTypes } from 'sequelize';
 
 export type CreditSource = 'post' | 'like' | 'comment' | 'game' | 'inactivity' | 'login' | 'daily_bonus' | 'recovery_bonus' | 'redeem_user' | 'redeem_friend' | 'refund' | 'transfer' | 'package' | 'GAME_CHALLENGE' | 'certification' | 'spend' | 'merge';
 
@@ -32,6 +34,29 @@ export class CreditService {
     description?: string
   ): Promise<{ success: boolean; newBalance: number; transactionId?: string }> {
     try {
+      // Local Postgres fallback when Supabase not configured
+      if (!isSupabaseAvailable) {
+        const profile = await Profile.findByPk(userId);
+        if (!profile) {
+          console.error('CreditService: Failed to fetch profile (local) - not found', userId);
+          return { success: false, newBalance: 0 };
+        }
+        const currentBalance = Number((profile as any).purga_points ?? 0);
+        const cappedAmount = amount;
+        if (cappedAmount <= 0) return { success: false, newBalance: currentBalance };
+        const newBalance = currentBalance + cappedAmount;
+        await (profile as any).update({ purga_points: newBalance });
+        // Best-effort transaction log (ignore if table missing)
+        try {
+          await sequelize.query(
+            `INSERT INTO credit_transactions (user_id, amount, type, source, description) VALUES (:uid, :amt, 'earn', :src, :desc)`,
+            { replacements: { uid: userId, amt: cappedAmount, src: source, desc: description || `${source} action` }, type: QueryTypes.INSERT }
+          );
+        } catch {}
+        wsManager.sendToUser(userId, { type: 'credit_update', payload: { userId, credits: newBalance, change: cappedAmount, source } } as any);
+        return { success: true, newBalance };
+      }
+      const supabaseAdmin = requireSupabaseAdmin();
       const schema = await getCreditSchemaSupport();
       const selectCols = schema.hasDailyCapColumns
         ? 'purga_points, daily_likes_count, daily_comments_count, daily_likes_reset_at, daily_comments_reset_at'
@@ -119,6 +144,23 @@ export class CreditService {
     description?: string
   ): Promise<{ success: boolean; newBalance: number }> {
     try {
+      if (!isSupabaseAvailable) {
+        const profile = await Profile.findByPk(userId);
+        if (!profile) return { success: false, newBalance: 0 };
+        const currentBalance = Number((profile as any).purga_points ?? 0);
+        if (currentBalance < amount) return { success: false, newBalance: currentBalance };
+        const newBalance = currentBalance - amount;
+        await (profile as any).update({ purga_points: newBalance });
+        try {
+          await sequelize.query(
+            `INSERT INTO credit_transactions (user_id, amount, type, source, description) VALUES (:uid, :amt, 'penalty', :src, :desc)`,
+            { replacements: { uid: userId, amt: -amount, src: source, desc: description || `${source} penalty` }, type: QueryTypes.INSERT }
+          );
+        } catch {}
+        wsManager.sendToUser(userId, { type: 'credit_update', payload: { userId, credits: newBalance, change: -amount, source } } as any);
+        return { success: true, newBalance };
+      }
+      const supabaseAdmin = requireSupabaseAdmin();
       const { data: profile } = await supabaseAdmin
         .from('profiles')
         .select('purga_points')
@@ -222,6 +264,7 @@ export class CreditService {
   }
 
   private static async checkAndIncrementDailyCap(userId: string, type: 'likes' | 'comments'): Promise<boolean> {
+    const supabaseAdmin = requireSupabaseAdmin();
     const schema = await getCreditSchemaSupport();
     if (!schema.hasDailyCapColumns) {
       return true;
@@ -280,6 +323,7 @@ export class CreditService {
 
   static async checkAndAwardDailyLoginBonus(userId: string): Promise<boolean> {
     try {
+      const supabaseAdmin = requireSupabaseAdmin();
       const schema = await getCreditSchemaSupport();
       if (!schema.hasDailyLoginColumn) {
         return false;
@@ -320,6 +364,7 @@ export class CreditService {
 
   static async updateLastActiveAt(userId: string): Promise<void> {
     try {
+      const supabaseAdmin = requireSupabaseAdmin();
       const schema = await getCreditSchemaSupport();
       await supabaseAdmin
         .from('profiles')
@@ -332,6 +377,12 @@ export class CreditService {
 
   static async getCredits(userId: string): Promise<number> {
     try {
+      if (!isSupabaseAvailable) {
+        const profile = await Profile.findByPk(userId);
+        if (!profile) return 0;
+        return Number((profile as any).purga_points ?? 0);
+      }
+      const supabaseAdmin = requireSupabaseAdmin();
       const { data: profile } = await supabaseAdmin
         .from('profiles')
         .select('purga_points')
@@ -348,6 +399,7 @@ export class CreditService {
 
   static async checkRestricted(userId: string): Promise<boolean> {
     try {
+      const supabaseAdmin = requireSupabaseAdmin();
       const schema = await getCreditSchemaSupport();
       const selectCols = schema.usesAccountStatus ? 'account_status, is_restricted' : 'is_restricted';
       const { data: profile } = await supabaseAdmin

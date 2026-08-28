@@ -1,12 +1,14 @@
-import express from 'express';
+﻿import express from 'express';
 import { supabaseAuth as auth, AuthRequest } from '../middleware/supabaseAuth';
 import { wsManager } from '../websocketManager';
-import { supabase } from '../config/supabase';
+import { requireSupabase, requireSupabaseAdmin } from '../config/supabase';
 
 const router = express.Router();
 
 // Handle typing indicator
 router.post('/conversations/:conversationId/typing', auth, async (req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     const { user } = req;
     const { conversationId } = req.params;
@@ -17,7 +19,7 @@ router.post('/conversations/:conversationId/typing', auth, async (req: AuthReque
     }
 
     // Verify user is participant in this conversation
-    const { data: participant, error: participantError } = await supabase
+    const { data: participant, error: participantError } = await supabaseClient
       .from('conversation_participants')
       .select('user_id')
       .eq('conversation_id', conversationId)
@@ -29,7 +31,7 @@ router.post('/conversations/:conversationId/typing', auth, async (req: AuthReque
     }
 
     // Get other participants to send typing indicator
-    const { data: otherParticipants } = await supabase
+    const { data: otherParticipants } = await supabaseClient
       .from('conversation_participants')
       .select('user_id')
       .eq('conversation_id', conversationId)

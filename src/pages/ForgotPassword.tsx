@@ -5,7 +5,6 @@ import { toast } from 'react-hot-toast';
 import { motion } from 'framer-motion';
 import { z } from 'zod';
 import PuurgaLogo from '../components/Icons/PuurgaLogo';
-import { supabase } from '../lib/supabaseClient';
 
 const emailSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -33,37 +32,17 @@ const ForgotPassword: React.FC = () => {
       setLoading(true);
       const trimmedEmail = email.trim().toLowerCase();
 
-      // Determine the correct redirect URL
-      // For development, use current localhost with port
-      // For production, use window.location.origin
-      const getRedirectUrl = () => {
-        // If VITE_SITE_URL is set (e.g. for production), use it
-        const siteUrl = import.meta.env.VITE_SITE_URL;
-        if (siteUrl) {
-          return `${siteUrl}/reset-password`;
-        }
-
-        // Otherwise use the current window origin (works for both localhost and dynamic domains)
-        return `${window.location.origin}/reset-password`;
-      };
-
-      // Use Supabase's built-in password recovery
-      const redirectUrl = getRedirectUrl();
-      console.log('🔐 Password Reset - Redirect URL being sent to Supabase:', redirectUrl);
-
-      const { error: supabaseError } = await supabase.auth.resetPasswordForEmail(trimmedEmail, {
-        redirectTo: redirectUrl,
+      const res = await fetch('/api/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: trimmedEmail }),
       });
 
-      if (supabaseError) {
-        if (supabaseError.message.includes('User not found')) {
-          // For security, don't reveal whether email exists
-          toast.success('If an account with that email exists, you will receive a password reset link.');
-          setSubmitted(true);
-        } else {
-          setError(supabaseError.message);
-          toast.error(supabaseError.message);
-        }
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        const message = data?.error || 'Failed to send reset link. Please try again.';
+        setError(message);
+        toast.error(message);
       } else {
         toast.success('Password reset link sent! Check your email.');
         setSubmitted(true);
@@ -206,6 +185,20 @@ const ForgotPassword: React.FC = () => {
             <ArrowLeft size={18} className="text-muted" />
             <Link to="/login" className="text-accent hover:underline font-semibold">
               Back to Login
+            </Link>
+          </div>
+
+          {/* Set Password Directly */}
+          <div className="mt-4 pt-4 border-t" style={{ borderColor: 'rgb(var(--border))' }}>
+            <p className="text-center text-muted text-sm mb-2">
+              Already have a reset link?
+            </p>
+            <Link
+              to="/set-password"
+              className="block w-full text-center px-4 py-2 rounded-lg border text-sm font-medium hover:opacity-80 transition-all"
+              style={{ borderColor: 'rgb(var(--border))', color: 'rgb(var(--fg))' }}
+            >
+              Set a new password directly
             </Link>
           </div>
 

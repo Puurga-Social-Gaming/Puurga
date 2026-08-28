@@ -1,5 +1,5 @@
 import express from 'express';
-import { supabase } from '../config/supabase';
+import { requireSupabase } from '../config/supabase';
 import { supabaseAuth as auth, AuthRequest } from '../middleware/supabaseAuth';
 import { normalizeImageUrl } from '../utils/url';
 import { getAcceptedFriendIds, removeFriendship } from '../utils/friendRelations';
@@ -8,6 +8,7 @@ const router = express.Router();
 
 // Get suggested friends
 router.get('/suggestions', auth, async (req: AuthRequest, res) => {
+  const supabase = requireSupabase();
   try {
     const { user } = req;
     if (!user) {
@@ -143,6 +144,7 @@ router.get('/suggestions', auth, async (req: AuthRequest, res) => {
 
 // Get pending friend requests for the current user
 router.get('/requests', auth, async (req: AuthRequest, res) => {
+  const supabase = requireSupabase();
   try {
     const { user } = req;
     if (!user) {
@@ -181,6 +183,7 @@ router.get('/requests', auth, async (req: AuthRequest, res) => {
 
 // Get accepted friends (for online friends section)
 router.get('/accepted', auth, async (req: AuthRequest, res) => {
+  const supabase = requireSupabase();
   try {
     const { user } = req;
     if (!user) {
@@ -219,6 +222,7 @@ router.get('/accepted', auth, async (req: AuthRequest, res) => {
 
 // Get friends' public stats
 router.get('/stats', auth, async (req: AuthRequest, res) => {
+  const supabase = requireSupabase();
   try {
     const { user } = req;
     if (!user) {
@@ -278,6 +282,7 @@ router.get('/stats', auth, async (req: AuthRequest, res) => {
 
 // Outgoing pending friend requests (sent by me)
 router.get('/requests/outgoing', auth, async (req: AuthRequest, res) => {
+  const supabase = requireSupabase();
   try {
     const { user } = req;
     if (!user) return res.status(401).json({ error: 'Unauthorized' });
@@ -312,6 +317,7 @@ router.get('/requests/outgoing', auth, async (req: AuthRequest, res) => {
 
 // Followers list
 router.get('/followers', auth, async (req: AuthRequest, res) => {
+  const supabase = requireSupabase();
   try {
     const { user } = req;
     if (!user) return res.status(401).json({ error: 'Unauthorized' });
@@ -360,6 +366,7 @@ router.get('/followers', auth, async (req: AuthRequest, res) => {
 
 // Following list
 router.get('/following', auth, async (req: AuthRequest, res) => {
+  const supabase = requireSupabase();
   try {
     const { user } = req;
     if (!user) return res.status(401).json({ error: 'Unauthorized' });
@@ -407,6 +414,7 @@ router.get('/following', auth, async (req: AuthRequest, res) => {
 
 // Unfriend
 router.delete('/:friendId', auth, async (req: AuthRequest, res) => {
+  const supabase = requireSupabase();
   try {
     const { user } = req;
     const { friendId } = req.params;

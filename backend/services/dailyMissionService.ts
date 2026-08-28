@@ -1,4 +1,4 @@
-import { supabase } from '../config/supabase';
+import { requireSupabase } from '../config/supabase';
 import { wsManager } from '../websocketManager';
 
 // ─── Mission Definitions ─────────────────────────────────────────────────────
@@ -41,6 +41,7 @@ export class DailyMissionService {
    * Get or generate today's missions for a user.
    */
   static async getTodaysMissions(userId: string): Promise<any[]> {
+    const supabase = requireSupabase();
     const today = new Date().toISOString().split('T')[0];
 
     // Check if missions already exist for today
@@ -61,6 +62,7 @@ export class DailyMissionService {
    * Generate new daily missions for a user.
    */
   private static async generateMissions(userId: string, date: string): Promise<any[]> {
+    const supabase = requireSupabase();
     // Pick 3 random missions from the pool (one from each category if possible)
     const social = DAILY_MISSION_POOL.filter(m => m.category === 'social');
     const gaming = DAILY_MISSION_POOL.filter(m => m.category === 'gaming');
@@ -104,6 +106,7 @@ export class DailyMissionService {
    * Called when a user performs an action (post, comment, like, game, etc.)
    */
   static async trackProgress(userId: string, missionType: string, increment: number = 1): Promise<any[]> {
+    const supabase = requireSupabase();
     const today = new Date().toISOString().split('T')[0];
 
     // Find matching incomplete missions
@@ -161,6 +164,7 @@ export class DailyMissionService {
    * Claim reward for a completed mission.
    */
   static async claimReward(userId: string, missionId: string): Promise<{ success: boolean; xpAwarded?: number; error?: string }> {
+    const supabase = requireSupabase();
     const { data: mission, error: fetchError } = await supabase
       .from('daily_missions')
       .select('*')
@@ -208,6 +212,7 @@ export class DailyMissionService {
     totalXPEarned: number;
     streak: number;
   }> {
+    const supabase = requireSupabase();
     const today = new Date().toISOString().split('T')[0];
 
     // Today's missions

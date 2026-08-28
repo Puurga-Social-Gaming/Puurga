@@ -16,6 +16,8 @@ import Status from './Status';
 import PostPurge from './PostPurge';
 import UserSurvivalState from './UserSurvivalState';
 import Profile from './Profile';
+import UserSettings from './UserSettings';
+import GlobalSettings from './GlobalSettings';
 import { setupAssociations } from './associations';
 
 // Set up associations
@@ -40,7 +42,9 @@ export {
   Status,
   PostPurge,
   UserSurvivalState,
-  Profile
+  Profile,
+  UserSettings,
+  GlobalSettings
 };
 
 export default sequelize;

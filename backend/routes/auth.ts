@@ -643,4 +643,43 @@ router.post('/verify-reset-token', async (req, res) => {
   }
 });
 
+// Direct password reset (for accounts that need password set after migration)
+router.post('/set-password', async (req, res) => {
+  try {
+    const { email, newPassword } = req.body;
+
+    if (!email?.trim() || !newPassword) {
+      return res.status(400).json({ message: 'Email and new password are required' });
+    }
+
+    if (newPassword.length < 8) {
+      return res.status(400).json({ message: 'Password must be at least 8 characters long' });
+    }
+
+    const user = await User.findOne({
+      where: { email: email.trim().toLowerCase() }
+    });
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+    await User.update(
+      { password: hashedPassword },
+      { where: { id: user.id } }
+    );
+
+    res.json({ message: 'Password set successfully' });
+  } catch (error) {
+    console.error('Set password error:', error);
+    res.status(500).json({
+      message: 'Error setting password',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
 export default router; 

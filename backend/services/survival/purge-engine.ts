@@ -1,4 +1,4 @@
-import { supabase } from '../../config/supabase';
+﻿import { requireSupabase } from '../../config/supabase';
 import { wsManager } from '../../websocketManager';
 import { ReputationEngine } from './reputation-engine';
 import { SurvivalEngine } from './survival-engine';
@@ -41,11 +41,12 @@ interface PurgeConsequenceResult {
 
 export class PurgeEngine {
   static async validatePurge(userId: string, postId: string, targetUserId: string): Promise<PurgeValidationResult> {
+    const supabaseClient = requireSupabase();
     if (String(userId) === String(targetUserId)) {
       return { valid: false, error: 'Cannot purge your own post', code: 'OWN_POST' };
     }
 
-    const { data: existingPurge, error: existingError } = await supabase
+    const { data: existingPurge, error: existingError } = await supabaseClient
       .from('post_purges')
       .select('id')
       .eq('post_id', postId)
@@ -61,7 +62,7 @@ export class PurgeEngine {
     }
 
     try {
-      const { data: cooldown } = await supabase
+      const { data: cooldown } = await supabaseClient
         .from('purge_cooldowns')
         .select('expires_at')
         .eq('user_id', userId)
@@ -81,7 +82,7 @@ export class PurgeEngine {
     }
 
     try {
-      const { data: profile, error: profileError } = await supabase
+      const { data: profile, error: profileError } = await supabaseClient
         .from('profiles')
         .select('hourly_purge_count, hourly_purge_reset_at, daily_purge_count, daily_purge_reset_at')
         .eq('id', userId)
@@ -117,7 +118,8 @@ export class PurgeEngine {
   }
 
   static async calculatePurgeWeight(userId: string): Promise<PurgeWeightResult> {
-    const { data: state } = await supabase
+    const supabaseClient = requireSupabase();
+    const { data: state } = await supabaseClient
       .from('user_survival_state')
       .select('reputation_score, threat_level')
       .eq('user_id', userId)
@@ -154,6 +156,7 @@ export class PurgeEngine {
   }
 
   static async applyConsequences(targetUserId: string, purgerUserId: string): Promise<PurgeConsequenceResult> {
+    const supabaseClient = requireSupabase();
     let purgeResistanceMod = 1.0;
     try {
       purgeResistanceMod = await AllianceEngine.getPurgeResistanceModifier(targetUserId);
@@ -161,7 +164,7 @@ export class PurgeEngine {
       console.warn('Alliance purge resistance skipped:', e);
     }
 
-    const stateResult = await supabase
+    const stateResult = await supabaseClient
       .from('user_survival_state')
       .select('purge_count, visibility_score, purge_pressure, collapse_risk')
       .eq('user_id', targetUserId)
@@ -186,7 +189,7 @@ export class PurgeEngine {
 
     const now = new Date().toISOString();
 
-    const { error: stateUpdateError } = await supabase
+    const { error: stateUpdateError } = await supabaseClient
       .from('user_survival_state')
       .update({
         visibility_score: newVisibilityScore,
@@ -234,14 +237,14 @@ export class PurgeEngine {
     let ghostTriggered = false;
     if (purgeCount >= PROFILE_PURGE_THRESHOLD) {
       try {
-        const { data: targetProfile } = await supabase
+        const { data: targetProfile } = await supabaseClient
           .from('profiles')
           .select('is_ghost')
           .eq('id', targetUserId)
           .maybeSingle();
 
         if (!targetProfile?.is_ghost) {
-          await supabase
+          await supabaseClient
             .from('profiles')
             .update({
               is_ghost: true,
@@ -299,19 +302,17 @@ export class PurgeEngine {
   }
 
   static async recordCooldown(userId: string, postId: string): Promise<void> {
+    const supabaseClient = requireSupabase();
     const expiresAt = new Date(
       Date.now() + PURGE_RATE_LIMITS.SAME_POST_COOLDOWN_HOURS * 60 * 60 * 1000
     ).toISOString();
 
-    const { error } = await supabase.from('purge_cooldowns').upsert(
-      {
-        user_id: userId,
-        post_id: postId,
-        purged_at: new Date().toISOString(),
-        expires_at: expiresAt,
-      },
-      { onConflict: 'user_id,post_id' }
-    );
+    const { error } = await supabaseClient.from('purge_cooldowns').upsert({
+      user_id: userId,
+      post_id: postId,
+      purged_at: new Date().toISOString(),
+      expires_at: expiresAt,
+    }, { onConflict: 'user_id,post_id' });
 
     if (error) {
       // Table / unique constraint may be missing on older DBs
@@ -320,7 +321,8 @@ export class PurgeEngine {
   }
 
   static async updateRateLimits(userId: string): Promise<void> {
-    const { data: profile, error: profileError } = await supabase
+    const supabaseClient = requireSupabase();
+    const { data: profile, error: profileError } = await supabaseClient
       .from('profiles')
       .select('hourly_purge_count, hourly_purge_reset_at, daily_purge_count, daily_purge_reset_at')
       .eq('id', userId)
@@ -350,7 +352,7 @@ export class PurgeEngine {
       dailyResetAt = daysSinceReset < 1 ? profile.daily_purge_reset_at : now.toISOString();
     }
 
-    const { error: updateError } = await supabase
+    const { error: updateError } = await supabaseClient
       .from('profiles')
       .update({
         hourly_purge_count: hourlyCount,
@@ -366,7 +368,8 @@ export class PurgeEngine {
   }
 
   static async getVisibilityScore(userId: string): Promise<number> {
-    const { data: state } = await supabase
+    const supabaseClient = requireSupabase();
+    const { data: state } = await supabaseClient
       .from('user_survival_state')
       .select('visibility_score')
       .eq('user_id', userId)
@@ -376,7 +379,8 @@ export class PurgeEngine {
   }
 
   static async getCooldowns(userId: string): Promise<any[]> {
-    const { data: cooldowns } = await supabase
+    const supabaseClient = requireSupabase();
+    const { data: cooldowns } = await supabaseClient
       .from('purge_cooldowns')
       .select('*')
       .eq('user_id', userId)
@@ -404,6 +408,7 @@ export class PurgeEngine {
       purgeCount: number;
     }
   ): Promise<void> {
+    const supabaseClient = requireSupabase();
     wsManager.sendToUser(userId, {
       type: 'survival_update',
       payload: {
@@ -429,7 +434,7 @@ export class PurgeEngine {
     });
 
     if (data.ghostTriggered) {
-      const { data: friendships } = await supabase
+      const { data: friendships } = await supabaseClient
         .from('friends')
         .select('user_id_1, user_id_2')
         .or(`user_id_1.eq.${userId},user_id_2.eq.${userId}`);

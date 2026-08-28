@@ -1,0 +1,10 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "instructions": [
+    "This is a monorepo with a Vite React TypeScript frontend (root) and an Express TypeScript backend (backend/).",
+    "Frontend uses Vite, React, TailwindCSS, and i18next for localization.",
+    "Backend uses Express, Sequelize ORM, and Supabase for auth.",
+    "Run frontend dev server from root with: npm run dev",
+    "Run backend dev server from backend/ with: npm run dev"
+  ]
+}

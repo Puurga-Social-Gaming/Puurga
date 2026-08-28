@@ -41,11 +41,11 @@ export const seedStatuses = async () => {
       expiresAt.setHours(expiresAt.getHours() + 24);
 
       await Status.create({
-        userId: user.id,
+        user_id: user.id,
         content: randomStatus.content,
         type: randomStatus.type,
-        expiresAt,
-        mediaUrl: undefined
+        expires_at: expiresAt,
+        media_url: undefined
       });
     }
 

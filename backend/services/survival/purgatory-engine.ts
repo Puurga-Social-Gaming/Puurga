@@ -1,4 +1,4 @@
-import { supabase } from '../../config/supabase';
+﻿import { requireSupabase } from '../../config/supabase';
 import { wsManager } from '../../websocketManager';
 import { SurvivalEngine } from './survival-engine';
 
@@ -24,7 +24,8 @@ interface RedemptionProgressBreakdown {
 
 export class PurgatoryEngine {
   static async getStatus(userId: string): Promise<PurgatoryStatus | null> {
-    const { data: state } = await supabase
+    const supabaseClient = requireSupabase();
+    const { data: state } = await supabaseClient
       .from('user_survival_state')
       .select('purgatory_status, purgatory_entered_at, redemption_progress, redemption_requested, redemption_request_at, purge_count, current_survival_state, reputation_score')
       .eq('user_id', userId)
@@ -45,6 +46,7 @@ export class PurgatoryEngine {
   }
 
   static async calculateRedemptionProgress(userId: string): Promise<RedemptionProgressBreakdown> {
+    const supabaseClient = requireSupabase();
     const breakdown: RedemptionProgressBreakdown = {
       timeSurvived: 0,
       dailyLogin: 0,
@@ -55,12 +57,12 @@ export class PurgatoryEngine {
     };
 
     const [stateResult, profileResult] = await Promise.all([
-      supabase
+      supabaseClient
         .from('user_survival_state')
         .select('purgatory_entered_at, redemption_progress')
         .eq('user_id', userId)
         .single(),
-      supabase
+      supabaseClient
         .from('profiles')
         .select('login_streak, avatar_url, bio, email_verified')
         .eq('id', userId)
@@ -101,9 +103,10 @@ export class PurgatoryEngine {
   }
 
   static async updateRedemptionProgress(userId: string): Promise<number> {
+    const supabaseClient = requireSupabase();
     const breakdown = await this.calculateRedemptionProgress(userId);
 
-    await supabase
+    await supabaseClient
       .from('user_survival_state')
       .update({ redemption_progress: breakdown.total })
       .eq('user_id', userId);
@@ -127,6 +130,7 @@ export class PurgatoryEngine {
   }
 
   static async requestRedemption(userId: string): Promise<{ success: boolean; requestId?: string; error?: string }> {
+    const supabaseClient = requireSupabase();
     const status = await this.getStatus(userId);
 
     if (!status) {
@@ -141,7 +145,7 @@ export class PurgatoryEngine {
       return { success: false, error: 'Redemption already requested' };
     }
 
-    const { data: existingRequest } = await supabase
+    const { data: existingRequest } = await supabaseClient
       .from('redemption_requests')
       .select('id, status')
       .eq('user_id', userId)
@@ -154,7 +158,7 @@ export class PurgatoryEngine {
 
     const progress = await this.calculateRedemptionProgress(userId);
 
-    const { data: request, error } = await supabase
+    const { data: request, error } = await supabaseClient
       .from('redemption_requests')
       .insert({
         user_id: userId,
@@ -170,7 +174,7 @@ export class PurgatoryEngine {
       return { success: false, error: 'Failed to create redemption request' };
     }
 
-    await supabase
+    await supabaseClient
       .from('user_survival_state')
       .update({
         redemption_requested: true,
@@ -200,7 +204,8 @@ export class PurgatoryEngine {
   }
 
   static async getPendingRequests(): Promise<any[]> {
-    const { data: requests } = await supabase
+    const supabaseClient = requireSupabase();
+    const { data: requests } = await supabaseClient
       .from('redemption_requests')
       .select('*')
       .eq('status', 'PENDING')
@@ -209,14 +214,14 @@ export class PurgatoryEngine {
     if (!requests) return [];
 
     const userIds = Array.from(new Set(requests.map(r => r.user_id)));
-    const { data: profiles } = await supabase
+    const { data: profiles } = await supabaseClient
       .from('profiles')
       .select('id, full_name, username, avatar_url')
       .in('id', userIds);
 
     const profileMap = new Map((profiles || []).map(p => [p.id, p]));
 
-    const { data: survivalStates } = await supabase
+    const { data: survivalStates } = await supabaseClient
       .from('user_survival_state')
       .select('user_id, redemption_progress, purge_count, purgatory_entered_at, current_survival_state')
       .in('user_id', userIds);
@@ -246,7 +251,8 @@ export class PurgatoryEngine {
   }
 
   static async approveRequest(requestId: string, supporterId: string): Promise<{ success: boolean; error?: string }> {
-    const { data: request } = await supabase
+    const supabaseClient = requireSupabase();
+    const { data: request } = await supabaseClient
       .from('redemption_requests')
       .select('*')
       .eq('id', requestId)
@@ -257,7 +263,7 @@ export class PurgatoryEngine {
       return { success: false, error: 'Pending redemption request not found' };
     }
 
-    const { data: supporterProfile } = await supabase
+    const { data: supporterProfile } = await supabaseClient
       .from('profiles')
       .select('credits, purga_points')
       .eq('id', supporterId)
@@ -268,7 +274,7 @@ export class PurgatoryEngine {
       return { success: false, error: 'You need at least 100 credits to support a redemption' };
     }
 
-    const { data: ghostState } = await supabase
+    const { data: ghostState } = await supabaseClient
       .from('user_survival_state')
       .select('redemption_progress')
       .eq('user_id', request.user_id)
@@ -279,7 +285,7 @@ export class PurgatoryEngine {
 
     const now = new Date().toISOString();
 
-    await supabase
+    await supabaseClient
       .from('redemption_requests')
       .update({
         status: 'APPROVED',
@@ -288,7 +294,7 @@ export class PurgatoryEngine {
       })
       .eq('id', requestId);
 
-    await supabase
+    await supabaseClient
       .from('user_survival_state')
       .update({
         redemption_progress: newProgress,
@@ -331,9 +337,10 @@ export class PurgatoryEngine {
   }
 
   static async enterPurgatory(userId: string): Promise<void> {
+    const supabaseClient = requireSupabase();
     const now = new Date().toISOString();
 
-    await supabase
+    await supabaseClient
       .from('user_survival_state')
       .update({
         purgatory_status: true,
@@ -373,9 +380,10 @@ export class PurgatoryEngine {
   }
 
   static async exitPurgatory(userId: string, redeemedBy?: string): Promise<void> {
+    const supabaseClient = requireSupabase();
     const now = new Date().toISOString();
 
-    await supabase
+    await supabaseClient
       .from('profiles')
       .update({
         is_ghost: false,
@@ -383,7 +391,7 @@ export class PurgatoryEngine {
       })
       .eq('id', userId);
 
-    await supabase
+    await supabaseClient
       .from('user_survival_state')
       .update({
         purgatory_status: false,
@@ -435,7 +443,8 @@ export class PurgatoryEngine {
   }
 
   static async getHistory(userId: string): Promise<any[]> {
-    const { data: events } = await supabase
+    const supabaseClient = requireSupabase();
+    const { data: events } = await supabaseClient
       .from('survival_events')
       .select('*')
       .eq('user_id', userId)

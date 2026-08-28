@@ -37,7 +37,7 @@ const CallNotification: React.FC<CallNotificationProps> = ({
   } | null>(null);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || !supabase) return;
 
     const channel = supabase
       .channel('call_invites')
@@ -49,7 +49,7 @@ const CallNotification: React.FC<CallNotificationProps> = ({
           table: 'call_invites',
           filter: `callee_id=eq.${user.id}`,
         },
-        async (payload) => {
+        async (payload: any) => {
           const invite = payload.new as CallInvite;
           if (invite.status === 'pending') {
             setPendingInvite(invite);
@@ -73,7 +73,7 @@ const CallNotification: React.FC<CallNotificationProps> = ({
           schema: 'public',
           table: 'call_invites',
         },
-        (payload) => {
+        (payload: any) => {
           const invite = payload.new as CallInvite;
           if (
             pendingInvite?.id === invite.id &&
@@ -96,10 +96,12 @@ const CallNotification: React.FC<CallNotificationProps> = ({
       const timeout = setTimeout(() => {
         setPendingInvite(null);
         setCallerInfo(null);
-        supabase
-          .from('call_invites')
-          .update({ status: 'missed', ended_at: new Date().toISOString() })
-          .eq('id', pendingInvite.id);
+        if (supabase) {
+          supabase
+            .from('call_invites')
+            .update({ status: 'missed', ended_at: new Date().toISOString() })
+            .eq('id', pendingInvite.id);
+        }
       }, 45000);
 
       return () => clearTimeout(timeout);
@@ -116,10 +118,12 @@ const CallNotification: React.FC<CallNotificationProps> = ({
 
   const handleDecline = async () => {
     if (pendingInvite) {
-      await supabase
-        .from('call_invites')
-        .update({ status: 'declined', ended_at: new Date().toISOString() })
-        .eq('id', pendingInvite.id);
+      if (supabase) {
+        await supabase
+          .from('call_invites')
+          .update({ status: 'declined', ended_at: new Date().toISOString() })
+          .eq('id', pendingInvite.id);
+      }
 
       onDecline(pendingInvite);
       setPendingInvite(null);

@@ -1,9 +1,10 @@
-import { supabase } from '../../config/supabase';
+﻿import { requireSupabase } from '../../config/supabase';
 import { SURVIVAL_THRESHOLDS, REPUTATION_EFFECTS, SOCIAL_RANKS } from '../../constants/survivalConstants';
 
 export class ReputationEngine {
   static async calculateReputation(userId: string): Promise<{ reputation_score: number; social_rank: string }> {
-    const { data: state } = await supabase
+    const supabaseClient = requireSupabase();
+    const { data: state } = await supabaseClient
       .from('user_survival_state')
       .select('reputation_score, purge_count, inactivity_level, ghost_status')
       .eq('user_id', userId)
@@ -42,10 +43,11 @@ export class ReputationEngine {
     effectKey: keyof typeof REPUTATION_EFFECTS,
     metadata?: Record<string, any>
   ): Promise<number> {
+    const supabaseClient = requireSupabase();
     const change = REPUTATION_EFFECTS[effectKey];
     if (!change) return 0;
 
-    const { data: state } = await supabase
+    const { data: state } = await supabaseClient
       .from('user_survival_state')
       .select('reputation_score')
       .eq('user_id', userId)
@@ -57,7 +59,7 @@ export class ReputationEngine {
     newScore = Math.max(SURVIVAL_THRESHOLDS.REPUTATION.MIN, newScore);
     newScore = Math.min(SURVIVAL_THRESHOLDS.REPUTATION.MAX, newScore);
 
-    await supabase
+    await supabaseClient
       .from('user_survival_state')
       .update({
         reputation_score: newScore,
@@ -65,7 +67,7 @@ export class ReputationEngine {
       })
       .eq('user_id', userId);
 
-    await supabase.from('survival_events').insert({
+    await supabaseClient.from('survival_events').insert({
       user_id: userId,
       event_type: change > 0 ? 'REPUTATION_GAIN' : 'REPUTATION_LOSS',
       event_value: change,
@@ -76,7 +78,8 @@ export class ReputationEngine {
   }
 
   static async getSocialRankForUser(userId: string): Promise<string> {
-    const { data: state } = await supabase
+    const supabaseClient = requireSupabase();
+    const { data: state } = await supabaseClient
       .from('user_survival_state')
       .select('reputation_score')
       .eq('user_id', userId)

@@ -77,7 +77,9 @@ const RightSidebar: React.FC = () => {
   const handleLogout = async () => {
     const { supabase } = await import('../../lib/supabaseClient');
     try {
-      await supabase.auth.signOut();
+      if (supabase) {
+        await supabase.auth.signOut();
+      }
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       toast.success('Logged out');

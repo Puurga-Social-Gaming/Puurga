@@ -1,5 +1,5 @@
-import express from 'express';
-import { supabaseAdmin } from '../config/supabase';
+﻿import express from 'express';
+import { supabaseAdmin, requireSupabase, requireSupabaseAdmin } from '../config/supabase';
 import { supabaseAuth, AuthRequest } from '../middleware/supabaseAuth';
 import {
   CERTIFICATION_TYPES,
@@ -15,6 +15,8 @@ import {
 import { CreditService } from '../services/creditService';
 import { NotificationService } from '../services/notificationService';
 import { loadCertificationPricing } from '../services/certificationPricing';
+import { Profile, Post } from '../models';
+import { isSupabaseAvailable } from '../config/supabase';
 
 const router = express.Router();
 
@@ -37,27 +39,21 @@ function isEligible(
 }
 
 async function getUserStats(userId: string) {
-  const { data: profile } = await supabaseAdmin
-    .from('profiles')
-    .select(
-      'id, username, full_name, avatar_url, purga_points, credits, posts_count, certification_slug, logo_certified'
-    )
-    .eq('id', userId)
-    .single();
+  const profile = await Profile.findByPk(userId, {
+    attributes: ['id', 'username', 'full_name', 'avatar_url', 'purga_points', 'credits', 'posts_count', 'certification_slug', 'logo_certified']
+  });
 
   if (!profile) return null;
 
-  let postsCount = Number(profile.posts_count || 0);
+  const profileData = (profile as any).toJSON();
+
+  let postsCount = Number(profileData.posts_count || 0);
   if (!postsCount) {
-    const { count } = await supabaseAdmin
-      .from('posts')
-      .select('id', { count: 'exact', head: true })
-      .eq('user_id', userId);
-    postsCount = count || 0;
+    postsCount = await Post.count({ where: { user_id: userId } });
   }
 
-  const points = Number(profile.purga_points ?? profile.credits ?? 0);
-  return { profile, points, postsCount };
+  const points = Number(profileData.purga_points ?? profileData.credits ?? 0);
+  return { profile: profileData, points, postsCount };
 }
 
 async function applyCertification(
@@ -65,6 +61,8 @@ async function applyCertification(
   slug: string,
   adminId?: string | null
 ) {
+  const supabaseClient = requireSupabase();
+  const supabaseAdminClient = requireSupabaseAdmin();
   const cert = getCertification(slug);
   if (!cert) throw new Error('Invalid certification');
 
@@ -79,7 +77,7 @@ async function applyCertification(
     update.certification_slug = slug;
   }
 
-  const { error } = await supabaseAdmin.from('profiles').update(update).eq('id', userId);
+  const { error } = await supabaseAdminClient.from('profiles').update(update).eq('id', userId);
   if (error) {
     if (/certification_slug|logo_certified|certified_at|42703/i.test(error.message || '')) {
       const err: any = new Error('CERT_MIGRATION_REQUIRED');
@@ -94,6 +92,8 @@ async function applyCertification(
  * GET /api/certifications/status
  */
 router.get('/status', async (req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     const userId = req.user.id;
     const stats = await getUserStats(userId);
@@ -101,7 +101,7 @@ router.get('/status', async (req: AuthRequest, res) => {
 
     const { profile, points, postsCount } = stats;
 
-    const { data: reqRows, error: reqErr } = await supabaseAdmin
+    const { data: reqRows, error: reqErr } = await supabaseAdminClient
       .from('certification_requests')
       .select('*')
       .eq('user_id', userId)
@@ -120,8 +120,8 @@ router.get('/status', async (req: AuthRequest, res) => {
 
     const activeBySlug = new Map(
       requests
-        .filter((r) => isActiveStatus(r.status))
-        .map((r) => [r.certification_slug, r])
+        .filter((r: any) => isActiveStatus(r.status))
+        .map((r: any) => [r.certification_slug, r])
     );
 
     const pricing = await loadCertificationPricing();
@@ -154,13 +154,13 @@ router.get('/status', async (req: AuthRequest, res) => {
         canAfford,
         activeRequest: activeRequest
           ? {
-              id: activeRequest.id,
-              status: activeRequest.status,
-              paid: activeRequest.paid,
-              amount_paid: activeRequest.amount_paid,
-              payment_method: activeRequest.payment_method || null,
-              amount_cdf: activeRequest.amount_cdf || 0,
-              created_at: activeRequest.created_at,
+              id: (activeRequest as any).id,
+              status: (activeRequest as any).status,
+              paid: (activeRequest as any).paid,
+              amount_paid: (activeRequest as any).amount_paid,
+              payment_method: (activeRequest as any).payment_method || null,
+              amount_cdf: (activeRequest as any).amount_cdf || 0,
+              created_at: (activeRequest as any).created_at,
             }
           : null,
         missing: {
@@ -195,6 +195,8 @@ router.get('/status', async (req: AuthRequest, res) => {
  * body: { slug, mode: 'review' | 'pay', message? }
  */
 router.post('/request', async (req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     const userId = req.user.id;
     const slug = String(req.body?.slug || '').trim();
@@ -232,7 +234,7 @@ router.post('/request', async (req: AuthRequest, res) => {
       }
     }
 
-    const { data: existing } = await supabaseAdmin
+    const { data: existing } = await supabaseAdminClient
       .from('certification_requests')
       .select('id, status')
       .eq('user_id', userId)
@@ -315,7 +317,7 @@ router.post('/request', async (req: AuthRequest, res) => {
       }
     }
 
-    const { data: created, error: insertErr } = await supabaseAdmin
+    const { data: created, error: insertErr } = await supabaseAdminClient
       .from('certification_requests')
       .insert({
         user_id: userId,
@@ -402,6 +404,8 @@ router.post('/request', async (req: AuthRequest, res) => {
  * Full card PAN / CVV are never stored.
  */
 router.post('/purchase-money', async (req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     const userId = req.user.id;
     const slug = String(req.body?.slug || '').trim();
@@ -443,7 +447,7 @@ router.post('/purchase-money', async (req: AuthRequest, res) => {
       return res.status(400).json({ error: 'You already have this certification' });
     }
 
-    const { data: existing } = await supabaseAdmin
+    const { data: existing } = await supabaseAdminClient
       .from('certification_requests')
       .select('id, status')
       .eq('user_id', userId)
@@ -499,7 +503,7 @@ router.post('/purchase-money', async (req: AuthRequest, res) => {
 
     const payment_reference = `CERT-${slug.slice(0, 3).toUpperCase()}-${Date.now().toString(36).toUpperCase()}`;
 
-    const { data: created, error: insertErr } = await supabaseAdmin
+    const { data: created, error: insertErr } = await supabaseAdminClient
       .from('certification_requests')
       .insert({
         user_id: userId,
@@ -563,11 +567,13 @@ router.post('/purchase-money', async (req: AuthRequest, res) => {
  * POST /api/certifications/cancel/:id
  */
 router.post('/cancel/:id', async (req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     const userId = req.user.id;
     const { id } = req.params;
 
-    const { data: row, error } = await supabaseAdmin
+    const { data: row, error } = await supabaseAdminClient
       .from('certification_requests')
       .select('*')
       .eq('id', id)
@@ -584,7 +590,7 @@ router.post('/cancel/:id', async (req: AuthRequest, res) => {
       });
     }
 
-    const { data: updated, error: updErr } = await supabaseAdmin
+    const { data: updated, error: updErr } = await supabaseAdminClient
       .from('certification_requests')
       .update({
         status: 'cancelled',
@@ -605,7 +611,8 @@ router.post('/cancel/:id', async (req: AuthRequest, res) => {
 export default router;
 
 export async function listCertificationRequests(status?: string) {
-  let query = supabaseAdmin
+  const supabaseAdminClient = requireSupabaseAdmin();
+  let query = supabaseAdminClient
     .from('certification_requests')
     .select(
       '*, profiles:user_id(id, username, full_name, avatar_url, purga_points, posts_count, certification_slug, logo_certified)'
@@ -631,8 +638,9 @@ export async function reviewCertificationRequest(opts: {
   adminNote?: string;
 }) {
   const { requestId, adminId, action, adminNote } = opts;
+  const supabaseAdminClient = requireSupabaseAdmin();
 
-  const { data: row, error } = await supabaseAdmin
+  const { data: row, error } = await supabaseAdminClient
     .from('certification_requests')
     .select('*')
     .eq('id', requestId)
@@ -660,7 +668,7 @@ export async function reviewCertificationRequest(opts: {
   if (action === 'approve') {
     await applyCertification(row.user_id, row.certification_slug, adminId);
 
-    const { data: updated, error: updErr } = await supabaseAdmin
+    const { data: updated, error: updErr } = await supabaseAdminClient
       .from('certification_requests')
       .update({
         status: 'approved',
@@ -700,7 +708,7 @@ export async function reviewCertificationRequest(opts: {
     );
   }
 
-  const { data: updated, error: updErr } = await supabaseAdmin
+  const { data: updated, error: updErr } = await supabaseAdminClient
     .from('certification_requests')
     .update({
       status: 'rejected',

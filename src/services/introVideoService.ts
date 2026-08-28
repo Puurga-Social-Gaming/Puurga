@@ -110,6 +110,8 @@ export async function getIntroVideoUrl(
 
   const promise = (async () => {
     try {
+      if (!supabase) return null;
+
       const { data, error } = await supabase.storage
         .from(INTRO_BUCKET)
         .createSignedUrl(file, SIGNED_URL_TTL_SEC);

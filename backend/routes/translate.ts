@@ -1,6 +1,6 @@
-import express from 'express';
+﻿import express from 'express';
 import { TranslationService } from '../services/translationService';
-import { supabase, supabaseAdmin } from '../config/supabase';
+import { requireSupabase, requireSupabaseAdmin } from '../config/supabase';
 import { supabaseAuth as auth, AuthRequest } from '../middleware/supabaseAuth';
 
 const router = express.Router();
@@ -20,6 +20,8 @@ const TABLE_BY_TYPE: Record<string, string> = {
  * Body: { sourceType, sourceId, targetLanguage }
  */
 router.post('/', auth, async (req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     const { sourceType, sourceId, targetLanguage } = req.body || {};
 
@@ -32,7 +34,7 @@ router.post('/', auth, async (req: AuthRequest, res) => {
       return res.status(400).json({ error: 'Invalid source type' });
     }
 
-    const db = supabaseAdmin || supabase;
+    const db = supabaseAdminClient || supabaseClient;
     let content = '';
     let claimedLanguage = 'en';
 
@@ -124,6 +126,8 @@ router.post('/', auth, async (req: AuthRequest, res) => {
  * Body: { text, targetLanguage, sourceLanguage? }
  */
 router.post('/text', auth, async (req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     const { text, targetLanguage, sourceLanguage } = req.body || {};
     if (!text || !targetLanguage) {

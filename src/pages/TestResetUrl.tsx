@@ -28,6 +28,10 @@ const TestResetUrl: React.FC = () => {
         setRedirectUrl(calculatedUrl);
 
         try {
+            if (!supabase) {
+                toast.error('Supabase is not configured');
+                return;
+            }
             const { error } = await supabase.auth.resetPasswordForEmail(email, {
                 redirectTo: calculatedUrl,
             });

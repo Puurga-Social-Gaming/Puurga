@@ -34,21 +34,18 @@ const SupabaseVideo: React.FC<SupabaseVideoProps> = ({
 
   useEffect(() => {
     const processVideo = async () => {
-      // If it's a Supabase storage URL, try to get a signed URL
-      if (src.includes('supabase.co/storage/v1/object/public/')) {
+      if (supabase && src.includes('supabase.co/storage/v1/object/public/')) {
         try {
-          // Extract bucket and file path from URL
           const urlObj = new URL(src);
           const pathParts = urlObj.pathname.split('/object/public/');
           if (pathParts.length === 2) {
             const [bucket, ...filePathParts] = pathParts[1].split('/');
             const filePath = filePathParts.join('/');
 
-            // Get signed URL (skip for public Media bucket)
             if (bucket !== 'Media') {
               const { data, error } = await supabase.storage
                 .from(bucket)
-                .createSignedUrl(filePath, 3600); // 1 hour expiry
+                .createSignedUrl(filePath, 3600);
 
               if (data?.signedUrl && !error) {
                 setVideoSrc(data.signedUrl);

@@ -20,6 +20,7 @@ const Login = retryableLazy(() => import('./pages/Login'));
 const Register = retryableLazy(() => import('./pages/Register'));
 const ForgotPassword = retryableLazy(() => import('./pages/ForgotPassword'));
 const ResetPassword = retryableLazy(() => import('./pages/ResetPassword'));
+const SetPassword = retryableLazy(() => import('./pages/SetPassword'));
 const TestResetUrl = retryableLazy(() => import('./pages/TestResetUrl'));
 const Messages = retryableLazy(() => import('./pages/Messages'));
 const Dashboard = retryableLazy(() => import('./pages/Dashboard'));
@@ -59,8 +60,6 @@ import { MessagesProvider } from './context/MessagesContext';
 import { MessageNotificationProvider } from './components/MessageNotificationPopup';
 import Layout from './components/Layout';
 
-// Imports needed for RootRedirect
-import { supabase } from './lib/supabaseClient';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -82,36 +81,11 @@ const RootRedirect: React.FC = () => {
   }
 
   useEffect(() => {
-    const checkAuthStatus = async () => {
-      console.log('🔐 RootRedirect - checking auth status...');
-
-      // 2. Listen for Supabase Auth Events (fires if Supabase client consumes the hash)
-      const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-        console.log('🔐 RootRedirect - Auth Event:', event);
-
-        if (event === 'PASSWORD_RECOVERY') {
-          console.log('✅ PASSWORD_RECOVERY event detected! Redirecting to /reset-password');
-          navigate('/reset-password', { replace: true });
-        } else if (event === 'SIGNED_IN') {
-          // User is signed in. Check if we should be on a specific page?
-          // For now, let the fallback redirect to login (which will auto-redirect to app) handle it
-          setIsChecking(false);
-        } else {
-          setIsChecking(false);
-        }
-      });
-
-      // 3. Fallback: If no event fires quickly, we proceed
-      setTimeout(() => {
-        if (isChecking) setIsChecking(false);
-      }, 50);
-
-      return () => {
-        subscription.unsubscribe();
-      };
-    };
-
-    checkAuthStatus();
+    // Proceed quickly — no Supabase auth listener needed anymore
+    const timer = setTimeout(() => {
+      if (isChecking) setIsChecking(false);
+    }, 50);
+    return () => clearTimeout(timer);
   }, [navigate, isChecking]);
 
   if (isChecking) {
@@ -159,6 +133,7 @@ const router = createBrowserRouter(
         <Route path="/register" element={<Register />} />
         <Route path="/auth/callback" element={<AuthCallback />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/set-password" element={<SetPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/test-reset-url" element={<TestResetUrl />} />
         <Route path="/" element={<RootRedirect />} />

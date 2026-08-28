@@ -126,7 +126,7 @@ router.get('/feed', auth, async (req: AuthRequest, res) => {
     const mapped = safePosts.map((post: any) => {
       const prof = profileMap.get(post.user_id);
       const urow = usersMap.get(post.user_id);
-      const rawAvatar = prof?.avatar_url || urow?.avatar_url || '';
+      const rawAvatar = prof?.avatar_url || urow?.avatar || '';
       const avatar = normalizeImageUrl(rawAvatar);
       const name = prof?.full_name || urow?.name || '';
       const username = prof?.username || urow?.username || '';
@@ -143,7 +143,9 @@ router.get('/feed', auth, async (req: AuthRequest, res) => {
         content: post.content,
         media_url: post.media_url,
         created_at: post.created_at,
+        createdAt: post.created_at,
         updated_at: post.updated_at || post.last_edited || post.created_at,
+        updatedAt: post.updated_at || post.last_edited || post.created_at,
         purges: post.purge_count || 0,
         likes: 0,
         dislikes: 0,
@@ -320,7 +322,9 @@ router.get('/:id', auth, async (req: AuthRequest, res) => {
       content: (post as any).content,
       media_url: (post as any).media_url,
       created_at: (post as any).created_at,
+      createdAt: (post as any).created_at,
       updated_at: (post as any).updated_at || (post as any).last_edited || (post as any).created_at,
+      updatedAt: (post as any).updated_at || (post as any).last_edited || (post as any).created_at,
       images,
       comments: commentCount || 0,
       comment_count: commentCount || 0,

@@ -1,5 +1,5 @@
-import OpenAI from 'openai';
-import { supabaseAdmin } from '../config/supabase';
+﻿import OpenAI from 'openai';
+import { requireSupabaseAdmin } from '../config/supabase';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY || 'mock-key',
@@ -69,8 +69,9 @@ export class TranslationService {
   static normalizeLang = normalizeLang;
 
   static async getUserLanguage(userId: string): Promise<string> {
+    const supabaseAdminClient = requireSupabaseAdmin();
     try {
-      const { data } = await supabaseAdmin
+      const { data } = await supabaseAdminClient
         .from('profiles')
         .select('language')
         .eq('id', userId)
@@ -82,8 +83,9 @@ export class TranslationService {
   }
 
   static async userWantsAutoTranslate(userId: string): Promise<boolean> {
+    const supabaseAdminClient = requireSupabaseAdmin();
     try {
-      const { data } = await supabaseAdmin
+      const { data } = await supabaseAdminClient
         .from('user_settings')
         .select('settings')
         .eq('user_id', userId)
@@ -155,19 +157,20 @@ export class TranslationService {
     sourceId: string,
     content: string,
     targetLanguage: string,
-    sourceLanguage?: string
+    claimedLanguage?: string | null
   ): Promise<string> {
+    const supabaseAdminClient = requireSupabaseAdmin();
     if (!content?.trim()) return content || '';
 
     const target = normalizeLang(targetLanguage);
     // Always resolve real source language from the text — UI locale is often wrong
-    const source = await this.resolveSourceLanguage(content, sourceLanguage);
+    const source = await this.resolveSourceLanguage(content, claimedLanguage);
 
     if (source === target) return content;
 
     try {
       if (sourceType !== 'text' || sourceId) {
-        const { data: cached } = await supabaseAdmin
+        const { data: cached } = await supabaseAdminClient
           .from('translations')
           .select('translated_text')
           .eq('source_type', sourceType)
@@ -188,7 +191,7 @@ export class TranslationService {
       const translatedText = await this.runTranslation(content, target, source);
 
       if (translatedText && sourceType !== 'text') {
-        const { error: upsertError } = await supabaseAdmin.from('translations').upsert(
+        const { error: upsertError } = await supabaseAdminClient.from('translations').upsert(
           {
             source_type: sourceType,
             source_id: sourceId,
@@ -198,7 +201,7 @@ export class TranslationService {
           { onConflict: 'source_type,source_id,target_language' }
         );
         if (upsertError) {
-          await supabaseAdmin.from('translations').insert({
+          await supabaseAdminClient.from('translations').insert({
             source_type: sourceType,
             source_id: sourceId,
             target_language: target,
@@ -218,15 +221,16 @@ export class TranslationService {
     sourceType: TranslationSourceType;
     sourceId: string;
     content: string;
-    sourceLanguage: string;
     recipientId: string;
+    claimedLanguage?: string | null;
   }): Promise<{ translatedContent: string | null; translatedLanguage: string | null }> {
+    const supabaseAdminClient = requireSupabaseAdmin();
     const target = await this.getUserLanguage(params.recipientId);
     if (!params.content?.trim()) {
       return { translatedContent: null, translatedLanguage: null };
     }
 
-    const source = await this.resolveSourceLanguage(params.content, params.sourceLanguage);
+    const source = await this.resolveSourceLanguage(params.content, params.claimedLanguage);
     if (source === target) {
       return { translatedContent: null, translatedLanguage: null };
     }

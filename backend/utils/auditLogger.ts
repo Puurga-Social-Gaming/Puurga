@@ -1,4 +1,4 @@
-import { supabase } from '../config/supabase';
+import { supabase, isSupabaseAvailable } from '../config/supabase';
 
 export interface AuditLogOptions {
   superadminId: string;
@@ -24,6 +24,11 @@ export const logSuperAdminAction = async (options: AuditLogOptions) => {
       ipAddress, 
       userAgent 
     } = options;
+
+    if (!isSupabaseAvailable || !supabase) {
+      console.warn('⚠️ Supabase not available, skipping audit logging');
+      return;
+    }
 
     const { error } = await supabase
       .from('superadmin_audit_logs')

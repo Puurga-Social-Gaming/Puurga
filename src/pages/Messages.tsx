@@ -11,7 +11,6 @@ import Avatar from '../components/Avatar';
 import imageCompression from 'browser-image-compression';
 import CallRoom from '../components/Call/CallRoom';
 import CallNotification from '../components/Call/CallNotification';
-import { supabase } from '../lib/supabaseClient';
 import api from '../lib/axios';
 import SupabaseVideo from '../components/ui/SupabaseVideo';
 import RichText from '../components/RichText/RichText';
@@ -403,17 +402,16 @@ const Messages: React.FC = () => {
       return;
     }
 
-    const { error } = await supabase.from('call_invites').insert({
-      caller_id: user.id,
-      callee_id: calleeId,
-      conversation_id: currentConversation.id,
-      call_type: type,
-      room_id: roomId,
-      status: 'pending',
-    });
-
-    if (error) {
-      console.error('Failed to send call invite:', error);
+    try {
+      await api.post('/calls/invite', {
+        caller_id: user.id,
+        callee_id: calleeId,
+        conversation_id: currentConversation.id,
+        call_type: type,
+        room_id: roomId,
+      });
+    } catch (err) {
+      console.error('Failed to send call invite:', err);
       toast.error('Failed to start call. Please try again.');
       return;
     }
@@ -431,17 +429,11 @@ const Messages: React.FC = () => {
   const handleAcceptCall = (invite: any) => {
     setCallRoomId(invite.room_id);
     setCallType(invite.call_type);
-    supabase
-      .from('call_invites')
-      .update({ status: 'accepted', accepted_at: new Date().toISOString() })
-      .eq('id', invite.id);
+    api.post(`/calls/invite/${invite.id}/accept`).catch(() => {});
   };
 
   const handleDeclineCall = async (invite: any) => {
-    await supabase
-      .from('call_invites')
-      .update({ status: 'declined', ended_at: new Date().toISOString() })
-      .eq('id', invite.id);
+    await api.post(`/calls/invite/${invite.id}/decline`).catch(() => {});
   };
 
   const handleSelectConversation = (conversation: typeof currentConversation) => {

@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../hooks/useAuth';
-import { supabase } from '../lib/supabaseClient';
 import PuurgaLogo from '../components/Icons/PuurgaLogo';
 import { toast } from 'react-hot-toast';
 import { Eye, EyeOff } from 'lucide-react';
@@ -42,31 +41,13 @@ const Login: React.FC = () => {
     fadeOutAudio();
   }, []);
 
-  // CRITICAL: Check for password recovery flow FIRST, before anything else
-  // This handles when Supabase redirects to root/login with recovery tokens
+  // Check for password recovery tokens in URL hash
   useEffect(() => {
     const hash = window.location.hash;
-    console.log('🔐 Login page loaded - checking hash:', hash);
-
-    // Check for recovery tokens in hash
     if (hash && (hash.includes('type=recovery') || hash.includes('type=magiclink'))) {
-      console.log('✅ Recovery/Magic link detected! Redirecting to reset-password...');
-      // Pass the hash along so Supabase can process the token
       window.location.href = `/reset-password${hash}`;
-      return;
     }
-
-    // Also listen for Supabase auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      console.log('🔐 Auth state change:', event);
-      if (event === 'PASSWORD_RECOVERY') {
-        console.log('✅ PASSWORD_RECOVERY event detected! Redirecting...');
-        navigate('/reset-password');
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, [navigate]);
+  }, []);
 
   useEffect(() => {
     // Check for saved email
@@ -112,7 +93,7 @@ const Login: React.FC = () => {
       // Start preloading posts immediately
       preloadPosts();
 
-      setLoggedInUser({ name: user.name || user.username, username: user.username, avatar: user.avatar });
+      setLoggedInUser({ name: user.name || user.username, username: user.username, avatar: (user as any).avatar || (user as any).avatar_url });
       setShowWelcome(true);
     } catch (err: any) {
       console.error('Detailed login error in component:', err);

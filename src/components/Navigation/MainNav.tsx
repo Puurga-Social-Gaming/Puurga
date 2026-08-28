@@ -84,8 +84,10 @@ const MainNav: React.FC = () => {
 
   const handleLogout = async () => {
     try {
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
+      if (supabase) {
+        const { error } = await supabase.auth.signOut();
+        if (error) throw error;
+      }
 
       try {
         localStorage.removeItem('token');

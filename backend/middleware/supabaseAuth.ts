@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import { supabase } from '../config/supabase';
+import { requireSupabase, isSupabaseAvailable } from '../config/supabase';
 import { User, Profile } from '../models';
 
 export interface AuthUser {
@@ -116,10 +116,14 @@ function tryVerifyLocally(token: string): TokenClaims | null {
 }
 
 async function getUserWithRetry(token: string, attempts = 2) {
+  if (!isSupabaseAvailable) {
+    return { data: { user: null }, error: { message: 'Supabase not configured', status: 404 } };
+  }
+  const supabaseClient = requireSupabase();
   let lastError: unknown = null;
   for (let i = 0; i < attempts; i++) {
     try {
-      const result = await supabase.auth.getUser(token);
+      const result = await supabaseClient.auth.getUser(token);
       if (!result.error) return result;
       lastError = result.error;
       if (!isTransientAuthError(result.error) || i === attempts - 1) {
@@ -149,20 +153,22 @@ async function buildAuthUser(
     user = await User.findByPk(userId);
     
     if (!user) {
-      // Fallback to Supabase profiles if local user not found
-      console.warn(`supabaseAuth: Local user not found for ${userId}, checking Supabase`);
-      const { data, error: profileError } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .maybeSingle();
+      // Fallback to Supabase profiles if local user not found (only if configured)
+      if (require('../config/supabase').isSupabaseAvailable) {
+        console.warn(`supabaseAuth: Local user not found for ${userId}, checking Supabase`);
+        const { data, error: profileError } = await requireSupabase()
+          .from('profiles')
+          .select('*')
+          .eq('id', userId)
+          .maybeSingle();
 
-      if (profileError) {
-        if (!isTransientAuthError(profileError)) {
-          console.warn('supabaseAuth: profiles fetch error (non-fatal):', profileError.message);
+        if (profileError) {
+          if (!isTransientAuthError(profileError)) {
+            console.warn('supabaseAuth: profiles fetch error (non-fatal):', profileError.message);
+          }
+        } else {
+          profile = data;
         }
-      } else {
-        profile = data;
       }
     } else {
       // Get local profile if user exists
@@ -175,16 +181,18 @@ async function buildAuthUser(
   } catch (error) {
     console.warn('supabaseAuth: local database fetch threw (non-fatal):', error);
     
-    // Fallback to Supabase
+    // Fallback to Supabase (only if configured)
     try {
-      const { data, error: profileError } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .maybeSingle();
+      if (require('../config/supabase').isSupabaseAvailable) {
+        const { data, error: profileError } = await requireSupabase()
+          .from('profiles')
+          .select('*')
+          .eq('id', userId)
+          .maybeSingle();
 
-      if (!profileError) {
-        profile = data;
+        if (!profileError) {
+          profile = data;
+        }
       }
     } catch (fallbackError) {
       console.warn('supabaseAuth: Supabase fallback also failed:', fallbackError);
@@ -213,9 +221,9 @@ async function buildAuthUser(
       // Try to update local profile first
       if (profile instanceof Profile) {
         await profile.update(healed);
-      } else {
+      } else if (require('../config/supabase').isSupabaseAvailable) {
         // Fallback to Supabase
-        const { data: updated } = await supabase
+        const { data: updated } = await requireSupabase()
           .from('profiles')
           .update(healed)
           .eq('id', userId)
@@ -266,7 +274,17 @@ export const supabaseAuth = async (req: Request, res: Response, next: NextFuncti
     let claims = tryVerifyLocally(token);
 
     if (!claims) {
-      const { data: { user }, error } = await getUserWithRetry(token);
+      let user: any = null;
+      let error: any = null;
+
+      try {
+        const result = await getUserWithRetry(token);
+        user = result.data?.user;
+        error = result.error;
+      } catch (retryError) {
+        // Supabase not configured — fall back to decoded token
+        console.warn('supabaseAuth: getUserWithRetry threw (Supabase unavailable?):', (retryError as any)?.message);
+      }
 
       if (user) {
         const authUser = await buildAuthUser(
@@ -279,14 +297,12 @@ export const supabaseAuth = async (req: Request, res: Response, next: NextFuncti
         return next();
       }
 
-      if (error && isTransientAuthError(error)) {
-        // Network blip: fall back to decoded (non-expired) Supabase JWT — same as WebSocket
-        claims = decodeSupabaseToken(token);
-        if (!claims?.sub) {
-          console.warn('supabaseAuth: transient auth service error:', (error as any)?.message);
-          return res.status(503).json({ message: 'Auth service temporarily unavailable' });
-        }
-        console.warn('supabaseAuth: using local JWT fallback after transient Auth error');
+      // Supabase unavailable or not configured — try decoded token as last resort
+      claims = decodeSupabaseToken(token);
+      if (claims?.sub) {
+        console.warn('supabaseAuth: using decoded JWT fallback (Supabase unavailable)');
+      } else if (error && isTransientAuthError(error)) {
+        return res.status(503).json({ message: 'Auth service temporarily unavailable' });
       } else {
         return res.status(401).json({ message: 'Invalid token' });
       }

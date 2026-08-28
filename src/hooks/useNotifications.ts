@@ -124,7 +124,7 @@ export const useNotifications = () => {
   });
 
   useEffect(() => {
-    if (!user || _wsConnected) return;
+    if (!user || _wsConnected || !supabase) return;
 
     if (subscriptionRef.current) {
       subscriptionRef.current.unsubscribe();

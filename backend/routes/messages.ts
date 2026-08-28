@@ -1,15 +1,14 @@
-import express from 'express';
-import { supabase } from '../config/supabase';
+﻿import express from 'express';
 import { supabaseAuth as auth, AuthRequest } from '../middleware/supabaseAuth';
 import { wsManager } from '../websocketManager';
 import { normalizeImageUrl } from '../utils/url';
 import { allowsLiveTypingPreview, canSendMessage } from '../services/settingsService';
 import { NotificationService } from '../services/notificationService';
 import { validateNotGhosted } from '../middleware/restrictGhosted';
-import { getAcceptedFriendIds, getPendingOutgoingIds, areBlocked, getBidirectionalBlockedIds } from '../utils/friendRelations';
+import { areBlocked, getBidirectionalBlockedIds } from '../utils/friendRelations';
 import { TranslationService } from '../services/translationService';
 import { DailyMissionService } from '../services/dailyMissionService';
-import { Message, Conversation, ConversationParticipant, User, Profile, sequelize, Op } from '../models';
+import { Message, Conversation, ConversationParticipant, User, Profile, Friendship, FriendRequest, sequelize, Op } from '../models';
 import { QueryTypes } from 'sequelize';
 
 const router = express.Router();
@@ -119,11 +118,11 @@ router.get('/conversations', auth, async (req: AuthRequest, res) => {
                 p.id as profile_id, p.full_name, p.username, p.avatar_url
          FROM messages m
          LEFT JOIN profiles p ON m.sender_id = p.id
-         WHERE m.conversation_id = ANY($1)
+         WHERE m.conversation_id = ANY(CAST(:ids AS UUID[]))
          ORDER BY m.created_at DESC
-         LIMIT $2`,
+         LIMIT :lim`,
         {
-          replacements: [targetIds, targetIds.length * 8],
+          replacements: { ids: targetIds, lim: targetIds.length * 8 },
           type: QueryTypes.SELECT
         }
       );
@@ -212,80 +211,53 @@ router.get('/conversations/:conversationId/messages', auth, async (req: AuthRequ
     const autoTranslate = await TranslationService.userWantsAutoTranslate(user.id);
 
     // Latest N messages only (avoids loading entire history on open)
-    const { data: messages, error } = await supabase
-      .from('messages')
-      .select(`
-        id,
-        content,
-        images,
-        created_at,
-        from_user_id,
-        read,
-        read_at,
-        is_edited,
-        edited_at,
-        is_deleted,
-        deleted_at,
-        is_encrypted,
-        ciphertext,
-        language,
-        profiles!messages_from_user_id_fkey(id, full_name, username, avatar_url)
-      `)
-      .eq('conversation_id', conversationId)
-      .order('created_at', { ascending: false })
-      .limit(MESSAGE_PAGE_SIZE);
+    const messagesRows = await sequelize.query(
+      `SELECT m.id, m.content, m.images, m.created_at, m.sender_id AS from_user_id,
+              m.read, m.read_at, m.is_edited, m.edited_at, m.is_deleted, m.deleted_at,
+              m.is_encrypted, m.ciphertext, m.language,
+              p.id AS profile_id, p.full_name, p.username, p.avatar_url
+       FROM messages m
+       LEFT JOIN profiles p ON m.sender_id = p.id
+       WHERE m.conversation_id = :conversationId
+       ORDER BY m.created_at DESC
+       LIMIT :limit`,
+      { replacements: { conversationId, limit: MESSAGE_PAGE_SIZE }, type: QueryTypes.SELECT }
+    );
 
-    if (error) {
-      if (error.code === '42P01') {
-        return res.json([]);
-      }
-      // Fallback if edit/delete columns not yet migrated
-      if (error.code === '42703' || error.message?.includes('column')) {
-        const { data: fallbackMsgs, error: fallbackErr } = await supabase
-          .from('messages')
-          .select(`
-            id, content, images, created_at, from_user_id,
-            profiles!messages_from_user_id_fkey(id, full_name, username, avatar_url)
-          `)
-          .eq('conversation_id', conversationId)
-          .order('created_at', { ascending: false })
-          .limit(MESSAGE_PAGE_SIZE);
-        if (fallbackErr) throw fallbackErr;
-        const chronologicalFallback = [...(fallbackMsgs || [])].reverse();
-        return res.json(chronologicalFallback.map((msg: any) => ({
-          id: msg.id,
-          content: msg.content,
-          created_at: msg.created_at,
-          from_user_id: msg.from_user_id,
-          is_from_current_user: msg.from_user_id === user.id,
-          images: msg.images || [],
-          is_edited: false,
-          edited_at: null,
-          is_deleted: false,
-          deleted_at: null,
-          from_user: {
-            id: msg.profiles?.id || msg.from_user_id,
-            full_name: msg.profiles?.full_name || 'Unknown User',
-            username: msg.profiles?.username || 'unknown',
-            avatar_url: normalizeImageUrl(msg.profiles?.avatar_url) || null
-          }
-        })));
-      }
-      throw error;
-    }
+    const messages = (messagesRows as any[]).map((m) => ({
+      id: m.id,
+      content: m.content,
+      images: m.images || [],
+      created_at: m.created_at,
+      from_user_id: m.from_user_id,
+      read: m.read,
+      read_at: m.read_at,
+      is_edited: m.is_edited,
+      edited_at: m.edited_at,
+      is_deleted: m.is_deleted,
+      deleted_at: m.deleted_at,
+      is_encrypted: m.is_encrypted,
+      ciphertext: m.ciphertext,
+      language: m.language,
+      profiles: m.profile_id ? {
+        id: m.profile_id,
+        full_name: m.full_name,
+        username: m.username,
+        avatar_url: m.avatar_url,
+      } : null,
+    }));
 
     const chronological = [...(messages || [])].reverse();
 
     // Hide messages this user moved to trash ("delete for me")
     let hiddenIds = new Set<string>();
     try {
-      const { data: hiddenRows } = await supabase
-        .from('message_trash')
-        .select('message_id')
-        .eq('user_id', user.id)
-        .eq('conversation_id', conversationId)
-        .eq('scope', 'me');
-      hiddenIds = new Set((hiddenRows || []).map((r: any) => r.message_id));
+      const hiddenRows = await sequelize.query(
+        `SELECT message_id FROM message_trash
+         WHERE user_id = :userId AND conversation_id = :conversationId AND scope = 'me'`,
+        { replacements: { userId: user.id, conversationId }, type: QueryTypes.SELECT }
+      );
+      hiddenIds = new Set((hiddenRows as any[]).map((r) => r.message_id));
     } catch {
       /* trash table may not exist yet */
     }
@@ -296,12 +268,12 @@ router.get('/conversations/:conversationId/messages', auth, async (req: AuthRequ
     // Bulk-load reactions for this page
     const reactionsByMessage = new Map<string, Record<string, { count: number; reacted_by_me: boolean }>>();
     if (messageIds.length > 0) {
-      const { data: reactionRows } = await supabase
-        .from('message_reactions')
-        .select('message_id, user_id, emoji')
-        .in('message_id', messageIds);
+      const reactionRows = await sequelize.query(
+        `SELECT message_id, user_id, emoji FROM message_reactions WHERE message_id IN (:messageIds)`,
+        { replacements: { messageIds }, type: QueryTypes.SELECT }
+      );
 
-      (reactionRows || []).forEach((r: any) => {
+      (reactionRows as any[]).forEach((r) => {
         if (!reactionsByMessage.has(r.message_id)) {
           reactionsByMessage.set(r.message_id, {});
         }
@@ -408,26 +380,24 @@ router.post('/conversations/:conversationId/messages', auth, validateNotGhosted,
       : claimedLanguage;
 
     // Verify user is participant in this conversation
-    const { data: participant, error: participantError } = await supabase
-      .from('conversation_participants')
-      .select('id')
-      .eq('conversation_id', conversationId)
-      .eq('user_id', user.id)
-      .single();
+    const participant = await ConversationParticipant.findOne({
+      where: { conversationId, userId: user.id }
+    });
 
-    if (participantError || !participant) {
+    if (!participant) {
       return res.status(403).json({ error: 'Not authorized to send messages in this conversation' });
     }
 
-    // Block check against other participants
-    const { data: others } = await supabase
-      .from('conversation_participants')
-      .select('user_id')
-      .eq('conversation_id', conversationId)
-      .neq('user_id', user.id);
+    // Get other participants (used for block checks and notifications)
+    const otherParticipantRows = await ConversationParticipant.findAll({
+      where: { conversationId, userId: { [Op.ne]: user.id } },
+      attributes: ['userId'],
+    });
+    const otherParticipants = otherParticipantRows.map((p) => ({ user_id: p.userId }));
 
-    if (others) {
-      for (const p of others) {
+    // Block check against other participants
+    if (otherParticipants.length > 0) {
+      for (const p of otherParticipants) {
         if (await areBlocked(user.id, p.user_id)) {
           return res.status(403).json({
             error: 'Cannot message this user due to a block',
@@ -438,114 +408,49 @@ router.post('/conversations/:conversationId/messages', auth, validateNotGhosted,
     }
 
     // Insert the message
-    const insertData: any = {
-      conversation_id: conversationId,
-      from_user_id: user.id,
-      content: hasContent ? content.trim() : '',
-      created_at: new Date().toISOString(),
-      read: false,
-      language: sourceLanguage,
-    };
-    if (hasCipher) {
-      insertData.is_encrypted = true;
-      insertData.ciphertext = ciphertext;
-    }
-
-    // Only add images if the column exists and images are provided
-    if (hasImages) {
-      insertData.images = images;
-    }
-
     let message: any;
     {
-      const { data, error } = await supabase
-        .from('messages')
-        .insert(insertData)
-        .select(`
-          id,
-          content,
-          images,
-          created_at,
-          from_user_id,
-          language,
-          profiles!messages_from_user_id_fkey(id, full_name, username, avatar_url)
-        `)
-        .single();
-
-      if (error) {
-        // Fallback if `language` or `read` column not migrated yet
-        if (error.code === 'PGRST204' || error.code === '42703' || error.message?.includes('language')) {
-          delete insertData.language;
+      const insertedRows = await sequelize.query(
+        `INSERT INTO messages (id, conversation_id, sender_id, content, created_at, updated_at, read, language, is_encrypted, ciphertext, images)
+         VALUES (gen_random_uuid(), :conversationId, :senderId, :content, :createdAt, :createdAt, false, :language, :isEncrypted, :ciphertext, CAST(:images AS JSONB))
+         RETURNING id, content, images, created_at, language`,
+        {
+          replacements: {
+            conversationId,
+            senderId: user.id,
+            content: hasContent ? content.trim() : '',
+            createdAt: new Date(),
+            language: sourceLanguage,
+            isEncrypted: hasCipher,
+            ciphertext: hasCipher ? ciphertext : null,
+            images: hasImages ? JSON.stringify(images) : null,
+          },
+          type: QueryTypes.SELECT,
         }
-        if (error.code === 'PGRST204' || error.code === '42703' || error.message?.includes('read') || error.message?.includes('language')) {
-          if (error.message?.includes('read') || String(error.details || '').includes('read')) {
-            delete insertData.read;
-          }
-          const retry = await supabase
-            .from('messages')
-            .insert(insertData)
-            .select(`
-              id,
-              content,
-              images,
-              created_at,
-              from_user_id,
-              profiles!messages_from_user_id_fkey(id, full_name, username, avatar_url)
-            `)
-            .single();
-          if (retry.error) {
-            // last resort without language
-            delete insertData.language;
-            delete insertData.read;
-            const retry2 = await supabase
-              .from('messages')
-              .insert(insertData)
-              .select(`
-                id, content, images, created_at, from_user_id,
-                profiles!messages_from_user_id_fkey(id, full_name, username, avatar_url)
-              `)
-              .single();
-            if (retry2.error) throw retry2.error;
-            message = retry2.data;
-          } else {
-            message = retry.data;
-          }
-        } else if (error.message?.includes('read')) {
-          delete insertData.read;
-          const retry = await supabase
-            .from('messages')
-            .insert(insertData)
-            .select(`
-              id,
-              content,
-              images,
-              created_at,
-              from_user_id,
-              profiles!messages_from_user_id_fkey(id, full_name, username, avatar_url)
-            `)
-            .single();
-          if (retry.error) throw retry.error;
-          message = retry.data;
-        } else {
-          throw error;
-        }
-      } else {
-        message = data;
-      }
+      );
+      const inserted = (insertedRows as any[])[0];
+      const profile = await Profile.findOne({ where: { id: user.id }, attributes: ['id', 'full_name', 'username', 'avatar_url'] });
+      message = {
+        id: inserted.id,
+        content: inserted.content,
+        images: inserted.images || [],
+        created_at: inserted.created_at,
+        from_user_id: user.id,
+        language: inserted.language,
+        profiles: profile ? {
+          id: profile.id,
+          full_name: profile.full_name,
+          username: profile.username,
+          avatar_url: profile.avatar_url,
+        } : null,
+      };
     }
 
     // Update conversation's updated_at timestamp
-    await supabase
-      .from('conversations')
-      .update({ updated_at: new Date().toISOString() })
-      .eq('id', conversationId);
-
-    // Get other participants to send notifications
-    const { data: otherParticipants } = await supabase
-      .from('conversation_participants')
-      .select('user_id')
-      .eq('conversation_id', conversationId)
-      .neq('user_id', user.id);
+    await Conversation.update(
+      { updatedAt: new Date() },
+      { where: { id: conversationId } }
+    );
 
     // Create notifications for all other participants
     if (otherParticipants && otherParticipants.length > 0) {
@@ -623,8 +528,8 @@ router.post('/conversations/:conversationId/messages', auth, validateNotGhosted,
                 sourceType: 'message',
                 sourceId: formattedMessage.id,
                 content: plainContent,
-                sourceLanguage: messageLanguage,
-                recipientId: p.user_id,
+              claimedLanguage: messageLanguage,
+              recipientId: p.user_id,
               });
               translatedContent = result.translatedContent;
               translatedLanguage = result.translatedLanguage;
@@ -705,70 +610,41 @@ router.post('/conversations', auth, validateNotGhosted, async (req: AuthRequest,
     }
 
     // Check if conversation already exists between these users
-    const { data: existingConversations, error: searchError } = await supabase
-      .from('conversation_participants')
-      .select('conversation_id')
-      .eq('user_id', user.id);
+    let conversationId: string | null = null;
 
-    if (searchError && searchError.code !== '42P01') {
-      throw searchError;
-    }
+    const myRows = await ConversationParticipant.findAll({
+      where: { userId: user.id },
+      attributes: ['conversationId'],
+    });
+    const myConvIds = myRows.map((r) => r.conversationId);
 
-    let conversationId = null;
-
-    if (existingConversations && existingConversations.length > 0) {
-      // Check if any of these conversations also include the other user
-      for (const conv of existingConversations) {
-        const { data: otherParticipant } = await supabase
-          .from('conversation_participants')
-          .select('id')
-          .eq('conversation_id', conv.conversation_id)
-          .eq('user_id', otherUserId)
-          .single();
-
-        if (otherParticipant) {
-          conversationId = conv.conversation_id;
-          break;
-        }
+    if (myConvIds.length > 0) {
+      const shared = await ConversationParticipant.findOne({
+        where: { conversationId: { [Op.in]: myConvIds }, userId: otherUserId },
+        attributes: ['conversationId'],
+      });
+      if (shared) {
+        conversationId = shared.conversationId;
       }
     }
 
     // If no existing conversation, create a new one
     if (!conversationId) {
-      const { data: newConversation, error: createError } = await supabase
-        .from('conversations')
-        .insert({
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        })
-        .select('id')
-        .single();
+      const newConversation = await Conversation.create({ isGroup: false });
+      const createdId = (newConversation as any).id as string;
+      conversationId = createdId;
 
-      if (createError) {
-        throw createError;
-      }
-
-      conversationId = newConversation.id;
-
-      // Add both users as participants
-      const { error: participantsError } = await supabase
-        .from('conversation_participants')
-        .insert([
-          { conversation_id: conversationId, user_id: user.id },
-          { conversation_id: conversationId, user_id: otherUserId }
-        ]);
-
-      if (participantsError) {
-        throw participantsError;
-      }
+      await ConversationParticipant.bulkCreate([
+        { conversationId: createdId, userId: user.id },
+        { conversationId: createdId, userId: otherUserId },
+      ]);
     }
 
     // Get the other user's profile info
-    const { data: otherUserProfile } = await supabase
-      .from('profiles')
-      .select('id, full_name, username, avatar_url')
-      .eq('id', otherUserId)
-      .single();
+    const otherUserProfile = await Profile.findOne({
+      where: { id: otherUserId },
+      attributes: ['id', 'full_name', 'username', 'avatar_url'],
+    });
 
     res.json({
       id: conversationId,
@@ -796,83 +672,101 @@ router.get('/users/online', auth, async (req: AuthRequest, res) => {
 
     const onlineUserIds = new Set(wsManager.getOnlineUsers().filter(id => id !== user.id));
 
-    // Friends (both DB schemas) + accepted requests fallback; pending outgoing = messageable
-    const [friendIds, pendingOutgoingRaw] = await Promise.all([
-      getAcceptedFriendIds(user.id),
-      getPendingOutgoingIds(user.id),
-    ]);
-    const friendIdSet = new Set(friendIds);
-    const pendingOutgoingIds = pendingOutgoingRaw.filter((id) => !friendIdSet.has(id));
-    const pendingIdSet = new Set(pendingOutgoingIds);
+    // -- 1. Friends (local Postgres - friendships table) --
+    const localFriendships = await Friendship.findAll({
+      where: {
+        [Op.or]: [
+          { user_id: user.id },
+          { friend_id: user.id },
+        ],
+      },
+      attributes: ['user_id', 'friend_id'],
+    });
+    const friendSet = new Set<string>(
+      (localFriendships || [])
+        .map((f: any) => f.user_id === user.id ? f.friend_id : f.user_id)
+        .filter((id: string) => id && id !== user.id)
+    );
 
-    // Existing conversation partners
-    const { data: conversationParticipants } = await supabase
-      .from('conversation_participants')
-      .select('conversation_id')
-      .eq('user_id', user.id);
+    // -- 2. Pending outgoing requests (still messageable) --
+    const localPendingRequests = await FriendRequest.findAll({
+      where: { sender_id: user.id, status: 'pending' },
+      attributes: ['receiver_id'],
+    });
+    const pendingSet = new Set<string>(
+      (localPendingRequests || [])
+        .map((r: any) => r.receiver_id)
+        .filter((id: string) => id && id !== user.id && !friendSet.has(id))
+    );
 
-    let conversationUserIds: string[] = [];
-    if (conversationParticipants && conversationParticipants.length > 0) {
-      const convIds = conversationParticipants.map(c => c.conversation_id);
-      const { data: otherParticipants } = await supabase
-        .from('conversation_participants')
-        .select('user_id')
-        .in('conversation_id', convIds)
-        .neq('user_id', user.id);
-
-      if (otherParticipants) {
-        conversationUserIds = otherParticipants.map(p => p.user_id);
+    // -- 3. Existing conversation partners --
+    const conversationSet = new Set<string>();
+    const myParticipants = await ConversationParticipant.findAll({
+      where: { userId: user.id },
+      attributes: ['conversationId'],
+    });
+    if (myParticipants && myParticipants.length > 0) {
+      const convIds = myParticipants.map((c: any) => c.conversationId);
+      const others = await ConversationParticipant.findAll({
+        where: { conversationId: convIds, userId: { [Op.ne]: user.id } },
+        attributes: ['userId'],
+      });
+      for (const c of others || []) {
+        if ((c as any).userId && (c as any).userId !== user.id) {
+          conversationSet.add((c as any).userId);
+        }
       }
     }
 
-    let allUserIds = [...new Set([...friendIds, ...pendingOutgoingIds, ...conversationUserIds])];
+    // -- 4. Combine all candidate IDs --
+    let allUserIds = [...new Set<string>([...friendSet, ...pendingSet, ...conversationSet])];
 
-    // Only pad with recent users when the user has almost nobody to message
+    // -- 5. Only pad with recent users when the user has almost nobody to message --
     if (allUserIds.length === 0) {
-      const { data: recentUsers } = await supabase
-        .from('profiles')
-        .select('id')
-        .neq('id', user.id)
-        .order('created_at', { ascending: false })
-        .limit(15);
-
-      if (recentUsers) {
-        allUserIds = recentUsers.map(u => u.id);
-      }
+      const recentLocal = await Profile.findAll({
+        where: { id: { [Op.ne]: user.id } },
+        attributes: ['id'],
+        order: [['created_at', 'DESC']],
+        limit: 15,
+      });
+      allUserIds = (recentLocal || []).map((p: any) => p.id);
     }
 
     if (allUserIds.length === 0) {
       return res.json([]);
     }
 
-    const { data: users, error } = await supabase
-      .from('profiles')
-      .select('id, full_name, username, avatar_url, show_online_status')
-      .in('id', allUserIds)
-      .limit(150);
+    // -- 6. Fetch user detail rows from local Postgres (profiles) --
+    const localUsers = await Profile.findAll({
+      where: { id: allUserIds },
+      attributes: ['id', 'full_name', 'username', 'avatar_url', 'show_online_status'],
+    });
+    const userMap = new Map<string, any>();
+    for (const u of localUsers) userMap.set(u.id, u);
 
-    if (error) {
-      if (error.code === '42P01') {
-        return res.json([]);
-      }
-      throw error;
-    }
+    const formattedUsers: any[] = [];
+    for (const id of allUserIds) {
+      const u = userMap.get(id);
+      if (!u) continue;
 
-    const formattedUsers = (users || []).map((u: any) => {
       let relationship: 'friend' | 'pending' | 'contact' = 'contact';
-      if (friendIdSet.has(u.id)) relationship = 'friend';
-      else if (pendingIdSet.has(u.id)) relationship = 'pending';
+      if (friendSet.has(id)) relationship = 'friend';
+      else if (pendingSet.has(id)) relationship = 'pending';
 
-      return {
-        id: u.id,
+      const showOnline = u.show_online_status !== undefined && u.show_online_status !== null
+        ? !!u.show_online_status
+        : true;
+
+      formattedUsers.push({
+        id,
         full_name: u.full_name || 'Unknown User',
         username: u.username || 'unknown',
         avatar_url: normalizeImageUrl(u.avatar_url),
-        show_online_status: Boolean(u.show_online_status ?? true),
-        isOnline: (u.show_online_status ?? true) ? onlineUserIds.has(u.id) : false,
+        show_online_status: showOnline,
+        isOnline: showOnline ? onlineUserIds.has(id) : false,
         relationship,
-      };
-    });
+      });
+    }
 
     // Sort: friends → pending → online → alphabetical
     const rank = (u: { relationship: string; isOnline: boolean }) => {
@@ -907,14 +801,11 @@ router.put('/conversations/:conversationId/read', auth, async (req: AuthRequest,
     }
 
     // Verify user is participant in this conversation
-    const { data: participant, error: participantError } = await supabase
-      .from('conversation_participants')
-      .select('id')
-      .eq('conversation_id', conversationId)
-      .eq('user_id', user.id)
-      .single();
+    const participant = await ConversationParticipant.findOne({
+      where: { conversationId, userId: user.id }
+    });
 
-    if (participantError || !participant) {
+    if (!participant) {
       return res.status(403).json({ error: 'Not authorized to mark messages as read in this conversation' });
     }
 
@@ -922,66 +813,40 @@ router.put('/conversations/:conversationId/read', auth, async (req: AuthRequest,
     const readAt = new Date().toISOString();
     let messageIds: string[] = [];
 
-    try {
-      const { data: unreadRows, error: fetchErr } = await supabase
-        .from('messages')
-        .select('id')
-        .eq('conversation_id', conversationId)
-        .neq('from_user_id', user.id)
-        .eq('read', false);
+    const unreadRows = await sequelize.query(
+      `SELECT id FROM messages
+       WHERE conversation_id = :conversationId AND sender_id != :userId AND read = false`,
+      { replacements: { conversationId, userId: user.id }, type: QueryTypes.SELECT }
+    );
+    messageIds = (unreadRows as any[]).map((r) => r.id as string);
 
-      if (fetchErr) {
-        if (fetchErr.code === 'PGRST204' || fetchErr.code === '42703' || fetchErr.message?.includes('column') || fetchErr.message?.includes('schema cache')) {
-          console.warn('Mark-as-read: "read" column not available. Skipping silently.');
-          return res.json({ success: true, warning: 'read column not available' });
-        }
-        throw fetchErr;
-      }
+    if (messageIds.length > 0) {
+      await sequelize.query(
+        `UPDATE messages SET read = true, read_at = :readAt WHERE id IN (:messageIds)`,
+        { replacements: { readAt, messageIds }, type: QueryTypes.UPDATE }
+      );
 
-      messageIds = (unreadRows || []).map((r: any) => r.id as string);
+      // Notify other participants so senders see double-check (read) instantly
+      const others = await ConversationParticipant.findAll({
+        where: { conversationId, userId: { [Op.ne]: user.id } },
+        attributes: ['userId'],
+      });
+      const otherIds = others.map((p) => p.userId);
 
-      if (messageIds.length > 0) {
-        const { error } = await supabase
-          .from('messages')
-          .update({ read: true, read_at: readAt })
-          .in('id', messageIds);
-
-        if (error) {
-          if (error.code === 'PGRST204' || error.code === '42703' || error.message?.includes('column') || error.message?.includes('schema cache')) {
-            console.warn('Mark-as-read: "read" column not available. Skipping silently.');
-            return res.json({ success: true, warning: 'read column not available' });
+      if (otherIds.length > 0) {
+        wsManager.broadcastToUsers(
+          otherIds,
+          {
+            type: 'message_read',
+            payload: {
+              conversationId,
+              userId: user.id,
+              readAt,
+              messageIds,
+            },
           }
-          throw error;
-        }
-
-        // Notify other participants so senders see double-check (read) instantly
-        const { data: others } = await supabase
-          .from('conversation_participants')
-          .select('user_id')
-          .eq('conversation_id', conversationId)
-          .neq('user_id', user.id);
-
-        if (others && others.length > 0) {
-          wsManager.broadcastToUsers(
-            others.map((p) => p.user_id),
-            {
-              type: 'message_read',
-              payload: {
-                conversationId,
-                userId: user.id,
-                readAt,
-                messageIds,
-              },
-            }
-          );
-        }
+        );
       }
-    } catch (dbError: any) {
-      if (dbError?.code === 'PGRST204' || dbError?.code === '42703' || dbError?.message?.includes('column') || dbError?.message?.includes('schema cache')) {
-        console.warn('Mark-as-read: "read" column not found. Skipping silently.');
-        return res.json({ success: true, warning: 'read column not available' });
-      }
-      throw dbError;
     }
 
     res.json({ success: true, readAt, messageIds });
@@ -1003,14 +868,11 @@ router.post('/conversations/:conversationId/typing', auth, async (req: AuthReque
     }
 
     // Verify user is participant in this conversation
-    const { data: participant, error: participantError } = await supabase
-      .from('conversation_participants')
-      .select('user_id')
-      .eq('conversation_id', conversationId)
-      .eq('user_id', user.id)
-      .single();
+    const participant = await ConversationParticipant.findOne({
+      where: { conversationId, userId: user.id }
+    });
 
-    if (participantError || !participant) {
+    if (!participant) {
       return res.status(403).json({ error: 'Not authorized' });
     }
 
@@ -1018,13 +880,13 @@ router.post('/conversations/:conversationId/typing', auth, async (req: AuthReque
     const livePreviewEnabled = await allowsLiveTypingPreview(user.id);
 
     // Get other participants to send typing indicator / live draft
-    const { data: otherParticipants } = await supabase
-      .from('conversation_participants')
-      .select('user_id')
-      .eq('conversation_id', conversationId)
-      .neq('user_id', user.id);
+    const otherParticipantRows = await ConversationParticipant.findAll({
+      where: { conversationId, userId: { [Op.ne]: user.id } },
+      attributes: ['userId'],
+    });
+    const otherParticipants = otherParticipantRows.map((p) => ({ user_id: p.userId }));
 
-    if (otherParticipants && otherParticipants.length > 0) {
+    if (otherParticipants.length > 0) {
       const recipientIds = otherParticipants
         .map((p) => p.user_id)
         .filter((recipientId) => wsManager.isUserOnline(recipientId));
@@ -1067,22 +929,18 @@ router.post('/conversations/:conversationId/typing', auth, async (req: AuthReque
 const MESSAGE_EDIT_WINDOW_MS = 15 * 60 * 1000;
 
 async function assertConversationParticipant(conversationId: string, userId: string) {
-  const { data: participant, error } = await supabase
-    .from('conversation_participants')
-    .select('id')
-    .eq('conversation_id', conversationId)
-    .eq('user_id', userId)
-    .single();
-  return !error && !!participant;
+  const participant = await ConversationParticipant.findOne({
+    where: { conversationId, userId }
+  });
+  return !!participant;
 }
 
 async function getOtherParticipantIds(conversationId: string, userId: string): Promise<string[]> {
-  const { data } = await supabase
-    .from('conversation_participants')
-    .select('user_id')
-    .eq('conversation_id', conversationId)
-    .neq('user_id', userId);
-  return (data || []).map((p) => p.user_id);
+  const rows = await ConversationParticipant.findAll({
+    where: { conversationId, userId: { [Op.ne]: userId } },
+    attributes: ['userId'],
+  });
+  return rows.map((p) => p.userId);
 }
 
 // Edit own message (within 15 minutes)
@@ -1104,14 +962,14 @@ router.patch('/conversations/:conversationId/messages/:messageId', auth, async (
       return res.status(403).json({ error: 'Not authorized' });
     }
 
-    const { data: existing, error: fetchError } = await supabase
-      .from('messages')
-      .select('id, from_user_id, created_at, is_deleted, conversation_id, language, is_encrypted, ciphertext')
-      .eq('id', messageId)
-      .eq('conversation_id', conversationId)
-      .single();
+    const existingRows = await sequelize.query(
+      `SELECT id, sender_id AS from_user_id, created_at, is_deleted, conversation_id, language, is_encrypted, ciphertext
+       FROM messages WHERE id = :messageId AND conversation_id = :conversationId`,
+      { replacements: { messageId, conversationId }, type: QueryTypes.SELECT }
+    );
+    const existing = (existingRows as any[])[0];
 
-    if (fetchError || !existing) {
+    if (!existing) {
       return res.status(404).json({ error: 'Message not found' });
     }
 
@@ -1144,40 +1002,42 @@ router.patch('/conversations/:conversationId/messages/:messageId', auth, async (
 
     let row: any = null;
     {
-      const { data: updated, error: updateError } = await supabase
-        .from('messages')
-        .update(updatePayload)
-        .eq('id', messageId)
-        .select(`
-          id, content, images, created_at, from_user_id, is_edited, edited_at, is_deleted, deleted_at,
-          is_encrypted, ciphertext,
-          profiles!messages_from_user_id_fkey(id, full_name, username, avatar_url)
-        `)
-        .single();
-
-      if (updateError) {
-        if ((updateError as any).code === '42703' || /is_encrypted|ciphertext/i.test(updateError.message || '')) {
-          const soft = await supabase
-            .from('messages')
-            .update({
-              content: content.trim(),
-              is_edited: true,
-              edited_at: editedAt,
-            })
-            .eq('id', messageId)
-            .select(`
-              id, content, images, created_at, from_user_id, is_edited, edited_at, is_deleted, deleted_at,
-              profiles!messages_from_user_id_fkey(id, full_name, username, avatar_url)
-            `)
-            .single();
-          if (soft.error) throw soft.error;
-          row = soft.data;
-        } else {
-          throw updateError;
+      await sequelize.query(
+        `UPDATE messages SET content = :content, is_edited = true, edited_at = :editedAt,
+           is_encrypted = :isEncrypted, ciphertext = :ciphertext
+         WHERE id = :messageId AND conversation_id = :conversationId`,
+        {
+          replacements: {
+            content: content.trim(),
+            editedAt,
+            isEncrypted: updatePayload.is_encrypted ?? existing.is_encrypted,
+            ciphertext: updatePayload.ciphertext ?? null,
+            messageId,
+            conversationId,
+          },
+          type: QueryTypes.UPDATE,
         }
-      } else {
-        row = updated;
-      }
+      );
+
+      const updatedRows = await sequelize.query(
+        `SELECT m.id, m.content, m.images, m.created_at, m.sender_id AS from_user_id,
+                m.is_edited, m.edited_at, m.is_deleted, m.deleted_at, m.is_encrypted, m.ciphertext,
+                p.id AS profile_id, p.full_name, p.username, p.avatar_url
+         FROM messages m
+         LEFT JOIN profiles p ON m.sender_id = p.id
+         WHERE m.id = :messageId`,
+        { replacements: { messageId }, type: QueryTypes.SELECT }
+      );
+      const updated = (updatedRows as any[])[0];
+      row = {
+        ...updated,
+        profiles: updated.profile_id ? {
+          id: updated.profile_id,
+          full_name: updated.full_name,
+          username: updated.username,
+          avatar_url: updated.avatar_url,
+        } : null,
+      };
     }
 
     const formatted = {
@@ -1214,7 +1074,7 @@ router.patch('/conversations/:conversationId/messages/:messageId', auth, async (
               sourceId: messageId,
               sourceType: 'message',
               recipientId,
-              sourceLanguage: TranslationService.normalizeLang((existing as any).language),
+              claimedLanguage: TranslationService.normalizeLang((existing as any).language),
             });
             translatedContent = result.translatedContent;
             translatedLanguage = result.translatedLanguage;
@@ -1262,14 +1122,14 @@ router.delete('/conversations/:conversationId/messages/:messageId', auth, async 
       return res.status(403).json({ error: 'Not authorized' });
     }
 
-    const { data: existing, error: fetchError } = await supabase
-      .from('messages')
-      .select('id, from_user_id, is_deleted, conversation_id, content, images, created_at, is_encrypted, ciphertext')
-      .eq('id', messageId)
-      .eq('conversation_id', conversationId)
-      .single();
+    const existingRows = await sequelize.query(
+      `SELECT id, sender_id AS from_user_id, is_deleted, conversation_id, content, images, created_at, is_encrypted, ciphertext
+       FROM messages WHERE id = :messageId AND conversation_id = :conversationId`,
+      { replacements: { messageId, conversationId }, type: QueryTypes.SELECT }
+    );
+    const existing = (existingRows as any[])[0];
 
-    if (fetchError || !existing) {
+    if (!existing) {
       return res.status(404).json({ error: 'Message not found' });
     }
 
@@ -1289,39 +1149,48 @@ router.delete('/conversations/:conversationId/messages/:messageId', auth, async 
         : existing.content || '';
     const imagesSnapshot = Array.isArray(existing.images) ? existing.images : [];
 
-    const saveTrashCopy = async () => {
-      const { error: trashError } = await supabase.from('message_trash').upsert(
-        {
-          message_id: messageId,
-          user_id: user.id,
-          conversation_id: conversationId,
-          from_user_id: existing.from_user_id,
-          content_snapshot: contentSnapshot,
-          images_snapshot: imagesSnapshot,
-          created_at_snapshot: existing.created_at,
-          scope,
-          deleted_at: deletedAt,
-        },
-        { onConflict: 'message_id,user_id' }
-      );
-      return trashError;
+    const saveTrashCopy = async (): Promise<any> => {
+      try {
+        await sequelize.query(
+          `INSERT INTO message_trash
+             (message_id, user_id, conversation_id, from_user_id, content_snapshot,
+              images_snapshot, created_at_snapshot, scope, deleted_at)
+           VALUES (:messageId, :userId, :conversationId, :fromUserId, :contentSnapshot,
+                   CAST(:imagesSnapshot AS JSONB), :createdAtSnapshot, :scope, :deletedAt)
+           ON CONFLICT (message_id, user_id)
+           DO UPDATE SET content_snapshot = EXCLUDED.content_snapshot,
+                         images_snapshot = EXCLUDED.images_snapshot,
+                         created_at_snapshot = EXCLUDED.created_at_snapshot,
+                         scope = EXCLUDED.scope,
+                         deleted_at = EXCLUDED.deleted_at`,
+          {
+            replacements: {
+              messageId,
+              userId: user.id,
+              conversationId,
+              fromUserId: existing.from_user_id,
+              contentSnapshot,
+              imagesSnapshot: JSON.stringify(imagesSnapshot),
+              createdAtSnapshot: existing.created_at,
+              scope,
+              deletedAt,
+            },
+            type: QueryTypes.INSERT,
+          }
+        );
+        return null;
+      } catch (e: any) {
+        return e;
+      }
     };
 
     if (scope === 'everyone') {
-      const { error: updateError } = await supabase
-        .from('messages')
-        .update({
-          is_deleted: true,
-          deleted_at: deletedAt,
-          deleted_by: user.id,
-          deleted_scope: 'everyone',
-          content: '',
-          images: [],
-          ciphertext: null,
-        })
-        .eq('id', messageId);
-
-      if (updateError) throw updateError;
+      await sequelize.query(
+        `UPDATE messages SET is_deleted = true, deleted_at = :deletedAt,
+           content = '', ciphertext = null, images = '[]'::jsonb
+         WHERE id = :messageId`,
+        { replacements: { deletedAt, messageId }, type: QueryTypes.UPDATE }
+      );
 
       const trashError = await saveTrashCopy();
       if (trashError) {
@@ -1393,7 +1262,7 @@ router.delete('/conversations/:conversationId/messages/:messageId', auth, async 
       console.error('message_trash upsert failed:', trashError);
       return res.status(missing ? 503 : 500).json({
         error: missing
-          ? 'Message trash is not set up. Apply migration 20260716_message_trash.sql in the Supabase SQL editor, then try again.'
+          ? 'Message trash is not set up. Apply migration 20260716_message_trash.sql in the supabaseClient SQL editor, then try again.'
           : trashError.message || 'Failed to move message to trash',
         code: trashError.code,
         trash_unavailable: missing,
@@ -1441,37 +1310,22 @@ router.get('/trash', auth, async (req: AuthRequest, res) => {
     const { user } = req;
     if (!user) return res.status(401).json({ error: 'Unauthorized' });
 
-    const { data, error } = await supabase
-      .from('message_trash')
-      .select(
-        'id, message_id, conversation_id, from_user_id, content_snapshot, images_snapshot, created_at_snapshot, scope, deleted_at'
-      )
-      .eq('user_id', user.id)
-      .order('deleted_at', { ascending: false })
-      .limit(100);
+    const data = await sequelize.query(
+      `SELECT id, message_id, conversation_id, from_user_id, content_snapshot, images_snapshot, created_at_snapshot, scope, deleted_at
+       FROM message_trash
+       WHERE user_id = :userId
+       ORDER BY deleted_at DESC
+       LIMIT 100`,
+      { replacements: { userId: user.id }, type: QueryTypes.SELECT }
+    );
 
-    if (error) {
-      const missing =
-        error.code === '42P01' ||
-        /relation .*message_trash.* does not exist/i.test(error.message || '') ||
-        /Could not find the table/i.test(error.message || '');
-      if (missing) {
-        return res.status(503).json({
-          error:
-            'Message trash is not set up. Apply migration 20260716_message_trash.sql then try again.',
-          code: error.code,
-        });
-      }
-      throw error;
-    }
-
-    const fromIds = [...new Set((data || []).map((r: any) => r.from_user_id).filter(Boolean))];
+    const fromIds = [...new Set((data as any[]).map((r: any) => r.from_user_id).filter(Boolean))];
     const profilesMap = new Map<string, any>();
     if (fromIds.length > 0) {
-      const { data: profiles } = await supabase
-        .from('profiles')
-        .select('id, full_name, username, avatar_url')
-        .in('id', fromIds);
+      const profiles = await Profile.findAll({
+        where: { id: fromIds },
+        attributes: ['id', 'full_name', 'username', 'avatar_url'],
+      });
       (profiles || []).forEach((p: any) => profilesMap.set(p.id, p));
     }
 
@@ -1511,16 +1365,10 @@ router.delete('/trash/:trashId', auth, async (req: AuthRequest, res) => {
     const { trashId } = req.params;
     if (!user) return res.status(401).json({ error: 'Unauthorized' });
 
-    const { error } = await supabase
-      .from('message_trash')
-      .delete()
-      .eq('id', trashId)
-      .eq('user_id', user.id);
-
-    if (error) {
-      if (error.code === '42P01') return res.json({ success: true });
-      throw error;
-    }
+    await sequelize.query(
+      `DELETE FROM message_trash WHERE id = :trashId AND user_id = :userId`,
+      { replacements: { trashId, userId: user.id }, type: QueryTypes.DELETE }
+    );
 
     res.json({ success: true });
   } catch (error) {
@@ -1532,10 +1380,10 @@ router.delete('/trash/:trashId', auth, async (req: AuthRequest, res) => {
 const MESSAGE_REACTION_EMOJIS = ['❤️', '👍', '🔥', '😂', '😮', '🎉'];
 
 async function getMessageReactionSummary(messageId: string, userId: string) {
-  const { data: rows } = await supabase
-    .from('message_reactions')
-    .select('emoji, user_id')
-    .eq('message_id', messageId);
+  const rows = await sequelize.query(
+    `SELECT emoji, user_id FROM message_reactions WHERE message_id = :messageId`,
+    { replacements: { messageId }, type: QueryTypes.SELECT }
+  );
 
   const summary: Record<string, { count: number; reacted_by_me: boolean }> = {};
   (rows || []).forEach((r: any) => {
@@ -1561,46 +1409,38 @@ router.post('/conversations/:conversationId/messages/:messageId/reactions', auth
       return res.status(403).json({ error: 'Not authorized' });
     }
 
-    const { data: msg } = await supabase
-      .from('messages')
-      .select('id, is_deleted')
-      .eq('id', messageId)
-      .eq('conversation_id', conversationId)
-      .single();
+    const msgRows = await sequelize.query(
+      `SELECT id, is_deleted FROM messages WHERE id = :messageId AND conversation_id = :conversationId`,
+      { replacements: { messageId, conversationId }, type: QueryTypes.SELECT }
+    );
+    const msg = (msgRows as any[])[0];
 
     if (!msg || msg.is_deleted) {
       return res.status(404).json({ error: 'Message not found' });
     }
 
-    const { data: existing } = await supabase
-      .from('message_reactions')
-      .select('id')
-      .eq('message_id', messageId)
-      .eq('user_id', user.id)
-      .eq('emoji', emoji)
-      .maybeSingle();
+    const existingRows = await sequelize.query(
+      `SELECT id FROM message_reactions WHERE message_id = :messageId AND user_id = :userId AND emoji = :emoji`,
+      { replacements: { messageId, userId: user.id, emoji }, type: QueryTypes.SELECT }
+    );
+    const existing = (existingRows as any[])[0];
 
     if (existing) {
-      await supabase.from('message_reactions').delete().eq('id', existing.id);
+      await sequelize.query(
+        `DELETE FROM message_reactions WHERE id = :id`,
+        { replacements: { id: existing.id }, type: QueryTypes.DELETE }
+      );
     } else {
       // One reaction type per user per message: replace prior emoji if any
-      await supabase
-        .from('message_reactions')
-        .delete()
-        .eq('message_id', messageId)
-        .eq('user_id', user.id);
+      await sequelize.query(
+        `DELETE FROM message_reactions WHERE message_id = :messageId AND user_id = :userId`,
+        { replacements: { messageId, userId: user.id }, type: QueryTypes.DELETE }
+      );
 
-      const { error: insertErr } = await supabase.from('message_reactions').insert({
-        message_id: messageId,
-        user_id: user.id,
-        emoji,
-      });
-      if (insertErr) {
-        if (insertErr.code === '42P01') {
-          return res.status(503).json({ error: 'Reactions not available. Apply migration.' });
-        }
-        throw insertErr;
-      }
+      await sequelize.query(
+        `INSERT INTO message_reactions (message_id, user_id, emoji) VALUES (:messageId, :userId, :emoji)`,
+        { replacements: { messageId, userId: user.id, emoji }, type: QueryTypes.INSERT }
+      );
     }
 
     const reactions = await getMessageReactionSummary(messageId, user.id);

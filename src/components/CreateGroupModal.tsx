@@ -79,8 +79,9 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ isOpen, onClose, on
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (isSubmitting) return;
 
     if (!formData.name.trim()) {
       toast.error('Group name is required');
@@ -157,7 +158,10 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ isOpen, onClose, on
       handleClose();
     } catch (error: any) {
       console.error('Error creating group:', error);
-      toast.error(error.response?.data?.error || 'Failed to create group');
+      const srv = error.response?.data;
+      const msg = srv?.details ? `${srv.error}: ${srv.details}` : srv?.hint ? `${srv.error} — ${srv.hint}` : srv?.error || 'Failed to create group';
+      toast.error(msg);
+      console.error('Group create server response:', srv);
     } finally {
       setIsSubmitting(false);
       setUploadProgress('');
@@ -195,8 +199,9 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ isOpen, onClose, on
         Cancel
       </Button>
       <Button
-        type="submit"
+        type="button"
         variant="primary"
+        onClick={() => handleSubmit()}
         disabled={isSubmitting || !formData.name.trim()}
         isLoading={isSubmitting}
         className="flex-1"
@@ -217,7 +222,7 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ isOpen, onClose, on
       maxWidth="lg"
       footer={footer}
     >
-      <form onSubmit={handleSubmit} className="space-y-4" onClick={handleBackdropClick}>
+      <form id="create-group-form" onSubmit={handleSubmit} className="space-y-4" onClick={handleBackdropClick}>
         {/* Cover Image Upload */}
         <div>
           <label className="block text-sm font-medium text-foreground mb-2">

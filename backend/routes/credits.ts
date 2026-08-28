@@ -1,5 +1,5 @@
-import express from 'express';
-import { supabase } from '../config/supabase';
+﻿import express from 'express';
+import { requireSupabase, requireSupabaseAdmin } from '../config/supabase';
 import { supabaseAuth as auth, AuthRequest } from '../middleware/supabaseAuth';
 import { wsManager } from '../websocketManager';
 import { createNotification } from './createNotification';
@@ -15,10 +15,12 @@ const lastTransferAt = new Map<string, number>();
 
 // GET /api/credits - Get user's credit balance
 router.get('/', auth, async (req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     const userId = req.user.id;
 
-    const { data: profile, error } = await supabase
+    const { data: profile, error } = await supabaseClient
       .from('profiles')
       .select('purga_points, credits, purge_streak')
       .eq('id', userId)
@@ -42,6 +44,8 @@ router.get('/', auth, async (req: AuthRequest, res) => {
 
 // GET /api/credits/transactions - Paginated transaction history
 router.get('/transactions', auth, async (req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     const userId = req.user.id;
     const page = Math.max(1, parseInt(req.query.page as string) || 1);
@@ -51,7 +55,7 @@ router.get('/transactions', auth, async (req: AuthRequest, res) => {
     const from = (page - 1) * limit;
     const to = from + limit - 1;
 
-    let query = supabase
+    let query = supabaseClient
       .from('credit_transactions')
       .select('id, amount, type, source, description, created_at', { count: 'exact' })
       .eq('user_id', userId)
@@ -91,6 +95,8 @@ router.get('/transactions', auth, async (req: AuthRequest, res) => {
 
 // POST /api/credits/spend - Server-validated credit deduction (replaces old /update bypass)
 router.post('/spend', auth, async (req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     const userId = req.user.id;
     const { amount, source, description } = req.body;
@@ -122,6 +128,8 @@ router.post('/spend', auth, async (req: AuthRequest, res) => {
 
 // POST /api/credits/award - Server-validated credit award (for games, rewards, etc.)
 router.post('/award', auth, async (req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     const userId = req.user.id;
     const { amount, reason } = req.body;
@@ -150,6 +158,8 @@ router.post('/award', auth, async (req: AuthRequest, res) => {
 
 // POST /api/credits/merge - One-time migration: merge localStorage credits into backend
 router.post('/merge', auth, async (req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     const userId = req.user.id;
     const { amount, source } = req.body;
@@ -172,6 +182,8 @@ router.post('/merge', auth, async (req: AuthRequest, res) => {
 
 // POST /api/credits/activity - Track redemption activity
 router.post('/activity', auth, async (req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     const userId = req.user.id;
     const { ghostUserId, activityType } = req.body;
@@ -187,7 +199,7 @@ router.post('/activity', auth, async (req: AuthRequest, res) => {
     }
 
     // Check if ghost user is actually in ghost mode
-    const { data: ghostProfile, error: ghostError } = await supabase
+    const { data: ghostProfile, error: ghostError } = await supabaseClient
       .from('profiles')
       .select('is_ghost')
       .eq('id', ghostUserId)
@@ -198,7 +210,7 @@ router.post('/activity', auth, async (req: AuthRequest, res) => {
     }
 
     // Record the activity
-    const { error: insertError } = await supabase
+    const { error: insertError } = await supabaseClient
       .from('redemption_activities')
       .insert({
         ghost_user_id: ghostUserId,
@@ -221,7 +233,7 @@ router.post('/activity', auth, async (req: AuthRequest, res) => {
     });
 
     // Get total redemption progress
-    const { data: activities, error: countError } = await supabase
+    const { data: activities, error: countError } = await supabaseClient
       .from('redemption_activities')
       .select('*', { count: 'exact' })
       .eq('ghost_user_id', ghostUserId);
@@ -241,8 +253,10 @@ router.post('/activity', auth, async (req: AuthRequest, res) => {
 
 // GET /api/credits/packages — in-app packages (no Stripe)
 router.get('/packages', auth, async (_req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseClient
       .from('credit_packages')
       .select('id, slug, title, description, cost, reward_label, sort_order')
       .eq('active', true)
@@ -261,11 +275,13 @@ router.get('/packages', auth, async (_req: AuthRequest, res) => {
 
 // POST /api/credits/packages/:slug/redeem — spend points on an in-app package
 router.post('/packages/:slug/redeem', auth, async (req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     const userId = req.user.id;
     const { slug } = req.params;
 
-    const { data: pkg, error } = await supabase
+    const { data: pkg, error } = await supabaseClient
       .from('credit_packages')
       .select('*')
       .eq('slug', slug)
@@ -298,6 +314,8 @@ router.post('/packages/:slug/redeem', auth, async (req: AuthRequest, res) => {
 
 // POST /api/credits/transfer — P2P transfer (friends only)
 router.post('/transfer', auth, async (req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     const fromUserId = req.user.id;
     const { toUserId, amount, note } = req.body || {};
@@ -341,7 +359,7 @@ router.post('/transfer', auth, async (req: AuthRequest, res) => {
       note || `Transfer from ${fromUserId}`
     );
 
-    const { data: transfer, error: transferErr } = await supabase
+    const { data: transfer, error: transferErr } = await supabaseClient
       .from('credit_transfers')
       .insert({
         from_user_id: fromUserId,
@@ -378,9 +396,11 @@ router.post('/transfer', auth, async (req: AuthRequest, res) => {
 
 // GET /api/credits/transfers — transfer history for current user
 router.get('/transfers', auth, async (req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     const userId = req.user.id;
-    const { data, error } = await supabase
+    const { data, error } = await supabaseClient
       .from('credit_transfers')
       .select('*')
       .or(`from_user_id.eq.${userId},to_user_id.eq.${userId}`)

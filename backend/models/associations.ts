@@ -32,7 +32,7 @@ export function setupAssociations() {
   User.hasMany(Friendship, { foreignKey: 'user_id', as: 'friendships' });
   User.hasMany(Friendship, { foreignKey: 'friend_id', as: 'friendOf' });
   User.hasMany(Message, { foreignKey: 'senderId', as: 'sentMessages' });
-  User.hasMany(Status, { foreignKey: 'userId', as: 'statuses' });
+  User.hasMany(Status, { foreignKey: 'user_id', as: 'statuses' });
   User.hasMany(PostPurge, { foreignKey: 'user_id', as: 'postPurges' });
   User.hasOne(UserSurvivalState, { foreignKey: 'user_id', as: 'survivalState' });
 
@@ -85,7 +85,7 @@ export function setupAssociations() {
   ConversationParticipant.belongsTo(Conversation, { foreignKey: 'conversationId', as: 'conversation' });
 
   // Status associations
-  Status.belongsTo(User, { foreignKey: 'userId', as: 'user' });
+  Status.belongsTo(User, { foreignKey: 'user_id', as: 'user' });
 
   // PostPurge associations
   PostPurge.belongsTo(User, { foreignKey: 'user_id', as: 'user' });

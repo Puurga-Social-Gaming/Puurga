@@ -58,7 +58,7 @@ const NotificationPanel: React.FC<NotificationPanelProps> = ({ isOpen, onClose }
                       </p>
                       <p className="text-[10px] text-muted-light mt-0.5">
                         {formatDistanceToNow(
-                          new Date(notification.createdAt || notification.created_at),
+                          new Date((notification as any).createdAt || (notification as any).created_at || Date.now()),
                           { addSuffix: true }
                         )}
                       </p>

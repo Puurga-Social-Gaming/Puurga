@@ -1,5 +1,5 @@
-import express from 'express';
-import { supabase } from '../config/supabase';
+﻿import express from 'express';
+import { requireSupabase, requireSupabaseAdmin } from '../config/supabase';
 import { supabaseAuth as auth, AuthRequest } from '../middleware/supabaseAuth';
 import { NotificationService } from '../services/notificationService';
 import { CreditService } from '../services/creditService';
@@ -18,6 +18,8 @@ function formatCompact(n: number): string {
  * Aggregated real stats for the user dashboard.
  */
 router.get('/stats', auth, async (req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -25,19 +27,19 @@ router.get('/stats', auth, async (req: AuthRequest, res) => {
     }
 
     // Friends (mutual) — used as "followers/friends" in this product
-    const friendsPromise = supabase
+    const friendsPromise = supabaseClient
       .from('friends')
       .select('id', { count: 'exact', head: true })
       .or(`user_id_1.eq.${userId},user_id_2.eq.${userId}`);
 
     // User posts
-    const postsPromise = supabase
+    const postsPromise = supabaseClient
       .from('posts')
       .select('id')
       .eq('user_id', userId);
 
     // Conversations the user participates in
-    const conversationsPromise = supabase
+    const conversationsPromise = supabaseClient
       .from('conversation_participants')
       .select('conversation_id', { count: 'exact', head: true })
       .eq('user_id', userId);
@@ -78,16 +80,16 @@ router.get('/stats', auth, async (req: AuthRequest, res) => {
 
     if (postIds.length > 0) {
       const [likesRes, commentsRes, purgesRes] = await Promise.all([
-        supabase.from('likes').select('id', { count: 'exact', head: true }).in('post_id', postIds),
-        supabase.from('comments').select('id', { count: 'exact', head: true }).in('post_id', postIds),
-        supabase.from('post_purges').select('id', { count: 'exact', head: true }).in('post_id', postIds),
+        supabaseClient.from('likes').select('id', { count: 'exact', head: true }).in('post_id', postIds),
+        supabaseClient.from('comments').select('id', { count: 'exact', head: true }).in('post_id', postIds),
+        supabaseClient.from('post_purges').select('id', { count: 'exact', head: true }).in('post_id', postIds),
       ]);
 
       likesCount = softCount(likesRes.error as any, likesRes.count);
       commentsCount = softCount(commentsRes.error as any, commentsRes.count);
       // post_purges may not exist — also try purges table naming variants
       if (purgesRes.error && ((purgesRes.error as any).code === '42P01' || (purgesRes.error as any).code === '42703')) {
-        const alt = await supabase
+        const alt = await supabaseClient
           .from('purges')
           .select('id', { count: 'exact', head: true })
           .in('post_id', postIds);
@@ -106,7 +108,7 @@ router.get('/stats', auth, async (req: AuthRequest, res) => {
     // Credits fallback from profiles
     let credits = typeof creditBalance === 'number' ? creditBalance : null;
     if (credits === null) {
-      const { data: profile } = await supabase
+      const { data: profile } = await supabaseClient
         .from('profiles')
         .select('purga_points, credits')
         .eq('id', userId)
@@ -146,6 +148,8 @@ router.get('/stats', auth, async (req: AuthRequest, res) => {
  * Daily series for credits, engagement proxies, messages, purges.
  */
 router.get('/analytics', auth, async (req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
@@ -173,22 +177,22 @@ router.get('/analytics', auth, async (req: AuthRequest, res) => {
 
     const [{ data: txs }, { data: posts }, { data: msgs }, { data: purges }] =
       await Promise.all([
-        supabase
+        supabaseClient
           .from('credit_transactions')
           .select('amount, created_at')
           .eq('user_id', userId)
           .gte('created_at', sinceIso),
-        supabase
+        supabaseClient
           .from('posts')
           .select('id, created_at')
           .eq('user_id', userId)
           .gte('created_at', sinceIso),
-        supabase
+        supabaseClient
           .from('messages')
           .select('id, created_at')
           .eq('from_user_id', userId)
           .gte('created_at', sinceIso),
-        supabase
+        supabaseClient
           .from('post_purges')
           .select('id, created_at')
           .eq('purged_by', userId)

@@ -93,7 +93,7 @@ const UserProfile: React.FC = () => {
 
   // Real-time subscription for profile status updates
   useEffect(() => {
-    if (!profile?.id || !currentUser?.id) return;
+    if (!supabase || !profile?.id || !currentUser?.id) return;
 
     const channel = supabase.channel(`profile-status:${profile.id}`)
       .on(

@@ -1,4 +1,4 @@
-import { supabase } from '../config/supabase';
+﻿import { requireSupabase, requireSupabaseAdmin } from '../config/supabase';
 
 interface PushPayload {
   title: string;
@@ -41,7 +41,8 @@ export class PushNotificationService {
     }
 
     try {
-      const { data: subscriptions } = await supabase
+      const supabaseClient = requireSupabase();
+      const { data: subscriptions } = await supabaseClient
         .from('push_subscriptions')
         .select('endpoint, p256dh, auth')
         .eq('user_id', userId);
@@ -72,7 +73,7 @@ export class PushNotificationService {
         if (result.status === 'rejected') {
           const err = result.reason;
           if (err.statusCode === 410 || err.statusCode === 404) {
-            await supabase
+            await supabaseClient
               .from('push_subscriptions')
               .delete()
               .eq('endpoint', subscriptions[i].endpoint);

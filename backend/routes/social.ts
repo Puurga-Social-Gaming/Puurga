@@ -1,5 +1,5 @@
-import express from 'express';
-import { supabase } from '../config/supabase';
+﻿import express from 'express';
+import { requireSupabase, requireSupabaseAdmin } from '../config/supabase';
 import { supabaseAuth as auth, AuthRequest } from '../middleware/supabaseAuth';
 import { normalizeImageUrl } from '../utils/url';
 import {
@@ -13,7 +13,9 @@ import { wsManager } from '../websocketManager';
 const router = express.Router();
 
 async function resolveProfile(userId: string) {
-  const { data } = await supabase
+  const supabaseClient = requireSupabase();
+  const supabaseAdminClient = requireSupabaseAdmin();
+  const { data } = await supabaseClient
     .from('profiles')
     .select('id, full_name, username, avatar_url')
     .eq('id', userId)
@@ -29,10 +31,12 @@ async function resolveProfile(userId: string) {
 
 // GET /api/social/blocked
 router.get('/blocked', auth, async (req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 
-    const { data, error } = await supabase
+    const { data, error } = await supabaseClient
       .from('user_blocks')
       .select('blocked_id, created_at')
       .eq('blocker_id', req.user.id)
@@ -61,10 +65,12 @@ router.get('/blocked', auth, async (req: AuthRequest, res) => {
 
 // GET /api/social/muted
 router.get('/muted', auth, async (req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 
-    const { data, error } = await supabase
+    const { data, error } = await supabaseClient
       .from('user_mutes')
       .select('muted_id, created_at')
       .eq('muter_id', req.user.id)
@@ -93,6 +99,8 @@ router.get('/muted', auth, async (req: AuthRequest, res) => {
 
 // GET /api/social/status/:userId — relationship status for a profile
 router.get('/status/:userId', auth, async (req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
     const targetId = req.params.userId;
@@ -101,19 +109,19 @@ router.get('/status/:userId', auth, async (req: AuthRequest, res) => {
     }
 
     const [iBlockedThem, theyBlockedMe, muted] = await Promise.all([
-      supabase
+      supabaseClient
         .from('user_blocks')
         .select('id')
         .eq('blocker_id', req.user.id)
         .eq('blocked_id', targetId)
         .maybeSingle(),
-      supabase
+      supabaseClient
         .from('user_blocks')
         .select('id')
         .eq('blocker_id', targetId)
         .eq('blocked_id', req.user.id)
         .maybeSingle(),
-      supabase
+      supabaseClient
         .from('user_mutes')
         .select('id')
         .eq('muter_id', req.user.id)
@@ -134,6 +142,8 @@ router.get('/status/:userId', auth, async (req: AuthRequest, res) => {
 
 // POST /api/social/block/:userId
 router.post('/block/:userId', auth, async (req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
     const targetId = req.params.userId;
@@ -147,7 +157,7 @@ router.post('/block/:userId', auth, async (req: AuthRequest, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    const { error } = await supabase.from('user_blocks').upsert(
+    const { error } = await supabaseClient.from('user_blocks').upsert(
       {
         blocker_id: req.user.id,
         blocked_id: targetId,
@@ -167,7 +177,7 @@ router.post('/block/:userId', auth, async (req: AuthRequest, res) => {
     await removeFriendship(req.user.id, targetId);
 
     // Also remove mute if present (block supersedes)
-    await supabase
+    await supabaseClient
       .from('user_mutes')
       .delete()
       .eq('muter_id', req.user.id)
@@ -206,11 +216,13 @@ router.post('/block/:userId', auth, async (req: AuthRequest, res) => {
 
 // DELETE /api/social/block/:userId
 router.delete('/block/:userId', auth, async (req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
     const targetId = req.params.userId;
 
-    const { error } = await supabase
+    const { error } = await supabaseClient
       .from('user_blocks')
       .delete()
       .eq('blocker_id', req.user.id)
@@ -227,6 +239,8 @@ router.delete('/block/:userId', auth, async (req: AuthRequest, res) => {
 
 // POST /api/social/mute/:userId
 router.post('/mute/:userId', auth, async (req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
     const targetId = req.params.userId;
@@ -244,7 +258,7 @@ router.post('/mute/:userId', auth, async (req: AuthRequest, res) => {
       return res.status(400).json({ error: 'User is blocked; unmute/block management is separate' });
     }
 
-    const { error } = await supabase.from('user_mutes').upsert(
+    const { error } = await supabaseClient.from('user_mutes').upsert(
       {
         muter_id: req.user.id,
         muted_id: targetId,
@@ -269,11 +283,13 @@ router.post('/mute/:userId', auth, async (req: AuthRequest, res) => {
 
 // DELETE /api/social/mute/:userId
 router.delete('/mute/:userId', auth, async (req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
     const targetId = req.params.userId;
 
-    const { error } = await supabase
+    const { error } = await supabaseClient
       .from('user_mutes')
       .delete()
       .eq('muter_id', req.user.id)

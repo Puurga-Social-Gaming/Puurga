@@ -1,4 +1,4 @@
-import { supabase } from '../config/supabase';
+import { requireSupabase } from '../config/supabase';
 import { wsManager } from '../websocketManager';
 import { normalizeImageUrl } from '../utils/url';
 import { areBlocked } from '../utils/friendRelations';
@@ -92,6 +92,7 @@ const TITLE_MAP: Record<string, string> = {
 export class NotificationService {
   static async create(params: CreateNotificationParams): Promise<any> {
     try {
+      const supabase = requireSupabase();
       const {
         type, senderId, receiverId, postId, commentId,
         conversationId, messageId, shareId, groupId, gameId,
@@ -158,6 +159,7 @@ export class NotificationService {
     receiverId: string
   ): Promise<void> {
     try {
+      const supabase = requireSupabase();
       const { data: senderProfile } = await supabase
         .from('profiles')
         .select('id, full_name, username, avatar_url')
@@ -202,6 +204,7 @@ export class NotificationService {
     type: NotificationType
   ): Promise<boolean> {
     try {
+      const supabase = requireSupabase();
       const { data: settings } = await supabase
         .from('user_settings')
         .select('settings')
@@ -513,6 +516,7 @@ export class NotificationService {
 
   static async getPreferences(userId: string): Promise<Record<string, any>> {
     try {
+      const supabase = requireSupabase();
       const { data: settings } = await supabase
         .from('user_settings')
         .select('settings')
@@ -527,6 +531,7 @@ export class NotificationService {
   }
 
   static async updatePreferences(userId: string, prefs: Record<string, any>): Promise<Record<string, any>> {
+    const supabase = requireSupabase();
     const { data: existing } = await supabase
       .from('user_settings')
       .select('settings')
@@ -551,6 +556,7 @@ export class NotificationService {
   // ── Batch Deletion ────────────────────────────────────────
 
   static async deleteNotifications(userId: string, notificationIds: string[]): Promise<void> {
+    const supabase = requireSupabase();
     await supabase
       .from('notifications')
       .delete()
@@ -559,6 +565,7 @@ export class NotificationService {
   }
 
   static async markAsRead(userId: string, notificationIds: string[]): Promise<void> {
+    const supabase = requireSupabase();
     await supabase
       .from('notifications')
       .update({ read: true, is_read: true })
@@ -567,6 +574,7 @@ export class NotificationService {
   }
 
   static async markAllAsRead(userId: string): Promise<void> {
+    const supabase = requireSupabase();
     await supabase
       .from('notifications')
       .update({ read: true, is_read: true })
@@ -575,6 +583,7 @@ export class NotificationService {
   }
 
   static async getUnreadCount(userId: string): Promise<number> {
+    const supabase = requireSupabase();
     const { count } = await supabase
       .from('notifications')
       .select('*', { count: 'exact', head: true })

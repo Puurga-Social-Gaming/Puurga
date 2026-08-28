@@ -3,13 +3,15 @@ import sequelize from '../config/database';
 
 interface StatusAttributes {
   id?: string;
-  userId: string;
+  user_id: string;
   content?: string;
-  mediaUrl?: string;
+  media_url?: string;
   type: 'text' | 'media';
-  expiresAt: Date;
-  createdAt?: Date;
-  updatedAt?: Date;
+  gradient_index?: number;
+  view_count?: number;
+  expires_at: Date;
+  created_at?: Date;
+  updated_at?: Date;
   user?: {
     id: string;
     name: string;
@@ -20,13 +22,15 @@ interface StatusAttributes {
 
 class Status extends Model<StatusAttributes> implements StatusAttributes {
   public id!: string;
-  public userId!: string;
+  public user_id!: string;
   public content?: string;
-  public mediaUrl?: string;
+  public media_url?: string;
   public type!: 'text' | 'media';
-  public expiresAt!: Date;
-  public readonly createdAt!: Date;
-  public readonly updatedAt!: Date;
+  public gradient_index?: number;
+  public view_count?: number;
+  public expires_at!: Date;
+  public readonly created_at!: Date;
+  public readonly updated_at!: Date;
   public user?: {
     id: string;
     name: string;
@@ -34,7 +38,6 @@ class Status extends Model<StatusAttributes> implements StatusAttributes {
     avatar?: string;
   };
 
-  // Add proper typing for associations
   public readonly User?: any;
 }
 
@@ -45,7 +48,7 @@ Status.init(
       defaultValue: DataTypes.UUIDV4,
       primaryKey: true,
     },
-    userId: {
+    user_id: {
       type: DataTypes.UUID,
       allowNull: false,
       references: {
@@ -57,7 +60,7 @@ Status.init(
       type: DataTypes.TEXT,
       allowNull: true,
     },
-    mediaUrl: {
+    media_url: {
       type: DataTypes.STRING,
       allowNull: true,
     },
@@ -65,19 +68,19 @@ Status.init(
       type: DataTypes.ENUM('text', 'media'),
       allowNull: false,
     },
-    expiresAt: {
-      type: DataTypes.DATE,
-      allowNull: false,
+    gradient_index: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      defaultValue: 0,
     },
-    createdAt: {
-      type: DataTypes.DATE,
-      allowNull: false,
-      defaultValue: DataTypes.NOW,
+    view_count: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      defaultValue: 0,
     },
-    updatedAt: {
+    expires_at: {
       type: DataTypes.DATE,
       allowNull: false,
-      defaultValue: DataTypes.NOW,
     },
   },
   {
@@ -85,9 +88,10 @@ Status.init(
     modelName: 'Status',
     tableName: 'statuses',
     timestamps: true,
+    underscored: true,
+    createdAt: 'created_at',
+    updatedAt: 'updated_at',
   }
 );
 
-// Define associations will be set up in associations.ts to avoid circular dependencies
-
-export default Status; 
+export default Status;

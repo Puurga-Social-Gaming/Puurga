@@ -1,11 +1,12 @@
 import express from 'express';
-import { supabase } from '../config/supabase';
+import { requireSupabase } from '../config/supabase';
 import { supabaseAuth as auth, AuthRequest } from '../middleware/supabaseAuth';
 import { createNotification } from './createNotification';
 import { validateNotGhosted } from '../middleware/restrictGhosted';
 import { areBlocked, syncMutualFollows } from '../utils/friendRelations';
 import { progressionEngine } from '../services/progressionEngine';
 import { DailyMissionService } from '../services/dailyMissionService';
+import { FriendRequest, Friendship, User, Profile, Op } from '../models';
 
 const router = express.Router();
 
@@ -44,141 +45,103 @@ router.post('/send', auth, validateNotGhosted, async (req: AuthRequest, res) => 
       });
     }
 
-    // Check if they're already friends
-    const { data: friendRows, error: friendError } = await supabase
-      .from('friends')
-      .select('id, user_id_1, user_id_2')
-      .or(`and(user_id_1.eq.${user.id},user_id_2.eq.${receiverId}),and(user_id_1.eq.${receiverId},user_id_2.eq.${user.id})`);
-
-    if (friendError) {
-      // Missing table is handled gracefully
-      if ((friendError as any).code !== '42P01' && (friendError as any).code !== '42703') {
-        console.error('Error checking existing friendship:', friendError);
-        return res.status(500).json({ error: 'Failed to check friendship', details: getErrDetails(friendError) });
+    // Check if they're already friends using Sequelize
+    const existingFriendship = await Friendship.findOne({
+      where: {
+        [Op.or]: [
+          { user_id: user.id, friend_id: receiverId },
+          { user_id: receiverId, friend_id: user.id }
+        ]
       }
-    } else if ((friendRows || []).length > 0) {
+    });
+
+    if (existingFriendship) {
       return res.status(400).json({ message: 'You are already friends with this user', status: 'accepted' });
     }
 
-    // Check if a friend request already exists (in either direction)
-    const { data: existingRequests, error: checkError } = await supabase
-      .from('friend_requests')
-      .select('id, status, sender_id, receiver_id')
-      .or(`and(sender_id.eq.${user.id},receiver_id.eq.${receiverId}),and(sender_id.eq.${receiverId},receiver_id.eq.${user.id})`);
-
-    if (checkError) {
-      if ((checkError as any).code === '42P01' || (checkError as any).code === '42703') {
-        // Table/column missing; fall through to insert which will error with a clearer message
-      } else {
-        console.error('Error checking existing request:', checkError);
-        return res.status(500).json({ error: 'Failed to check existing friend request', details: getErrDetails(checkError) });
+    // Check if a friend request already exists (in either direction) using Sequelize
+    const existingRequest = await FriendRequest.findOne({
+      where: {
+        [Op.or]: [
+          { sender_id: user.id, receiver_id: receiverId },
+          { sender_id: receiverId, receiver_id: user.id }
+        ]
       }
-    }
-
-    const existingRequest = Array.isArray(existingRequests) && existingRequests.length > 0
-      ? (existingRequests[0] as any)
-      : null;
+    });
 
     if (existingRequest) {
       if (existingRequest.status === 'pending') {
         // If the other user sent us a request, auto-accept it
         if (existingRequest.sender_id === receiverId) {
           // Accept the existing request
-          const { error: updateError } = await supabase
-            .from('friend_requests')
-            .update({ status: 'accepted' })
-            .eq('id', existingRequest.id);
-
-          if (updateError) throw updateError;
+          await existingRequest.update({ status: 'accepted' });
 
           // Create friendship
-          const { error: friendshipError } = await supabase
-            .from('friends')
-            .insert({
-              user_id_1: user.id,
-              user_id_2: receiverId,
-              created_at: new Date().toISOString()
-            });
+          await Friendship.create({
+            user_id: user.id,
+            friend_id: receiverId,
+            status: 'accepted',
+            created_at: new Date()
+          });
 
-          if (friendshipError) {
-            console.error('Error creating friendship:', friendshipError);
-          }
-
+          // Sync mutual follows
           await syncMutualFollows(user.id, receiverId);
 
-          // Notify the original sender that their request was accepted
+          // Create notifications for both users
           await createNotification({
             type: 'friend_request_accepted',
             senderId: user.id,
             receiverId: receiverId,
-            // friendRequestId removed (column not in DB)
           });
 
-          return res.json({ message: 'Friend request accepted', status: 'accepted' });
-        }
-        return res.status(400).json({ message: 'Friend request already exists', status: 'pending' });
-      }
-      if (existingRequest.status === 'accepted') {
-        return res.status(400).json({ message: 'You are already friends with this user', status: 'accepted' });
-      }
-      // If rejected, allow sending a new request by updating the existing one
-      if (existingRequest.status === 'rejected') {
-        const { data: updatedRequest, error: updateError } = await supabase
-          .from('friend_requests')
-          .update({ 
-            status: 'pending', 
-            sender_id: user.id,
-            receiver_id: receiverId
-          })
-          .eq('id', existingRequest.id)
-          .select()
-          .single();
+          await createNotification({
+            type: 'friend_request_accepted',
+            senderId: receiverId,
+            receiverId: user.id,
+          });
 
-        if (updateError) throw updateError;
+          // Emit progression events
+          progressionEngine.safeEmit('friendRequestAccepted', { userId: user.id });
+          progressionEngine.safeEmit('friendRequestAccepted', { userId: receiverId });
+
+          // Track daily missions
+          DailyMissionService.trackProgress(user.id, 'make_friends', 1);
+          DailyMissionService.trackProgress(receiverId, 'make_friends', 1);
+
+          return res.json({ message: 'Friend request accepted', status: 'accepted', requestId: existingRequest.id });
+        } else {
+          return res.status(400).json({ message: 'Friend request already sent', status: 'pending', requestId: existingRequest.id });
+        }
+      } else if (existingRequest.status === 'accepted') {
+        return res.status(400).json({ message: 'You are already friends with this user', status: 'accepted' });
+      } else {
+        // Rejected request - allow re-sending
+        await existingRequest.update({ status: 'pending' });
 
         // Create notification for the receiver
         await createNotification({
           type: 'friend_request',
           senderId: user.id,
           receiverId: receiverId,
-          // friendRequestId removed (column not in DB)
         });
 
-        return res.json({ message: 'Friend request sent', status: 'pending', requestId: updatedRequest.id });
+        return res.json({ message: 'Friend request sent', status: 'pending', requestId: existingRequest.id });
       }
     }
 
-    // Create new friend request
-    const { data: newRequest, error: insertError } = await supabase
-      .from('friend_requests')
-      .insert({
-        sender_id: user.id,
-        receiver_id: receiverId,
-        status: 'pending',
-        created_at: new Date().toISOString()
-      })
-      .select()
-      .single();
-
-    if (insertError) {
-      // Handle table not existing
-      if ((insertError as any).code === '42P01') {
-        return res.status(500).json({ error: 'Friend requests table not found. Please run migrations.', details: getErrDetails(insertError) });
-      }
-      // Duplicate request (or unique constraint) - map to 400 with friendly message
-      if ((insertError as any).code === '23505') {
-        return res.status(400).json({ message: 'Friend request already exists', status: 'pending', details: getErrDetails(insertError) });
-      }
-      console.error('Error inserting friend request:', insertError);
-      return res.status(500).json({ error: 'Failed to create friend request', details: getErrDetails(insertError) });
-    }
+    // Create new friend request using Sequelize
+    const newRequest = await FriendRequest.create({
+      sender_id: user.id,
+      receiver_id: receiverId,
+      status: 'pending',
+      created_at: new Date()
+    });
 
     // Create notification for the receiver
     await createNotification({
       type: 'friend_request',
       senderId: user.id,
       receiverId: receiverId,
-      // friendRequestId removed (column not in DB)
     });
 
     res.json({ message: 'Friend request sent', status: 'pending', requestId: newRequest.id });
@@ -198,36 +161,29 @@ router.get('/status/:targetUserId', auth, async (req: AuthRequest, res) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    // Check if they're already friends
-    const { data: existingFriend, error: friendError } = await supabase
-      .from('friends')
-      .select('id')
-      .or(`and(user_id_1.eq.${user.id},user_id_2.eq.${targetUserId}),and(user_id_1.eq.${targetUserId},user_id_2.eq.${user.id})`)
-      .maybeSingle();
+    // Check if they're already friends using Sequelize
+    const existingFriendship = await Friendship.findOne({
+      where: {
+        [Op.or]: [
+          { user_id: user.id, friend_id: targetUserId },
+          { user_id: targetUserId, friend_id: user.id }
+        ]
+      }
+    });
 
-    if (friendError && friendError.code !== 'PGRST116' && (friendError as any).code !== '42P01') {
-      console.error('Error checking friendship:', friendError);
-    }
-
-    if (existingFriend) {
+    if (existingFriendship) {
       return res.json({ status: 'accepted' });
     }
 
-    // Check for existing friend request
-    const { data: request, error } = await supabase
-      .from('friend_requests')
-      .select('id, status, sender_id, receiver_id')
-      .or(`and(sender_id.eq.${user.id},receiver_id.eq.${targetUserId}),and(sender_id.eq.${targetUserId},receiver_id.eq.${user.id})`)
-      .maybeSingle();
-
-    if (error) {
-      if ((error as any).code === '42P01') {
-        return res.json({ status: 'none' });
+    // Check for existing friend request using Sequelize
+    const request = await FriendRequest.findOne({
+      where: {
+        [Op.or]: [
+          { sender_id: user.id, receiver_id: targetUserId },
+          { sender_id: targetUserId, receiver_id: user.id }
+        ]
       }
-      if (error.code !== 'PGRST116') {
-        throw error;
-      }
-    }
+    });
 
     if (!request) {
       return res.json({ status: 'none' });
@@ -255,14 +211,10 @@ router.post('/:requestId/accept', auth, async (req: AuthRequest, res) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    // Get the friend request
-    const { data: request, error: fetchError } = await supabase
-      .from('friend_requests')
-      .select('*')
-      .eq('id', requestId)
-      .single();
+    // Get the friend request using Sequelize
+    const request = await FriendRequest.findByPk(requestId);
 
-    if (fetchError || !request) {
+    if (!request) {
       return res.status(404).json({ error: 'Friend request not found' });
     }
 
@@ -276,52 +228,15 @@ router.post('/:requestId/accept', auth, async (req: AuthRequest, res) => {
     }
 
     // Update the request status
-    const { error: updateError } = await supabase
-      .from('friend_requests')
-      .update({ status: 'accepted' })
-      .eq('id', requestId);
+    await request.update({ status: 'accepted' });
 
-    if (updateError) throw updateError;
-
-    // Create friendship — try both historical column layouts
-    const createdAt = new Date().toISOString();
-    let friendshipError = (
-      await supabase.from('friends').insert({
-        user_id_1: request.sender_id,
-        user_id_2: request.receiver_id,
-        created_at: createdAt,
-      })
-    ).error;
-
-    if (friendshipError && (friendshipError.code === '42703' || /user_id_1|column/i.test(friendshipError.message || ''))) {
-      friendshipError = (
-        await supabase.from('friends').insert({
-          user_id: request.sender_id,
-          friend_id: request.receiver_id,
-          created_at: createdAt,
-        })
-      ).error;
-    }
-
-    if (friendshipError) {
-      console.error('Error creating friendship:', friendshipError);
-      // Don't throw - the request was still accepted (listed via accepted requests fallback)
-    }
-
-    // Also mirror into friendships table if it exists (statuses / auth use it)
-    const { error: friendshipsMirrorError } = await supabase.from('friendships').insert({
+    // Create friendship using Sequelize
+    await Friendship.create({
       user_id: request.sender_id,
       friend_id: request.receiver_id,
       status: 'accepted',
-      created_at: createdAt,
+      created_at: new Date()
     });
-    if (
-      friendshipsMirrorError &&
-      friendshipsMirrorError.code !== '42P01' &&
-      friendshipsMirrorError.code !== '42703'
-    ) {
-      console.warn('friendships mirror insert:', friendshipsMirrorError.message);
-    }
 
     await syncMutualFollows(request.sender_id, request.receiver_id);
 
@@ -330,7 +245,6 @@ router.post('/:requestId/accept', auth, async (req: AuthRequest, res) => {
       type: 'friend_request_accepted',
       senderId: user.id,
       receiverId: request.sender_id,
-      // friendRequestId removed (column not in DB)
     });
 
     // Emit progression event (XP for both users)
@@ -359,13 +273,9 @@ router.delete('/:requestId/cancel', auth, async (req: AuthRequest, res) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const { data: request, error: fetchError } = await supabase
-      .from('friend_requests')
-      .select('*')
-      .eq('id', requestId)
-      .single();
+    const request = await FriendRequest.findByPk(requestId);
 
-    if (fetchError || !request) {
+    if (!request) {
       return res.status(404).json({ error: 'Friend request not found' });
     }
 
@@ -377,12 +287,7 @@ router.delete('/:requestId/cancel', auth, async (req: AuthRequest, res) => {
       return res.status(400).json({ error: 'Only pending requests can be cancelled' });
     }
 
-    const { error: deleteError } = await supabase
-      .from('friend_requests')
-      .delete()
-      .eq('id', requestId);
-
-    if (deleteError) throw deleteError;
+    await request.destroy();
 
     res.json({ message: 'Friend request cancelled', status: 'none' });
   } catch (error) {
@@ -401,14 +306,10 @@ router.post('/:requestId/reject', auth, async (req: AuthRequest, res) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    // Get the friend request
-    const { data: request, error: fetchError } = await supabase
-      .from('friend_requests')
-      .select('*')
-      .eq('id', requestId)
-      .single();
+    // Get the friend request using Sequelize
+    const request = await FriendRequest.findByPk(requestId);
 
-    if (fetchError || !request) {
+    if (!request) {
       return res.status(404).json({ error: 'Friend request not found' });
     }
 
@@ -422,12 +323,7 @@ router.post('/:requestId/reject', auth, async (req: AuthRequest, res) => {
     }
 
     // Update the request status
-    const { error: updateError } = await supabase
-      .from('friend_requests')
-      .update({ status: 'rejected' })
-      .eq('id', requestId);
-
-    if (updateError) throw updateError;
+    await request.update({ status: 'rejected' });
 
     res.json({ message: 'Friend request rejected', status: 'rejected' });
   } catch (error) {

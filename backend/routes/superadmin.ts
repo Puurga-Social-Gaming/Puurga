@@ -1,5 +1,5 @@
-import express from 'express';
-import { supabase, supabaseAdmin } from '../config/supabase';
+﻿import express from 'express';
+import { requireSupabase, requireSupabaseAdmin } from '../config/supabase';
 import { supabaseAuth } from '../middleware/supabaseAuth';
 import { superAdminAuth } from '../middleware/superAdminAuth';
 import { logSuperAdminAction } from '../utils/auditLogger';
@@ -35,6 +35,8 @@ router.get('/certifications', (_req, res) => {
  * GET /api/admin/certification-pricing
  */
 router.get('/certification-pricing', async (_req: any, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     const pricing = await loadCertificationPricing();
     const types = CERTIFICATION_TYPES.map((t) => {
@@ -60,6 +62,8 @@ router.get('/certification-pricing', async (_req: any, res) => {
  * body: { pricing: [{ slug, price_points, price_cdf, price_usd, enabled }] }
  */
 router.put('/certification-pricing', async (req: any, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     const rows = Array.isArray(req.body?.pricing) ? req.body.pricing : null;
     if (!rows?.length) {
@@ -98,6 +102,8 @@ router.put('/certification-pricing', async (req: any, res) => {
  * Pending / filtered certification requests queue.
  */
 router.get('/certification-requests', async (req: any, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     const status = (req.query.status as string) || undefined;
     const requests = await listCertificationRequests(status);
@@ -125,6 +131,8 @@ router.get('/certification-requests', async (req: any, res) => {
  * body: { action: 'approve' | 'reject', admin_note? }
  */
 router.post('/certification-requests/:id/review', async (req: any, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     const { id } = req.params;
     const action = String(req.body?.action || '').trim();
@@ -172,6 +180,8 @@ router.post('/certification-requests/:id/review', async (req: any, res) => {
  * Returns paginated list of users with stats.
  */
 router.get('/users', async (req: any, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     const { 
       page = 1, 
@@ -190,7 +200,7 @@ router.get('/users', async (req: any, res) => {
     const from = (Number(page) - 1) * Number(limit);
     const to = from + Number(limit) - 1;
 
-    let query = supabase
+    let query = supabaseClient
       .from('profiles')
       .select('*', { count: 'exact' });
 
@@ -260,6 +270,8 @@ router.get('/users', async (req: any, res) => {
  * Securely updates password for target user.
  */
 router.post('/users/:id/reset-password', async (req: any, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     const { id } = req.params;
     const { password } = req.body;
@@ -268,13 +280,13 @@ router.post('/users/:id/reset-password', async (req: any, res) => {
       return res.status(400).json({ error: 'Password must be at least 6 characters' });
     }
 
-    const { data: userData, error: fetchError } = await supabaseAdmin.auth.admin.getUserById(id);
+    const { data: userData, error: fetchError } = await supabaseAdminClient.auth.admin.getUserById(id);
     if (fetchError || !userData?.user) {
       console.error('User not found in auth:', fetchError);
       return res.status(404).json({ error: 'User not found in authentication system. The user may have been created outside of the normal auth flow.' });
     }
 
-    const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(id, {
+    const { error: updateError } = await supabaseAdminClient.auth.admin.updateUserById(id, {
       password: password
     });
 
@@ -305,6 +317,8 @@ router.post('/users/:id/reset-password', async (req: any, res) => {
  * Creates a new user account directly via Admin API.
  */
 router.post('/users', async (req: any, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     const { email, password, full_name, username, role = 'user' } = req.body;
 
@@ -334,7 +348,7 @@ router.post('/users', async (req: any, res) => {
     const normalizedEmail = email.trim().toLowerCase();
     const normalizedUsername = username.trim().toLowerCase();
 
-    const { data: existing } = await supabase
+    const { data: existing } = await supabaseClient
       .from('profiles')
       .select('id')
       .or(`username.eq.${normalizedEmail},email.eq.${normalizedEmail}`)
@@ -344,7 +358,7 @@ router.post('/users', async (req: any, res) => {
       return res.status(409).json({ error: 'Username or email already exists' });
     }
 
-    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+    const { data: authData, error: authError } = await supabaseAdminClient.auth.admin.createUser({
       email: normalizedEmail,
       password,
       email_confirm: true,
@@ -380,7 +394,7 @@ router.post('/users', async (req: any, res) => {
     };
 
     // Use upsert because the database trigger may have already created a profile row
-    const { error: profileError } = await supabase
+    const { error: profileError } = await supabaseClient
       .from('profiles')
       .upsert(userPayload, { 
         onConflict: 'id',
@@ -415,6 +429,8 @@ router.post('/users', async (req: any, res) => {
  * Update user info (status, role, profile data).
  */
 router.put('/users/:id', async (req: any, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     console.log('🔧 PUT /users/:id called');
     console.log('🔧 Params:', req.params);
@@ -506,11 +522,11 @@ router.put('/users/:id', async (req: any, res) => {
     // Update auth if needed
     if (authUpdateNeeded) {
       try {
-        const { data: authUser, error: fetchError } = await supabaseAdmin.auth.admin.getUserById(id);
+        const { data: authUser, error: fetchError } = await supabaseAdminClient.auth.admin.getUserById(id);
         if (fetchError || !authUser?.user) {
           console.warn('User not found in auth.users, skipping auth update:', id);
         } else {
-          const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(id, authUpdateData);
+          const { error: authError } = await supabaseAdminClient.auth.admin.updateUserById(id, authUpdateData);
           if (authError) {
             console.error('Error updating auth:', authError);
             return res.status(500).json({ error: 'Failed to update authentication record: ' + authError.message });
@@ -522,7 +538,7 @@ router.put('/users/:id', async (req: any, res) => {
     }
 
     // Update profiles table
-    let { error: profileError } = await supabase
+    let { error: profileError } = await supabaseClient
       .from('profiles')
       .update(updateData)
       .eq('id', id);
@@ -570,13 +586,15 @@ router.put('/users/:id', async (req: any, res) => {
  * Send an official admin warning notification to a user.
  */
 router.post('/users/:id/warn', async (req: any, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     const { id } = req.params;
     const message =
       (typeof req.body?.message === 'string' && req.body.message.trim()) ||
       'You have received an official warning from Puurga Super Admin. Please review the community guidelines.';
 
-    const { data: profile, error: profileError } = await supabase
+    const { data: profile, error: profileError } = await supabaseClient
       .from('profiles')
       .select('id, username')
       .eq('id', id)
@@ -616,9 +634,11 @@ router.post('/users/:id/warn', async (req: any, res) => {
  * Toggle is_blocked on a user profile.
  */
 router.put('/users/:id/toggle-block', async (req: any, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     const { id } = req.params;
-    const { data: profile, error: fetchError } = await supabase
+    const { data: profile, error: fetchError } = await supabaseClient
       .from('profiles')
       .select('id, is_blocked, username')
       .eq('id', id)
@@ -630,7 +650,7 @@ router.put('/users/:id/toggle-block', async (req: any, res) => {
     }
 
     const nextBlocked = !Boolean(profile.is_blocked);
-    const { error: updateError } = await supabase
+    const { error: updateError } = await supabaseClient
       .from('profiles')
       .update({ is_blocked: nextBlocked, updated_at: new Date().toISOString() })
       .eq('id', id);
@@ -659,6 +679,8 @@ router.put('/users/:id/toggle-block', async (req: any, res) => {
  * Updates multiple users at once.
  */
 router.post('/users/bulk-update', async (req: any, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     const { ids, updates } = req.body;
     if (!Array.isArray(ids) || ids.length === 0) {
@@ -675,7 +697,7 @@ router.post('/users/bulk-update', async (req: any, res) => {
     if (role !== undefined) finalUpdates.role = role;
     if (is_blocked !== undefined) finalUpdates.is_blocked = Boolean(is_blocked);
 
-    const { error } = await supabase
+    const { error } = await supabaseClient
       .from('profiles')
       .update(finalUpdates)
       .in('id', ids);
@@ -705,6 +727,8 @@ router.post('/users/bulk-update', async (req: any, res) => {
  * Resets passwords for multiple users.
  */
 router.post('/users/bulk-reset-password', async (req: any, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     const { ids, password } = req.body;
     if (!Array.isArray(ids) || !password || password.length < 6) {
@@ -713,7 +737,7 @@ router.post('/users/bulk-reset-password', async (req: any, res) => {
 
     // Auth updates must be done one by one via admin client
     const results = await Promise.all(
-      ids.map(id => supabaseAdmin.auth.admin.updateUserById(id, { password }))
+      ids.map(id => supabaseAdminClient.auth.admin.updateUserById(id, { password }))
     );
 
     const failures = results.filter(r => r.error);
@@ -745,6 +769,8 @@ router.post('/users/bulk-reset-password', async (req: any, res) => {
  * Permanently deletes multiple users.
  */
 router.post('/users/bulk-delete', async (req: any, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     const { ids } = req.body;
     if (!Array.isArray(ids) || ids.length === 0) {
@@ -752,13 +778,13 @@ router.post('/users/bulk-delete', async (req: any, res) => {
     }
 
     // 1. Delete from Auth (sequentially or parallel)
-    await Promise.all(ids.map(id => supabaseAdmin.auth.admin.deleteUser(id)));
+    await Promise.all(ids.map(id => supabaseAdminClient.auth.admin.deleteUser(id)));
 
     // 2. Delete from profiles
-    await supabase.from('profiles').delete().in('id', ids);
+    await supabaseClient.from('profiles').delete().in('id', ids);
 
     // 3. Delete from users table
-    await supabase.from('users').delete().in('id', ids);
+    await supabaseClient.from('users').delete().in('id', ids);
 
     // Log the action
     await logSuperAdminAction({
@@ -783,11 +809,13 @@ router.post('/users/bulk-delete', async (req: any, res) => {
  * Permanently deletes a user from the system.
  */
 router.delete('/users/:id', async (req: any, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     const { id } = req.params;
 
     // Check target user's role before deletion
-    const { data: targetUser, error: fetchError } = await supabase
+    const { data: targetUser, error: fetchError } = await supabaseClient
       .from('profiles')
       .select('role, full_name, username')
       .eq('id', id)
@@ -805,19 +833,19 @@ router.delete('/users/:id', async (req: any, res) => {
       });
     }
 
-    // First delete from Auth metadata (this cascade deletes in most standard Supabase setups, but we do explicit to be safe)
-    const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(id);
+    // First delete from Auth metadata (this cascade deletes in most standard supabaseClient setups, but we do explicit to be safe)
+    const { error: authError } = await supabaseAdminClient.auth.admin.deleteUser(id);
     if (authError) {
        console.warn('Auth deletion failed or user missing in auth:', authError.message);
        // We still proceed to clean up profiles and users tables
     }
 
     // Delete from profiles
-    const { error: profileError } = await supabase.from('profiles').delete().eq('id', id);
+    const { error: profileError } = await supabaseClient.from('profiles').delete().eq('id', id);
     if (profileError) throw profileError;
 
     // Delete from users table if it exists
-    await supabase.from('users').delete().eq('id', id);
+    await supabaseClient.from('users').delete().eq('id', id);
 
     // Log the action
     await logSuperAdminAction({
@@ -842,12 +870,14 @@ router.delete('/users/:id', async (req: any, res) => {
  * Returns recent audit logs for the Super Admin dashboard.
  */
 router.get('/logs', async (req: any, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     const { page = 1, limit = 50 } = req.query;
     const from = (Number(page) - 1) * Number(limit);
     const to = from + Number(limit) - 1;
 
-    const { data: logs, count, error } = await supabase
+    const { data: logs, count, error } = await supabaseClient
       .from('superadmin_audit_logs')
       .select('*, profiles:superadmin_id(username, full_name, avatar_url)', { count: 'exact' })
       .order('created_at', { ascending: false })
@@ -872,12 +902,14 @@ router.get('/logs', async (req: any, res) => {
  * Returns system error logs for the dashboard.
  */
 router.get('/error-logs', async (req: any, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     const { page = 1, limit = 50 } = req.query;
     const from = (Number(page) - 1) * Number(limit);
     const to = from + Number(limit) - 1;
 
-    const { data: logs, count, error } = await supabase
+    const { data: logs, count, error } = await supabaseClient
       .from('system_error_logs')
       .select('*, profiles:user_id(username)', { count: 'exact' })
       .order('created_at', { ascending: false })
@@ -902,6 +934,8 @@ router.get('/error-logs', async (req: any, res) => {
  * Returns high-level system metrics.
  */
 router.get('/stats', async (req: any, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
@@ -914,11 +948,11 @@ router.get('/stats', async (req: any, res) => {
       totalPurgesResult,
       newUsersTodayResult
     ] = await Promise.all([
-      supabase.from('profiles').select('*', { count: 'exact', head: true }),
-      supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('is_ghost', false),
-      supabase.from('posts').select('*', { count: 'exact', head: true }),
-      supabase.from('post_purges').select('*', { count: 'exact', head: true }),
-      supabase.from('profiles').select('*', { count: 'exact', head: true }).gte('created_at', today)
+      supabaseClient.from('profiles').select('*', { count: 'exact', head: true }),
+      supabaseClient.from('profiles').select('*', { count: 'exact', head: true }).eq('is_ghost', false),
+      supabaseClient.from('posts').select('*', { count: 'exact', head: true }),
+      supabaseClient.from('post_purges').select('*', { count: 'exact', head: true }),
+      supabaseClient.from('profiles').select('*', { count: 'exact', head: true }).gte('created_at', today)
     ]);
 
     // Check for errors
@@ -932,7 +966,7 @@ router.get('/stats', async (req: any, res) => {
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
     
-    const { data: recentPosts, error: postsError } = await supabase
+    const { data: recentPosts, error: postsError } = await supabaseClient
       .from('posts')
       .select('created_at')
       .gte('created_at', sevenDaysAgo.toISOString());
@@ -967,7 +1001,8 @@ router.get('/stats', async (req: any, res) => {
 /** Soft count helper — returns 0 if table/column missing */
 async function softCount(table: string, filters?: (q: any) => any): Promise<number> {
   try {
-    let q = supabase.from(table).select('*', { count: 'exact', head: true });
+    const supabaseClient = requireSupabase();
+    let q = supabaseClient.from(table).select('*', { count: 'exact', head: true });
     if (filters) q = filters(q);
     const { count, error } = await q;
     if (error) return 0;
@@ -1020,6 +1055,8 @@ function toSortedPie(map: Record<string, number>, limit = 12) {
  * Full platform analytics for Super Admin (dynamic, soft-fail missing tables).
  */
 router.get('/analytics', async (req: any, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     const rangeParam = String(req.query.range || '30d');
     const days = rangeParam === '7d' ? 7 : rangeParam === '90d' ? 90 : 30;
@@ -1069,13 +1106,13 @@ router.get('/analytics', async (req: any, res) => {
     // Profiles for demographics (paginate if large)
     let profiles: any[] = [];
     {
-      const { data, error } = await supabase
+      const { data, error } = await supabaseClient
         .from('profiles')
         .select('id, created_at, location, country, gender, language, relationship, role, is_ghost, is_premium, posts_count, username, full_name, avatar_url')
         .limit(5000);
       if (error) {
         // Retry without optional demographic columns
-        const retry = await supabase
+        const retry = await supabaseClient
           .from('profiles')
           .select('id, created_at, location, language, relationship, role, is_ghost, posts_count, username, full_name, avatar_url')
           .limit(5000);
@@ -1121,13 +1158,13 @@ router.get('/analytics', async (req: any, res) => {
       challengesRes,
       sessionsRes,
     ] = await Promise.all([
-      supabase.from('posts').select('id, created_at, user_id').gte('created_at', sinceIso).limit(10000),
-      supabase.from('comments').select('id, created_at, post_id').gte('created_at', sinceIso).limit(10000),
-      supabase.from('messages').select('id, created_at').gte('created_at', sinceIso).limit(10000),
-      supabase.from('post_purges').select('id, created_at, post_id').gte('created_at', sinceIso).limit(10000),
-      supabase.from('reactions').select('id, created_at, post_id').gte('created_at', sinceIso).limit(10000),
-      supabase.from('game_challenges').select('id, game_id, game_title, status, created_at, stake').limit(2000),
-      supabase.from('game_sessions').select('id, game_id, status, created_at').limit(2000),
+      supabaseClient.from('posts').select('id, created_at, user_id').gte('created_at', sinceIso).limit(10000),
+      supabaseClient.from('comments').select('id, created_at, post_id').gte('created_at', sinceIso).limit(10000),
+      supabaseClient.from('messages').select('id, created_at').gte('created_at', sinceIso).limit(10000),
+      supabaseClient.from('post_purges').select('id, created_at, post_id').gte('created_at', sinceIso).limit(10000),
+      supabaseClient.from('reactions').select('id, created_at, post_id').gte('created_at', sinceIso).limit(10000),
+      supabaseClient.from('game_challenges').select('id, game_id, game_title, status, created_at, stake').limit(2000),
+      supabaseClient.from('game_sessions').select('id, game_id, status, created_at').limit(2000),
     ]);
 
     const series = emptySeries(days);

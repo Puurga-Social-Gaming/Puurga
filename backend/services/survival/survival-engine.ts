@@ -1,4 +1,4 @@
-import { supabase } from '../../config/supabase';
+﻿import { requireSupabase } from '../../config/supabase';
 import { wsManager } from '../../websocketManager';
 import { ReputationEngine } from './reputation-engine';
 import { ThreatEngine } from './threat-engine';
@@ -71,13 +71,14 @@ function markSchemaMissing(context: string): void {
   if (!survivalSchemaMissingLogged) {
     survivalSchemaMissingLogged = true;
     console.warn(
-      `[Survival] Schema missing (${context}). Apply backend/scripts/apply-survival-schema.sql in the Supabase SQL editor. Returning SAFE defaults until then.`
+      `[Survival] Schema missing (${context}). Apply backend/scripts/apply-survival-schema.sql in the supabaseClient SQL editor. Returning SAFE defaults until then.`
     );
   }
 }
 
 export class SurvivalEngine {
   static async recalculate(userId: string): Promise<SurvivalStateResult | null> {
+    const supabaseClient = requireSupabase();
     if (survivalSchemaMissing) {
       return defaultSurvivalState(userId);
     }
@@ -104,7 +105,7 @@ export class SurvivalEngine {
 
     const now = new Date().toISOString();
 
-    await supabase
+    await supabaseClient
       .from('user_survival_state')
       .update({
         survival_score,
@@ -116,7 +117,7 @@ export class SurvivalEngine {
       })
       .eq('user_id', userId);
 
-    await supabase.from('survival_history').insert({
+    await supabaseClient.from('survival_history').insert({
       user_id: userId,
       reputation_score: repResult.reputation_score,
       survival_score,
@@ -126,7 +127,7 @@ export class SurvivalEngine {
       recorded_at: now,
     });
 
-    const { data: finalState } = await supabase
+    const { data: finalState } = await supabaseClient
       .from('user_survival_state')
       .select('*')
       .eq('user_id', userId)
@@ -142,6 +143,7 @@ export class SurvivalEngine {
   }
 
   static async ensureState(userId: string): Promise<SurvivalStateResult | null> {
+    const supabaseClient = requireSupabase();
     if (survivalSchemaMissing) {
       return defaultSurvivalState(userId);
     }
@@ -173,7 +175,7 @@ export class SurvivalEngine {
       collapse_risk: 0,
     };
 
-    const { data, error } = await supabase
+    const { data, error } = await supabaseClient
       .from('user_survival_state')
       .upsert(defaults, { onConflict: 'user_id' })
       .select('*')
@@ -192,11 +194,12 @@ export class SurvivalEngine {
   }
 
   static async getState(userId: string): Promise<SurvivalStateResult | null> {
+    const supabaseClient = requireSupabase();
     if (survivalSchemaMissing) {
       return defaultSurvivalState(userId);
     }
 
-    const { data: state, error } = await supabase
+    const { data: state, error } = await supabaseClient
       .from('user_survival_state')
       .select('*')
       .eq('user_id', userId)
@@ -215,9 +218,10 @@ export class SurvivalEngine {
   }
 
   static async getHistory(userId: string, limit: number = 30): Promise<any[]> {
+    const supabaseClient = requireSupabase();
     if (survivalSchemaMissing) return [];
 
-    const { data: history, error } = await supabase
+    const { data: history, error } = await supabaseClient
       .from('survival_history')
       .select('*')
       .eq('user_id', userId)
@@ -233,9 +237,10 @@ export class SurvivalEngine {
   }
 
   static async getNotifications(userId: string): Promise<any[]> {
+    const supabaseClient = requireSupabase();
     if (survivalSchemaMissing) return [];
 
-    const { data: events, error } = await supabase
+    const { data: events, error } = await supabaseClient
       .from('survival_events')
       .select('*')
       .eq('user_id', userId)
@@ -257,17 +262,29 @@ export class SurvivalEngine {
     eventValue: number = 0,
     metadata?: Record<string, any>
   ): Promise<void> {
+    const supabaseClient = requireSupabase();
     if (survivalSchemaMissing) return;
 
-    const { error } = await supabase.from('survival_events').insert({
-      user_id: userId,
-      event_type: eventType,
-      event_value: eventValue,
-      metadata: metadata ? JSON.stringify(metadata) : '{}',
-    });
+    try {
+      await supabaseClient.from('survival_events').insert({
+        user_id: userId,
+        event_type: eventType,
+        event_value: eventValue,
+        metadata: metadata ? JSON.stringify(metadata) : '{}',
+      });
 
-    if (error && isMissingRelationError(error)) {
-      markSchemaMissing('recordEvent');
+      if (eventType === 'GAME_PLAYER_BANKRUPT') {
+        await supabaseClient.from('survival_history').insert({
+          user_id: userId,
+          event_type: eventType,
+          event_value: eventValue,
+          metadata: metadata ? JSON.stringify(metadata) : '{}',
+        });
+      }
+    } catch (error) {
+      if (isMissingRelationError(error as any)) {
+        markSchemaMissing('recordEvent');
+      }
     }
   }
 
@@ -292,8 +309,9 @@ export class SurvivalEngine {
 
     // Mark purge event processed when table exists
     try {
-      const { supabaseAdmin } = await import('../../config/supabase');
-      await supabaseAdmin
+      const { requireSupabaseAdmin } = await import('../../config/supabase');
+      const supabaseAdminClient = requireSupabaseAdmin();
+      await supabaseAdminClient
         .from('game_purge_events')
         .update({ processed: true, processed_at: new Date().toISOString() })
         .eq('user_id', userId)

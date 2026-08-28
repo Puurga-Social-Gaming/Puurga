@@ -1,5 +1,5 @@
-import express from 'express';
-import { supabase } from '../config/supabase';
+﻿import express from 'express';
+import { requireSupabase, requireSupabaseAdmin } from '../config/supabase';
 import { supabaseAuth as auth, AuthRequest } from '../middleware/supabaseAuth';
 import { normalizeImageUrl } from '../utils/url';
 import { wsManager } from '../websocketManager';
@@ -12,6 +12,8 @@ const router = express.Router();
 
 // POST /api/redeem/:userId - Redeem a user from ghost mode using credits
 router.post('/:userId', auth, async (req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     const { userId: targetUserId } = req.params;
     const redeemerUserId = req.user?.id;
@@ -26,13 +28,13 @@ router.post('/:userId', auth, async (req: AuthRequest, res) => {
     }
 
     // Check if target user is in purgatory (new system) or ghost mode (old system)
-    const { data: targetSurvival, error: survivalError } = await supabase
+    const { data: targetSurvival, error: survivalError } = await supabaseClient
       .from('user_survival_state')
       .select('purgatory_status, purge_count')
       .eq('user_id', targetUserId)
       .single();
 
-    const { data: targetProfile, error: profileError } = await supabase
+    const { data: targetProfile, error: profileError } = await supabaseClient
       .from('profiles')
       .select('is_ghost, purge_count, full_name')
       .eq('id', targetUserId)
@@ -54,7 +56,7 @@ router.post('/:userId', auth, async (req: AuthRequest, res) => {
     const redemptionCost = 100 + (purgeCount * 10);
 
     // Check if redeemer has enough credits
-    const { data: redeemerProfile, error: redeemerError } = await supabase
+    const { data: redeemerProfile, error: redeemerError } = await supabaseClient
       .from('profiles')
       .select('purga_points, credits')
       .eq('id', redeemerUserId)
@@ -88,7 +90,7 @@ router.post('/:userId', auth, async (req: AuthRequest, res) => {
       await PurgatoryEngine.exitPurgatory(targetUserId, redeemerUserId);
     } else {
       // Fallback to old system: remove ghost mode from target user
-      const { error: restoreError } = await supabase
+      const { error: restoreError } = await supabaseClient
         .from('profiles')
         .update({
           is_ghost: false,
@@ -114,11 +116,11 @@ router.post('/:userId', auth, async (req: AuthRequest, res) => {
     // Also notify friends that this user is now redeemed
     try {
       const [friendsRes, requestsRes] = await Promise.all([
-        supabase
+        supabaseClient
           .from('friends')
           .select('user_id_1, user_id_2')
           .or(`user_id_1.eq.${targetUserId},user_id_2.eq.${targetUserId}`),
-        supabase
+        supabaseClient
           .from('friend_requests')
           .select('sender_id, receiver_id')
           .eq('status', 'accepted')
@@ -147,7 +149,7 @@ router.post('/:userId', auth, async (req: AuthRequest, res) => {
     }
 
     // Log the redemption
-    await supabase
+    await supabaseClient
       .from('redemptions')
       .insert({
         redeemer_id: redeemerUserId,
@@ -164,7 +166,7 @@ router.post('/:userId', auth, async (req: AuthRequest, res) => {
     });
 
     // Get new credit balance
-    const { data: updatedProfile } = await supabase
+    const { data: updatedProfile } = await supabaseClient
       .from('profiles')
       .select('purga_points, credits')
       .eq('id', redeemerUserId)
@@ -187,6 +189,8 @@ router.post('/:userId', auth, async (req: AuthRequest, res) => {
 
 // GET /api/redeem/ghosted-friends - Get list of user's friends who are in ghost mode
 router.get('/ghosted-friends', auth, async (req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     const userId = req.user?.id;
 
@@ -196,11 +200,11 @@ router.get('/ghosted-friends', auth, async (req: AuthRequest, res) => {
 
     // Get user's friends from both friends table and accepted friend requests
     const [friendsRes, requestsRes] = await Promise.all([
-      supabase
+      supabaseClient
         .from('friends')
         .select('user_id_1, user_id_2')
         .or(`user_id_1.eq.${userId},user_id_2.eq.${userId}`),
-      supabase
+      supabaseClient
         .from('friend_requests')
         .select('sender_id, receiver_id')
         .eq('status', 'accepted')
@@ -240,7 +244,7 @@ router.get('/ghosted-friends', auth, async (req: AuthRequest, res) => {
       ghosted_at?: string | null;
     }> = [];
 
-    const fullProfiles = await supabase
+    const fullProfiles = await supabaseClient
       .from('profiles')
       .select('id, full_name, username, avatar_url, is_ghost, purge_count, ghosted_at')
       .in('id', friendIds);
@@ -250,7 +254,7 @@ router.get('/ghosted-friends', auth, async (req: AuthRequest, res) => {
       const missingCol =
         fullProfiles.error.code === '42703' || /column .* does not exist/i.test(msg);
       if (missingCol) {
-        const basic = await supabase
+        const basic = await supabaseClient
           .from('profiles')
           .select('id, full_name, username, avatar_url')
           .in('id', friendIds);
@@ -267,7 +271,7 @@ router.get('/ghosted-friends', auth, async (req: AuthRequest, res) => {
     }
 
     // Get survival states to check purgatory status (new system)
-    const { data: survivalStates, error: survivalError } = await supabase
+    const { data: survivalStates, error: survivalError } = await supabaseClient
       .from('user_survival_state')
       .select('user_id, purgatory_status, purgatory_entered_at, purge_count')
       .in('user_id', friendIds);
@@ -330,15 +334,17 @@ router.get('/ghosted-friends', auth, async (req: AuthRequest, res) => {
 
 // GET /api/redeem/friend-stats - Get all friends with purge counts and ghost status
 router.get('/friend-stats', auth, async (req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: 'Not authenticated' });
 
     // Get user's friends
     const [friendsRes, requestsRes] = await Promise.all([
-      supabase.from('friends').select('user_id_1, user_id_2')
+      supabaseClient.from('friends').select('user_id_1, user_id_2')
         .or(`user_id_1.eq.${userId},user_id_2.eq.${userId}`),
-      supabase.from('friend_requests').select('sender_id, receiver_id')
+      supabaseClient.from('friend_requests').select('sender_id, receiver_id')
         .eq('status', 'accepted')
         .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
     ]);
@@ -354,13 +360,13 @@ router.get('/friend-stats', auth, async (req: AuthRequest, res) => {
     if (friendIds.length === 0) return res.json({ friends: [], stats: { totalFriends: 0, ghosted: 0, atRisk: 0 } });
 
     // Get profiles of all friends with purge data
-    const { data: friendProfiles, error: profilesError } = await supabase
+    const { data: friendProfiles, error: profilesError } = await supabaseClient
       .from('profiles')
       .select('id, full_name, username, avatar_url, is_ghost, purge_count, ghosted_at')
       .in('id', friendIds);
 
     // Get survival states to check purgatory status (new system)
-    const { data: survivalStates, error: survivalError } = await supabase
+    const { data: survivalStates, error: survivalError } = await supabaseClient
       .from('user_survival_state')
       .select('user_id, purgatory_status, purgatory_entered_at, purge_count')
       .in('user_id', friendIds);
@@ -436,6 +442,8 @@ router.get('/friend-stats', auth, async (req: AuthRequest, res) => {
 
 // GET /api/redeem/status/:userId - Check if a user is in ghost mode
 router.get('/status/:userId', auth, async (req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     const { userId } = req.params;
     if (!userId) {
@@ -450,7 +458,7 @@ router.get('/status/:userId', auth, async (req: AuthRequest, res) => {
       ghosted_at?: string | null;
     } | null = null;
 
-    const fullProfile = await supabase
+    const fullProfile = await supabaseClient
       .from('profiles')
       .select('is_ghost, purge_count, ghosted_at, full_name')
       .eq('id', userId)
@@ -461,7 +469,7 @@ router.get('/status/:userId', auth, async (req: AuthRequest, res) => {
       const msg = fullProfile.error.message || '';
       // Missing column(s) — retry with minimal select
       if (code === '42703' || msg.includes('does not exist')) {
-        const basic = await supabase
+        const basic = await supabaseClient
           .from('profiles')
           .select('full_name')
           .eq('id', userId)
@@ -514,7 +522,7 @@ router.get('/status/:userId', auth, async (req: AuthRequest, res) => {
       purge_count?: number | null;
     } | null = null;
 
-    const survivalRes = await supabase
+    const survivalRes = await supabaseClient
       .from('user_survival_state')
       .select('purgatory_status, purgatory_entered_at, purge_count')
       .eq('user_id', userId)
@@ -564,6 +572,8 @@ router.get('/status/:userId', auth, async (req: AuthRequest, res) => {
 
 // POST /api/friends/:friendId/redeem - Redeem a ghosted friend using credits (for PurgeDashboard)
 router.post('/friends/:friendId/redeem', auth, async (req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     const userId = req.user?.id;
     const friendId = req.params.friendId;
@@ -573,7 +583,7 @@ router.post('/friends/:friendId/redeem', auth, async (req: AuthRequest, res) => 
     }
 
     // Check if they are friends
-    const { data: friendship, error: friendError } = await supabase
+    const { data: friendship, error: friendError } = await supabaseClient
       .from('friends')
       .select('id')
       .or(`and(user_id_1.eq.${userId},user_id_2.eq.${friendId}),and(user_id_1.eq.${friendId},user_id_2.eq.${userId})`)
@@ -591,13 +601,13 @@ router.post('/friends/:friendId/redeem', auth, async (req: AuthRequest, res) => 
     }
 
     // Check if friend is in purgatory (new system) or ghost mode (old system)
-    const { data: friendSurvival, error: survivalError } = await supabase
+    const { data: friendSurvival, error: survivalError } = await supabaseClient
       .from('user_survival_state')
       .select('purgatory_status, purge_count, purgatory_entered_at')
       .eq('user_id', friendId)
       .single();
 
-    const { data: friendProfile, error: profileError } = await supabase
+    const { data: friendProfile, error: profileError } = await supabaseClient
       .from('profiles')
       .select('is_ghost, purge_count, ghosted_at, full_name')
       .eq('id', friendId)
@@ -623,7 +633,7 @@ router.post('/friends/:friendId/redeem', auth, async (req: AuthRequest, res) => 
     const creditsRequired = 50 + (purgeCount * 10) + (daysGhosted * 5);
 
     // Check user's credits
-    const { data: userProfile, error: userError } = await supabase
+    const { data: userProfile, error: userError } = await supabaseClient
       .from('profiles')
       .select('purga_points, credits')
       .eq('id', userId)
@@ -657,7 +667,7 @@ router.post('/friends/:friendId/redeem', auth, async (req: AuthRequest, res) => 
       await PurgatoryEngine.exitPurgatory(friendId, userId);
     } else {
       // Fallback to old system: remove ghost mode from friend
-      const { error: restoreError } = await supabase
+      const { error: restoreError } = await supabaseClient
         .from('profiles')
         .update({
           is_ghost: false,
@@ -681,7 +691,7 @@ router.post('/friends/:friendId/redeem', auth, async (req: AuthRequest, res) => 
     }
 
     // Log the redemption
-    await supabase
+    await supabaseClient
       .from('redemptions')
       .insert({
         redeemer_id: userId,
@@ -698,7 +708,7 @@ router.post('/friends/:friendId/redeem', auth, async (req: AuthRequest, res) => 
     });
 
     // Get new credit balance
-    const { data: updatedProfile } = await supabase
+    const { data: updatedProfile } = await supabaseClient
       .from('profiles')
       .select('purga_points, credits')
       .eq('id', userId)
@@ -719,11 +729,13 @@ router.post('/friends/:friendId/redeem', auth, async (req: AuthRequest, res) => 
 
 // GET /api/redeem/contributors/:userId - Get list of users who helped redeem this user
 router.get('/contributors/:userId', auth, async (req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     const { userId } = req.params;
 
     // Fetch from redemptions (direct full redemption)
-    const { data: directRedemptions } = await supabase
+    const { data: directRedemptions } = await supabaseClient
       .from('redemptions')
       .select('redeemer_id, credits_spent, created_at')
       .eq('redeemed_user_id', userId)
@@ -731,7 +743,7 @@ router.get('/contributors/:userId', auth, async (req: AuthRequest, res) => {
       .limit(1);
 
     // Fetch from redemption_activities (partial contributions)
-    const { data: partialActivities } = await supabase
+    const { data: partialActivities } = await supabaseClient
       .from('redemption_activities')
       .select('helper_user_id, points_earned')
       .eq('ghost_user_id', userId);
@@ -758,7 +770,7 @@ router.get('/contributors/:userId', auth, async (req: AuthRequest, res) => {
     }
 
     // Get profiles for all contributors
-    const { data: profiles } = await supabase
+    const { data: profiles } = await supabaseClient
       .from('profiles')
       .select('id, full_name, username, avatar_url')
       .in('id', contributorIds);

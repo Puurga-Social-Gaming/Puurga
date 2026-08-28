@@ -1,20 +1,21 @@
-import { supabase } from '../../config/supabase';
+﻿import { requireSupabase } from '../../config/supabase';
 import { SURVIVAL_THRESHOLDS, THREAT_FACTORS, THREAT_TIERS } from '../../constants/survivalConstants';
 
 export class ThreatEngine {
   static async calculateThreatLevel(userId: string): Promise<{ threat_level: number; threat_tier: string }> {
+    const supabaseClient = requireSupabase();
     const [stateResult, engagementResult, purgeResult] = await Promise.all([
-      supabase
+      supabaseClient
         .from('user_survival_state')
         .select('reputation_score, purge_count')
         .eq('user_id', userId)
         .single(),
-      supabase
+      supabaseClient
         .from('survival_events')
         .select('event_type, created_at')
         .eq('user_id', userId)
         .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()),
-      supabase
+      supabaseClient
         .from('survival_events')
         .select('event_type, created_at')
         .eq('user_id', userId)

@@ -1,4 +1,4 @@
-import { supabase } from '../../config/supabase';
+﻿import { requireSupabase } from '../../config/supabase';
 import { SURVIVAL_THRESHOLDS, REPUTATION_EFFECTS } from '../../constants/survivalConstants';
 
 export class InactivityEngine {
@@ -6,7 +6,8 @@ export class InactivityEngine {
     inactivity_level: number;
     days_inactive: number;
   }> {
-    const { data: state } = await supabase
+    const supabaseClient = requireSupabase();
+    const { data: state } = await supabaseClient
       .from('user_survival_state')
       .select('last_active_at, inactivity_level')
       .eq('user_id', userId)
@@ -36,13 +37,13 @@ export class InactivityEngine {
     }
 
     if (level !== state.inactivity_level) {
-      await supabase
+      await supabaseClient
         .from('user_survival_state')
         .update({ inactivity_level: level })
         .eq('user_id', userId);
 
       if (level >= 1 && state.inactivity_level < level) {
-        await supabase.from('survival_events').insert({
+        await supabaseClient.from('survival_events').insert({
           user_id: userId,
           event_type: 'INACTIVITY_WARNING',
           event_value: level,
@@ -63,15 +64,16 @@ export class InactivityEngine {
   }
 
   static async recordActivity(userId: string): Promise<void> {
+    const supabaseClient = requireSupabase();
     const now = new Date().toISOString();
 
-    const { data: state } = await supabase
+    const { data: state } = await supabaseClient
       .from('user_survival_state')
       .select('inactivity_level')
       .eq('user_id', userId)
       .single();
 
-    await supabase
+    await supabaseClient
       .from('user_survival_state')
       .update({
         last_active_at: now,
@@ -86,7 +88,8 @@ export class InactivityEngine {
   }
 
   static async getInactivityLevel(userId: string): Promise<number> {
-    const { data: state } = await supabase
+    const supabaseClient = requireSupabase();
+    const { data: state } = await supabaseClient
       .from('user_survival_state')
       .select('inactivity_level')
       .eq('user_id', userId)

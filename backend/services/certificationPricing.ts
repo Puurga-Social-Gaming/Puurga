@@ -1,4 +1,4 @@
-import { supabaseAdmin } from '../config/supabase';
+﻿import { requireSupabaseAdmin } from '../config/supabase';
 import {
   CERTIFICATION_TYPES,
   isPurchasableCertification,
@@ -23,6 +23,7 @@ function normalizePricingRow(row: PricingRow): PricingRow {
 }
 
 export async function loadCertificationPricing(): Promise<PricingRow[]> {
+  const supabaseAdmin = requireSupabaseAdmin();
   const defaults: PricingRow[] = CERTIFICATION_TYPES.map((c: CertificationType) => {
     const d = DEFAULT_CERT_MONEY_PRICES[c.slug] || {
       price_points: c.price,
@@ -71,6 +72,7 @@ export async function upsertCertificationPricing(
   }>,
   adminId: string
 ) {
+  const supabaseAdmin = requireSupabaseAdmin();
   const payload = rows.map((r) => {
     const free = r.slug === 'official' || !isPurchasableCertification(r.slug);
     return {

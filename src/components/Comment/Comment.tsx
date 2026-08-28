@@ -266,7 +266,7 @@ const Comment: React.FC<CommentProps> = ({
 
             <div className="flex items-center gap-2.5 sm:gap-3 mt-1.5 ml-1 flex-wrap">
               <span className="text-[11px] text-muted tabular-nums">
-                {formatDistanceToNow(new Date(comment.createdAt), { addSuffix: true })}
+                {formatDistanceToNow(new Date((comment as any).createdAt || (comment as any).created_at || Date.now()), { addSuffix: true })}
               </span>
 
               {edited && (

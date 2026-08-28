@@ -91,8 +91,10 @@ const MobileSideMenu: React.FC<MobileSideMenuProps> = ({ open, onClose }) => {
   const handleLogout = async () => {
     closeMenu();
     try {
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
+      if (supabase) {
+        const { error } = await supabase.auth.signOut();
+        if (error) throw error;
+      }
       try {
         localStorage.removeItem('token');
         localStorage.removeItem('user');

@@ -1,12 +1,14 @@
-import { supabase, supabaseAdmin } from '../config/supabase';
+﻿import { requireSupabase, requireSupabaseAdmin } from '../config/supabase';
 import { Tables } from '../config/supabase';
 
 export type UserProfile = Tables['users'];
 
 export class UserService {
   static async createUser(email: string, password: string, userData: Partial<UserProfile>) {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
     // Create auth user
-    const { data: authUser, error: authError } = await supabase.auth.signUp({
+    const { data: authUser, error: authError } = await supabaseClient.auth.signUp({
       email,
       password,
     });
@@ -15,7 +17,7 @@ export class UserService {
     if (!authUser.user) throw new Error('Failed to create user');
 
     // Create user profile
-    const { data: profile, error: profileError } = await supabase
+    const { data: profile, error: profileError } = await supabaseClient
       .from('users')
       .insert({
         id: authUser.user.id,
@@ -41,7 +43,9 @@ export class UserService {
   }
 
   static async getUserById(id: string) {
-    const { data, error } = await supabase
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
+    const { data, error } = await supabaseClient
       .from('users')
       .select('*')
       .eq('id', id)
@@ -52,7 +56,9 @@ export class UserService {
   }
 
   static async updateUser(id: string, updates: Partial<UserProfile>) {
-    const { data, error } = await supabase
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
+    const { data, error } = await supabaseClient
       .from('users')
       .update(updates)
       .eq('id', id)
@@ -64,8 +70,10 @@ export class UserService {
   }
 
   static async deleteUser(id: string) {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
     // Delete user profile
-    const { error: profileError } = await supabase
+    const { error: profileError } = await supabaseClient
       .from('users')
       .delete()
       .eq('id', id);
@@ -73,12 +81,14 @@ export class UserService {
     if (profileError) throw profileError;
 
     // Delete auth user (requires admin client)
-    const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(id);
+    const { error: authError } = await supabaseAdminClient.auth.admin.deleteUser(id);
     if (authError) throw authError;
   }
 
   static async getUserByEmail(email: string) {
-    const { data, error } = await supabase
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
+    const { data, error } = await supabaseClient
       .from('users')
       .select('*')
       .eq('email', email)
@@ -89,7 +99,9 @@ export class UserService {
   }
 
   static async getUserByUsername(username: string) {
-    const { data, error } = await supabase
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
+    const { data, error } = await supabaseClient
       .from('users')
       .select('*')
       .eq('username', username)
@@ -108,7 +120,9 @@ export class UserService {
     comment_privacy?: 'everyone' | 'followers' | 'none';
     story_privacy?: 'everyone' | 'followers' | 'close_friends';
   }) {
-    const { data, error } = await supabase
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
+    const { data, error } = await supabaseClient
       .from('users')
       .update(privacySettings)
       .eq('id', id)
@@ -130,7 +144,9 @@ export class UserService {
     avatar_url?: string;
     cover_photo?: string;
   }) {
-    const { data, error } = await supabase
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
+    const { data, error } = await supabaseClient
       .from('users')
       .update(profileData)
       .eq('id', id)

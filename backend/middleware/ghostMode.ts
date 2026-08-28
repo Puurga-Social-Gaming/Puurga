@@ -1,5 +1,5 @@
-import { Response, NextFunction } from 'express';
-import { supabase } from '../config/supabase';
+﻿import { Response, NextFunction } from 'express';
+import { requireSupabase, requireSupabaseAdmin } from '../config/supabase';
 import { AuthRequest } from './supabaseAuth';
 import { PURGE_THRESHOLD } from '../constants/purgeConstants';
 
@@ -12,7 +12,7 @@ export const checkGhostMode = async (req: AuthRequest, res: Response, next: Next
     }
 
     // Check if user is in ghost mode
-    const { data: profile, error } = await supabase
+    const { data: profile, error } = await requireSupabase()
       .from('profiles')
       .select('is_ghost, purge_count, ghosted_at')
       .eq('id', userId)

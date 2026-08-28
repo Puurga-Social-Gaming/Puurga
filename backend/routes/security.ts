@@ -1,10 +1,12 @@
-import express from 'express';
-import { supabase } from '../config/supabase';
+﻿import express from 'express';
+import { requireSupabase, requireSupabaseAdmin } from '../config/supabase';
 
 const router = express.Router();
 
 // Log security events (optional - for monitoring)
 router.post('/devtools-detected', async (req, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     const { eventType, userId, userAgent, timestamp, url } = req.body;
     
@@ -19,7 +21,7 @@ router.post('/devtools-detected', async (req, res) => {
     });
 
     // Store in database for super admin alerts
-    await supabase.from('security_events').insert({
+    await supabaseClient.from('security_events').insert({
       event_type: eventType,
       user_id: userId,
       user_agent: userAgent,
@@ -37,13 +39,15 @@ router.post('/devtools-detected', async (req, res) => {
 
 // Content Security Policy endpoint
 router.get('/csp-report', async (req, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     const report = req.body;
     
     console.warn('Perga CSP Violation:', report);
     
     // Store CSP violations for monitoring
-    // await supabase.from('csp_violations').insert({
+    // await supabaseClient.from('csp_violations').insert({
     //   report,
     //   user_agent: req.get('User-Agent'),
     //   ip: req.ip,

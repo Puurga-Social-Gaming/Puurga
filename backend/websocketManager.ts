@@ -2,7 +2,7 @@ import { WebSocket, WebSocketServer } from 'ws';
 import { Server } from 'http';
 import { IncomingMessage } from 'http';
 import jwt from 'jsonwebtoken';
-import { supabase } from './config/supabase';
+import { supabase, isSupabaseAvailable } from './config/supabase';
 
 interface WebSocketClient extends WebSocket {
   userId?: string;
@@ -246,12 +246,14 @@ class WebSocketManager {
         // Get the current user's online status preference
         let currentUserAllowsOnlineStatus = true;
         try {
-          const { data: currentProfile } = await supabase
-            .from('profiles')
-            .select('show_online_status')
-            .eq('id', userId)
-            .maybeSingle();
-          currentUserAllowsOnlineStatus = currentProfile?.show_online_status !== false;
+          if (isSupabaseAvailable && supabase) {
+            const { data: currentProfile } = await supabase
+              .from('profiles')
+              .select('show_online_status')
+              .eq('id', userId)
+              .maybeSingle();
+            currentUserAllowsOnlineStatus = currentProfile?.show_online_status !== false;
+          }
         } catch (error) {
           console.error('Error checking current user online status setting:', error);
         }
@@ -262,18 +264,20 @@ class WebSocketManager {
           if (onlineUserId !== userId) {
             // Check if this user allows showing online status
             try {
-              const { data: profile } = await supabase
-                .from('profiles')
-                .select('show_online_status')
-                .eq('id', onlineUserId)
-                .maybeSingle();
+              if (isSupabaseAvailable && supabase) {
+                const { data: profile } = await supabase
+                  .from('profiles')
+                  .select('show_online_status')
+                  .eq('id', onlineUserId)
+                  .maybeSingle();
 
-              if (profile?.show_online_status !== false) {
+                if (profile?.show_online_status !== false) {
                 const statusMessage: WebSocketMessage = {
                   type: 'user_online',
                   payload: { userId: onlineUserId, isOnline: true } as OnlineStatusPayload
                 };
                 this.sendToUser(userId, statusMessage);
+                }
               }
             } catch (error) {
               // Default to showing on error
@@ -344,16 +348,18 @@ class WebSocketManager {
   private async broadcastUserStatus(userId: string, isOnline: boolean) {
     // Check if user allows showing online status
     try {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('show_online_status')
-        .eq('id', userId)
-        .single();
+      if (isSupabaseAvailable && supabase) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('show_online_status')
+          .eq('id', userId)
+          .single();
 
-      // If user has disabled online status, don't broadcast
-      if (profile?.show_online_status === false) {
-        console.log(`User ${userId} has disabled online status - not broadcasting`);
-        return;
+        // If user has disabled online status, don't broadcast
+        if (profile?.show_online_status === false) {
+          console.log(`User ${userId} has disabled online status - not broadcasting`);
+          return;
+        }
       }
     } catch (error) {
       console.error('Error checking online status setting:', error);

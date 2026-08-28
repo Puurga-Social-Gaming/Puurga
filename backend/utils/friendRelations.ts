@@ -1,74 +1,37 @@
-import { supabase } from '../config/supabase';
+import sequelize from '../config/database';
+import { Friendship, FriendRequest, Follower, Op } from '../models';
 
 /**
- * Resolve friend IDs across both historical schemas:
- * - user_id_1 / user_id_2  (most routes)
- * - user_id / friend_id    (create_friends_tables.sql, auth.ts)
- * Also treats accepted friend_requests as friendships when the friends row is missing.
+ * Friend / block / mute relations resolved against the LOCAL PostgreSQL database.
+ * No Supabase dependency.
  */
+
+/** Accepted friends across the friendships and (fallback) friend_requests tables. */
 export async function getAcceptedFriendIds(userId: string): Promise<string[]> {
   const ids = new Set<string>();
 
-  // Schema A: user_id_1 / user_id_2
-  const { data: rowsA, error: errA } = await supabase
-    .from('friends')
-    .select('user_id_1, user_id_2')
-    .or(`user_id_1.eq.${userId},user_id_2.eq.${userId}`);
-
-  if (!errA && rowsA) {
-    for (const f of rowsA) {
-      const other = f.user_id_1 === userId ? f.user_id_2 : f.user_id_1;
-      if (other && other !== userId) ids.add(other);
-    }
-  } else if (errA && errA.code !== '42P01' && errA.code !== '42703') {
-    console.warn('getAcceptedFriendIds schemaA:', errA.message);
+  const friendships = await Friendship.findAll({
+    where: {
+      [Op.or]: [{ user_id: userId }, { friend_id: userId }],
+    },
+    attributes: ['user_id', 'friend_id'],
+  });
+  for (const f of friendships) {
+    const other = f.user_id === userId ? f.friend_id : f.user_id;
+    if (other && other !== userId) ids.add(other);
   }
 
-  // Schema B: user_id / friend_id — always try (merge), in case rows live under this layout
-  const { data: rowsB, error: errB } = await supabase
-    .from('friends')
-    .select('user_id, friend_id')
-    .or(`user_id.eq.${userId},friend_id.eq.${userId}`);
-
-  if (!errB && rowsB) {
-    for (const f of rowsB) {
-      const other = f.user_id === userId ? f.friend_id : f.user_id;
-      if (other && other !== userId) ids.add(other);
-    }
-  } else if (errB && errB.code !== '42P01' && errB.code !== '42703') {
-    console.warn('getAcceptedFriendIds schemaB:', errB.message);
-  }
-
-  // Table C: friendships (used by statuses / auth login notifications)
-  const { data: rowsC, error: errC } = await supabase
-    .from('friendships')
-    .select('user_id, friend_id, status')
-    .or(`user_id.eq.${userId},friend_id.eq.${userId}`);
-
-  if (!errC && rowsC) {
-    for (const f of rowsC) {
-      if (f.status && f.status !== 'accepted') continue;
-      const other = f.user_id === userId ? f.friend_id : f.user_id;
-      if (other && other !== userId) ids.add(other);
-    }
-  } else if (errC && errC.code !== '42P01' && errC.code !== '42703') {
-    console.warn('getAcceptedFriendIds friendships:', errC.message);
-  }
-
-  // Fallback: accepted friend_requests (covers cases where friends insert failed)
-  const { data: accepted, error: accErr } = await supabase
-    .from('friend_requests')
-    .select('sender_id, receiver_id')
-    .eq('status', 'accepted')
-    .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`);
-
-  if (!accErr && accepted) {
-    for (const r of accepted) {
-      const other = r.sender_id === userId ? r.receiver_id : r.sender_id;
-      if (other && other !== userId) ids.add(other);
-    }
-  } else if (accErr && accErr.code !== '42P01' && accErr.code !== '42703') {
-    console.warn('getAcceptedFriendIds acceptedRequests:', accErr.message);
+  // Fallback: accepted friend_requests (covers cases where friendships insert failed)
+  const accepted = await FriendRequest.findAll({
+    where: {
+      status: 'accepted',
+      [Op.or]: [{ sender_id: userId }, { receiver_id: userId }],
+    },
+    attributes: ['sender_id', 'receiver_id'],
+  });
+  for (const r of accepted) {
+    const other = r.sender_id === userId ? r.receiver_id : r.sender_id;
+    if (other && other !== userId) ids.add(other);
   }
 
   return Array.from(ids);
@@ -76,25 +39,16 @@ export async function getAcceptedFriendIds(userId: string): Promise<string[]> {
 
 /** People I already sent a friend request to (still pending — can message them). */
 export async function getPendingOutgoingIds(userId: string): Promise<string[]> {
-  const { data, error } = await supabase
-    .from('friend_requests')
-    .select('receiver_id, status')
-    .eq('sender_id', userId);
-
-  if (error) {
-    if (error.code !== '42P01' && error.code !== '42703') {
-      console.warn('getPendingOutgoingIds:', error.message);
-    }
-    return [];
-  }
-
-  return (data || [])
-    .filter((r: any) => !r.status || r.status === 'pending')
-    .map((r: any) => r.receiver_id as string)
-    .filter((id: string) => id && id !== userId);
+  const rows = await FriendRequest.findAll({
+    where: { sender_id: userId, status: 'pending' },
+    attributes: ['receiver_id'],
+  });
+  return rows
+    .map((r) => r.receiver_id)
+    .filter((id) => id && id !== userId);
 }
 
-/** True if users are friends under either schema (or accepted request). */
+/** True if users are friends (either schema / accepted request). */
 export async function areFriends(a: string, b: string): Promise<boolean> {
   const friends = await getAcceptedFriendIds(a);
   return friends.includes(b);
@@ -102,138 +56,105 @@ export async function areFriends(a: string, b: string): Promise<boolean> {
 
 /** True if either user has blocked the other. */
 export async function areBlocked(a: string, b: string): Promise<boolean> {
-  const { data, error } = await supabase
-    .from('user_blocks')
-    .select('id')
-    .or(
-      `and(blocker_id.eq.${a},blocked_id.eq.${b}),and(blocker_id.eq.${b},blocked_id.eq.${a})`
-    )
-    .limit(1);
-
-  if (error) {
-    if (error.code !== '42P01' && error.code !== '42703') {
-      console.warn('areBlocked:', error.message);
-    }
-    return false;
-  }
-  return (data?.length ?? 0) > 0;
+  const [rows] = await sequelize.query(
+    `SELECT id FROM user_blocks
+     WHERE (blocker_id = :a AND blocked_id = :b)
+        OR (blocker_id = :b AND blocked_id = :a)
+     LIMIT 1`,
+    { replacements: { a, b } }
+  );
+  return rows.length > 0;
 }
 
 /** True if muter has muted mutedUser. */
 export async function isMuted(muterId: string, mutedUserId: string): Promise<boolean> {
-  const { data, error } = await supabase
-    .from('user_mutes')
-    .select('id')
-    .eq('muter_id', muterId)
-    .eq('muted_id', mutedUserId)
-    .maybeSingle();
-
-  if (error) {
-    if (error.code !== '42P01' && error.code !== '42703') {
-      console.warn('isMuted:', error.message);
-    }
-    return false;
-  }
-  return !!data;
+  const [rows] = await sequelize.query(
+    `SELECT id FROM user_mutes WHERE muter_id = :muterId AND muted_id = :mutedUserId LIMIT 1`,
+    { replacements: { muterId, mutedUserId } }
+  );
+  return rows.length > 0;
 }
 
+/** IDs of users I have blocked. */
 export async function getBlockedIds(userId: string): Promise<string[]> {
-  const { data, error } = await supabase
-    .from('user_blocks')
-    .select('blocked_id')
-    .eq('blocker_id', userId);
-
-  if (error) {
-    if (error.code !== '42P01' && error.code !== '42703') {
-      console.warn('getBlockedIds:', error.message);
-    }
-    return [];
-  }
-  return (data || []).map((r) => r.blocked_id as string);
+  const [rows] = await sequelize.query(
+    `SELECT blocked_id FROM user_blocks WHERE blocker_id = :userId`,
+    { replacements: { userId } }
+  );
+  return (rows as any[]).map((r) => r.blocked_id);
 }
 
 /** IDs of users blocked in either direction (I blocked them OR they blocked me). */
 export async function getBidirectionalBlockedIds(userId: string): Promise<string[]> {
-  const { data, error } = await supabase
-    .from('user_blocks')
-    .select('blocker_id, blocked_id')
-    .or(`blocker_id.eq.${userId},blocked_id.eq.${userId}`);
-
-  if (error) {
-    if (error.code !== '42P01' && error.code !== '42703') {
-      console.warn('getBidirectionalBlockedIds:', error.message);
-    }
-    return [];
-  }
-
+  const [rows] = await sequelize.query(
+    `SELECT blocker_id, blocked_id FROM user_blocks
+     WHERE blocker_id = :userId OR blocked_id = :userId`,
+    { replacements: { userId } }
+  );
   const ids = new Set<string>();
-  for (const row of data || []) {
+  for (const row of rows as any[]) {
     const other = row.blocker_id === userId ? row.blocked_id : row.blocker_id;
     if (other && other !== userId) ids.add(other);
   }
   return Array.from(ids);
 }
 
+/** IDs of users I have muted. */
 export async function getMutedIds(userId: string): Promise<string[]> {
-  const { data, error } = await supabase
-    .from('user_mutes')
-    .select('muted_id')
-    .eq('muter_id', userId);
-
-  if (error) {
-    if (error.code !== '42P01' && error.code !== '42703') {
-      console.warn('getMutedIds:', error.message);
-    }
-    return [];
-  }
-  return (data || []).map((r) => r.muted_id as string);
+  const [rows] = await sequelize.query(
+    `SELECT muted_id FROM user_mutes WHERE muter_id = :userId`,
+    { replacements: { userId } }
+  );
+  return (rows as any[]).map((r) => r.muted_id);
 }
 
-/** Remove friendship rows between two users (best-effort across schemas). */
+/** Remove friendship rows between two users. */
 export async function removeFriendship(a: string, b: string): Promise<void> {
-  await supabase.from('friends').delete().or(
-    `and(user_id_1.eq.${a},user_id_2.eq.${b}),and(user_id_1.eq.${b},user_id_2.eq.${a})`
-  );
-  await supabase.from('friends').delete().or(
-    `and(user_id.eq.${a},friend_id.eq.${b}),and(user_id.eq.${b},friend_id.eq.${a})`
-  );
-  await supabase.from('friendships').delete().or(
-    `and(user_id.eq.${a},friend_id.eq.${b}),and(user_id.eq.${b},friend_id.eq.${a})`
-  );
-  await supabase
-    .from('friend_requests')
-    .delete()
-    .or(
-      `and(sender_id.eq.${a},receiver_id.eq.${b}),and(sender_id.eq.${b},receiver_id.eq.${a})`
-    );
+  await Friendship.destroy({
+    where: {
+      [Op.or]: [
+        { user_id: a, friend_id: b },
+        { user_id: b, friend_id: a },
+      ],
+    },
+  });
+  await FriendRequest.destroy({
+    where: {
+      [Op.or]: [
+        { sender_id: a, receiver_id: b },
+        { sender_id: b, receiver_id: a },
+      ],
+    },
+  });
   await removeMutualFollows(a, b);
 }
 
 /** When A and B become friends, both follow each other. */
 export async function syncMutualFollows(a: string, b: string): Promise<void> {
-  const now = new Date().toISOString();
-  const rows = [
-    { follower_id: a, following_id: b, created_at: now },
-    { follower_id: b, following_id: a, created_at: now },
-  ];
-  const { error } = await supabase.from('followers').upsert(rows, {
-    onConflict: 'follower_id,following_id',
-    ignoreDuplicates: true,
-  });
-  if (error && error.code !== '42P01' && error.code !== '42703') {
-    console.warn('syncMutualFollows:', error.message);
+  const [existingA] = await sequelize.query(
+    `SELECT id FROM followers WHERE follower_id = :a AND following_id = :b`,
+    { replacements: { a, b } }
+  );
+  if (existingA.length === 0) {
+    await Follower.create({ follower_id: a, following_id: b } as any);
+  }
+  const [existingB] = await sequelize.query(
+    `SELECT id FROM followers WHERE follower_id = :b AND following_id = :a`,
+    { replacements: { a: b, b: a } }
+  );
+  if (existingB.length === 0) {
+    await Follower.create({ follower_id: b, following_id: a } as any);
   }
 }
 
 /** Remove follow edges both ways. */
 export async function removeMutualFollows(a: string, b: string): Promise<void> {
-  const { error } = await supabase
-    .from('followers')
-    .delete()
-    .or(
-      `and(follower_id.eq.${a},following_id.eq.${b}),and(follower_id.eq.${b},following_id.eq.${a})`
-    );
-  if (error && error.code !== '42P01' && error.code !== '42703') {
-    console.warn('removeMutualFollows:', error.message);
-  }
+  await Follower.destroy({
+    where: {
+      [Op.or]: [
+        { follower_id: a, following_id: b },
+        { follower_id: b, following_id: a },
+      ],
+    },
+  });
 }

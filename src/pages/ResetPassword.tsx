@@ -5,7 +5,6 @@ import { toast } from 'react-hot-toast';
 import { motion } from 'framer-motion';
 import { z } from 'zod';
 import PuurgaLogo from '../components/Icons/PuurgaLogo';
-import { supabase } from '../lib/supabaseClient';
 
 const passwordSchema = z.object({
   password: z.string()
@@ -29,86 +28,47 @@ const ResetPassword: React.FC = () => {
 
   const navigate = useNavigate();
 
-  // Check if there's a valid session (user came from email link)
   useEffect(() => {
     let mounted = true;
 
-    const checkSession = async () => {
+    const checkToken = async () => {
       try {
         setCheckingToken(true);
 
-        // 1. First check existing session
-        const { data: { session } } = await supabase.auth.getSession();
+        const searchParams = new URLSearchParams(window.location.search);
+        const token = searchParams.get('token');
 
-        if (session) {
-          if (mounted) {
+        if (token) {
+          const res = await fetch('/api/auth/verify-reset-token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token }),
+          });
+
+          if (res.ok && mounted) {
             setIsValidToken(true);
             setCheckingToken(false);
+            return;
           }
-          return;
         }
 
-        // 2. If no session, but we have hash params, wait for Supabase to process them
-        // The RootRedirect might have forwarded us here with the hash
-        const hash = window.location.hash;
-        if (hash && (hash.includes('access_token') || hash.includes('type=recovery'))) {
-          console.log('ResetPassword: Hash found, waiting for session processing...');
-          // We will rely on the onAuthStateChange listener below to catch the session
-          return;
-        }
-
-        // 3. If no session and no hash, truly invalid
         if (mounted) {
           setIsValidToken(false);
           setCheckingToken(false);
           toast.error('Invalid or expired reset link. Please request a new one.');
         }
-
       } catch (err) {
         if (mounted) {
           setIsValidToken(false);
-          setCheckingToken(false); // Make sure we stop loading
+          setCheckingToken(false);
           toast.error('Error validating reset link.');
         }
       }
     };
 
-    // Set up auth state listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('ResetPassword: Auth event:', event);
-      if (mounted) {
-        if (event === 'PASSWORD_RECOVERY' || (event === 'SIGNED_IN' && session)) {
-          setIsValidToken(true);
-          setCheckingToken(false);
-        } else if (event === 'SIGNED_OUT') {
-          // Only mark invalid if we aren't already valid/checking? 
-          // be careful not to override valid state if we just haven't got the SW session yet
-        }
-      }
-    });
+    checkToken();
 
-    checkSession();
-
-    // Fallback timeout in case auth listener never fires despite hash
-    const timeoutId = setTimeout(() => {
-      if (mounted && checkingToken) { // Only force fail if we are still checking
-        console.log('ResetPassword: Verification timed out');
-        // One last check
-        supabase.auth.getSession().then(({ data: { session } }) => {
-          if (!session && mounted) {
-            setIsValidToken(false);
-            setCheckingToken(false);
-            toast.error('Verification timed out. Link may be invalid.');
-          }
-        });
-      }
-    }, 5000);
-
-    return () => {
-      mounted = false;
-      subscription.unsubscribe();
-      clearTimeout(timeoutId);
-    };
+    return () => { mounted = false; };
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -127,14 +87,20 @@ const ResetPassword: React.FC = () => {
 
       setLoading(true);
 
-      // Update password using Supabase
-      const { error: updateError } = await supabase.auth.updateUser({
-        password: password,
+      const searchParams = new URLSearchParams(window.location.search);
+      const token = searchParams.get('token');
+
+      const res = await fetch('/api/auth/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password, token }),
       });
 
-      if (updateError) {
-        setError(updateError.message);
-        toast.error(updateError.message);
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        const message = data?.error || 'Failed to reset password. Please try again.';
+        setError(message);
+        toast.error(message);
         return;
       }
 

@@ -1,4 +1,4 @@
-import { supabase } from '../../config/supabase';
+﻿import { requireSupabase } from '../../config/supabase';
 import { wsManager } from '../../websocketManager';
 import { SurvivalEngine } from '../survival/survival-engine';
 import { ReputationEngine } from '../survival/reputation-engine';
@@ -27,6 +27,7 @@ interface AllianceResult {
 
 export class AllianceEngine {
   static async requestAlliance(requesterId: string, targetId: string): Promise<AllianceResult> {
+    const supabaseClient = requireSupabase();
     if (requesterId === targetId) {
       return { success: false, error: 'Cannot form alliance with yourself' };
     }
@@ -76,7 +77,7 @@ export class AllianceEngine {
       return { success: false, error: 'Target user has reached their maximum alliances' };
     }
 
-    const { data: alliance, error } = await supabase
+    const { data: alliance, error } = await supabaseClient
       .from('user_alliances')
       .insert({
         requester_id: requesterId,
@@ -99,7 +100,7 @@ export class AllianceEngine {
       allianceId: alliance.id,
     });
 
-    const { data: requesterProfile } = await supabase
+    const { data: requesterProfile } = await supabaseClient
       .from('profiles')
       .select('full_name, username, avatar_url')
       .eq('id', requesterId)
@@ -126,7 +127,8 @@ export class AllianceEngine {
   }
 
   static async acceptAlliance(allianceId: string, userId: string): Promise<AllianceResult> {
-    const { data: alliance } = await supabase
+    const supabaseClient = requireSupabase();
+    const { data: alliance } = await supabaseClient
       .from('user_alliances')
       .select('*')
       .eq('id', allianceId)
@@ -143,7 +145,7 @@ export class AllianceEngine {
 
     const now = new Date().toISOString();
 
-    await supabase
+    await supabaseClient
       .from('user_alliances')
       .update({
         alliance_status: 'ACTIVE',
@@ -168,7 +170,7 @@ export class AllianceEngine {
       partnerId: alliance.requester_id,
     });
 
-    const { data: targetProfile } = await supabase
+    const { data: targetProfile } = await supabaseClient
       .from('profiles')
       .select('full_name, username, avatar_url')
       .eq('id', userId)
@@ -207,7 +209,8 @@ export class AllianceEngine {
   }
 
   static async breakAlliance(allianceId: string, userId: string): Promise<AllianceResult> {
-    const { data: alliance } = await supabase
+    const supabaseClient = requireSupabase();
+    const { data: alliance } = await supabaseClient
       .from('user_alliances')
       .select('*')
       .eq('id', allianceId)
@@ -231,7 +234,7 @@ export class AllianceEngine {
     const partnerId = alliance.requester_id === userId ? alliance.target_id : alliance.requester_id;
     const now = new Date().toISOString();
 
-    await supabase
+    await supabaseClient
       .from('user_alliances')
       .update({
         alliance_status: 'BROKEN',
@@ -258,7 +261,7 @@ export class AllianceEngine {
       brokenBy: userId,
     });
 
-    const { data: breakerProfile } = await supabase
+    const { data: breakerProfile } = await supabaseClient
       .from('profiles')
       .select('full_name, username, avatar_url')
       .eq('id', userId)
@@ -285,7 +288,8 @@ export class AllianceEngine {
   }
 
   static async rejectAlliance(allianceId: string, userId: string): Promise<AllianceResult> {
-    const { data: alliance } = await supabase
+    const supabaseClient = requireSupabase();
+    const { data: alliance } = await supabaseClient
       .from('user_alliances')
       .select('*')
       .eq('id', allianceId)
@@ -302,7 +306,7 @@ export class AllianceEngine {
 
     const now = new Date().toISOString();
 
-    await supabase
+    await supabaseClient
       .from('user_alliances')
       .update({
         alliance_status: 'BROKEN',
@@ -316,7 +320,7 @@ export class AllianceEngine {
       rejectedBy: userId,
     });
 
-    const { data: rejecterProfile } = await supabase
+    const { data: rejecterProfile } = await supabaseClient
       .from('profiles')
       .select('full_name, username, avatar_url')
       .eq('id', userId)
@@ -343,7 +347,8 @@ export class AllianceEngine {
   }
 
   static async getAlliances(userId: string): Promise<any[]> {
-    const { data: alliances } = await supabase
+    const supabaseClient = requireSupabase();
+    const { data: alliances } = await supabaseClient
       .from('user_alliances')
       .select('*')
       .or(`requester_id.eq.${userId},target_id.eq.${userId}`)
@@ -355,14 +360,14 @@ export class AllianceEngine {
       a.requester_id === userId ? a.target_id : a.requester_id
     );
 
-    const { data: profiles } = await supabase
+    const { data: profiles } = await supabaseClient
       .from('profiles')
       .select('id, full_name, username, avatar_url')
       .in('id', partnerIds);
 
     const profileMap = new Map((profiles || []).map(p => [p.id, p]));
 
-    const { data: survivalStates } = await supabase
+    const { data: survivalStates } = await supabaseClient
       .from('user_survival_state')
       .select('user_id, current_survival_state, purgatory_status, ghost_status')
       .in('user_id', partnerIds);
@@ -391,7 +396,8 @@ export class AllianceEngine {
   }
 
   static async getPendingRequests(userId: string): Promise<any[]> {
-    const { data: requests } = await supabase
+    const supabaseClient = requireSupabase();
+    const { data: requests } = await supabaseClient
       .from('user_alliances')
       .select('*')
       .eq('target_id', userId)
@@ -401,7 +407,7 @@ export class AllianceEngine {
     if (!requests) return [];
 
     const requesterIds = requests.map(r => r.requester_id);
-    const { data: profiles } = await supabase
+    const { data: profiles } = await supabaseClient
       .from('profiles')
       .select('id, full_name, username, avatar_url')
       .in('id', requesterIds);
@@ -426,7 +432,8 @@ export class AllianceEngine {
     supporterId: string,
     supportType: 'ENDORSEMENT' | 'REPUTATION_SACRIFICE' | 'VISIBILITY_SACRIFICE'
   ): Promise<AllianceResult> {
-    const { data: alliance } = await supabase
+    const supabaseClient = requireSupabase();
+    const { data: alliance } = await supabaseClient
       .from('user_alliances')
       .select('*')
       .eq('id', allianceId)
@@ -451,7 +458,7 @@ export class AllianceEngine {
       return { success: false, error: `Must wait ${hoursLeft}h before providing support again` };
     }
 
-    const { data: ghostState } = await supabase
+    const { data: ghostState } = await supabaseClient
       .from('user_survival_state')
       .select('purgatory_status, ghost_status')
       .eq('user_id', ghostedUserId)
@@ -474,7 +481,7 @@ export class AllianceEngine {
         supportValue = 10;
         break;
       case 'REPUTATION_SACRIFICE': {
-        const { data: supporterState } = await supabase
+        const { data: supporterState } = await supabaseClient
           .from('user_survival_state')
           .select('reputation_score')
           .eq('user_id', supporterId)
@@ -489,7 +496,7 @@ export class AllianceEngine {
         break;
       }
       case 'VISIBILITY_SACRIFICE': {
-        const { data: supporterState } = await supabase
+        const { data: supporterState } = await supabaseClient
           .from('user_survival_state')
           .select('visibility_score')
           .eq('user_id', supporterId)
@@ -497,7 +504,7 @@ export class AllianceEngine {
         const visScore = supporterState?.visibility_score || 100;
         supporterPenalty = Math.min(10, Math.floor(visScore * 0.15));
         supportValue = 3;
-        await supabase
+        await supabaseClient
           .from('user_survival_state')
           .update({ visibility_score: Math.max(0, visScore - supporterPenalty) })
           .eq('user_id', supporterId);
@@ -507,7 +514,7 @@ export class AllianceEngine {
 
     const now = new Date().toISOString();
 
-    await supabase.from('alliance_support_actions').insert({
+    await supabaseClient.from('alliance_support_actions').insert({
       alliance_id: allianceId,
       supporter_id: supporterId,
       support_type: supportType,
@@ -522,7 +529,7 @@ export class AllianceEngine {
     const redemptionResult = await PurgatoryEngine.calculateRedemptionProgress(ghostedUserId);
     const newProgress = Math.min(100, (redemptionResult.total || 0) + supportValue);
 
-    await supabase
+    await supabaseClient
       .from('user_survival_state')
       .update({ redemption_progress: newProgress })
       .eq('user_id', ghostedUserId);
@@ -544,7 +551,7 @@ export class AllianceEngine {
       penalty: supporterPenalty,
     });
 
-    const { data: supporterProfile } = await supabase
+    const { data: supporterProfile } = await supabaseClient
       .from('profiles')
       .select('full_name, username')
       .eq('id', supporterId)
@@ -584,7 +591,8 @@ export class AllianceEngine {
   }
 
   static async getSupportHistory(allianceId: string): Promise<any[]> {
-    const { data: actions } = await supabase
+    const supabaseClient = requireSupabase();
+    const { data: actions } = await supabaseClient
       .from('alliance_support_actions')
       .select('*')
       .eq('alliance_id', allianceId)
@@ -594,7 +602,7 @@ export class AllianceEngine {
     if (!actions) return [];
 
     const supporterIds = Array.from(new Set(actions.map(a => a.supporter_id)));
-    const { data: profiles } = await supabase
+    const { data: profiles } = await supabaseClient
       .from('profiles')
       .select('id, full_name, username')
       .in('id', supporterIds);
@@ -618,7 +626,8 @@ export class AllianceEngine {
   }
 
   static async processDailyLoyaltyDecay(): Promise<void> {
-    const { data: alliances } = await supabase
+    const supabaseClient = requireSupabase();
+    const { data: alliances } = await supabaseClient
       .from('user_alliances')
       .select('*')
       .eq('alliance_status', 'ACTIVE');
@@ -632,7 +641,7 @@ export class AllianceEngine {
       const lastInteraction = alliance.last_interaction_at ? new Date(alliance.last_interaction_at) : null;
 
       if (!lastInteraction || lastInteraction < sevenDaysAgo) {
-        await supabase
+        await supabaseClient
           .from('user_alliances')
           .update({
             loyalty_score: Math.max(0, alliance.loyalty_score + ABANDON_LOYALTY_PENALTY),
@@ -659,7 +668,7 @@ export class AllianceEngine {
         }
       } else {
         const newLoyalty = Math.max(0, alliance.loyalty_score + DAILY_LOYALTY_DECAY);
-        await supabase
+        await supabaseClient
           .from('user_alliances')
           .update({
             loyalty_score: newLoyalty,
@@ -691,7 +700,8 @@ export class AllianceEngine {
   }
 
   static async getAllianceCount(userId: string): Promise<number> {
-    const { count } = await supabase
+    const supabaseClient = requireSupabase();
+    const { count } = await supabaseClient
       .from('user_alliances')
       .select('*', { count: 'exact', head: true })
       .eq('alliance_status', 'ACTIVE')
@@ -722,7 +732,8 @@ export class AllianceEngine {
   }
 
   private static async getAlliancesWithHighLoyalty(userId: string): Promise<number> {
-    const { data: alliances } = await supabase
+    const supabaseClient = requireSupabase();
+    const { data: alliances } = await supabaseClient
       .from('user_alliances')
       .select('loyalty_score')
       .eq('alliance_status', 'ACTIVE')
@@ -733,7 +744,8 @@ export class AllianceEngine {
   }
 
   private static async getSurvivalEligibility(userId: string): Promise<{ eligible: boolean; error?: string }> {
-    const { data: state } = await supabase
+    const supabaseClient = requireSupabase();
+    const { data: state } = await supabaseClient
       .from('user_survival_state')
       .select('reputation_score, ghost_status, purgatory_status')
       .eq('user_id', userId)
@@ -751,7 +763,8 @@ export class AllianceEngine {
   }
 
   private static async getExistingAlliance(userId1: string, userId2: string): Promise<any> {
-    const { data: alliance } = await supabase
+    const supabaseClient = requireSupabase();
+    const { data: alliance } = await supabaseClient
       .from('user_alliances')
       .select('*')
       .or(`and(requester_id.eq.${userId1},target_id.eq.${userId2}),and(requester_id.eq.${userId2},target_id.eq.${userId1})`)
@@ -761,7 +774,8 @@ export class AllianceEngine {
   }
 
   private static async getActiveAlliance(userId: string, partnerId: string): Promise<any> {
-    const { data: alliance } = await supabase
+    const supabaseClient = requireSupabase();
+    const { data: alliance } = await supabaseClient
       .from('user_alliances')
       .select('*')
       .eq('alliance_status', 'ACTIVE')
@@ -772,7 +786,8 @@ export class AllianceEngine {
   }
 
   private static async getActiveAllianceCount(userId: string): Promise<number> {
-    const { count } = await supabase
+    const supabaseClient = requireSupabase();
+    const { count } = await supabaseClient
       .from('user_alliances')
       .select('*', { count: 'exact', head: true })
       .eq('alliance_status', 'ACTIVE')
@@ -782,7 +797,8 @@ export class AllianceEngine {
   }
 
   private static async getCooldown(userId: string, type: string): Promise<any> {
-    const { data: cooldown } = await supabase
+    const supabaseClient = requireSupabase();
+    const { data: cooldown } = await supabaseClient
       .from('alliance_cooldowns')
       .select('*')
       .eq('user_id', userId)
@@ -794,6 +810,7 @@ export class AllianceEngine {
   }
 
   private static async setCooldown(userId: string, type: string, now: string): Promise<void> {
+    const supabaseClient = requireSupabase();
     const durationMs = type === 'BREAK'
       ? ALLIANCE_BREAK_COOLDOWN_DAYS * 24 * 60 * 60 * 1000
       : type === 'SUPPORT'
@@ -802,7 +819,7 @@ export class AllianceEngine {
 
     const expiresAt = new Date(Date.now() + durationMs).toISOString();
 
-    await supabase.from('alliance_cooldowns').insert({
+    await supabaseClient.from('alliance_cooldowns').insert({
       user_id: userId,
       cooldown_type: type,
       expires_at: expiresAt,
@@ -811,7 +828,8 @@ export class AllianceEngine {
   }
 
   private static async updateLoyalty(allianceId: string, change: number): Promise<void> {
-    const { data: alliance } = await supabase
+    const supabaseClient = requireSupabase();
+    const { data: alliance } = await supabaseClient
       .from('user_alliances')
       .select('loyalty_score')
       .eq('id', allianceId)
@@ -822,7 +840,7 @@ export class AllianceEngine {
     const newScore = Math.max(0, Math.min(100, alliance.loyalty_score + change));
     const now = new Date().toISOString();
 
-    await supabase
+    await supabaseClient
       .from('user_alliances')
       .update({
         loyalty_score: newScore,
@@ -841,35 +859,38 @@ export class AllianceEngine {
   }
 
   private static async incrementAllianceCount(userId: string): Promise<void> {
-    const { data: state } = await supabase
+    const supabaseClient = requireSupabase();
+    const { data: state } = await supabaseClient
       .from('user_survival_state')
       .select('alliance_count')
       .eq('user_id', userId)
       .single();
 
     const current = state?.alliance_count || 0;
-    await supabase
+    await supabaseClient
       .from('user_survival_state')
       .update({ alliance_count: current + 1 })
       .eq('user_id', userId);
   }
 
   private static async decrementAllianceCount(userId: string): Promise<void> {
-    const { data: state } = await supabase
+    const supabaseClient = requireSupabase();
+    const { data: state } = await supabaseClient
       .from('user_survival_state')
       .select('alliance_count')
       .eq('user_id', userId)
       .single();
 
     const current = state?.alliance_count || 0;
-    await supabase
+    await supabaseClient
       .from('user_survival_state')
       .update({ alliance_count: Math.max(0, current - 1) })
       .eq('user_id', userId);
   }
 
   private static async getRecentSupportCount(userId: string): Promise<number> {
-    const { data: alliances } = await supabase
+    const supabaseClient = requireSupabase();
+    const { data: alliances } = await supabaseClient
       .from('user_alliances')
       .select('id')
       .eq('alliance_status', 'ACTIVE')
@@ -880,7 +901,7 @@ export class AllianceEngine {
     const allianceIds = alliances.map(a => a.id);
     const twentyFourHoursAgo = new Date(Date.now() - SUPPORT_COOLDOWN_HOURS * 60 * 60 * 1000).toISOString();
 
-    const { data: recentActions } = await supabase
+    const { data: recentActions } = await supabaseClient
       .from('alliance_support_actions')
       .select('supporter_id', { count: 'exact', head: true })
       .in('alliance_id', allianceIds)
@@ -891,7 +912,8 @@ export class AllianceEngine {
   }
 
   private static async autoBreakAlliance(allianceId: string, userId1: string, userId2: string): Promise<void> {
-    await supabase
+    const supabaseClient = requireSupabase();
+    await supabaseClient
       .from('user_alliances')
       .update({
         alliance_status: 'BROKEN',

@@ -1,5 +1,5 @@
-import express from 'express';
-import { supabase } from '../config/supabase';
+﻿import express from 'express';
+import { requireSupabase, requireSupabaseAdmin } from '../config/supabase';
 import { supabaseAuth as auth, AuthRequest } from '../middleware/supabaseAuth';
 import { normalizeImageUrl } from '../utils/url';
 
@@ -7,6 +7,8 @@ const router = express.Router();
 
 // GET /api/purging/activity - Get purging activity from post_purges table
 router.get('/activity', auth, async (req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     const userId = req.user.id;
     const limit = parseInt(req.query.limit as string) || 20;
@@ -14,7 +16,7 @@ router.get('/activity', auth, async (req: AuthRequest, res) => {
     // Get user's friends first (graceful failure)
     let friendIds: string[] = [];
     try {
-      const { data: friends } = await supabase
+      const { data: friends } = await supabaseClient
         .from('friends')
         .select('user_id_1, user_id_2')
         .or(`user_id_1.eq.${userId},user_id_2.eq.${userId}`);
@@ -27,14 +29,14 @@ router.get('/activity', auth, async (req: AuthRequest, res) => {
     }
 
     // Fetch from post_purges
-    const { data: purgeRows, error: purgeError } = await supabase
+    const { data: purgeRows, error: purgeError } = await supabaseClient
       .from('post_purges')
       .select('id, post_id, user_id, created_at')
       .order('created_at', { ascending: false })
       .limit(limit);
 
     // Fetch from redemptions
-    const { data: redemptionRows } = await supabase
+    const { data: redemptionRows } = await supabaseClient
       .from('redemptions')
       .select('id, redeemer_id, redeemed_user_id, created_at')
       .order('created_at', { ascending: false })
@@ -59,7 +61,7 @@ router.get('/activity', auth, async (req: AuthRequest, res) => {
     const postIds = Array.from(new Set(safePurgeRows.map((p: any) => p.post_id).filter(Boolean)));
     const postMap = new Map<string, any>();
     if (postIds.length > 0) {
-      const { data: posts } = await supabase
+      const { data: posts } = await supabaseClient
         .from('posts')
         .select('id, user_id, content')
         .in('id', postIds);
@@ -72,7 +74,7 @@ router.get('/activity', auth, async (req: AuthRequest, res) => {
     const userIdArray = Array.from(allUserIds);
     const profileMap = new Map<string, any>();
     if (userIdArray.length > 0) {
-      const { data: profiles } = await supabase
+      const { data: profiles } = await supabaseClient
         .from('profiles')
         .select('id, username, full_name, avatar_url, credits, purga_points')
         .in('id', userIdArray);
@@ -144,11 +146,13 @@ router.get('/activity', auth, async (req: AuthRequest, res) => {
 
 // GET /api/purging/status - Get current user's purging status
 router.get('/status', auth, async (req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     const userId = req.user.id;
 
     // Get user's profile to check ghost status and purge count
-    const { data: profile, error: profileError } = await supabase
+    const { data: profile, error: profileError } = await supabaseClient
       .from('profiles')
       .select('is_ghost, purge_count, ghosted_at, purga_points, credits')
       .eq('id', userId)
@@ -196,16 +200,18 @@ router.get('/status', auth, async (req: AuthRequest, res) => {
 
 // GET /api/purging/redemption-needed - Get friends who need redemption
 router.get('/redemption-needed', auth, async (req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     const userId = req.user.id;
 
     // Get user's friends from both friends table and accepted friend requests
     const [friendsRes, requestsRes] = await Promise.all([
-      supabase
+      supabaseClient
         .from('friends')
         .select('user_id_1, user_id_2')
         .or(`user_id_1.eq.${userId},user_id_2.eq.${userId}`),
-      supabase
+      supabaseClient
         .from('friend_requests')
         .select('sender_id, receiver_id')
         .eq('status', 'accepted')
@@ -224,7 +230,7 @@ router.get('/redemption-needed', auth, async (req: AuthRequest, res) => {
     if (friendIds.length === 0) return res.json([]);
 
     // Get profiles of friends who are in ghost mode
-    const { data: ghostedFriends, error: profilesError } = await supabase
+    const { data: ghostedFriends, error: profilesError } = await supabaseClient
       .from('profiles')
       .select('id, full_name, username, avatar_url, is_ghost, purge_count, ghosted_at')
       .in('id', friendIds)

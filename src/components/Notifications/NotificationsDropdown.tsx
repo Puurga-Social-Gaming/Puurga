@@ -222,7 +222,7 @@ const NotificationsDropdown: React.FC = () => {
                                   </span>
                                 </p>
                                 <p className="text-[10px] text-muted-light mt-0.5">
-                                  {formatDistanceToNow(new Date(notification.createdAt), {
+                                  {formatDistanceToNow(new Date((notification as any).createdAt || (notification as any).created_at || Date.now()), {
                                     addSuffix: true
                                   })}
                                 </p>

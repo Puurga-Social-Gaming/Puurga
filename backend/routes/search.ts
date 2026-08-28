@@ -1,5 +1,5 @@
-import express from 'express';
-import { supabase } from '../config/supabase';
+﻿import express from 'express';
+import { requireSupabase, requireSupabaseAdmin } from '../config/supabase';
 import { supabaseAuth as auth, AuthRequest } from '../middleware/supabaseAuth';
 import { normalizeImageUrl } from '../utils/url';
 import { getBidirectionalBlockedIds, getMutedIds } from '../utils/friendRelations';
@@ -33,6 +33,8 @@ function snippet(text: string, max = 120): string {
  * Authenticated global search: people (profiles) + visible posts.
  */
 router.get('/', auth, async (req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     const currentUserId = req.user?.id;
     if (!currentUserId) {
@@ -47,7 +49,7 @@ router.get('/', auth, async (req: AuthRequest, res) => {
     const pattern = `%${q}%`;
 
     // Friend IDs for ranking
-    const { data: friendships } = await supabase
+    const { data: friendships } = await supabaseClient
       .from('friends')
       .select('user_id_1, user_id_2')
       .or(`user_id_1.eq.${currentUserId},user_id_2.eq.${currentUserId}`);
@@ -59,19 +61,19 @@ router.get('/', auth, async (req: AuthRequest, res) => {
     );
 
     const [byUsername, byName, postsRes] = await Promise.all([
-      supabase
+      supabaseClient
         .from('profiles')
         .select('id, full_name, username, avatar_url, bio')
         .ilike('username', pattern)
         .neq('id', currentUserId)
         .limit(PEOPLE_LIMIT),
-      supabase
+      supabaseClient
         .from('profiles')
         .select('id, full_name, username, avatar_url, bio')
         .ilike('full_name', pattern)
         .neq('id', currentUserId)
         .limit(PEOPLE_LIMIT),
-      supabase
+      supabaseClient
         .from('posts')
         .select('id, content, created_at, user_id, media_url')
         .ilike('content', pattern)
@@ -155,7 +157,7 @@ router.get('/', auth, async (req: AuthRequest, res) => {
     const authorIds = Array.from(new Set(visiblePosts.map((p) => p.user_id).filter(Boolean)));
     let authorMap = new Map<string, ProfileRow>();
     if (authorIds.length > 0) {
-      const { data: authors } = await supabase
+      const { data: authors } = await supabaseClient
         .from('profiles')
         .select('id, full_name, username, avatar_url')
         .in('id', authorIds);

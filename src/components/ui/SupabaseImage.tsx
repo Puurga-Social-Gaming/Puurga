@@ -40,6 +40,7 @@ const SupabaseImage: React.FC<SupabaseImageProps> = ({
 
         if (bucket === 'Media') return;
 
+        if (!supabase) return;
         const { data, error } = await supabase.storage
           .from(bucket)
           .createSignedUrl(filePath, 3600);

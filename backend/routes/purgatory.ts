@@ -1,5 +1,5 @@
-import express from 'express';
-import { supabase } from '../config/supabase';
+﻿import express from 'express';
+import { requireSupabase, requireSupabaseAdmin } from '../config/supabase';
 import { supabaseAuth as auth, AuthRequest } from '../middleware/supabaseAuth';
 import { PurgatoryEngine } from '../services/survival/purgatory-engine';
 import { CreditService } from '../services/creditService';
@@ -7,6 +7,8 @@ import { CreditService } from '../services/creditService';
 const router = express.Router();
 
 router.get('/status', auth, async (req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     const userId = req.user.id;
     const status = await PurgatoryEngine.getStatus(userId);
@@ -25,6 +27,8 @@ router.get('/status', auth, async (req: AuthRequest, res) => {
 });
 
 router.post('/request-redemption', auth, async (req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     const userId = req.user.id;
     const result = await PurgatoryEngine.requestRedemption(userId);
@@ -41,10 +45,12 @@ router.post('/request-redemption', auth, async (req: AuthRequest, res) => {
 });
 
 router.get('/requests', auth, async (req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     const userId = req.user.id;
 
-    const { data: profile } = await supabase
+    const { data: profile } = await supabaseClient
       .from('profiles')
       .select('credits, purga_points')
       .eq('id', userId)
@@ -67,6 +73,8 @@ router.get('/requests', auth, async (req: AuthRequest, res) => {
 });
 
 router.post('/approve-request/:id', auth, async (req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     const requestId = req.params.id;
     const supporterId = req.user.id;
@@ -85,6 +93,8 @@ router.post('/approve-request/:id', auth, async (req: AuthRequest, res) => {
 });
 
 router.get('/history', auth, async (req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     const userId = req.user.id;
     const history = await PurgatoryEngine.getHistory(userId);

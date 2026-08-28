@@ -1,4 +1,4 @@
-import { supabaseAdmin } from '../config/supabase';
+﻿import { requireSupabase, requireSupabaseAdmin } from '../config/supabase';
 import { CreditService } from './creditService';
 import { wsManager } from '../websocketManager';
 import { NotificationService } from './notificationService';
@@ -30,7 +30,8 @@ export function resolveGameTitle(gameId: string, fallback?: string): string {
 }
 
 async function getBalance(userId: string): Promise<number> {
-  const { data } = await supabaseAdmin
+  const supabaseAdminClient = requireSupabaseAdmin();
+  const { data } = await supabaseAdminClient
     .from('profiles')
     .select('purga_points, credits')
     .eq('id', userId)
@@ -44,8 +45,9 @@ const PURGE_MESSAGE =
   'This account has been purged after losing all points through competitive games.';
 
 async function getActiveSeasonId(): Promise<string | null> {
+  const supabaseAdminClient = requireSupabaseAdmin();
   try {
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await supabaseAdminClient
       .from('game_seasons')
       .select('id')
       .eq('is_active', true)
@@ -82,7 +84,7 @@ function isFkViolation(error: any): boolean {
 function challengeDbError(error: any, fallback = 'Failed to create challenge') {
   if (isMissingRelation(error)) {
     return Object.assign(
-      new Error('Game challenges DB not ready — apply migration 20260716_game_challenges.sql in Supabase'),
+      new Error('Game challenges DB not ready — apply migration 20260716_game_challenges.sql in supabaseClient'),
       { status: 503, code: 'MIGRATION_REQUIRED', hint: error?.hint }
     );
   }
@@ -101,7 +103,9 @@ async function auditLog(params: {
   sessionId?: string | null;
   metadata?: Record<string, unknown>;
 }) {
-  const { error } = await supabaseAdmin.from('game_audit_logs').insert({
+  const supabaseClient = requireSupabase();
+  const supabaseAdminClient = requireSupabaseAdmin();
+  const { error } = await supabaseAdminClient.from('game_audit_logs').insert({
     actor_id: params.actorId || null,
     challenge_id: params.challengeId || null,
     session_id: params.sessionId || null,
@@ -119,7 +123,9 @@ async function gameNotify(params: {
   challengeId?: string;
   metadata?: Record<string, unknown>;
 }) {
-  const { error } = await supabaseAdmin.from('game_notifications').insert({
+  const supabaseClient = requireSupabase();
+  const supabaseAdminClient = requireSupabaseAdmin();
+  const { error } = await supabaseAdminClient.from('game_notifications').insert({
     user_id: params.userId,
     type: params.type,
     title: params.title,
@@ -138,7 +144,8 @@ async function handleBankruptcy(
 ): Promise<void> {
   if (balance > 0) return;
   try {
-    await supabaseAdmin.from('game_purge_events').insert({
+    const supabaseAdminClient = requireSupabaseAdmin();
+    await supabaseAdminClient.from('game_purge_events').insert({
       user_id: userId,
       challenge_id: challengeId || null,
       reason: PURGE_REASON,
@@ -216,7 +223,8 @@ async function upsertRanking(
   userId: string,
   opts: { won: boolean; stake: number; seasonId: string; eloDelta?: number; newElo?: number }
 ): Promise<{ eloBefore: number; eloAfter: number }> {
-  const { data: existing } = await supabaseAdmin
+  const supabaseAdminClient = requireSupabaseAdmin();
+  const { data: existing } = await supabaseAdminClient
     .from('game_rankings')
     .select('*')
     .eq('user_id', userId)
@@ -248,13 +256,13 @@ async function upsertRanking(
     updated_at: new Date().toISOString(),
   };
 
-  let { error } = await supabaseAdmin
+  let { error } = await supabaseAdminClient
     .from('game_rankings')
     .upsert(row, { onConflict: 'user_id,season_id' });
 
   // Fallback if season composite PK not migrated yet
   if (error && (error.code === '42P01' || error.message?.includes('season') || error.code === '42703')) {
-    const { error: e2 } = await supabaseAdmin
+    const { error: e2 } = await supabaseAdminClient
       .from('game_rankings')
       .upsert(
         {
@@ -284,9 +292,10 @@ function emitChallenge(userIds: string[], type: string, payload: Record<string, 
 
 export class ChallengeService {
   static async setPresence(userId: string, gameId: string, gameTitle?: string) {
+    const supabaseAdminClient = requireSupabaseAdmin();
     const title = resolveGameTitle(gameId, gameTitle);
     const now = new Date().toISOString();
-    const { error } = await supabaseAdmin.from('game_presence').upsert(
+    const { error } = await supabaseAdminClient.from('game_presence').upsert(
       {
         user_id: userId,
         game_id: gameId,
@@ -314,13 +323,14 @@ export class ChallengeService {
   }
 
   static async clearPresence(userId: string) {
-    const { data: prev } = await supabaseAdmin
+    const supabaseAdminClient = requireSupabaseAdmin();
+    const { data: prev } = await supabaseAdminClient
       .from('game_presence')
       .select('game_id, game_title')
       .eq('user_id', userId)
       .maybeSingle();
 
-    await supabaseAdmin.from('game_presence').delete().eq('user_id', userId);
+    await supabaseAdminClient.from('game_presence').delete().eq('user_id', userId);
 
     const friendIds = await getAcceptedFriendIds(userId);
     if (friendIds.length) {
@@ -333,18 +343,20 @@ export class ChallengeService {
   }
 
   static async heartbeat(userId: string) {
-    await supabaseAdmin
+    const supabaseAdminClient = requireSupabaseAdmin();
+    await supabaseAdminClient
       .from('game_presence')
       .update({ last_heartbeat: new Date().toISOString() })
       .eq('user_id', userId);
   }
 
   static async listPresence(viewerId: string, friendsOnly = true) {
+    const supabaseAdminClient = requireSupabaseAdmin();
     const cutoff = new Date(Date.now() - 2 * 60 * 1000).toISOString();
     // Expire stale
-    await supabaseAdmin.from('game_presence').delete().lt('last_heartbeat', cutoff);
+    await supabaseAdminClient.from('game_presence').delete().lt('last_heartbeat', cutoff);
 
-    let query = supabaseAdmin
+    let query = supabaseAdminClient
       .from('game_presence')
       .select('user_id, game_id, game_title, started_at, last_heartbeat')
       .gte('last_heartbeat', cutoff);
@@ -364,7 +376,7 @@ export class ChallengeService {
     const ids = (data || []).map((r) => r.user_id);
     if (!ids.length) return [];
 
-    const { data: profiles } = await supabaseAdmin
+    const { data: profiles } = await supabaseAdminClient
       .from('profiles')
       .select('id, full_name, username, avatar_url')
       .in('id', ids);
@@ -394,6 +406,7 @@ export class ChallengeService {
     matchType?: 'friendly' | 'ranked' | 'tournament';
     tournamentId?: string;
   }) {
+    const supabaseAdminClient = requireSupabaseAdmin();
     const { challengerId, opponentId, gameId, stake } = params;
     if (challengerId === opponentId) throw Object.assign(new Error('Cannot challenge yourself'), { status: 400 });
     if (!Number.isFinite(stake) || stake < 1) throw Object.assign(new Error('Invalid stake'), { status: 400 });
@@ -410,7 +423,7 @@ export class ChallengeService {
 
     // Expire stale pending invites between the same pair (ignore if table missing)
     {
-      const { error: expireErr } = await supabaseAdmin
+      const { error: expireErr } = await supabaseAdminClient
         .from('game_challenges')
         .update({ status: 'expired' })
         .eq('challenger_id', challengerId)
@@ -438,7 +451,7 @@ export class ChallengeService {
       ...(seasonId ? { season_id: seasonId } : {}),
     };
 
-    let { data, error } = await supabaseAdmin
+    let { data, error } = await supabaseAdminClient
       .from('game_challenges')
       .insert(richPayload)
       .select('*')
@@ -454,7 +467,7 @@ export class ChallengeService {
       if (isMissingColumn(error) && /expires_at/i.test(String(error.message || ''))) {
         delete retryPayload.expires_at;
       }
-      const retry = await supabaseAdmin.from('game_challenges').insert(retryPayload).select('*').single();
+      const retry = await supabaseAdminClient.from('game_challenges').insert(retryPayload).select('*').single();
       data = retry.data;
       error = retry.error;
     }
@@ -469,7 +482,7 @@ export class ChallengeService {
         stake,
         status: 'pending',
       };
-      const retry = await supabaseAdmin.from('game_challenges').insert(minimal).select('*').single();
+      const retry = await supabaseAdminClient.from('game_challenges').insert(minimal).select('*').single();
       data = retry.data;
       error = retry.error;
     }
@@ -513,11 +526,12 @@ export class ChallengeService {
   }
 
   static async decline(challengeId: string, userId: string) {
+    const supabaseAdminClient = requireSupabaseAdmin();
     const challenge = await this.getChallenge(challengeId);
     if (challenge.opponent_id !== userId) throw Object.assign(new Error('Only opponent can decline'), { status: 403 });
     if (challenge.status !== 'pending') throw Object.assign(new Error('Challenge is not pending'), { status: 400 });
 
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await supabaseAdminClient
       .from('game_challenges')
       .update({ status: 'declined' })
       .eq('id', challengeId)
@@ -546,11 +560,12 @@ export class ChallengeService {
   }
 
   static async cancel(challengeId: string, userId: string) {
+    const supabaseAdminClient = requireSupabaseAdmin();
     const challenge = await this.getChallenge(challengeId);
     if (challenge.challenger_id !== userId) throw Object.assign(new Error('Only challenger can cancel'), { status: 403 });
     if (challenge.status !== 'pending') throw Object.assign(new Error('Challenge is not pending'), { status: 400 });
 
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await supabaseAdminClient
       .from('game_challenges')
       .update({ status: 'cancelled' })
       .eq('id', challengeId)
@@ -569,11 +584,12 @@ export class ChallengeService {
   }
 
   static async accept(challengeId: string, userId: string) {
+    const supabaseAdminClient = requireSupabaseAdmin();
     const challenge = await this.getChallenge(challengeId);
     if (challenge.opponent_id !== userId) throw Object.assign(new Error('Only opponent can accept'), { status: 403 });
     if (challenge.status !== 'pending') throw Object.assign(new Error('Challenge is not pending'), { status: 400 });
     if (challenge.expires_at && new Date(challenge.expires_at) < new Date()) {
-      await supabaseAdmin.from('game_challenges').update({ status: 'expired' }).eq('id', challengeId);
+      await supabaseAdminClient.from('game_challenges').update({ status: 'expired' }).eq('id', challengeId);
       throw Object.assign(new Error('Challenge expired'), { status: 400 });
     }
 
@@ -615,7 +631,7 @@ export class ChallengeService {
     }
 
     const now = new Date().toISOString();
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await supabaseAdminClient
       .from('game_challenges')
       .update({
         status: 'playing',
@@ -630,7 +646,7 @@ export class ChallengeService {
 
     // Challenge ≠ Session — session starts when play actually begins
     const { randomBytes } = await import('crypto');
-    const { data: session } = await supabaseAdmin
+    const { data: session } = await supabaseAdminClient
       .from('game_sessions')
       .insert({
         game_id: challenge.game_id,
@@ -678,6 +694,7 @@ export class ChallengeService {
 
   /** Submit own score; auto-resolves when both scores present. */
   static async submitScore(challengeId: string, userId: string, score: number) {
+    const supabaseAdminClient = requireSupabaseAdmin();
     const challenge = await this.getChallenge(challengeId);
     if (![challenge.challenger_id, challenge.opponent_id].includes(userId)) {
       throw Object.assign(new Error('Not a participant'), { status: 403 });
@@ -694,7 +711,7 @@ export class ChallengeService {
       throw Object.assign(new Error('Score already submitted'), { status: 400 });
     }
 
-    const { data: updated, error } = await supabaseAdmin
+    const { data: updated, error } = await supabaseAdminClient
       .from('game_challenges')
       .update({ [field]: Math.floor(score), status: 'playing' })
       .eq('id', challengeId)
@@ -710,6 +727,7 @@ export class ChallengeService {
 
   /** Explicit finish by declaring winner (both must agree via same winnerId, or admin-style when both scores set). */
   static async finish(challengeId: string, userId: string, winnerId: string) {
+    const supabaseAdminClient = requireSupabaseAdmin();
     const challenge = await this.getChallenge(challengeId);
     if (![challenge.challenger_id, challenge.opponent_id].includes(userId)) {
       throw Object.assign(new Error('Not a participant'), { status: 403 });
@@ -728,6 +746,7 @@ export class ChallengeService {
   }
 
   private static async resolveChallenge(challenge: any) {
+    const supabaseAdminClient = requireSupabaseAdmin();
     if (challenge.reward_distributed) return challenge;
 
     let winnerId = challenge.winner_id as string | null;
@@ -746,7 +765,7 @@ export class ChallengeService {
     const pot = challenge.stake * 2;
 
     // Idempotency guard
-    const { data: locked, error: lockErr } = await supabaseAdmin
+    const { data: locked, error: lockErr } = await supabaseAdminClient
       .from('game_challenges')
       .update({
         status: 'finished',
@@ -782,7 +801,7 @@ export class ChallengeService {
     const seasonId = locked.season_id || (await getActiveSeasonId()) || DEFAULT_SEASON_ID;
 
     // Close session if any
-    const { data: session } = await supabaseAdmin
+    const { data: session } = await supabaseAdminClient
       .from('game_sessions')
       .update({
         status: 'finished',
@@ -796,7 +815,7 @@ export class ChallengeService {
       .select('id')
       .maybeSingle();
 
-    await supabaseAdmin.from('game_challenge_results').upsert(
+    await supabaseAdminClient.from('game_challenge_results').upsert(
       {
         challenge_id: challenge.id,
         session_id: session?.id || null,
@@ -816,13 +835,13 @@ export class ChallengeService {
 
     // Elo (ranked + friendly both update for now; tournaments can branch later)
     const [{ data: wr }, { data: lr }] = await Promise.all([
-      supabaseAdmin
+      supabaseAdminClient
         .from('game_rankings')
         .select('elo_rating')
         .eq('user_id', winnerId)
         .eq('season_id', seasonId)
         .maybeSingle(),
-      supabaseAdmin
+      supabaseAdminClient
         .from('game_rankings')
         .select('elo_rating')
         .eq('user_id', loserId)
@@ -833,7 +852,7 @@ export class ChallengeService {
     let eloL = lr?.elo_rating ?? 1000;
     // Fallback without season filter
     if (!wr) {
-      const { data: w2 } = await supabaseAdmin
+      const { data: w2 } = await supabaseAdminClient
         .from('game_rankings')
         .select('elo_rating')
         .eq('user_id', winnerId)
@@ -841,7 +860,7 @@ export class ChallengeService {
       eloW = w2?.elo_rating ?? 1000;
     }
     if (!lr) {
-      const { data: l2 } = await supabaseAdmin
+      const { data: l2 } = await supabaseAdminClient
         .from('game_rankings')
         .select('elo_rating')
         .eq('user_id', loserId)
@@ -854,7 +873,7 @@ export class ChallengeService {
     const newEloL = eloUpdate(eloL, expL, 0);
 
     const now = new Date().toISOString();
-    await supabaseAdmin.from('game_match_history').insert([
+    await supabaseAdminClient.from('game_match_history').insert([
       {
         challenge_id: challenge.id,
         session_id: session?.id || null,
@@ -948,7 +967,8 @@ export class ChallengeService {
   }
 
   private static async refundDraw(challenge: any) {
-    const { data: locked } = await supabaseAdmin
+    const supabaseAdminClient = requireSupabaseAdmin();
+    const { data: locked } = await supabaseAdminClient
       .from('game_challenges')
       .update({
         status: 'finished',
@@ -983,13 +1003,15 @@ export class ChallengeService {
   }
 
   static async getChallenge(id: string) {
-    const { data, error } = await supabaseAdmin.from('game_challenges').select('*').eq('id', id).single();
+    const supabaseAdminClient = requireSupabaseAdmin();
+    const { data, error } = await supabaseAdminClient.from('game_challenges').select('*').eq('id', id).single();
     if (error || !data) throw Object.assign(new Error('Challenge not found'), { status: 404 });
     return data;
   }
 
   static async listChallenges(userId: string, status?: string) {
-    let q = supabaseAdmin
+    const supabaseAdminClient = requireSupabaseAdmin();
+    let q = supabaseAdminClient
       .from('game_challenges')
       .select('*')
       .or(`challenger_id.eq.${userId},opponent_id.eq.${userId}`)
@@ -1005,6 +1027,7 @@ export class ChallengeService {
   }
 
   static async history(userId: string, range: 'today' | 'week' | 'month' | 'all' = 'all') {
+    const supabaseAdminClient = requireSupabaseAdmin();
     let since: string | null = null;
     const now = new Date();
     if (range === 'today') {
@@ -1015,7 +1038,7 @@ export class ChallengeService {
       since = new Date(Date.now() - 30 * 86400000).toISOString();
     }
 
-    let q = supabaseAdmin
+    let q = supabaseAdminClient
       .from('game_match_history')
       .select('*')
       .eq('user_id', userId)
@@ -1032,8 +1055,9 @@ export class ChallengeService {
   }
 
   static async leaderboard(limit = 20) {
+    const supabaseAdminClient = requireSupabaseAdmin();
     const seasonId = await getActiveSeasonId();
-    let { data, error } = await supabaseAdmin
+    let { data, error } = await supabaseAdminClient
       .from('game_rankings')
       .select('*, profiles:user_id(id, full_name, username, avatar_url)')
       .eq('season_id', seasonId)
@@ -1043,7 +1067,7 @@ export class ChallengeService {
 
     if (error) {
       // Fallback without season / elo columns
-      const fallback = await supabaseAdmin
+      const fallback = await supabaseAdminClient
         .from('game_rankings')
         .select('*, profiles:user_id(id, full_name, username, avatar_url)')
         .order('wins', { ascending: false })
@@ -1084,7 +1108,8 @@ export class ChallengeService {
   }
 
   static async liveFeed(limit = 20) {
-    const { data, error } = await supabaseAdmin
+    const supabaseAdminClient = requireSupabaseAdmin();
+    const { data, error } = await supabaseAdminClient
       .from('game_challenge_results')
       .select(
         '*, challenge:challenge_id(game_id, game_title, stake), winner:winner_id(full_name, username), loser:loser_id(full_name, username)'

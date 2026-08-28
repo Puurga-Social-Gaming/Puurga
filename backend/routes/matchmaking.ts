@@ -1,5 +1,5 @@
-import express from 'express';
-import { supabase } from '../config/supabase';
+﻿import express from 'express';
+import { requireSupabase, requireSupabaseAdmin } from '../config/supabase';
 import { supabaseAuth as auth, AuthRequest } from '../middleware/supabaseAuth';
 import { wsManager } from '../websocketManager';
 import { normalizeImageUrl } from '../utils/url';
@@ -7,7 +7,9 @@ import { normalizeImageUrl } from '../utils/url';
 const router = express.Router();
 
 async function tryMatch(gameId: string) {
-  const { data: queue } = await supabase
+  const supabaseClient = requireSupabase();
+  const supabaseAdminClient = requireSupabaseAdmin();
+  const { data: queue } = await supabaseClient
     .from('matchmaking_queue')
     .select('*')
     .eq('game_id', gameId)
@@ -17,7 +19,7 @@ async function tryMatch(gameId: string) {
   if (!queue || queue.length < 2) return null;
 
   const [a, b] = queue;
-  const { data: match, error } = await supabase
+  const { data: match, error } = await supabaseClient
     .from('matches')
     .insert({
       game_id: gameId,
@@ -30,11 +32,11 @@ async function tryMatch(gameId: string) {
 
   if (error || !match) return null;
 
-  await supabase.from('matchmaking_queue').delete().in('id', [a.id, b.id]);
+  await supabaseClient.from('matchmaking_queue').delete().in('id', [a.id, b.id]);
 
   const [{ data: p1 }, { data: p2 }] = await Promise.all([
-    supabase.from('profiles').select('id, username, full_name, avatar_url').eq('id', a.user_id).single(),
-    supabase.from('profiles').select('id, username, full_name, avatar_url').eq('id', b.user_id).single(),
+    supabaseClient.from('profiles').select('id, username, full_name, avatar_url').eq('id', a.user_id).single(),
+    supabaseClient.from('profiles').select('id, username, full_name, avatar_url').eq('id', b.user_id).single(),
   ]);
 
   const payloadFor = (selfId: string, opponent: any) => ({
@@ -60,11 +62,13 @@ async function tryMatch(gameId: string) {
 
 // POST /api/matchmaking/join
 router.post('/join', auth, async (req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     const userId = req.user.id;
     const gameId = (req.body?.gameId || 'judgment') as string;
 
-    await supabase.from('matchmaking_queue').upsert(
+    await supabaseClient.from('matchmaking_queue').upsert(
       {
         user_id: userId,
         game_id: gameId,
@@ -76,7 +80,7 @@ router.post('/join', auth, async (req: AuthRequest, res) => {
 
     const match = await tryMatch(gameId);
 
-    const { count } = await supabase
+    const { count } = await supabaseClient
       .from('matchmaking_queue')
       .select('id', { count: 'exact', head: true })
       .eq('game_id', gameId);
@@ -98,9 +102,11 @@ router.post('/join', auth, async (req: AuthRequest, res) => {
 
 // POST /api/matchmaking/leave
 router.post('/leave', auth, async (req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     const gameId = (req.body?.gameId || 'judgment') as string;
-    await supabase
+    await supabaseClient
       .from('matchmaking_queue')
       .delete()
       .eq('user_id', req.user.id)
@@ -113,16 +119,18 @@ router.post('/leave', auth, async (req: AuthRequest, res) => {
 
 // GET /api/matchmaking/status
 router.get('/status', auth, async (req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     const gameId = (req.query.gameId as string) || 'judgment';
-    const { data: row } = await supabase
+    const { data: row } = await supabaseClient
       .from('matchmaking_queue')
       .select('*')
       .eq('user_id', req.user.id)
       .eq('game_id', gameId)
       .maybeSingle();
 
-    const { count } = await supabase
+    const { count } = await supabaseClient
       .from('matchmaking_queue')
       .select('id', { count: 'exact', head: true })
       .eq('game_id', gameId);
@@ -135,8 +143,10 @@ router.get('/status', auth, async (req: AuthRequest, res) => {
 
 // GET /api/matchmaking/tournaments
 router.get('/tournaments', auth, async (_req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseClient
       .from('tournaments')
       .select('*, tournament_participants(count)')
       .order('created_at', { ascending: false })
@@ -155,9 +165,11 @@ router.get('/tournaments', auth, async (_req: AuthRequest, res) => {
 
 // POST /api/matchmaking/tournaments — create open bracket tournament
 router.post('/tournaments', auth, async (req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     const { title, gameId, maxPlayers, prizeCredits } = req.body || {};
-    const { data, error } = await supabase
+    const { data, error } = await supabaseClient
       .from('tournaments')
       .insert({
         title: title || 'Puurga Games Cup',
@@ -182,14 +194,16 @@ router.post('/tournaments', auth, async (req: AuthRequest, res) => {
 
 // POST /api/matchmaking/tournaments/:id/join
 router.post('/tournaments/:id/join', auth, async (req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     const { id } = req.params;
-    const { data: t } = await supabase.from('tournaments').select('*').eq('id', id).single();
+    const { data: t } = await supabaseClient.from('tournaments').select('*').eq('id', id).single();
     if (!t || t.status !== 'open') {
       return res.status(400).json({ error: 'Tournament not open' });
     }
 
-    const { count } = await supabase
+    const { count } = await supabaseClient
       .from('tournament_participants')
       .select('id', { count: 'exact', head: true })
       .eq('tournament_id', id);
@@ -198,7 +212,7 @@ router.post('/tournaments/:id/join', auth, async (req: AuthRequest, res) => {
       return res.status(400).json({ error: 'Tournament full' });
     }
 
-    const { error } = await supabase.from('tournament_participants').upsert(
+    const { error } = await supabaseClient.from('tournament_participants').upsert(
       {
         tournament_id: id,
         user_id: req.user.id,
@@ -210,7 +224,7 @@ router.post('/tournaments/:id/join', auth, async (req: AuthRequest, res) => {
 
     // Auto-lock when full
     if ((count || 0) + 1 >= t.max_players) {
-      await supabase.from('tournaments').update({ status: 'locked' }).eq('id', id);
+      await supabaseClient.from('tournaments').update({ status: 'locked' }).eq('id', id);
     }
 
     res.json({ success: true });

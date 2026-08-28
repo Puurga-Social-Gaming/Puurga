@@ -24,6 +24,11 @@ interface ProfileAttributes {
   story_privacy?: 'everyone' | 'followers' | 'close_friends';
   is_blocked?: boolean;
   purga_points?: number;
+  credits?: number;
+  posts_count?: number;
+  purge_count?: number;
+  is_ghost?: boolean;
+  ghosted_at?: Date;
   certification_slug?: string;
   logo_certified?: boolean;
   created_at?: Date;
@@ -53,6 +58,11 @@ class Profile extends Model<ProfileAttributes> implements ProfileAttributes {
   public story_privacy?: 'everyone' | 'followers' | 'close_friends';
   public is_blocked?: boolean;
   public purga_points?: number;
+  public credits?: number;
+  public posts_count?: number;
+  public purge_count?: number;
+  public is_ghost?: boolean;
+  public ghosted_at?: Date;
   public certification_slug?: string;
   public logo_certified?: boolean;
   public readonly created_at!: Date;
@@ -147,6 +157,26 @@ Profile.init({
   purga_points: {
     type: DataTypes.INTEGER,
     defaultValue: 0
+  },
+  credits: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  },
+  posts_count: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  },
+  purge_count: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  },
+  is_ghost: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  },
+  ghosted_at: {
+    type: DataTypes.DATE,
+    allowNull: true
   },
   certification_slug: {
     type: DataTypes.STRING,

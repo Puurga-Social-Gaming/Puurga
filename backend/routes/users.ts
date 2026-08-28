@@ -1,8 +1,10 @@
 import express from 'express';
-import { supabase } from '../config/supabase';
+import { requireSupabase } from '../config/supabase';
 import { wsManager } from '../websocketManager';
 import { supabaseAuth as auth, AuthRequest } from '../middleware/supabaseAuth';
 import multer from 'multer';
+import fs from 'fs';
+import path from 'path';
 import { normalizeImageUrl } from '../utils/url';
 import { isProfileVisible } from '../services/settingsService';
 import { logSuperAdminAction } from '../utils/auditLogger';
@@ -17,6 +19,7 @@ import { DailyMissionService } from '../services/dailyMissionService';
 import { progressionEngine } from '../services/progressionEngine';
 import { User, Profile, Post, Like, Friendship, FriendRequest, Comment, sequelize, Op } from '../models';
 import { QueryTypes } from 'sequelize';
+import { getUploadPath } from '../config/storage';
 
 const router = express.Router();
 
@@ -40,6 +43,7 @@ const upload = multer({
 
 // Update user language
 router.patch('/me/language', auth, async (req: AuthRequest, res) => {
+  const supabase = requireSupabase();
   try {
     const { language } = req.body;
     const { id } = req.user;
@@ -169,31 +173,27 @@ router.get('/gallery', auth, async (req: AuthRequest, res) => {
       createdAt?: string;
     }> = [];
 
-    // 1. Get profile picture
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('avatar_url, cover_photo, created_at')
-      .eq('id', userId)
-      .single();
+    // 1. Get profile picture from local database
+    const profile = await Profile.findByPk(userId);
 
-    if (!profileError && profile) {
-      if (profile.avatar_url) {
+    if (profile) {
+      if ((profile as any).avatar_url) {
         galleryImages.push({
           id: `profile-${userId}`,
-          imageUrl: normalizeImageUrl(profile.avatar_url),
+          imageUrl: normalizeImageUrl((profile as any).avatar_url),
           category: 'profile',
           alt: 'Profile picture',
-          createdAt: profile.created_at
+          createdAt: (profile as any).created_at
         });
       }
 
-      if (profile.cover_photo) {
+      if ((profile as any).cover_photo) {
         galleryImages.push({
           id: `cover-${userId}`,
-          imageUrl: normalizeImageUrl(profile.cover_photo),
+          imageUrl: normalizeImageUrl((profile as any).cover_photo),
           category: 'cover',
           alt: 'Cover photo',
-          createdAt: profile.created_at
+          createdAt: (profile as any).created_at
         });
       }
     }
@@ -263,6 +263,7 @@ router.get('/gallery', auth, async (req: AuthRequest, res) => {
 });
 
 router.get('/points', auth, async (req: AuthRequest, res) => {
+  const supabase = requireSupabase();
   try {
     const { id } = req.user;
 
@@ -292,6 +293,7 @@ router.get('/points', auth, async (req: AuthRequest, res) => {
 // DEPRECATED: PUT /api/users/points — Use CreditService.awardCredits/deductCredits instead.
 // Kept as a read-only endpoint for backward compatibility. No longer writes credits.
 router.put('/points', auth, async (req: AuthRequest, res) => {
+  const supabase = requireSupabase();
   try {
     const { id } = req.user;
 
@@ -360,42 +362,58 @@ router.put('/profile', auth, async (req: AuthRequest, res) => {
     }
 
     // Check if username is being changed and if it's already taken
-    console.log('Update profile request:', {
-      currentId: id,
-      currentUsername: req.user.username,
-      newUsername: username
-    });
-
     if (username && username.trim().toLowerCase() !== req.user.username?.trim().toLowerCase()) {
-      console.log('Username change detected, checking availability...');
-      const { data: existingUsername, error: usernameCheckError } = await supabase
-        .from('profiles')
-        .select('id, username')
-        .eq('username', username.trim().toLowerCase())
-        .neq('id', id)
-        .maybeSingle();
-
-      if (usernameCheckError) {
-        console.error('Error checking username:', usernameCheckError);
-        return res.status(500).json({ error: 'Failed to validate username' });
-      }
+      const existingUsername = await Profile.findOne({
+        where: {
+          username: username.trim().toLowerCase(),
+          id: { [require('sequelize').Op.ne]: id }
+        }
+      });
 
       if (existingUsername) {
-        console.warn('Username taken by:', existingUsername);
         return res.status(400).json({ error: 'Username already taken' });
       }
     }
 
-    // Update email in the auth.users table if it has changed
-    if (email && email !== req.user.email) {
-      const { error: userError } = await supabase.auth.admin.updateUserById(id, { email });
-      if (userError) {
-        console.error('Error updating user email:', userError);
-        return res.status(500).json({ error: 'Failed to update email' });
-      }
+    // Update profile using Sequelize
+    const profile = await Profile.findByPk(id);
+
+    if (!profile) {
+      // Create profile if it doesn't exist
+      const newProfile = await Profile.create({
+        id,
+        full_name: name,
+        username: username?.trim().toLowerCase(),
+        email: email || req.user.email,
+        bio: typeof bio === 'string' ? bio.slice(0, 300) : bio,
+        location,
+        website,
+        occupation,
+        education,
+        relationship,
+        is_private: isPrivate,
+        hide_from_suggestions: hideFromSuggestions,
+        message_requests: messageRequests,
+        show_read_receipts: showReadReceipts,
+        show_online_status: showOnlineStatus,
+        comment_privacy: commentPrivacy,
+        story_privacy: storyPrivacy,
+        created_at: new Date(),
+        updated_at: new Date()
+      } as any);
+
+      const data = (newProfile as any).toJSON();
+      return res.json({
+        ...data,
+        name: data.full_name,
+        avatar: normalizeImageUrl(data.avatar_url),
+        avatar_url: normalizeImageUrl(data.avatar_url),
+        coverPhoto: normalizeImageUrl(data.cover_photo),
+        cover_photo: normalizeImageUrl(data.cover_photo),
+        email: email || req.user.email
+      });
     }
 
-    // Update the rest of the profile in the profiles table
     const updateData: any = {
       full_name: name,
       bio: typeof bio === 'string' ? bio.slice(0, 300) : bio,
@@ -411,24 +429,28 @@ router.put('/profile', auth, async (req: AuthRequest, res) => {
       show_online_status: showOnlineStatus,
       comment_privacy: commentPrivacy,
       story_privacy: storyPrivacy,
-      updated_at: new Date().toISOString(),
+      updated_at: new Date(),
     };
 
-    // Only update username if provided
     if (username) {
       updateData.username = username.trim().toLowerCase();
     }
 
-    const { data, error: profileError } = await supabase
-      .from('profiles')
-      .update(updateData)
-      .eq('id', id)
-      .select()
-      .single();
+    await profile.update(updateData);
 
-    if (profileError) throw profileError;
+    // Also update users table
+    try {
+      const { User } = require('../models');
+      const userUpdate: any = {};
+      if (name) userUpdate.name = name;
+      if (username) userUpdate.username = username.trim().toLowerCase();
+      if (email) userUpdate.email = email;
+      await User.update(userUpdate, { where: { id } });
+    } catch {
+      // non-fatal
+    }
 
-    // Return complete profile with both snake_case and camelCase for compatibility
+    const data = (profile as any).toJSON();
     const responseData = {
       ...data,
       name: data.full_name,
@@ -438,12 +460,6 @@ router.put('/profile', auth, async (req: AuthRequest, res) => {
       cover_photo: normalizeImageUrl(data.cover_photo),
       email: email || req.user.email
     };
-
-    console.log('Profile updated successfully:', {
-      username: data.username,
-      full_name: data.full_name,
-      email: responseData.email
-    });
 
     res.json(responseData);
   } catch (error) {
@@ -455,251 +471,86 @@ router.put('/profile', auth, async (req: AuthRequest, res) => {
 // Upload profile avatar
 router.put('/profile/avatar', auth, upload.single('avatar'), async (req: AuthRequest, res) => {
   try {
-    console.log('Avatar upload request received');
-    console.log('User ID:', req.user?.id);
-    console.log('File info:', req.file ? {
-      filename: req.file.filename,
-      originalname: req.file.originalname,
-      mimetype: req.file.mimetype,
-      size: req.file.size
-    } : 'No file');
-
     const { id } = req.user;
     if (!req.file) {
-      console.log('No file uploaded in request');
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
-    // Upload to Supabase Storage (avatars bucket)
-    const ext = req.file.originalname.split('.').pop();
-    const filename = `${Date.now()}-${Math.random().toString(36).substring(2, 8)}.${ext}`;
-
-    console.log('🚀 UPLOADING TO SUPABASE STORAGE - AVATARS BUCKET:', filename);
-    const { data: uploadData, error: uploadError } = await supabase.storage
-      .from('avatars')
-      .upload(filename, req.file.buffer, {
-        contentType: req.file.mimetype,
-        cacheControl: '31536000',
-        upsert: false
-      });
-
-    if (uploadError) {
-      console.error('❌ SUPABASE UPLOAD ERROR:', uploadError);
-      return res.status(500).json({ error: 'Failed to upload avatar to storage' });
+    const fileExt = path.extname(req.file.originalname) || '.jpg';
+    const filename = `avatar-${id}-${Date.now()}${fileExt}`;
+    const uploadDir = getUploadPath();
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
     }
+    fs.writeFileSync(path.join(uploadDir, filename), req.file.buffer);
+    const publicUrl = `/uploads/${filename}`;
+    console.log('Avatar uploaded locally:', publicUrl);
 
-    console.log('✅ SUPABASE UPLOAD SUCCESSFUL, getting public URL...');
-    const { data: publicUrlData } = supabase.storage
-      .from('avatars')
-      .getPublicUrl(filename);
-
-    const publicUrl = publicUrlData.publicUrl;
-    console.log('🎯 FINAL SUPABASE URL:', publicUrl);
-
-    // First check if profile exists
-    const { data: existingProfile, error: checkError } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('id', id)
-      .maybeSingle();
-
-    if (checkError) {
-      console.error('Error checking profile existence:', checkError);
-      throw checkError;
-    }
+    // Update or create profile in local database
+    const existingProfile = await Profile.findByPk(id);
 
     if (!existingProfile) {
-      console.log('Profile does not exist, creating one...');
-      // Create profile if it doesn't exist
-      const { data: newProfile, error: createError } = await supabase
-        .from('profiles')
-        .insert({
-          id: id,
-          avatar_url: publicUrl,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        })
-        .select()
-        .single();
-
-      if (createError) {
-        console.error('Error creating profile:', createError);
-        throw createError;
-      }
-
-      console.log('Profile created with avatar:', newProfile.avatar_url);
-
-      // Also try to update users table if it exists (non-blocking)
-      supabase
-        .from('users')
-        .update({ avatar_url: publicUrl })
-        .eq('id', id)
-        .then(({ error }) => {
-          if (error) {
-            console.warn('Could not update users table avatar (this is OK if table/column doesn\'t exist):', error);
-          } else {
-            console.log('Avatar also set in users table');
-          }
-        });
-
-      return res.json({ avatar: newProfile.avatar_url });
+      const newProfile = await Profile.create({
+        id,
+        avatar_url: publicUrl,
+        created_at: new Date(),
+        updated_at: new Date()
+      } as any);
+      return res.json({ avatar: (newProfile as any).avatar_url });
     }
 
-    console.log('Updating existing profile with avatar URL...');
+    await existingProfile.update({ avatar_url: publicUrl, updated_at: new Date() });
 
-    // Update both profiles and users tables to keep them in sync
-    // This ensures posts/statuses will get the correct avatar regardless of which table is checked first
-    const [profileUpdate, usersUpdate] = await Promise.all([
-      supabase
-        .from('profiles')
-        .update({ avatar_url: publicUrl, updated_at: new Date().toISOString() })
-        .eq('id', id)
-        .select()
-        .single(),
-      supabase
-        .from('users')
-        .update({ avatar_url: publicUrl })
-        .eq('id', id)
-        .select()
-        .maybeSingle() // Use maybeSingle in case users table doesn't exist or row doesn't exist
-    ]);
-
-    if (profileUpdate.error) {
-      console.error('Supabase error updating profile avatar:', profileUpdate.error);
-      throw profileUpdate.error;
+    // Also try to update users table
+    try {
+      const { User } = require('../models');
+      await User.update({ avatar_url: publicUrl }, { where: { id } });
+    } catch {
+      // non-fatal
     }
 
-    if (usersUpdate.error) {
-      // Log but don't fail - users table might not exist or might not have avatar_url column
-      console.warn('Could not update users table avatar (this is OK if table/column doesn\'t exist):', usersUpdate.error);
-    }
-
-    if (!profileUpdate.data) {
-      console.error('No data returned from profile avatar update');
-      throw new Error('No profile found to update');
-    }
-
-    console.log('Avatar updated successfully in profiles:', profileUpdate.data.avatar_url);
-    if (usersUpdate.data) {
-      console.log('Avatar also updated in users table:', usersUpdate.data.avatar_url);
-    }
-
-    res.json({ avatar: normalizeImageUrl(profileUpdate.data.avatar_url) });
+    res.json({ avatar: publicUrl });
   } catch (error) {
-    console.error('Error uploading avatar:', {
-      message: error instanceof Error ? error.message : 'Unknown error',
-      stack: error instanceof Error ? error.stack : undefined,
-      error: error
-    });
-    res.status(500).json({ error: 'Failed to upload avatar', details: error instanceof Error ? error.message : 'Unknown error' });
+    console.error('Error uploading avatar:', error);
+    res.status(500).json({ error: 'Failed to upload avatar' });
   }
 });
 
 // Upload cover photo
 router.put('/profile/cover-photo', auth, upload.single('coverPhoto'), async (req: AuthRequest, res) => {
   try {
-    console.log('Cover photo upload request received');
-    console.log('User ID:', req.user?.id);
-    console.log('File info:', req.file ? {
-      filename: req.file.filename,
-      originalname: req.file.originalname,
-      mimetype: req.file.mimetype,
-      size: req.file.size
-    } : 'No file');
-
     const { id } = req.user;
     if (!req.file) {
-      console.log('No file uploaded in request');
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
-    // Upload to Supabase Storage (covers bucket)
-    const ext = req.file.originalname.split('.').pop();
-    const filename = `${Date.now()}-${Math.random().toString(36).substring(2, 8)}.${ext}`;
-
-    console.log('Uploading to Supabase Storage covers bucket:', filename);
-    const { data: uploadData, error: uploadError } = await supabase.storage
-      .from('covers')
-      .upload(filename, req.file.buffer, {
-        contentType: req.file.mimetype,
-        cacheControl: '31536000',
-        upsert: false
-      });
-
-    if (uploadError) {
-      console.error('Supabase upload error:', uploadError);
-      return res.status(500).json({ error: 'Failed to upload cover photo to storage' });
+    const fileExt = path.extname(req.file.originalname) || '.jpg';
+    const filename = `cover-${id}-${Date.now()}${fileExt}`;
+    const uploadDir = getUploadPath();
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
     }
+    fs.writeFileSync(path.join(uploadDir, filename), req.file.buffer);
+    const publicUrl = `/uploads/${filename}`;
+    console.log('Cover photo uploaded locally:', publicUrl);
 
-    console.log('Upload successful, getting public URL...');
-    const { data: publicUrlData } = supabase.storage
-      .from('covers')
-      .getPublicUrl(filename);
-
-    const publicUrl = publicUrlData.publicUrl;
-    console.log('Generated public URL:', publicUrl);
-
-    // First check if profile exists
-    const { data: existingProfile, error: checkError } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('id', id)
-      .maybeSingle();
-
-    if (checkError) {
-      console.error('Error checking profile existence:', checkError);
-      throw checkError;
-    }
+    const existingProfile = await Profile.findByPk(id);
 
     if (!existingProfile) {
-      console.log('Profile does not exist, creating one...');
-      // Create profile if it doesn't exist
-      const { data: newProfile, error: createError } = await supabase
-        .from('profiles')
-        .insert({
-          id: id,
-          cover_photo: publicUrl,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        })
-        .select()
-        .single();
-
-      if (createError) {
-        console.error('Error creating profile:', createError);
-        throw createError;
-      }
-
-      console.log('Profile created with cover photo:', newProfile.cover_photo);
-      return res.json({ coverPhoto: newProfile.cover_photo });
+      const newProfile = await Profile.create({
+        id,
+        cover_photo: publicUrl,
+        created_at: new Date(),
+        updated_at: new Date()
+      } as any);
+      return res.json({ coverPhoto: (newProfile as any).cover_photo });
     }
 
-    console.log('Updating existing profile with cover photo URL...');
-    const { data, error } = await supabase
-      .from('profiles')
-      .update({ cover_photo: publicUrl, updated_at: new Date().toISOString() })
-      .eq('id', id)
-      .select();
-
-    if (error) {
-      console.error('Supabase error updating cover photo:', error);
-      throw error;
-    }
-
-    if (!data || data.length === 0) {
-      console.error('No data returned from cover photo update');
-      throw new Error('No profile found to update');
-    }
-
-    console.log('Cover photo updated successfully:', data[0].cover_photo);
-    res.json({ coverPhoto: normalizeImageUrl(data[0].cover_photo) });
+    await existingProfile.update({ cover_photo: publicUrl, updated_at: new Date() });
+    res.json({ coverPhoto: publicUrl });
   } catch (error) {
-    console.error('Error uploading cover photo:', {
-      message: error instanceof Error ? error.message : 'Unknown error',
-      stack: error instanceof Error ? error.stack : undefined,
-      error: error
-    });
-    res.status(500).json({ error: 'Failed to upload cover photo', details: error instanceof Error ? error.message : 'Unknown error' });
+    console.error('Error uploading cover photo:', error);
+    res.status(500).json({ error: 'Failed to upload cover photo' });
   }
 });
 
@@ -714,28 +565,19 @@ router.post('/upload', auth, uploadHandler.array('media', 10), async (req: AuthR
     if (!req.files || !(req.files instanceof Array) || req.files.length === 0) {
       return res.status(400).json({ error: 'No media uploaded' });
     }
-    const bucket = 'Media'; // Use Media bucket for both images and videos
+    const { getUploadPath, getPublicUrl } = require('../config/storage');
+    const fs = require('fs');
+    const path = require('path');
+    const uploadDir = getUploadPath();
+    if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+
     const urls = [];
     for (const file of req.files) {
-      const ext = file.originalname.split('.').pop();
+      const ext = file.originalname.split('.').pop() || 'bin';
       const filename = `${Date.now()}-${Math.random().toString(36).substring(2, 8)}.${ext}`;
-      const uploadResult = await supabase.storage.from(bucket).upload(filename, file.buffer, {
-        contentType: file.mimetype,
-        cacheControl: '31536000',
-        upsert: false,
-      });
-      if (uploadResult.error) {
-        console.error('Supabase upload error:', uploadResult.error);
-        return res.status(500).json({ error: 'Failed to upload media' });
-      }
-      // Get signed URL instead of public URL (more reliable for private buckets)
-      const { data: signedUrlData, error: signedUrlError } = await supabase.storage.from(bucket).createSignedUrl(filename, 31536000); // 1 year expiry
-
-      if (signedUrlError) {
-        console.error('Error creating signed URL:', signedUrlError);
-        return res.status(500).json({ error: 'Failed to create signed URL' });
-      }
-      urls.push(signedUrlData.signedUrl);
+      const filePath = path.join(uploadDir, filename);
+      fs.writeFileSync(filePath, file.buffer);
+      urls.push(getPublicUrl(filename));
     }
     res.json({ urls });
   } catch (error) {
@@ -746,6 +588,7 @@ router.post('/upload', auth, uploadHandler.array('media', 10), async (req: AuthR
 
 // --- GET /api/proxy/image ---
 router.get('/proxy/image', auth, async (req: AuthRequest, res) => {
+  const supabase = requireSupabase();
   try {
     const { url } = req.query;
 
@@ -786,6 +629,7 @@ router.get('/proxy/image', auth, async (req: AuthRequest, res) => {
 
 // --- POST /api/posts ---
 router.post('/posts', auth, validateNotGhosted, async (req: AuthRequest, res) => {
+  const supabase = requireSupabase();
   try {
     const { content, images, media_layout, visibility, background_color, background_type, background_index } = req.body;
     const user_id = req.user.id;
@@ -872,7 +716,9 @@ router.post('/posts', auth, validateNotGhosted, async (req: AuthRequest, res) =>
       .filter(Boolean);
 
     res.json({
-      ...createdPost,
+      ...createdPost.toJSON(),
+      createdAt: createdPost.created_at,
+      updatedAt: createdPost.updated_at,
       images: responseImages,
       comments: 0,
       user: {
@@ -890,6 +736,7 @@ router.post('/posts', auth, validateNotGhosted, async (req: AuthRequest, res) =>
 
 // --- GET /api/posts/feed ---
 router.get('/posts/feed', auth, async (req: AuthRequest, res) => {
+  const supabase = requireSupabase();
   try {
     const currentUserId = req.user.id;
 
@@ -972,7 +819,7 @@ router.get('/posts/feed', auth, async (req: AuthRequest, res) => {
       const urow = usersMap.get(post.user_id as string);
       // Check profiles first since that's where new avatars are saved
       // Fallback to users table for backwards compatibility
-      const rawAvatar = (prof?.avatar_url) ?? (urow?.avatar_url) ?? '';
+      const rawAvatar = (prof?.avatar_url) ?? (urow as any)?.avatar ?? '';
       const avatar = normalizeImageUrl(rawAvatar);
 
       const name = prof?.full_name ?? '';
@@ -1008,8 +855,11 @@ router.get('/posts/feed', auth, async (req: AuthRequest, res) => {
         }
       }
 
+      const postData = post.toJSON() as any;
       return {
-        ...post,
+        ...postData,
+        createdAt: postData.created_at,
+        updatedAt: postData.updated_at,
         images,
         user: {
           id: post.user_id,
@@ -1029,6 +879,7 @@ router.get('/posts/feed', auth, async (req: AuthRequest, res) => {
 
 // --- GET /api/users/:id/stats ---
 router.get('/:id/stats', auth, async (req: AuthRequest, res) => {
+  const supabase = requireSupabase();
   try {
     const { id: userId } = req.params as { id: string };
 
@@ -1123,27 +974,27 @@ router.post('/:id/purge', auth, validateNotGhosted, async (req: AuthRequest, res
       return res.status(403).json({ error: 'Cannot purge yourself' });
     }
 
-    // Check if user already purged this person by checking notifications
-    const { data: existingPurge, error: checkError } = await supabase
-      .from('notifications')
-      .select('id')
-      .eq('type', 'purge')
-      .eq('sender_id', purgerId)
-      .eq('receiver_id', targetUserId)
-      .maybeSingle();
+    // Check if user already purged this person by checking notifications using Sequelize
+    const Notification = (await import('../models')).Notification;
+    const existingPurge = await Notification.findOne({
+      where: {
+        type: 'purge',
+        sender_id: purgerId,
+        receiver_id: targetUserId
+      }
+    });
 
     if (existingPurge) {
       return res.status(400).json({ error: 'Already purged this user' });
     }
 
-    // Get current purge count of target user
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('purge_count, is_ghost')
-      .eq('id', targetUserId)
-      .single();
+    // Get current purge count of target user using Sequelize
+    const profile = await Profile.findOne({
+      where: { id: targetUserId },
+      attributes: ['purge_count', 'is_ghost']
+    });
 
-    if (profileError || !profile) {
+    if (!profile) {
       return res.status(404).json({ error: 'User not found' });
     }
 
@@ -1154,15 +1005,10 @@ router.post('/:id/purge', auth, validateNotGhosted, async (req: AuthRequest, res
     const updatePayload: any = { purge_count: newPurgeCount };
     if (becomesGhost) {
       updatePayload.is_ghost = true;
-      updatePayload.ghosted_at = new Date().toISOString();
+      updatePayload.ghosted_at = new Date();
     }
 
-    const { error: updateError } = await supabase
-      .from('profiles')
-      .update(updatePayload)
-      .eq('id', targetUserId);
-
-    if (updateError) throw updateError;
+    await profile.update(updatePayload);
 
     // Create a notification for the purge action (serves as ledger)
     await createNotification({
@@ -1186,14 +1032,19 @@ router.post('/:id/purge', auth, validateNotGhosted, async (req: AuthRequest, res
       });
 
       try {
-        const { data: friendships } = await supabase
-          .from('friends')
-          .select('user_id_1, user_id_2')
-          .or(`user_id_1.eq.${targetUserId},user_id_2.eq.${targetUserId}`);
+        const friendships = await Friendship.findAll({
+          where: {
+            [Op.or]: [
+              { user_id: targetUserId },
+              { friend_id: targetUserId }
+            ]
+          },
+          attributes: ['user_id', 'friend_id']
+        });
 
         if (friendships && friendships.length > 0) {
           const friendIds = friendships.map(f =>
-            f.user_id_1 === targetUserId ? f.user_id_2 : f.user_id_1
+            f.user_id === targetUserId ? f.friend_id : f.user_id
           );
 
           for (const friendId of friendIds) {
@@ -1228,6 +1079,7 @@ router.post('/:id/purge', auth, validateNotGhosted, async (req: AuthRequest, res
 
 // GET /api/users/profile/:username - Get public profile by username or ID
 router.get('/profile/:username_or_id', auth, async (req: AuthRequest, res) => {
+  const supabase = requireSupabase();
   try {
     const { username_or_id } = req.params;
     const currentUserId = req.user?.id;
@@ -1369,14 +1221,12 @@ router.get('/:username/posts', auth, async (req: AuthRequest, res) => {
       return res.status(400).json({ error: 'Username is required' });
     }
 
-    // Find user by username
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('id, username, full_name, avatar_url')
-      .eq('username', username.toLowerCase())
-      .single();
+    const profile = await Profile.findOne({
+      where: { username: username.toLowerCase() },
+      attributes: ['id', 'username', 'full_name', 'avatar_url']
+    });
 
-    if (profileError || !profile) {
+    if (!profile) {
       return res.status(404).json({ error: 'User not found' });
     }
 
@@ -1452,6 +1302,7 @@ router.get('/:username/posts', auth, async (req: AuthRequest, res) => {
 
 // GET /api/users/groups - Get all groups (temporary endpoint)
 router.get('/groups', auth, async (req: AuthRequest, res) => {
+  const supabase = requireSupabase();
   try {
     const { data: groups, error } = await supabase
       .from('groups')
@@ -1496,6 +1347,7 @@ router.get('/groups', auth, async (req: AuthRequest, res) => {
 
 // POST /api/users/groups/create - Create new group (temporary endpoint)
 router.post('/groups/create', auth, validateNotGhosted, async (req: AuthRequest, res) => {
+  const supabase = requireSupabase();
   try {
     console.log('Creating group with body:', req.body);
     console.log('User ID:', req.user?.id);
@@ -1560,6 +1412,7 @@ router.post('/groups/create', auth, validateNotGhosted, async (req: AuthRequest,
 
 // POST /api/users/groups/:id/join - Join group (temporary endpoint)
 router.post('/groups/:id/join', auth, validateNotGhosted, async (req: AuthRequest, res) => {
+  const supabase = requireSupabase();
   try {
     const { id } = req.params;
     const userId = req.user?.id;
@@ -1619,6 +1472,7 @@ router.post('/groups/:id/join', auth, validateNotGhosted, async (req: AuthReques
 
 // PUT /api/users/groups/:id/profile-image - Upload group profile image (temporary endpoint)
 router.put('/groups/:id/profile-image', auth, upload.single('profileImage'), async (req: AuthRequest, res) => {
+  const supabase = requireSupabase();
   try {
     const { id } = req.params;
     const { id: userId } = req.user;
@@ -1683,6 +1537,7 @@ router.put('/groups/:id/profile-image', auth, upload.single('profileImage'), asy
 
 // PUT /api/users/groups/:id/cover-image - Upload group cover image (temporary endpoint)
 router.put('/groups/:id/cover-image', auth, upload.single('coverImage'), async (req: AuthRequest, res) => {
+  const supabase = requireSupabase();
   try {
     const { id } = req.params;
     const { id: userId } = req.user;

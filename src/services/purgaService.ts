@@ -79,6 +79,7 @@ export const redeemFriend = async (friendId: string): Promise<{ success: boolean
 };
 
 export const subscribeToPlayingUsers = (callback: (users: PlayingUser[]) => void) => {
+  if (!supabase) return () => {};
   const channel = supabase.channel('playing-users')
     .on('presence', { event: 'sync' }, () => {
       const state = channel.presenceState();

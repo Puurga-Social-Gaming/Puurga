@@ -1,8 +1,8 @@
-import { supabase } from '../config/supabase';
+﻿import { requireSupabase, requireSupabaseAdmin } from '../config/supabase';
 import { v4 as uuidv4 } from 'uuid';
 
 /**
- * Media Service - Handles file uploads to Supabase Storage
+ * Media Service - Handles file uploads to supabaseClient Storage
  * Single bucket: 'media' with path structure: {userId}/{mediaId}/{filename}
  */
 
@@ -15,7 +15,7 @@ export interface MediaUploadResult {
 }
 
 /**
- * Upload a file to Supabase Storage under the 'media' bucket
+ * Upload a file to supabaseClient Storage under the 'media' bucket
  * @param file - The file buffer
  * @param userId - The user's ID
  * @param originalName - Original file name
@@ -34,7 +34,8 @@ export const uploadMedia = async (
   const filePath = `${userId}/${fileName}`;
 
   try {
-    const { data, error } = await supabase.storage
+    const supabaseClient = requireSupabase();
+    const { data, error } = await supabaseClient.storage
       .from('media')
       .upload(filePath, file, {
         contentType: mimeType,
@@ -45,7 +46,7 @@ export const uploadMedia = async (
     if (error) throw error;
 
     // Get public URL
-    const { data: urlData } = supabase.storage
+    const { data: urlData } = supabaseClient.storage
       .from('media')
       .getPublicUrl(filePath);
 
@@ -63,22 +64,23 @@ export const uploadMedia = async (
 };
 
 /**
- * Delete media from Supabase Storage
+ * Delete media from supabaseClient Storage
  * @param userId - The user's ID
  * @param mediaId - The media ID
  */
 export const deleteMedia = async (userId: string, mediaId: string): Promise<void> => {
   try {
-    const { data, error } = await supabase.storage
+    const supabaseClient = requireSupabase();
+    const { data, error } = await supabaseClient.storage
       .from('media')
       .list(`${userId}/${mediaId}`);
 
     if (error) throw error;
 
-    const filesToDelete = data.map((file) => `${userId}/${mediaId}/${file.name}`);
+    const filesToDelete = data.map((file: { name: string }) => `${userId}/${mediaId}/${file.name}`);
 
     if (filesToDelete.length > 0) {
-      const { error: deleteError } = await supabase.storage
+      const { error: deleteError } = await supabaseClient.storage
         .from('media')
         .remove(filesToDelete);
 
@@ -100,7 +102,8 @@ export const getSignedUrl = async (
   expiresIn: number = 3600
 ): Promise<string> => {
   try {
-    const { data, error } = await supabase.storage
+    const supabaseClient = requireSupabase();
+    const { data, error } = await supabaseClient.storage
       .from('media')
       .createSignedUrl(filePath, expiresIn);
 

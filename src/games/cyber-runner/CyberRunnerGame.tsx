@@ -283,7 +283,7 @@ export default function App() {
   }, [isPlaying]);
 
   return (
-    <div className="h-[100dvh] max-h-[100dvh] bg-background text-foreground flex flex-col font-sans selection:bg-orange-500 selection:text-black overflow-hidden">
+    <div className="puurga-integrated-game h-[100dvh] max-h-[100dvh] bg-background text-foreground flex flex-col font-sans selection:bg-orange-500 selection:text-black overflow-hidden">
       {/* Top Header Bar — hidden during run so the arena uses full viewport */}
       {!isPlaying && (
       <header className="shrink-0 border-b border-orange-500/10 bg-card/60 backdrop-blur-md z-50 px-2 sm:px-4 py-1 sm:py-3 flex items-center justify-between gap-2">
@@ -415,8 +415,8 @@ function MainMenu({ setScreen, stats, credits, purgaPoints, equippedSkin }) {
   const [showHowToPlay, setShowHowToPlay] = useState(false);
 
   return (
-    <div className="flex-grow max-w-6xl mx-auto w-full px-3 sm:px-4 py-4 sm:py-8 flex flex-col justify-center">
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-8 items-center">
+    <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain max-w-6xl mx-auto w-full px-3 sm:px-4 py-4 sm:py-8 flex flex-col justify-start sm:justify-center">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-8 items-start lg:items-center">
         
         {/* Left column — title + actions */}
         <div className="lg:col-span-7 space-y-3 sm:space-y-6">

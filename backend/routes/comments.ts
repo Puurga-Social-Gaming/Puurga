@@ -1,4 +1,4 @@
-import express from 'express';
+﻿import express from 'express';
 import { auth, AuthRequest } from '../middleware/auth';
 import { Comment, Profile, Post, sequelize } from '../models';
 import { normalizeImageUrl } from '../utils/url';
@@ -8,7 +8,7 @@ import { CreditService } from '../services/creditService';
 import { NotificationService } from '../services/notificationService';
 import { validateNotGhosted } from '../middleware/restrictGhosted';
 import { areBlocked, getBidirectionalBlockedIds } from '../utils/friendRelations';
-import { supabase } from '../config/supabase';
+import { requireSupabase, requireSupabaseAdmin } from '../config/supabase';
 import { QueryTypes } from 'sequelize';
 import { DailyMissionService } from '../services/dailyMissionService';
 import { progressionEngine } from '../services/progressionEngine';
@@ -17,6 +17,8 @@ const router = express.Router();
 
 // GET /api/posts/:postId/comments - Get all comments for a post
 router.get('/posts/:postId/comments', auth, async (req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     const { postId } = req.params;
     const viewerId = req.user?.id;
@@ -150,6 +152,8 @@ router.get('/posts/:postId/comments', auth, async (req: AuthRequest, res) => {
 
 // POST /api/posts/:postId/comments - Create a new comment
 router.post('/posts/:postId/comments', auth, validateNotGhosted, async (req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     const { postId } = req.params;
     const { content, parentId, language: bodyLanguage } = req.body;
@@ -293,7 +297,7 @@ router.post('/posts/:postId/comments', auth, validateNotGhosted, async (req: Aut
     await CreditService.updateLastActiveAt(userId);
 
     // Get user profile
-    const { data: profile } = await supabase
+    const { data: profile } = await supabaseClient
       .from('profiles')
       .select('id, full_name, username, avatar_url')
       .eq('id', userId)
@@ -346,6 +350,8 @@ router.post('/posts/:postId/comments', auth, validateNotGhosted, async (req: Aut
 
 // PUT /api/comments/:id - Update a comment
 router.put('/comments/:id', auth, async (req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     const { id } = req.params;
     const { content } = req.body;
@@ -365,7 +371,7 @@ router.put('/comments/:id', auth, async (req: AuthRequest, res) => {
 
     // Check if comment exists and belongs to user
     console.log('Fetching comment:', id);
-    const { data: comment, error: fetchError } = await supabase
+    const { data: comment, error: fetchError } = await supabaseClient
       .from('comments')
       .select('user_id, post_id')
       .eq('id', id)
@@ -405,7 +411,7 @@ router.put('/comments/:id', auth, async (req: AuthRequest, res) => {
     // Update the comment — always bump updated_at so clients can show "edited"
     console.log('Updating comment...');
     const updatedAt = new Date().toISOString();
-    const { data: updatedComment, error: updateError } = await supabase
+    const { data: updatedComment, error: updateError } = await supabaseClient
       .from('comments')
       .update({
         content: content.trim(),
@@ -440,12 +446,14 @@ router.put('/comments/:id', auth, async (req: AuthRequest, res) => {
 
 // POST /api/comments/:id/like — toggle like on a comment
 router.post('/comments/:id/like', auth, validateNotGhosted, async (req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     const { id: commentId } = req.params;
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
-    const { data: comment, error: commentError } = await supabase
+    const { data: comment, error: commentError } = await supabaseClient
       .from('comments')
       .select('id, user_id, post_id')
       .eq('id', commentId)
@@ -459,7 +467,7 @@ router.post('/comments/:id/like', auth, validateNotGhosted, async (req: AuthRequ
       return res.status(403).json({ error: 'Cannot like due to a block', code: 'USER_BLOCKED' });
     }
 
-    const { data: existing } = await supabase
+    const { data: existing } = await supabaseClient
       .from('comment_likes')
       .select('id')
       .eq('comment_id', commentId)
@@ -468,7 +476,7 @@ router.post('/comments/:id/like', auth, validateNotGhosted, async (req: AuthRequ
 
     let liked = false;
     if (existing?.id) {
-      const { error: delError } = await supabase
+      const { error: delError } = await supabaseClient
         .from('comment_likes')
         .delete()
         .eq('id', existing.id);
@@ -480,7 +488,7 @@ router.post('/comments/:id/like', auth, validateNotGhosted, async (req: AuthRequ
       }
       liked = false;
     } else {
-      const { error: insertError } = await supabase.from('comment_likes').insert({
+      const { error: insertError } = await supabaseClient.from('comment_likes').insert({
         comment_id: commentId,
         user_id: userId,
         created_at: new Date().toISOString(),
@@ -494,7 +502,7 @@ router.post('/comments/:id/like', auth, validateNotGhosted, async (req: AuthRequ
       liked = true;
     }
 
-    const { count } = await supabase
+    const { count } = await supabaseClient
       .from('comment_likes')
       .select('*', { count: 'exact', head: true })
       .eq('comment_id', commentId);
@@ -512,6 +520,8 @@ router.post('/comments/:id/like', auth, validateNotGhosted, async (req: AuthRequ
 
 // DELETE /api/comments/:id - Delete a comment
 router.delete('/comments/:id', auth, async (req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     const { id } = req.params;
     const userId = req.user?.id;
@@ -521,7 +531,7 @@ router.delete('/comments/:id', auth, async (req: AuthRequest, res) => {
     }
 
     // Check if comment exists and belongs to user
-    const { data: comment, error: fetchError } = await supabase
+    const { data: comment, error: fetchError } = await supabaseClient
       .from('comments')
       .select('user_id, post_id')
       .eq('id', id)
@@ -532,7 +542,7 @@ router.delete('/comments/:id', auth, async (req: AuthRequest, res) => {
     }
 
     // Check if user owns the comment OR owns the post
-    const { data: post } = await supabase
+    const { data: post } = await supabaseClient
       .from('posts')
       .select('user_id')
       .eq('id', comment.post_id)
@@ -560,7 +570,7 @@ router.delete('/comments/:id', auth, async (req: AuthRequest, res) => {
     }
 
     // Delete the comment
-    const { error: deleteError } = await supabase
+    const { error: deleteError } = await supabaseClient
       .from('comments')
       .delete()
       .eq('id', id);
@@ -576,6 +586,8 @@ router.delete('/comments/:id', auth, async (req: AuthRequest, res) => {
 
 // POST /api/comments/:id/purge - Purge a comment
 router.post('/comments/:id/purge', auth, async (req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     const { id } = req.params;
     const userId = req.user?.id;
@@ -585,7 +597,7 @@ router.post('/comments/:id/purge', auth, async (req: AuthRequest, res) => {
     }
 
     // Get comment to find the target user
-    const { data: comment, error: commentError } = await supabase
+    const { data: comment, error: commentError } = await supabaseClient
       .from('comments')
       .select('user_id, post_id')
       .eq('id', id)
@@ -598,7 +610,7 @@ router.post('/comments/:id/purge', auth, async (req: AuthRequest, res) => {
     const targetUserId = comment.user_id;
 
     // Check if user has already purged this comment
-    const { data: existingPurge, error: checkError } = await supabase
+    const { data: existingPurge, error: checkError } = await supabaseClient
       .from('purges')
       .select('*')
       .eq('target_type', 'comment')
@@ -615,7 +627,7 @@ router.post('/comments/:id/purge', auth, async (req: AuthRequest, res) => {
 
     if (existingPurge) {
       // Remove purge
-      const { error: deleteError } = await supabase
+      const { error: deleteError } = await supabaseClient
         .from('purges')
         .delete()
         .eq('id', existingPurge.id);
@@ -624,7 +636,7 @@ router.post('/comments/:id/purge', auth, async (req: AuthRequest, res) => {
       purged = false;
     } else {
       // Add purge
-      const { error: insertError } = await supabase
+      const { error: insertError } = await supabaseClient
         .from('purges')
         .insert({
           actor_id: userId,
@@ -640,7 +652,7 @@ router.post('/comments/:id/purge', auth, async (req: AuthRequest, res) => {
     }
 
     // Get total purge count for this comment
-    const { data: purgeCount, error: countError } = await supabase
+    const { data: purgeCount, error: countError } = await supabaseClient
       .from('purges')
       .select('*', { count: 'exact' })
       .eq('target_type', 'comment')
@@ -650,7 +662,7 @@ router.post('/comments/:id/purge', auth, async (req: AuthRequest, res) => {
     totalPurges = purgeCount?.length || 0;
 
     // Update comment purge count
-    const { error: updateError } = await supabase
+    const { error: updateError } = await supabaseClient
       .from('comments')
       .update({
         purge_count: totalPurges,
@@ -664,7 +676,7 @@ router.post('/comments/:id/purge', auth, async (req: AuthRequest, res) => {
     }
 
     // Update user's total purge count
-    const { data: userPurgeCount, error: userCountError } = await supabase
+    const { data: userPurgeCount, error: userCountError } = await supabaseClient
       .from('purges')
       .select('*', { count: 'exact' })
       .eq('target_user_id', targetUserId);
@@ -674,7 +686,7 @@ router.post('/comments/:id/purge', auth, async (req: AuthRequest, res) => {
 
       // Check if user should go into ghost mode (PROFILE_PURGE_THRESHOLD+ total purges)
       if (userTotalPurges >= PROFILE_PURGE_THRESHOLD) {
-        await supabase
+        await supabaseClient
           .from('profiles')
           .update({
             is_ghost: true,
@@ -687,7 +699,7 @@ router.post('/comments/:id/purge', auth, async (req: AuthRequest, res) => {
       } else {
         // Update purge count and status
         const ghostStatus = userTotalPurges >= 7 ? 'warning' : 'active';
-        await supabase
+        await supabaseClient
           .from('profiles')
           .update({
             purge_count: userTotalPurges,

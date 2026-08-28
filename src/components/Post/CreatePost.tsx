@@ -239,13 +239,17 @@ const CreatePost: React.FC<CreatePostProps> = ({ onPostCreated, autoExpand = fal
     setMediaLibraryLoading(true);
     try {
       const { supabase } = await import('../../lib/supabaseClient');
+      if (!supabase) {
+        setMediaLibraryItems([]);
+        return;
+      }
       const { data, error } = await supabase.storage.from('Media').list('', {
         limit: 100,
         offset: 0,
         sortBy: { column: 'created_at', order: 'desc' }
       });
       if (error) throw error;
-      const itemsWithUrls = (data || []).map(item => {
+      const itemsWithUrls = (data || []).map((item: any) => {
         const { data: urlData } = supabase.storage.from('Media').getPublicUrl(item.name);
         return { ...item, publicUrl: urlData.publicUrl };
       });
@@ -277,16 +281,20 @@ const CreatePost: React.FC<CreatePostProps> = ({ onPostCreated, autoExpand = fal
     setMediaLibraryLoading(true);
     try {
       const { supabase } = await import('../../lib/supabaseClient');
+      if (!supabase) {
+        setMediaLibraryItems([]);
+        return;
+      }
       const { data, error } = await supabase.storage.from('Media').list('', {
         limit: 100,
         offset: 0,
         sortBy: { column: 'name', order: 'asc' }
       });
       if (error) throw error;
-      const filtered = (data || []).filter(item => 
+      const filtered = (data || []).filter((item: any) => 
         item.name.toLowerCase().includes(query.toLowerCase())
       );
-      const itemsWithUrls = filtered.map(item => {
+      const itemsWithUrls = filtered.map((item: any) => {
         const { data: urlData } = supabase.storage.from('Media').getPublicUrl(item.name);
         return { ...item, publicUrl: urlData.publicUrl };
       });

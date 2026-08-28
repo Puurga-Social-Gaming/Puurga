@@ -1,4 +1,4 @@
-import { supabase } from '../config/supabase';
+import { requireSupabase } from '../config/supabase';
 
 // ─── Analytics Event Types ───────────────────────────────────────────────────
 export type AnalyticsEvent =
@@ -26,6 +26,7 @@ export class AnalyticsService {
    */
   static async track(event: AnalyticsEvent, payload: Omit<AnalyticsPayload, 'event' | 'timestamp'>): Promise<void> {
     try {
+      const supabase = requireSupabase();
       await supabase.from('analytics_events').insert({
         user_id: payload.userId,
         event,
@@ -116,6 +117,7 @@ export class AnalyticsService {
     eventsByType: Record<string, number>;
     recentEvents: Array<{ event: string; metadata: any; created_at: string }>;
   }> {
+    const supabase = requireSupabase();
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - days);
 

@@ -1,4 +1,4 @@
-import { supabase } from '../config/supabase';
+import { supabase, isSupabaseAvailable } from '../config/supabase';
 
 interface ErrorLogOptions {
   message: string;
@@ -26,6 +26,12 @@ export const logSystemError = async (options: ErrorLogOptions) => {
       ipAddress, 
       metadata = {} 
     } = options;
+
+    if (!isSupabaseAvailable || !supabase) {
+      console.warn('⚠️ Supabase not available, skipping error logging to database');
+      console.error('Original Error:', message, stack);
+      return;
+    }
 
     const { error } = await supabase
       .from('system_error_logs')

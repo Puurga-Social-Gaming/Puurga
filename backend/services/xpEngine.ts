@@ -1,4 +1,4 @@
-import { supabaseAdmin } from '../config/supabase';
+import { requireSupabaseAdmin } from '../config/supabase';
 import { wsManager } from '../websocketManager';
 import { NotificationService } from './notificationService';
 import { AnalyticsService } from './analyticsService';
@@ -49,6 +49,8 @@ export class XPEngine {
       const current = await this.getUserXP(userId);
       return { xp: current.xp, level: current.level, leveledUp: false };
     }
+
+    const supabaseAdmin = requireSupabaseAdmin();
 
     // Deduplication: prevent duplicate XP within 5 seconds for same user+source
     const dedupeKey = `${userId}:${source}`;
@@ -189,6 +191,7 @@ export class XPEngine {
     xpForNext: number;
   }> {
     try {
+      const supabaseAdmin = requireSupabaseAdmin();
       const { data: profile } = await supabaseAdmin
         .from('profiles')
         .select('xp, level')
@@ -213,6 +216,7 @@ export class XPEngine {
    */
   static async getTransactionHistory(userId: string, limit = 20): Promise<any[]> {
     try {
+      const supabaseAdmin = requireSupabaseAdmin();
       const { data, error } = await supabaseAdmin
         .from('xp_transactions')
         .select('id, amount, source, total_xp, created_at')

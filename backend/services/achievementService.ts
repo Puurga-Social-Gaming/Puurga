@@ -1,4 +1,4 @@
-import { supabase } from '../config/supabase';
+import { requireSupabase } from '../config/supabase';
 import { wsManager } from '../websocketManager';
 import { AnalyticsService } from './analyticsService';
 
@@ -89,6 +89,7 @@ export class AchievementService {
    * Get achievements for a specific user.
    */
   static async getUserAchievements(userId: string): Promise<{ all: AchievementDef[]; unlocked: string[] }> {
+    const supabase = requireSupabase();
     const { data } = await supabase
       .from('user_achievements')
       .select('achievement_id')
@@ -102,6 +103,7 @@ export class AchievementService {
    * Fetch user stats needed for achievement checks.
    */
   static async getUserStats(userId: string): Promise<UserStats> {
+    const supabase = requireSupabase();
     // Profile basics
     const { data: profile } = await supabase
       .from('profiles')
@@ -192,6 +194,7 @@ export class AchievementService {
    * Returns list of newly unlocked achievements.
    */
   static async checkAndAward(userId: string): Promise<AchievementDef[]> {
+    const supabase = requireSupabase();
     const stats = await this.getUserStats(userId);
     const { unlocked } = await this.getUserAchievements(userId);
 
@@ -271,6 +274,7 @@ export class AchievementService {
    * Get leaderboard of users with most achievements.
    */
   static async getLeaderboard(limit: number = 20): Promise<Array<{ userId: string; username: string; avatar: string | null; count: number }>> {
+    const supabase = requireSupabase();
     const { data } = await supabase
       .from('user_achievements')
       .select('user_id, profiles!inner(username, avatar)')

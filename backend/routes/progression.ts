@@ -1,5 +1,5 @@
-import express from 'express';
-import { supabase } from '../config/supabase';
+﻿import express from 'express';
+import { requireSupabase, requireSupabaseAdmin } from '../config/supabase';
 import { supabaseAuth as auth, AuthRequest } from '../middleware/supabaseAuth';
 import { XPEngine } from '../services/xpEngine';
 import { LEVEL_TITLES, LEVEL_THRESHOLDS } from '../services/xpEngine';
@@ -8,6 +8,8 @@ const router = express.Router();
 
 // GET /api/progression/xp — Get current user's XP, level, title, progress
 router.get('/xp', auth, async (req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     const userId = req.user.id;
     const xpData = await XPEngine.getUserXP(userId);
@@ -20,6 +22,8 @@ router.get('/xp', auth, async (req: AuthRequest, res) => {
 
 // GET /api/progression/xp/history — XP transaction history
 router.get('/xp/history', auth, async (req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     const userId = req.user.id;
     const limit = Math.min(50, parseInt(req.query.limit as string) || 20);
@@ -33,6 +37,8 @@ router.get('/xp/history', auth, async (req: AuthRequest, res) => {
 
 // GET /api/progression/level — Get level info (thresholds, titles)
 router.get('/level', auth, async (_req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     res.json({
       thresholds: LEVEL_THRESHOLDS,
@@ -46,6 +52,8 @@ router.get('/level', auth, async (_req: AuthRequest, res) => {
 
 // GET /api/progression/leaderboard — XP leaderboard
 router.get('/leaderboard', auth, async (req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     const limit = Math.min(50, parseInt(req.query.limit as string) || 20);
     const type = (req.query.type as string) || 'xp';
@@ -62,7 +70,7 @@ router.get('/leaderboard', auth, async (req: AuthRequest, res) => {
         orderBy = 'xp';
     }
 
-    const { data, error } = await supabase
+    const { data, error } = await supabaseClient
       .from('profiles')
       .select('id, username, full_name, avatar_url, xp, level, purga_points')
       .order(orderBy, { ascending: false })
@@ -71,7 +79,7 @@ router.get('/leaderboard', auth, async (req: AuthRequest, res) => {
     if (error) throw error;
 
     // Get current user's rank
-    const { data: allUsers } = await supabase
+    const { data: allUsers } = await supabaseClient
       .from('profiles')
       .select('id')
       .order(orderBy, { ascending: false });
@@ -101,10 +109,12 @@ router.get('/leaderboard', auth, async (req: AuthRequest, res) => {
 
 // GET /api/progression/stats — Get user's full progression stats
 router.get('/stats', auth, async (req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     const userId = req.user.id;
 
-    const { data: profile } = await supabase
+    const { data: profile } = await supabaseClient
       .from('profiles')
       .select('xp, level, purga_points, login_streak, last_login_date, created_at')
       .eq('id', userId)
@@ -117,7 +127,7 @@ router.get('/stats', auth, async (req: AuthRequest, res) => {
     const xpForNext = XPEngine.getXPForNextLevel(level);
 
     // Count achievements
-    const { count: achievementCount } = await supabase
+    const { count: achievementCount } = await supabaseClient
       .from('user_achievements')
       .select('*', { count: 'exact', head: true })
       .eq('user_id', userId);

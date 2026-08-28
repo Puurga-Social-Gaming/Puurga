@@ -1,5 +1,4 @@
 import React, { createContext, useContext, useState, ReactNode, useCallback, useEffect } from 'react';
-import { supabase } from '../lib/supabaseClient';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { websocketService } from '../services/websocketService';
 import { normalizeAppUser } from '../utils/userProfile';
@@ -93,94 +92,40 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
 
   React.useEffect(() => {
     const initializeUser = async () => {
-      // First check Supabase session to ensure we have the correct user
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      const storedToken = localStorage.getItem('token');
+      const storedUser = localStorage.getItem('user');
 
-      if (sessionError || !session) {
-        // Fallback: check if we have a token in localStorage from a previous session
-        // This handles cases where Supabase session hasn't restored yet on page load
-        const storedToken = localStorage.getItem('token');
-        const storedUser = localStorage.getItem('user');
-        
-        if (storedToken && storedUser) {
-          console.log('Restoring user from localStorage fallback');
-          try {
-            const userData = JSON.parse(storedUser);
-            const normalized = normalizeAppUser(userData);
-            setUser(normalized);
-            setLoading(false);
-            return;
-          } catch (e) {
-            console.error('Failed to parse stored user:', e);
-          }
+      // Try to load from localStorage first for fast rendering
+      if (storedUser) {
+        try {
+          const userData = JSON.parse(storedUser);
+          setUser(normalizeAppUser(userData));
+        } catch {
+          localStorage.removeItem('user');
         }
-        
-        console.log('No valid Supabase session found, clearing local data');
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-        setLoading(false);
-        return;
       }
 
-      const token = session.access_token;
-      if (token) {
-        // Update localStorage with current session token
-        localStorage.setItem('token', token);
-
-        // Try to load from localStorage first for faster loading
-        const storedUser = localStorage.getItem('user');
-        if (storedUser) {
-          try {
-            const userData = JSON.parse(storedUser);
-            // Verify that stored user matches current session user
-            if (userData.id === session.user.id) {
-              setUser(normalizeAppUser(userData));
-            } else {
-              // User mismatch, clear stored data
-              localStorage.removeItem('user');
-            }
-          } catch (error) {
-            console.error('Error parsing stored user data:', error);
-            localStorage.removeItem('user');
-          }
-        }
-
-        // Always fetch fresh data from API to ensure correct user
+      // Fetch fresh profile from backend API
+      if (storedToken) {
         try {
           const res = await fetch('/api/users/profile', {
-            headers: { Authorization: `Bearer ${token}` }
+            headers: { Authorization: `Bearer ${storedToken}` },
           });
           if (res.ok) {
             const data = await res.json();
-            console.log('Raw profile data from API:', {
-              avatar: data.avatar,
-              avatar_url: data.avatar_url,
-              cover_photo: data.cover_photo,
-              coverPhoto: data.coverPhoto
-            });
 
-            // Merge with stored data to preserve images if API doesn't return them
-            const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
+            // Merge with stored data to preserve images
+            const stored = storedUser ? JSON.parse(storedUser) : {};
             const mergedData = {
               ...data,
-              // Preserve stored images if API doesn't have them
-              avatar_url: data.avatar_url || storedUser.avatar_url || storedUser.avatar,
-              cover_photo: data.cover_photo || storedUser.cover_photo || storedUser.coverPhoto
+              avatar_url: data.avatar_url || stored.avatar_url || stored.avatar,
+              cover_photo: data.cover_photo || stored.cover_photo || stored.coverPhoto,
             };
 
-            // Store merged data in localStorage for persistence
             localStorage.setItem('user', JSON.stringify(mergedData));
-
             const normalized = normalizeAppUser(mergedData);
 
-            console.log('Profile data loaded:', {
-              id: normalized.id,
-              name: normalized.name,
-              username: normalized.username,
-              email: normalized.email
-            });
             setUser((prev) => {
-              // Skip update if nothing meaningful changed — avoids avatar remount flicker
               if (
                 prev &&
                 prev.id === normalized.id &&
@@ -194,42 +139,21 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
               }
               return normalized;
             });
+          } else if (res.status === 401) {
+            // Token expired or invalid — clear
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            setUser(null);
           }
         } catch (error) {
           console.error('Error fetching fresh user data:', error);
         }
       }
+
       setLoading(false);
     };
 
     initializeUser();
-
-    // Listen for auth state changes — avoid re-fetch loops that make avatars blink
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event: any, session: any) => {
-      if (event === 'SIGNED_OUT') {
-        localStorage.removeItem('user');
-        localStorage.removeItem('token');
-        setUser(null);
-        return;
-      }
-
-      if (event === 'TOKEN_REFRESHED') {
-        // Keep existing profile in memory; only refresh the JWT for axios
-        if (session?.access_token) {
-          localStorage.setItem('token', session.access_token);
-        }
-        return;
-      }
-
-      // Only re-load profile on real sign-in / user metadata updates
-      if (session && (event === 'SIGNED_IN' || event === 'USER_UPDATED')) {
-        initializeUser();
-      }
-    });
-
-    return () => {
-      subscription.unsubscribe();
-    };
   }, []);
 
   // Set up WebSocket for real-time updates to user data
@@ -239,7 +163,6 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
         console.log('Global credit sync:', payload.credits);
         updateUser({ credits: payload.credits });
 
-        // Show toast for backend-initiated credit changes (not from useCredits API calls)
         if (!_creditApiPending && payload.change && payload.change !== 0) {
           const source = payload.source || 'unknown';
           const toastData = {
@@ -271,7 +194,7 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
     }
   });
 
-  // Update websocketService when user changes (for message filtering)
+  // Update websocketService when user changes
   useEffect(() => {
     websocketService.setCurrentUserId(user?.id || null);
   }, [user?.id]);
@@ -279,39 +202,23 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
   const updateUser = useCallback((data: Partial<User>) => {
     setUser(prevUser => {
       if (prevUser) {
-        // Merge the updated data with previous user state
         const updatedUser = { ...prevUser, ...data };
 
-        // Update localStorage with the new user data
         try {
           const currentStoredUser = JSON.parse(localStorage.getItem('user') || '{}');
-
-          // Build updated storage object with both frontend and backend field names
           const updatedStoredUser = {
             ...currentStoredUser,
-            // Explicitly set all relevant fields from the update
             ...data,
-            // Map frontend fields to backend fields for storage consistency
-            // Avatar: support both 'avatar' and 'avatar_url'
             avatar: data.avatar ?? currentStoredUser.avatar ?? currentStoredUser.avatar_url,
             avatar_url: data.avatar ?? currentStoredUser.avatar_url ?? currentStoredUser.avatar,
-            // Cover photo: support both 'coverPhoto' and 'cover_photo'
             coverPhoto: data.coverPhoto ?? currentStoredUser.coverPhoto ?? currentStoredUser.cover_photo,
             cover_photo: data.coverPhoto ?? currentStoredUser.cover_photo ?? currentStoredUser.coverPhoto,
-            // Other fields
             full_name: data.name ?? currentStoredUser.full_name ?? currentStoredUser.name,
             name: data.name ?? currentStoredUser.name ?? currentStoredUser.full_name,
             username: data.username ?? currentStoredUser.username,
             email: data.email ?? currentStoredUser.email,
           };
-
           localStorage.setItem('user', JSON.stringify(updatedStoredUser));
-          console.log('Updated localStorage with:', {
-            avatar: updatedStoredUser.avatar,
-            avatar_url: updatedStoredUser.avatar_url,
-            coverPhoto: updatedStoredUser.coverPhoto,
-            cover_photo: updatedStoredUser.cover_photo,
-          });
         } catch (error) {
           console.error('Error updating localStorage:', error);
         }
@@ -327,4 +234,4 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
       {children}
     </UserContext.Provider>
   );
-}; 
+};

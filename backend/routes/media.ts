@@ -1,12 +1,12 @@
-import express from 'express';
+﻿import express from 'express';
 import multer from 'multer';
 import { supabaseAuth as auth, AuthRequest } from '../middleware/supabaseAuth';
-import { supabase } from '../config/supabase';
+import { requireSupabase, requireSupabaseAdmin } from '../config/supabase';
 import { uploadMedia, deleteMedia } from '../services/mediaService';
 
 const router = express.Router();
 
-// Use memory storage for direct upload to Supabase
+// Use memory storage for direct upload to supabaseClient
 const uploadStorage = multer.memoryStorage();
 
 // File filter for allowed media types
@@ -51,7 +51,7 @@ const upload = multer({
 
 /**
  * POST /api/media/upload
- * Upload media files to Supabase Storage
+ * Upload media files to supabaseClient Storage
  * Returns array of media objects with URLs
  */
 router.post('/upload', auth, upload.array('media', 10), async (req: AuthRequest, res) => {
@@ -113,9 +113,11 @@ router.post('/upload', auth, upload.array('media', 10), async (req: AuthRequest,
 
 /**
  * DELETE /api/media/:mediaId
- * Delete media from Supabase Storage
+ * Delete media from supabaseClient Storage
  */
 router.delete('/:mediaId', auth, async (req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     const userId = req.user?.id;
     const { mediaId } = req.params;
@@ -138,8 +140,10 @@ router.delete('/:mediaId', auth, async (req: AuthRequest, res) => {
  * Check if 'media' bucket exists
  */
 router.get('/bucket-exists', auth, async (req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
-    const { data: buckets, error } = await supabase.storage.listBuckets();
+    const { data: buckets, error } = await supabaseClient.storage.listBuckets();
 
     if (error) throw error;
 
@@ -161,6 +165,8 @@ router.get('/bucket-exists', auth, async (req: AuthRequest, res) => {
  * Create the 'media' bucket (superadmin only)
  */
 router.post('/create-bucket', auth, async (req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     const userRole = req.user?.role;
 
@@ -168,7 +174,7 @@ router.post('/create-bucket', auth, async (req: AuthRequest, res) => {
       return res.status(403).json({ error: 'Only super admins can create buckets' });
     }
 
-    const { error } = await supabase.storage.createBucket('media', {
+    const { error } = await supabaseClient.storage.createBucket('media', {
       public: true,
       allowedMimeTypes: [
         'image/jpeg',

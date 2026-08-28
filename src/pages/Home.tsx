@@ -328,6 +328,8 @@ export default function Home() {
 
   // Subscription for new posts
   useEffect(() => {
+    if (!supabase) return;
+
     const channel = supabase
       .channel('public:posts')
       .on(

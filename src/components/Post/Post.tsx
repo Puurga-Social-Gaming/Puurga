@@ -160,7 +160,7 @@ const Post: React.FC<PostProps> = ({ post, onUpdate, variant = 'feed' }) => {
           authorAvatar: post.user.avatar,
           content: post.content,
           images: post.images || [],
-          createdLabel: formatDistanceToNow(new Date(post.createdAt), { addSuffix: true }),
+          createdLabel: formatDistanceToNow(new Date((post as any).createdAt || (post as any).created_at || Date.now()), { addSuffix: true }),
         },
         `puurga-${safeName || 'post'}-${String(post.id).slice(0, 8)}.png`
       );
@@ -306,7 +306,7 @@ const Post: React.FC<PostProps> = ({ post, onUpdate, variant = 'feed' }) => {
                 {STATE_ICONS[authorState]}
               </div>
               <p className="text-[11px] text-muted/60 leading-none mt-0.5">
-                {formatDistanceToNow(new Date(post.createdAt), { addSuffix: true })}
+                {formatDistanceToNow(new Date((post as any).createdAt || (post as any).created_at || Date.now()), { addSuffix: true })}
               </p>
             </div>
 

@@ -1,55 +1,57 @@
-import { supabase } from '../config/supabase';
+import { requireSupabase } from '../config/supabase';
 import { areFriends } from '../utils/friendRelations';
+import { Profile, FriendRequest, UserSettings, Op } from '../models';
 
 export type MessageRequestSetting = 'everyone' | 'followers' | 'none';
 
 /**
- * Check if sender can send a message to recipient based on recipient's settings
+ * Check if sender can send a message to recipient based on recipient's settings.
+ * Resolves against the LOCAL Postgres database.
  */
 export async function canSendMessage(senderId: string, recipientId: string): Promise<{ allowed: boolean; reason?: string }> {
   try {
-    // Get recipient's profile with message requests setting
-    const { data: recipientProfile, error } = await supabase
-      .from('profiles')
-      .select('id, message_requests')
-      .eq('id', recipientId)
-      .single();
+    const recipientProfile = await Profile.findOne({
+      where: { id: recipientId },
+      attributes: ['id', 'message_requests'],
+    });
 
-    if (error || !recipientProfile) {
+    if (!recipientProfile) {
       return { allowed: false, reason: 'Recipient not found' };
     }
 
-    const messageSetting: MessageRequestSetting = recipientProfile.message_requests || 'everyone';
+    const messageSetting: MessageRequestSetting = (recipientProfile as any).message_requests || 'everyone';
 
     switch (messageSetting) {
       case 'everyone':
         return { allowed: true };
-      
+
       case 'none':
         return { allowed: false, reason: 'This user is not accepting messages' };
-      
-      case 'followers':
-        // Friends can always message (both DB schemas + accepted requests)
+
+      case 'followers': {
+        // Friends can always message
         if (await areFriends(senderId, recipientId)) {
           return { allowed: true };
         }
 
-        // Also allow if a friend request is pending either way (so you can message right after adding)
-        const { data: pendingRequest } = await supabase
-          .from('friend_requests')
-          .select('id, status')
-          .or(`and(sender_id.eq.${senderId},receiver_id.eq.${recipientId}),and(sender_id.eq.${recipientId},receiver_id.eq.${senderId})`)
-          .limit(5);
+        // Also allow if a friend request is pending either way
+        const pendingRequest = await FriendRequest.findOne({
+          where: {
+            [Op.or]: [
+              { sender_id: senderId, receiver_id: recipientId },
+              { sender_id: recipientId, receiver_id: senderId },
+            ],
+          },
+          attributes: ['status'],
+        });
 
-        const hasPending = (pendingRequest || []).some(
-          (r: any) => !r.status || r.status === 'pending'
-        );
-        if (hasPending) {
+        if (pendingRequest && (!pendingRequest.status || pendingRequest.status === 'pending')) {
           return { allowed: true };
         }
 
         return { allowed: false, reason: 'You must be friends to message this user' };
-      
+      }
+
       default:
         return { allowed: true };
     }
@@ -64,6 +66,7 @@ export async function canSendMessage(senderId: string, recipientId: string): Pro
  */
 export async function isProfileVisible(profileUserId: string, viewerId?: string): Promise<{ visible: boolean; reason?: string }> {
   try {
+    const supabase = requireSupabase();
     const { data: profile, error } = await supabase
       .from('profiles')
       .select('id, is_private')
@@ -114,6 +117,7 @@ export async function isProfileVisible(profileUserId: string, viewerId?: string)
  */
 export async function canComment(postOwnerId: string, commenterId: string): Promise<{ allowed: boolean; reason?: string }> {
   try {
+    const supabase = requireSupabase();
     const { data: profile, error } = await supabase
       .from('profiles')
       .select('id, comment_privacy')
@@ -160,6 +164,7 @@ export async function canComment(postOwnerId: string, commenterId: string): Prom
  */
 export async function shouldShowOnlineStatus(targetUserId: string, viewerId?: string): Promise<boolean> {
   try {
+    const supabase = requireSupabase();
     const { data: profile, error } = await supabase
       .from('profiles')
       .select('id, show_online_status')
@@ -185,20 +190,16 @@ export async function shouldShowOnlineStatus(targetUserId: string, viewerId?: st
 /**
  * Check whether a user allows sharing their live typing draft preview.
  * Stored in user_settings.settings.liveTypingPreview; defaults to true.
+ * Resolves against the LOCAL Postgres database.
  */
 export async function allowsLiveTypingPreview(userId: string): Promise<boolean> {
   try {
-    const { data, error } = await supabase
-      .from('user_settings')
-      .select('settings')
-      .eq('user_id', userId)
-      .maybeSingle();
-
-    if (error) {
-      return true;
-    }
-
-    return data?.settings?.liveTypingPreview !== false;
+    const row = await UserSettings.findOne({
+      where: { user_id: userId },
+      attributes: ['settings'],
+    });
+    if (!row) return true;
+    return (row as any).settings?.liveTypingPreview !== false;
   } catch (error) {
     console.error('Error checking live typing preview setting:', error);
     return true;
@@ -210,6 +211,7 @@ export async function allowsLiveTypingPreview(userId: string): Promise<boolean> 
  */
 export async function shouldShowInSuggestions(targetUserId: string): Promise<boolean> {
   try {
+    const supabase = requireSupabase();
     const { data: profile, error } = await supabase
       .from('profiles')
       .select('id, hide_from_suggestions')

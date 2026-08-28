@@ -1,4 +1,4 @@
-import { supabaseAdmin } from '../config/supabase';
+﻿import { requireSupabaseAdmin } from '../config/supabase';
 import { getCreditSchemaSupport } from '../lib/creditSchema';
 import { wsManager } from '../websocketManager';
 import { CreditService } from './creditService';
@@ -75,13 +75,14 @@ export class InactivityService {
       }
 
       console.log('InactivityService: Checking inactive users...');
+      const supabaseAdminClient = requireSupabaseAdmin();
       const schema = await getCreditSchemaSupport();
       const lastActiveCol = schema.lastActiveColumn;
       const selectCols = schema.hasInactivityColumns
         ? `id, ${lastActiveCol}, inactivity_level, account_status, purga_points, is_restricted`
         : `id, ${lastActiveCol}, purga_points, is_restricted`;
 
-      const { data: profiles, error } = await supabaseAdmin.from('profiles').select(selectCols);
+      const { data: profiles, error } = await supabaseAdminClient.from('profiles').select(selectCols);
 
       if (error) {
         console.error('InactivityService: Error fetching profiles', error);
@@ -114,8 +115,9 @@ export class InactivityService {
   static async checkGhostExpiry(): Promise<void> {
     try {
       console.log('InactivityService: Checking ghost expiry...');
+      const supabaseAdminClient = requireSupabaseAdmin();
 
-      const { data: ghostedProfiles, error } = await supabaseAdmin
+      const { data: ghostedProfiles, error } = await supabaseAdminClient
         .from('profiles')
         .select('id, ghosted_at')
         .eq('is_ghost', true)
@@ -136,7 +138,7 @@ export class InactivityService {
         if (timeSinceGhosted >= ghostDurationMs) {
           console.log(`InactivityService: Unghosting user ${profile.id} (ghost duration expired)`);
 
-          await supabaseAdmin
+          await supabaseAdminClient
             .from('profiles')
             .update({
               is_ghost: false,
@@ -165,6 +167,7 @@ export class InactivityService {
     now: Date,
     schema: Awaited<ReturnType<typeof getCreditSchemaSupport>>
   ): Promise<InactivityResult | null> {
+    const supabaseAdminClient = requireSupabaseAdmin();
     const userId = profile.id as string;
     const lastActiveRaw = profile[schema.lastActiveColumn] as string | null | undefined;
     const lastActive = lastActiveRaw ? new Date(lastActiveRaw) : null;
@@ -185,7 +188,7 @@ export class InactivityService {
       } else {
         seedUpdate.is_restricted = false;
       }
-      await supabaseAdmin.from('profiles').update(seedUpdate).eq('id', userId);
+      await supabaseAdminClient.from('profiles').update(seedUpdate).eq('id', userId);
 
       return null;
     }
@@ -246,7 +249,7 @@ export class InactivityService {
       statusUpdate.account_status = newStatus;
     }
     statusUpdate.is_restricted = newStatus === 'restricted' || newStatus === 'disabled';
-    await supabaseAdmin.from('profiles').update(statusUpdate).eq('id', userId);
+    await supabaseAdminClient.from('profiles').update(statusUpdate).eq('id', userId);
 
     return {
       userId,
@@ -260,13 +263,14 @@ export class InactivityService {
 
   static async onUserActivity(userId: string): Promise<{ bonusAwarded: boolean; previousLevel: number }> {
     try {
+      const supabaseAdminClient = requireSupabaseAdmin();
       const schema = await getCreditSchemaSupport();
       const lastActiveCol = schema.lastActiveColumn;
       const selectCols = schema.hasInactivityColumns
         ? `inactivity_level, account_status, ${lastActiveCol}, is_restricted`
         : `${lastActiveCol}, is_restricted`;
 
-      const { data: profile } = await supabaseAdmin
+      const { data: profile } = await supabaseAdminClient
         .from('profiles')
         .select(selectCols)
         .eq('id', userId)
@@ -291,7 +295,7 @@ export class InactivityService {
         activityUpdate.inactivity_level = 0;
         activityUpdate.account_status = 'active';
       }
-      await supabaseAdmin.from('profiles').update(activityUpdate).eq('id', userId);
+      await supabaseAdminClient.from('profiles').update(activityUpdate).eq('id', userId);
 
       let bonusAwarded = false;
       if (isInactive && previousLevel >= 1) {

@@ -1,5 +1,5 @@
-import express from 'express';
-import { supabase } from '../config/supabase';
+﻿import express from 'express';
+import { requireSupabase, requireSupabaseAdmin } from '../config/supabase';
 import { supabaseAuth as auth, AuthRequest } from '../middleware/supabaseAuth';
 import { normalizeImageUrl } from '../utils/url';
 import { ChallengeService, CHALLENGE_STAKE_PRESETS } from '../services/challengeService';
@@ -146,6 +146,8 @@ function httpError(res: express.Response, err: any) {
 // ─── Presence ───────────────────────────────────────────────
 
 router.post('/presence', auth, async (req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
     const { gameId, gameTitle } = req.body || {};
@@ -161,6 +163,8 @@ router.post('/presence', auth, async (req: AuthRequest, res) => {
 });
 
 router.patch('/presence/heartbeat', auth, async (req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
     await ChallengeService.heartbeat(req.user.id);
@@ -171,6 +175,8 @@ router.patch('/presence/heartbeat', auth, async (req: AuthRequest, res) => {
 });
 
 router.delete('/presence', auth, async (req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
     await ChallengeService.clearPresence(req.user.id);
@@ -181,11 +187,13 @@ router.delete('/presence', auth, async (req: AuthRequest, res) => {
 });
 
 router.get('/presence', auth, async (req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
     const friendsOnly = req.query.friendsOnly !== 'false';
     const list = await ChallengeService.listPresence(req.user.id, friendsOnly);
-    res.json(list.map((u) => ({ ...u, avatar: normalizeImageUrl(u.avatar) })));
+    res.json(list.map((u: any) => ({ ...u, avatar: normalizeImageUrl(u.avatar) })));
   } catch (err) {
     console.error('presence list:', err);
     httpError(res, err);
@@ -194,11 +202,13 @@ router.get('/presence', auth, async (req: AuthRequest, res) => {
 
 // Alias used by older clients
 router.get('/playing', auth, async (req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
     const list = await ChallengeService.listPresence(req.user.id, true);
     res.json(
-      list.map((u) => ({
+      list.map((u: any) => ({
         id: u.id,
         username: u.username,
         name: u.name,
@@ -221,6 +231,8 @@ router.get('/challenges/stakes', auth, (_req, res) => {
 });
 
 router.post('/challenges', auth, async (req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
     const { opponentId, gameId, stake, gameTitle } = req.body || {};
@@ -247,6 +259,8 @@ router.post('/challenges', auth, async (req: AuthRequest, res) => {
 });
 
 router.get('/challenges', auth, async (req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
     const status = typeof req.query.status === 'string' ? req.query.status : undefined;
@@ -258,6 +272,8 @@ router.get('/challenges', auth, async (req: AuthRequest, res) => {
 });
 
 router.post('/challenges/:id/accept', auth, async (req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
     const challenge = await ChallengeService.accept(req.params.id, req.user.id);
@@ -269,6 +285,8 @@ router.post('/challenges/:id/accept', auth, async (req: AuthRequest, res) => {
 });
 
 router.post('/challenges/:id/decline', auth, async (req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
     const challenge = await ChallengeService.decline(req.params.id, req.user.id);
@@ -279,6 +297,8 @@ router.post('/challenges/:id/decline', auth, async (req: AuthRequest, res) => {
 });
 
 router.post('/challenges/:id/cancel', auth, async (req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
     const challenge = await ChallengeService.cancel(req.params.id, req.user.id);
@@ -289,6 +309,8 @@ router.post('/challenges/:id/cancel', auth, async (req: AuthRequest, res) => {
 });
 
 router.post('/challenges/:id/score', auth, async (req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
     const score = Number(req.body?.score);
@@ -301,6 +323,8 @@ router.post('/challenges/:id/score', auth, async (req: AuthRequest, res) => {
 });
 
 router.post('/challenges/:id/finish', auth, async (req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
     const { winnerId } = req.body || {};
@@ -314,6 +338,8 @@ router.post('/challenges/:id/finish', auth, async (req: AuthRequest, res) => {
 });
 
 router.get('/history', auth, async (req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
     const range = (req.query.range as 'today' | 'week' | 'month' | 'all') || 'all';
@@ -325,6 +351,8 @@ router.get('/history', auth, async (req: AuthRequest, res) => {
 });
 
 router.get('/feed', auth, async (_req, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     const feed = await ChallengeService.liveFeed(25);
     res.json(feed);
@@ -334,10 +362,12 @@ router.get('/feed', auth, async (_req, res) => {
 });
 
 router.get('/challenge-leaderboard', auth, async (req, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     const limit = Math.min(50, Number(req.query.limit) || 20);
     const board = await ChallengeService.leaderboard(limit);
-    res.json(board.map((r) => ({ ...r, avatar: normalizeImageUrl(r.avatar) })));
+    res.json(board.map((r: any) => ({ ...r, avatar: normalizeImageUrl(r.avatar) })));
   } catch (err) {
     httpError(res, err);
   }
@@ -346,12 +376,14 @@ router.get('/challenge-leaderboard', auth, async (req, res) => {
 // ─── Legacy / credits leaderboard (kept) ────────────────────
 
 router.get('/leaderboard', auth, async (req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     // Prefer challenge rankings when available
     const challengeBoard = await ChallengeService.leaderboard(10);
     if (challengeBoard.length > 0) {
       return res.json(
-        challengeBoard.map((p) => ({
+        challengeBoard.map((p: any) => ({
           id: p.userId,
           username: p.username,
           full_name: p.name,
@@ -366,14 +398,14 @@ router.get('/leaderboard', auth, async (req: AuthRequest, res) => {
       );
     }
 
-    const { data, error } = await supabase
+    const { data, error } = await supabaseClient
       .from('profiles')
       .select('id, username, full_name, avatar_url, credits, purga_points, purge_streak')
       .order('purga_points', { ascending: false })
       .limit(10);
 
     if (error) {
-      const { data: fallback, error: fallbackErr } = await supabase
+      const { data: fallback, error: fallbackErr } = await supabaseClient
         .from('profiles')
         .select('id, username, full_name, avatar_url, credits')
         .order('credits', { ascending: false })
@@ -404,22 +436,24 @@ router.get('/leaderboard', auth, async (req: AuthRequest, res) => {
 });
 
 router.get('/stats', auth, async (req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
     const history = await ChallengeService.history(req.user.id, 'all');
-    const wins = history.filter((h) => h.result === 'win').length;
-    const losses = history.filter((h) => h.result === 'loss').length;
+    const wins = history.filter((h: any) => h.result === 'win').length;
+    const losses = history.filter((h: any) => h.result === 'loss').length;
     res.json({
       gamesPlayed: history.length,
       wins,
       losses,
-      totalScore: history.reduce((s, h) => s + (h.points_delta || 0), 0),
-      highScore: Math.max(0, ...history.map((h) => h.score || 0), 0),
+      totalScore: history.reduce((s: any, h: any) => s + (h.points_delta || 0), 0),
+      highScore: Math.max(0, ...history.map((h: any) => h.score || 0), 0),
       averageScore:
         history.length > 0
-          ? Math.round(history.reduce((s, h) => s + (h.score || 0), 0) / history.length)
+          ? Math.round(history.reduce((s: any, h: any) => s + (h.score || 0), 0) / history.length)
           : 0,
-      recentGames: history.slice(0, 5).map((h) => ({
+      recentGames: history.slice(0, 5).map((h: any) => ({
         id: h.id,
         playedAt: h.played_at,
         score: h.score || 0,
@@ -436,6 +470,8 @@ router.get('/stats', auth, async (req: AuthRequest, res) => {
 // ─── Server-Validated Game Finish ───────────────────────────
 
 router.post('/finish', auth, async (req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
     const userId = req.user.id;
@@ -503,7 +539,7 @@ router.post('/finish', auth, async (req: AuthRequest, res) => {
 
     // 8. Record game session
     try {
-      await supabase.from('game_sessions').insert({
+      await supabaseClient.from('game_sessions').insert({
         user_id: userId,
         game_id: gameId,
         score: floorScore,
@@ -556,6 +592,8 @@ router.post('/finish', auth, async (req: AuthRequest, res) => {
 
 /** Report a finished game session → notify friends (social competition) */
 router.post('/session-complete', auth, async (req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
     const userId = req.user.id;
@@ -579,7 +617,7 @@ router.post('/session-complete', auth, async (req: AuthRequest, res) => {
     // Soft-record high-water mark on profile if provided
     if (typeof score === 'number' && Number.isFinite(score) && score > 0) {
       try {
-        await supabase.from('game_sessions').insert({
+        await supabaseClient.from('game_sessions').insert({
           user_id: userId,
           game_id: gameId,
           score: Math.floor(score),

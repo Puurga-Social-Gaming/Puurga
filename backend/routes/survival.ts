@@ -1,5 +1,5 @@
-import express from 'express';
-import { supabase } from '../config/supabase';
+﻿import express from 'express';
+import { isSupabaseAvailable } from '../config/supabase';
 import { supabaseAuth as auth, AuthRequest } from '../middleware/supabaseAuth';
 import { SurvivalEngine, ReputationEngine, InactivityEngine, PurgeEngine } from '../services/survival';
 import { wsManager } from '../websocketManager';
@@ -8,6 +8,16 @@ const router = express.Router();
 
 router.get('/state', auth, async (req: AuthRequest, res) => {
   try {
+    if (!isSupabaseAvailable) {
+      return res.json({
+        user_id: req.user.id,
+        health: 100,
+        decay_rate: 0,
+        last_active_at: new Date().toISOString(),
+        is_alive: true,
+        message: 'Survival features require Supabase. Running in local mode.'
+      });
+    }
     const userId = req.user.id;
     let state = await SurvivalEngine.getState(userId);
 
@@ -110,8 +120,22 @@ router.post('/reputation/apply', auth, async (req: AuthRequest, res) => {
 
 router.get('/public/:userId', auth, async (req: AuthRequest, res) => {
   try {
+    if (!isSupabaseAvailable) {
+      return res.json({
+        reputation_score: 0,
+        survival_score: 100,
+        threat_level: 'low',
+        purge_count: 0,
+        survived_purges: 0,
+        social_rank: 0,
+        current_survival_state: 'active',
+        ghost_status: false,
+        message: 'Survival features require Supabase.'
+      });
+    }
+    const { supabase: supabaseClient } = require('../config/supabase');
     const { userId } = req.params;
-    const { data: state } = await supabase
+    const { data: state } = await supabaseClient
       .from('user_survival_state')
       .select('reputation_score, survival_score, threat_level, purge_count, survived_purges, social_rank, current_survival_state, ghost_status')
       .eq('user_id', userId)

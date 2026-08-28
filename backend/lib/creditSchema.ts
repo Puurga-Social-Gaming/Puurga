@@ -1,4 +1,4 @@
-import { supabaseAdmin } from '../config/supabase';
+import { supabaseAdmin, isSupabaseAvailable } from '../config/supabase';
 
 export type CreditSchemaSupport = {
   lastActiveColumn: 'last_active_at' | 'last_seen';
@@ -11,6 +11,9 @@ export type CreditSchemaSupport = {
 let cached: CreditSchemaSupport | null = null;
 
 async function columnExists(column: string): Promise<boolean> {
+  if (!isSupabaseAvailable || !supabaseAdmin) {
+    return false;
+  }
   const { error } = await supabaseAdmin.from('profiles').select(column).limit(1);
   return !error;
 }

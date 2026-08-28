@@ -1,11 +1,13 @@
-import express from 'express';
-import { supabase } from '../config/supabase';
+﻿import express from 'express';
+import { requireSupabase, requireSupabaseAdmin } from '../config/supabase';
 import { supabaseAuth as auth, AuthRequest } from '../middleware/supabaseAuth';
 
 const router = express.Router();
 
 // POST /api/test/ghost-mode/enable - Enable ghost mode for current user (testing only)
 router.post('/enable', auth, async (req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     const userId = req.user?.id;
 
@@ -14,7 +16,7 @@ router.post('/enable', auth, async (req: AuthRequest, res) => {
     }
 
     // Set user to ghost mode
-    const { error: updateError } = await supabase
+    const { error: updateError } = await supabaseClient
       .from('profiles')
       .update({
         is_ghost: true,
@@ -44,6 +46,8 @@ router.post('/enable', auth, async (req: AuthRequest, res) => {
 
 // POST /api/test/ghost-mode/disable - Disable ghost mode for current user (testing only)
 router.post('/disable', auth, async (req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     const userId = req.user?.id;
 
@@ -52,7 +56,7 @@ router.post('/disable', auth, async (req: AuthRequest, res) => {
     }
 
     // Remove ghost mode
-    const { error: updateError } = await supabase
+    const { error: updateError } = await supabaseClient
       .from('profiles')
       .update({
         is_ghost: false,
@@ -68,7 +72,7 @@ router.post('/disable', auth, async (req: AuthRequest, res) => {
     }
 
     // Clear all purges for this user
-    await supabase
+    await supabaseClient
       .from('purges')
       .delete()
       .eq('target_user_id', userId);

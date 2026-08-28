@@ -1,4 +1,4 @@
-import { supabase } from '../../config/supabase';
+﻿import { requireSupabase } from '../../config/supabase';
 import { SURVIVAL_THRESHOLDS, SurvivalState } from '../../constants/survivalConstants';
 import { AllianceEngine } from '../social/alliance-engine';
 
@@ -8,8 +8,9 @@ export class StateEngine {
     warning_level: number;
     ghost_status: boolean;
   }> {
+    const supabaseClient = requireSupabase();
     const [state, thresholdMod] = await Promise.all([
-      supabase
+      supabaseClient
         .from('user_survival_state')
         .select('*')
         .eq('user_id', userId)
@@ -102,6 +103,7 @@ export class StateEngine {
   }
 
   private static checkWarning(state: any, adjustedLimit: (n: number) => number, adjustedRepMin: (n: number) => number): boolean {
+    const supabaseClient = requireSupabase();
     if (state.purge_count >= adjustedLimit(SURVIVAL_THRESHOLDS.STATE.WARNING_PURGE_LIMIT)) return true;
     if (state.reputation_score < adjustedRepMin(SURVIVAL_THRESHOLDS.STATE.WARNING_REPUTATION_MAX)) return true;
     if (state.inactivity_level >= SURVIVAL_THRESHOLDS.STATE.WARNING_INACTIVITY_MIN) return true;
@@ -109,11 +111,12 @@ export class StateEngine {
   }
 
   private static async transitionTo(state: any, newState: SurvivalState): Promise<void> {
+    const supabaseClient = requireSupabase();
     if (state.current_survival_state === newState) return;
 
     const now = new Date().toISOString();
 
-    await supabase
+    await supabaseClient
       .from('user_survival_state')
       .update({
         current_survival_state: newState,
@@ -122,7 +125,7 @@ export class StateEngine {
       })
       .eq('user_id', state.user_id);
 
-    await supabase.from('survival_events').insert({
+    await supabaseClient.from('survival_events').insert({
       user_id: state.user_id,
       event_type: 'STATE_CHANGED',
       event_value: SURVIVAL_STATE_VALUES[newState] || 0,

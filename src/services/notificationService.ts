@@ -3,6 +3,7 @@ import api from '../lib/axios';
 import { NotificationPreferences } from '../types/notification';
 
 export const markNotificationAsRead = async (notificationId: string) => {
+  if (!supabase) return;
   const { error } = await supabase
     .from('notifications')
     .update({ read: true })
@@ -11,6 +12,7 @@ export const markNotificationAsRead = async (notificationId: string) => {
 };
 
 export const acceptFriendRequest = async (senderId: string) => {
+  if (!supabase) throw new Error('Supabase not configured');
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('User not authenticated');
 
@@ -24,6 +26,7 @@ export const acceptFriendRequest = async (senderId: string) => {
 };
 
 export const rejectFriendRequest = async (senderId: string) => {
+  if (!supabase) throw new Error('Supabase not configured');
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('User not authenticated');
 

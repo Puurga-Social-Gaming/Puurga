@@ -1,4 +1,5 @@
-import express from 'express';
+﻿import express from 'express';
+import { requireSupabase, requireSupabaseAdmin } from '../config/supabase';
 import { supabaseAuth as auth, AuthRequest } from '../middleware/supabaseAuth';
 import { generateZegoToken04 } from '../utils/zegoToken';
 import { areBlocked } from '../utils/friendRelations';
@@ -20,6 +21,8 @@ function getZegoCredentials(): { appId: number; serverSecret: string } | null {
 
 // POST /api/calls/token — mint a Zego Token04 for the authenticated user
 router.post('/token', auth, async (req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     if (!req.user) {
       return res.status(401).json({ error: 'Unauthorized' });
@@ -70,6 +73,8 @@ router.post('/token', auth, async (req: AuthRequest, res) => {
 
 // GET /api/calls/status — whether calls are configured (no secrets)
 router.get('/status', auth, async (_req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   const creds = getZegoCredentials();
   res.json({
     configured: !!creds,
@@ -81,6 +86,8 @@ router.get('/status', auth, async (_req: AuthRequest, res) => {
 
 // POST /api/calls/end — mark invite as ended / missed
 router.post('/end', auth, async (req: AuthRequest, res) => {
+    const supabaseClient = requireSupabase();
+    const supabaseAdminClient = requireSupabaseAdmin();
   try {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
     const { roomId, status } = req.body || {};
@@ -90,8 +97,7 @@ router.post('/end', auth, async (req: AuthRequest, res) => {
       ? status
       : 'ended';
 
-    const { supabase } = await import('../config/supabase');
-    await supabase
+    await supabaseClient
       .from('call_invites')
       .update({ status: finalStatus, ended_at: new Date().toISOString() })
       .eq('room_id', roomId)

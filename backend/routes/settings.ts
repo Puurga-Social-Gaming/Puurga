@@ -1,5 +1,5 @@
-import express, { Request, Response, NextFunction } from 'express';
-import { supabase } from '../config/supabase';
+﻿import express, { Request, Response, NextFunction } from 'express';
+import { UserSettings, GlobalSettings } from '../models';
 import { supabaseAuth as auth, AuthRequest } from '../middleware/supabaseAuth';
 import { superAdminAuth } from '../middleware/superAdminAuth';
 import { logSuperAdminAction } from '../utils/auditLogger';
@@ -64,40 +64,22 @@ router.get('/', auth, async (req: AuthRequest, res: Response) => {
     }
 
     // Try to get existing settings from database
-    const { data: settings, error } = await supabase
-      .from('user_settings')
-      .select('*')
-      .eq('user_id', userId)
-      .single();
-
-    if (error && error.code !== 'PGRST116') { // PGRST116 = no rows found
-      console.error('Error fetching user settings:', error);
-      return res.status(500).json({ error: 'Failed to fetch settings' });
-    }
+    let settings = await UserSettings.findOne({ where: { user_id: userId } });
 
     // If no settings exist, create default settings
     if (!settings) {
       const defaultSettings = getDefaultSettings(req.user?.role);
-      const { data: newSettings, error: insertError } = await supabase
-        .from('user_settings')
-        .insert({
-          user_id: userId,
-          settings: defaultSettings,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        })
-        .select()
-        .single();
-
-      if (insertError) {
-        console.error('Error creating default settings:', insertError);
-        return res.status(500).json({ error: 'Failed to create default settings' });
-      }
+      settings = await UserSettings.create({
+        user_id: userId,
+        settings: defaultSettings,
+        created_at: new Date(),
+        updated_at: new Date()
+      });
 
       return res.json({
-        settings: newSettings.settings,
+        settings: settings.settings,
         role: req.user?.role,
-        lastUpdated: newSettings.updated_at
+        lastUpdated: settings.updated_at
       });
     }
 
@@ -141,22 +123,13 @@ router.put('/', auth, async (req: AuthRequest, res: Response) => {
     });
 
     // Update or insert settings
-    const { data: updatedSettings, error } = await supabase
-      .from('user_settings')
-      .upsert({
-        user_id: userId,
-        settings: validatedSettings,
-        updated_at: new Date().toISOString()
-      }, {
-        onConflict: 'user_id'
-      })
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Error updating user settings:', error);
-      return res.status(500).json({ error: 'Failed to update settings' });
-    }
+    const [updatedSettings] = await UserSettings.upsert({
+      user_id: userId,
+      settings: validatedSettings,
+      updated_at: new Date()
+    }, {
+      conflictFields: ['user_id']
+    });
 
     res.json({
       message: 'Settings updated successfully',
@@ -180,15 +153,7 @@ router.get('/global', auth, async (req: AuthRequest, res: Response) => {
     }
 
     // Get global settings from database
-    const { data: globalSettings, error } = await supabase
-      .from('global_settings')
-      .select('*')
-      .single();
-
-    if (error && error.code !== 'PGRST116') {
-      console.error('Error fetching global settings:', error);
-      return res.status(500).json({ error: 'Failed to fetch global settings' });
-    }
+    let globalSettings = await GlobalSettings.findOne({ where: { id: 1 } });
 
     // If no global settings exist, create defaults
     if (!globalSettings) {
@@ -221,24 +186,16 @@ router.get('/global', auth, async (req: AuthRequest, res: Response) => {
         maxMessagesPerHour: 100
       };
 
-      const { data: newGlobalSettings, error: insertError } = await supabase
-        .from('global_settings')
-        .insert({
-          settings: defaultGlobalSettings,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        })
-        .select()
-        .single();
-
-      if (insertError) {
-        console.error('Error creating global settings:', insertError);
-        return res.status(500).json({ error: 'Failed to create global settings' });
-      }
+      globalSettings = await GlobalSettings.create({
+        id: 1,
+        settings: defaultGlobalSettings,
+        created_at: new Date(),
+        updated_at: new Date()
+      });
 
       return res.json({
-        settings: newGlobalSettings.settings,
-        lastUpdated: newGlobalSettings.updated_at
+        settings: globalSettings.settings,
+        lastUpdated: globalSettings.updated_at
       });
     }
 
@@ -271,22 +228,13 @@ router.put('/global', auth, superAdminAuth, async (req: AuthRequest, res: Respon
     }
 
     // Update global settings
-    const { data: updatedSettings, error } = await supabase
-      .from('global_settings')
-      .upsert({
-        id: 1, // Always use ID 1 for global settings
-        settings: settings,
-        updated_at: new Date().toISOString()
-      }, {
-        onConflict: 'id'
-      })
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Error updating global settings:', error);
-      return res.status(500).json({ error: 'Failed to update global settings' });
-    }
+    const [updatedSettings] = await GlobalSettings.upsert({
+      id: 1, // Always use ID 1 for global settings
+      settings: settings,
+      updated_at: new Date()
+    }, {
+      conflictFields: ['id']
+    });
 
     res.json({
       message: 'Global settings updated successfully',
@@ -304,15 +252,7 @@ router.put('/global', auth, superAdminAuth, async (req: AuthRequest, res: Respon
 router.get('/rules', async (req: Request, res: Response) => {
   try {
     // Get global settings
-    const { data: globalSettings, error } = await supabase
-      .from('global_settings')
-      .select('settings')
-      .single();
-
-    if (error && error.code !== 'PGRST116') {
-      console.error('Error fetching platform rules:', error);
-      return res.status(500).json({ error: 'Failed to fetch platform rules' });
-    }
+    const globalSettings = await GlobalSettings.findOne({ where: { id: 1 } });
 
     const rules = globalSettings?.settings || {
       allowRegistration: true,
