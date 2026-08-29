@@ -57,8 +57,6 @@ type MigrationFile = {
 function collectMigrations(): MigrationFile[] {
   const allowed = /\.(ts|sql)$/;
 
-  const allowed = /\.(ts|sql)$/;
-
   // Skip files that are not real versioned migrations
   const ignored = new Set([
     'add_content_column_now.sql',
