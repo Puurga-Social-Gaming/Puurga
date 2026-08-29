@@ -57,6 +57,25 @@ type MigrationFile = {
 function collectMigrations(): MigrationFile[] {
   const allowed = /\.(ts|sql)$/;
 
+  const allowed = /\.(ts|sql)$/;
+
+  // Skip files that are not real versioned migrations
+  const ignored = new Set([
+    'add_content_column_now.sql',
+    'add_images_to_messages.sql',
+    'create_call_invites_table.sql',
+    'create_friends_tables.sql',
+    'create_get_friend_suggestions.sql',
+    'create_groups_tables.sql',
+    'create_messaging_tables.sql',
+    'create_messaging_tables_simple.sql',
+    'create_settings_tables.sql',
+    'fix_purges_manually.sql',
+    'fix_statuses_and_story_views.sql',
+    '20240121133500_create_get_user_relations_function.sql',
+    'optimize_storage_listing.sql',
+  ]);
+
   return fs
     .readdirSync(MIGRATIONS_DIR)
     .filter((f) => {
