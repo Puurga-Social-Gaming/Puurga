@@ -70,6 +70,7 @@ function collectMigrations(): MigrationFile[] {
     'create_settings_tables.sql',
     'fix_purges_manually.sql',
     'fix_statuses_and_story_views.sql',
+'20240121133500_create_get_user_relations_function.sql',
     'optimize_storage_listing.sql',
   ]);
 
