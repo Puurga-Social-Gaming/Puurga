@@ -39,6 +39,7 @@ const setupAdmin = async () => {
       email: admin.email,
       username: admin.username
     });
+    process.exit(0);
   } catch (error) {
     console.error('❌ Error setting up admin:', error);
     process.exit(1);
