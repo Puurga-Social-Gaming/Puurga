@@ -26,6 +26,7 @@
   "exclude": [
     "node_modules",
     "dist",
-    "scripts"
+    "scripts",
+    "migrations/legacy_archive"
   ]
 } 

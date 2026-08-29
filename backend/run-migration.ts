@@ -1,11 +1,11 @@
-import { up } from './migrations/20260828_add_purge_fields';
+import { up } from './migrations/20260829000000_baseline_schema';
 
 up()
   .then(() => {
-    console.log('Migration completed successfully');
+    console.log('Baseline migration completed successfully');
     process.exit(0);
   })
-  .catch((error) => {
+  .catch((error: any) => {
     console.error('Migration failed:', error);
     process.exit(1);
   });

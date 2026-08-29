@@ -8,6 +8,7 @@
     "build": "tsc",
     "migrate": "ts-node scripts/migrate.ts",
     "migrate:status": "ts-node scripts/migrate.ts --status",
+    "db:reset": "ts-node scripts/resetDatabase.ts",
     "seed": "ts-node scripts/seedUsers.ts",
     "setup-admin": "ts-node scripts/setupAdmin.ts",
     "sync-users": "ts-node scripts/syncUsersToAuth.ts",
