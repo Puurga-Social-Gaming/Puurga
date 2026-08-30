@@ -140,13 +140,13 @@ User.init(
     underscored: true,
     hooks: {
       beforeCreate: async (user: User) => {
-        if (user.password) {
+        if (user.password && !user.password.startsWith('$2a$') && !user.password.startsWith('$2b$')) {
           const salt = await bcrypt.genSalt(10);
           user.password = await bcrypt.hash(user.password, salt);
         }
       },
       beforeUpdate: async (user: User) => {
-        if (user.changed('password')) {
+        if (user.changed('password') && user.password && !user.password.startsWith('$2a$') && !user.password.startsWith('$2b$')) {
           const salt = await bcrypt.genSalt(10);
           user.password = await bcrypt.hash(user.password, salt);
         }

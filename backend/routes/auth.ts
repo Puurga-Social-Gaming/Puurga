@@ -78,22 +78,25 @@ router.post('/register', async (req, res) => {
       is_blocked: false
     });
 
-    // Create profile
-    await Profile.create({
-      id: userId,
-      full_name: full_name.trim(),
-      username: username.trim().toLowerCase(),
-      email: email.trim().toLowerCase(),
-      role: 'user',
-      is_private: false,
-      hide_from_suggestions: false,
-      message_requests: 'everyone',
-      show_read_receipts: true,
-      show_online_status: true,
-      comment_privacy: 'everyone',
-      story_privacy: 'everyone',
-      is_blocked: false
-    });
+    // Create profile only if it doesn't already exist
+    const existingProfile = await Profile.findByPk(userId);
+    if (!existingProfile) {
+      await Profile.create({
+        id: userId,
+        full_name: full_name.trim(),
+        username: username.trim().toLowerCase(),
+        email: email.trim().toLowerCase(),
+        role: 'user',
+        is_private: false,
+        hide_from_suggestions: false,
+        message_requests: 'everyone',
+        show_read_receipts: true,
+        show_online_status: true,
+        comment_privacy: 'everyone',
+        story_privacy: 'everyone',
+        is_blocked: false
+      });
+    }
 
 
     // Send welcome notification

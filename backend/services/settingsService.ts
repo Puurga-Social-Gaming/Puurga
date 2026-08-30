@@ -1,6 +1,5 @@
-import { requireSupabase } from '../config/supabase';
 import { areFriends } from '../utils/friendRelations';
-import { Profile, FriendRequest, UserSettings, Op } from '../models';
+import { Profile, FriendRequest, UserSettings, Friendship, Op } from '../models';
 
 export type MessageRequestSetting = 'everyone' | 'followers' | 'none';
 
@@ -66,14 +65,12 @@ export async function canSendMessage(senderId: string, recipientId: string): Pro
  */
 export async function isProfileVisible(profileUserId: string, viewerId?: string): Promise<{ visible: boolean; reason?: string }> {
   try {
-    const supabase = requireSupabase();
-    const { data: profile, error } = await supabase
-      .from('profiles')
-      .select('id, is_private')
-      .eq('id', profileUserId)
-      .single();
+    const profile = await Profile.findOne({
+      where: { id: profileUserId },
+      attributes: ['id', 'is_private']
+    });
 
-    if (error || !profile) {
+    if (!profile) {
       return { visible: false, reason: 'Profile not found' };
     }
 
@@ -87,20 +84,18 @@ export async function isProfileVisible(profileUserId: string, viewerId?: string)
       return { visible: true };
     }
 
-    // If profile is private and viewer is the same, visible
-    if (viewerId === profileUserId) {
-      return { visible: true };
-    }
-
     // If private, check if viewer is a friend
     if (viewerId) {
-      const { data: friendship } = await supabase
-        .from('friends')
-        .select('id')
-        .or(`and(user_id_1.eq.${viewerId},user_id_2.eq.${profileUserId}),and(user_id_1.eq.${profileUserId},user_id_2.eq.${viewerId})`)
-        .limit(1);
+      const friendship = await Friendship.findOne({
+        where: {
+          [Op.or]: [
+            { user_id: viewerId, friend_id: profileUserId },
+            { user_id: profileUserId, friend_id: viewerId }
+          ]
+        }
+      });
 
-      if (friendship && friendship.length > 0) {
+      if (friendship) {
         return { visible: true };
       }
     }
@@ -117,39 +112,40 @@ export async function isProfileVisible(profileUserId: string, viewerId?: string)
  */
 export async function canComment(postOwnerId: string, commenterId: string): Promise<{ allowed: boolean; reason?: string }> {
   try {
-    const supabase = requireSupabase();
-    const { data: profile, error } = await supabase
-      .from('profiles')
-      .select('id, comment_privacy')
-      .eq('id', postOwnerId)
-      .single();
+    const profile = await Profile.findOne({
+      where: { id: postOwnerId },
+      attributes: ['id', 'comment_privacy']
+    });
 
-    if (error || !profile) {
+    if (!profile) {
       return { allowed: true }; // Default allow if profile not found
     }
 
-    const commentPrivacy = profile.comment_privacy || 'everyone';
+    const commentPrivacy = (profile as any).comment_privacy || 'everyone';
 
     switch (commentPrivacy) {
       case 'everyone':
         return { allowed: true };
-      
+
       case 'none':
         return { allowed: false, reason: 'Comments are disabled on this post' };
-      
+
       case 'followers':
         // Check if commenter follows post owner
-        const { data: friendship } = await supabase
-          .from('friends')
-          .select('id')
-          .or(`and(user_id_1.eq.${commenterId},user_id_2.eq.${postOwnerId}),and(user_id_1.eq.${postOwnerId},user_id_2.eq.${commenterId})`)
-          .limit(1);
+        const friendship = await Friendship.findOne({
+          where: {
+            [Op.or]: [
+              { user_id: commenterId, friend_id: postOwnerId },
+              { user_id: postOwnerId, friend_id: commenterId }
+            ]
+          }
+        });
 
-        if (!friendship || friendship.length === 0) {
+        if (!friendship) {
           return { allowed: false, reason: 'You must be friends to comment' };
         }
         return { allowed: true };
-      
+
       default:
         return { allowed: true };
     }
@@ -164,14 +160,12 @@ export async function canComment(postOwnerId: string, commenterId: string): Prom
  */
 export async function shouldShowOnlineStatus(targetUserId: string, viewerId?: string): Promise<boolean> {
   try {
-    const supabase = requireSupabase();
-    const { data: profile, error } = await supabase
-      .from('profiles')
-      .select('id, show_online_status')
-      .eq('id', targetUserId)
-      .single();
+    const profile = await Profile.findOne({
+      where: { id: targetUserId },
+      attributes: ['id', 'show_online_status']
+    });
 
-    if (error || !profile) {
+    if (!profile) {
       return true; // Default to showing
     }
 
@@ -180,7 +174,7 @@ export async function shouldShowOnlineStatus(targetUserId: string, viewerId?: st
       return true;
     }
 
-    return profile.show_online_status !== false;
+    return (profile as any).show_online_status !== false;
   } catch (error) {
     console.error('Error checking online status visibility:', error);
     return true; // Default to showing
@@ -211,18 +205,16 @@ export async function allowsLiveTypingPreview(userId: string): Promise<boolean> 
  */
 export async function shouldShowInSuggestions(targetUserId: string): Promise<boolean> {
   try {
-    const supabase = requireSupabase();
-    const { data: profile, error } = await supabase
-      .from('profiles')
-      .select('id, hide_from_suggestions')
-      .eq('id', targetUserId)
-      .single();
+    const profile = await Profile.findOne({
+      where: { id: targetUserId },
+      attributes: ['id', 'hide_from_suggestions']
+    });
 
-    if (error || !profile) {
+    if (!profile) {
       return true;
     }
 
-    return profile.hide_from_suggestions !== true;
+    return (profile as any).hide_from_suggestions !== true;
   } catch (error) {
     console.error('Error checking suggestion visibility:', error);
     return true;
