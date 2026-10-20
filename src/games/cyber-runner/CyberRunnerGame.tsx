@@ -541,6 +541,7 @@ function GameArena({
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
   const bgImagesRef = useRef({});
+  const charImgRef = useRef(null);
   
   // HUD state connections
   const [hudHp, setHudHp] = useState(100);
@@ -612,12 +613,20 @@ function GameArena({
       gameStateRef.current.keys[e.code] = false;
     };
 
+    const handleMouseDown = (e) => {
+      if (e.button === 0) { // Left click
+        triggerPlayerShoot();
+      }
+    };
+
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('mousedown', handleMouseDown);
 
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('mousedown', handleMouseDown);
     };
   }, [equippedTrail]);
 
@@ -669,6 +678,13 @@ function GameArena({
         img.onload = () => { bgImagesRef.current[phase] = img; };
       }
     });
+
+    // Runner character sprite — bundled in public/ so it ships with the build
+    if (!charImgRef.current) {
+      const charImg = new Image();
+      charImg.src = '/images/games/cyber-runner-character.png';
+      charImg.onload = () => { charImgRef.current = charImg; };
+    }
 
     // Dynamic stats computations
     const initialAgility = 4.8 + stats.speed * 0.35; // Calibrated starting speed
@@ -767,6 +783,7 @@ function GameArena({
     // Scroll Camera — player sits ~16% from left on mobile for much more lookahead
     const leadX = state.playerScreenX || Math.max(56, state.viewW * 0.16);
     state.cameraX += (player.x - state.cameraX - leadX) * 0.1;
+    console.log('[CAMERA] player.x:', player.x.toFixed(0), 'cameraX:', state.cameraX.toFixed(0), 'leadX:', leadX.toFixed(0), 'diff:', (player.x - state.cameraX - leadX).toFixed(0));
     state.distanceRun = Math.floor(player.x / 10);
     setHudDistance(state.distanceRun);
 
@@ -1168,6 +1185,79 @@ function GameArena({
       }
     });
 
+    // Projectiles Update & Bullet-Enemy Collisions
+    if (state.projectiles && state.projectiles.length > 0) {
+      console.log('[UPDATE] Projectiles count:', state.projectiles.length);
+      state.projectiles.forEach((bullet, bIdx) => {
+        bullet.x += bullet.vx * 60 * actualDt;
+        bullet.life -= actualDt;
+        console.log('[UPDATE] Bullet', bIdx, 'x:', bullet.x.toFixed(0), 'life:', bullet.life.toFixed(2));
+
+        // Check collision with enemies
+        state.enemies.forEach(enemy => {
+          if (enemy.hp > 0 && checkAABB(bullet, enemy)) {
+            enemy.hp -= bullet.damage;
+            state.screenShake = 5;
+            sfx.playHit();
+
+            // Hit particles
+            state.particles.push({
+              x: bullet.x,
+              y: bullet.y,
+              vx: (Math.random() - 0.5) * 4,
+              vy: (Math.random() - 0.5) * 4,
+              size: Math.random() * 3 + 1,
+              color: bullet.color,
+              life: 0.3
+            });
+
+            // Floating damage number
+            state.particles.push({
+              x: enemy.x,
+              y: enemy.y - 10,
+              vx: (Math.random() - 0.5) * 2,
+              vy: -3,
+              isText: true,
+              text: `-${bullet.damage}`,
+              color: '#f97316',
+              life: 0.5
+            });
+
+            if (enemy.hp <= 0) {
+              state.enemiesKilled++;
+              state.comboMultiplier++;
+              state.comboTimer = 4.0;
+              setHudCombo(state.comboMultiplier);
+              if (state.comboMultiplier > state.maxCombo) {
+                state.maxCombo = state.comboMultiplier;
+              }
+
+              state.slowMoFactor = 0.12;
+              setTimeout(() => { state.slowMoFactor = 1.0; }, 180);
+
+              for (let i = 0; i < 12; i++) {
+                state.particles.push({
+                  x: enemy.x + enemy.width / 2,
+                  y: enemy.y + enemy.height / 2,
+                  vx: (Math.random() - 0.5) * 8,
+                  vy: (Math.random() - 0.5) * 8,
+                  size: Math.random() * 4 + 2,
+                  color: enemy.color,
+                  life: 0.5
+                });
+              }
+            }
+
+            // Remove bullet on hit
+            bullet.life = 0;
+          }
+        });
+      });
+
+      // Remove dead/expired bullets
+      state.projectiles = state.projectiles.filter(b => b.life > 0);
+    }
+
     // Lasers Collisions
     state.lasers.forEach(laser => {
       if (checkAABB(player, laser)) {
@@ -1251,6 +1341,7 @@ function GameArena({
     state.lasers = state.lasers.filter(l => l.x + l.width > state.cameraX - 100);
     state.coins = state.coins.filter(c => !c.collected && c.x + 30 > state.cameraX - 100);
     state.hazards = state.hazards.filter(h => h.x + h.width > state.cameraX - 100);
+    state.projectiles = (state.projectiles || []).filter(b => b.life > 0 && b.x > state.cameraX - 100);
   };
 
   const triggerPlayerAttack = () => {
@@ -1272,6 +1363,35 @@ function GameArena({
         life: 0.3
       });
     }
+  };
+
+  const triggerPlayerShoot = () => {
+    const state = gameStateRef.current;
+    const player = state.player;
+    if (!player) return;
+
+    sfx.playSlash(); // Reuse slash sound for shooting
+
+    // Initialize projectiles array if not exists
+    if (!state.projectiles) state.projectiles = [];
+
+    // Fire from character's right side (gun position)
+    const px = player.x + player.width;
+    const py = player.y + player.height / 2;
+
+    const bullet = {
+      x: px,
+      y: py,
+      vx: 25, // Fast bullet speed
+      vy: 0,
+      width: 12,
+      height: 6,
+      damage: 10, // 4 bullets = 40 damage to kill basic enemy (40 HP)
+      color: equippedTrail === 'Ghost Ice' ? '#22d3ee' : '#f97316',
+      life: 2.0 // 2 seconds max life
+    };
+    state.projectiles.push(bullet);
+    console.log('[SHOOT] Bullet created:', bullet, 'Total projectiles:', state.projectiles.length);
   };
 
   const triggerGhostInvincibility = () => {
@@ -1473,6 +1593,28 @@ function GameArena({
       }
     });
 
+    // Render Projectiles (bullets)
+    if (state.projectiles && state.projectiles.length > 0) {
+      console.log('[RENDER] Projectiles count:', state.projectiles.length);
+      state.projectiles.forEach(bullet => {
+        console.log('[RENDER] Bullet x:', bullet.x.toFixed(0), 'cameraX:', state.cameraX.toFixed(0), 'visible:', bullet.x - state.cameraX > -50 && bullet.x - state.cameraX < canvas.width + 50);
+        ctx.save();
+        ctx.shadowBlur = 8;
+        ctx.shadowColor = bullet.color;
+        ctx.fillStyle = bullet.color;
+        // Draw bullet as a glowing rectangle (compatible with all browsers)
+        const bx = bullet.x;
+        const by = bullet.y - bullet.height / 2;
+        const bw = bullet.width;
+        const bh = bullet.height;
+        ctx.fillRect(bx, by, bw, bh);
+        // Add a bright core
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(bx + 2, by + 1, bw - 4, bh - 2);
+        ctx.restore();
+      });
+    }
+
     // Render physical enemies marching loop
     state.enemies.forEach(enemy => {
       ctx.strokeStyle = enemy.color;
@@ -1518,15 +1660,35 @@ function GameArena({
     ctx.shadowBlur = state.ghostActive ? 22 : 6;
     ctx.shadowColor = equippedTrail === 'Ghost Ice' ? '#22d3ee' : '#f97316';
 
-    // Wind-reactive scarf ribbon
-    ctx.beginPath();
-    ctx.moveTo(player.scarfPoints[0].x, player.scarfPoints[0].y);
-    for (let i = 1; i < player.scarfPoints.length; i++) {
-      ctx.lineTo(player.scarfPoints[i].x, player.scarfPoints[i].y);
-    }
-    ctx.stroke();
+    // Character sprite (replaces the procedural stick man).
+    // Falls back to the stick man below until the PNG has decoded.
+    const charImg = charImgRef.current;
+    if (charImg && charImg.complete && charImg.naturalWidth > 0) {
+      const drawH = player.height * 1.6;
+      const drawW = drawH * (charImg.naturalWidth / charImg.naturalHeight);
+      const drawX = px - drawW / 2;
+      const drawY = player.y + player.height - drawH;
 
-    // Body Skeleton Configuration
+      ctx.save();
+      if (player.invincibilityTimer > 0 || state.ghostActive) {
+        // Flash + glow while invincible / ghosted
+        ctx.shadowBlur = 24;
+        ctx.shadowColor = player.invincibilityTimer > 0 ? '#f43f5e' : (equippedTrail === 'Ghost Ice' ? '#22d3ee' : '#f97316');
+        ctx.globalAlpha = 0.65 + Math.abs(Math.sin(player.animFrame * 10)) * 0.35;
+      }
+      ctx.drawImage(charImg, drawX, drawY, drawW, drawH);
+      ctx.restore();
+
+      // Slash arc effect (retained from the original attack animation)
+      if (player.state === 'slash') {
+        ctx.strokeStyle = '#f97316';
+        ctx.lineWidth = 8;
+        ctx.beginPath();
+        ctx.arc(px + 20, py, 48, -Math.PI / 4, Math.PI / 3);
+        ctx.stroke();
+      }
+    } else {
+    // Body Skeleton Configuration (fallback while sprite loads)
     ctx.strokeStyle = player.invincibilityTimer > 0 ? '#f43f5e' : '#ffffff';
     ctx.lineWidth = 4;
 
@@ -1602,6 +1764,7 @@ function GameArena({
       ctx.lineTo(px + 12, py + pH / 3);
       ctx.stroke();
     }
+    } // end sprite-fallback stick man
 
     // Draw pursuer firewall threat
     ctx.fillStyle = 'rgba(239, 68, 68, 0.28)';
