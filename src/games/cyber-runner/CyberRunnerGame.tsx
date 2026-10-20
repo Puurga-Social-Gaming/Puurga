@@ -666,10 +666,13 @@ function GameArena({
       window.visualViewport.addEventListener('resize', handleVisualViewport);
     }
 
-    // Load background images for each phase
+    // Load background images for each phase (1-5) from local assets
     const bgUrls = {
-      1: 'https://vhvxfnxtyrgiydztsonz.supabase.co/storage/v1/object/public/Gamebackgrounds/mixboard-image.png',
-      2: 'https://vhvxfnxtyrgiydztsonz.supabase.co/storage/v1/object/public/Gamebackgrounds/mixboard-image%20jungle.png',
+      1: '/images/games/lv1.png',
+      2: '/images/games/lv2.png',
+      3: '/images/games/lv3.png',
+      4: '/images/games/lv3.png', // reuse lv3 for phase 4
+      5: '/images/games/lv5.png',
     };
     Object.entries(bgUrls).forEach(([phase, url]) => {
       if (!bgImagesRef.current[phase]) {
@@ -783,7 +786,6 @@ function GameArena({
     // Scroll Camera — player sits ~16% from left on mobile for much more lookahead
     const leadX = state.playerScreenX || Math.max(56, state.viewW * 0.16);
     state.cameraX += (player.x - state.cameraX - leadX) * 0.1;
-    console.log('[CAMERA] player.x:', player.x.toFixed(0), 'cameraX:', state.cameraX.toFixed(0), 'leadX:', leadX.toFixed(0), 'diff:', (player.x - state.cameraX - leadX).toFixed(0));
     state.distanceRun = Math.floor(player.x / 10);
     setHudDistance(state.distanceRun);
 
@@ -1187,11 +1189,9 @@ function GameArena({
 
     // Projectiles Update & Bullet-Enemy Collisions
     if (state.projectiles && state.projectiles.length > 0) {
-      console.log('[UPDATE] Projectiles count:', state.projectiles.length);
       state.projectiles.forEach((bullet, bIdx) => {
         bullet.x += bullet.vx * 60 * actualDt;
         bullet.life -= actualDt;
-        console.log('[UPDATE] Bullet', bIdx, 'x:', bullet.x.toFixed(0), 'life:', bullet.life.toFixed(2));
 
         // Check collision with enemies
         state.enemies.forEach(enemy => {
@@ -1391,7 +1391,6 @@ function GameArena({
       life: 2.0 // 2 seconds max life
     };
     state.projectiles.push(bullet);
-    console.log('[SHOOT] Bullet created:', bullet, 'Total projectiles:', state.projectiles.length);
   };
 
   const triggerGhostInvincibility = () => {
@@ -1595,9 +1594,7 @@ function GameArena({
 
     // Render Projectiles (bullets)
     if (state.projectiles && state.projectiles.length > 0) {
-      console.log('[RENDER] Projectiles count:', state.projectiles.length);
       state.projectiles.forEach(bullet => {
-        console.log('[RENDER] Bullet x:', bullet.x.toFixed(0), 'cameraX:', state.cameraX.toFixed(0), 'visible:', bullet.x - state.cameraX > -50 && bullet.x - state.cameraX < canvas.width + 50);
         ctx.save();
         ctx.shadowBlur = 8;
         ctx.shadowColor = bullet.color;
