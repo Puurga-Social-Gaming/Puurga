@@ -23,6 +23,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import QuickActions from './QuickActions';
 import GamingDashboard from './GamingDashboard';
 import PurgeDashboard from './PurgeDashboard';
+import SuggestedFriends from '../SuggestedFriends/SuggestedFriends';
 import CreatePost from '../Post/CreatePost';
 import { DEFAULT_IMAGES } from '../../constants/defaultImages';
 
@@ -253,6 +254,8 @@ const RightSidebar: React.FC = () => {
           </Link>
         </div>
       </div>
+
+      <SuggestedFriends />
 
       <GamingDashboard />
       <PurgeDashboard />

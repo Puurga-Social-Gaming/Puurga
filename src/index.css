@@ -500,8 +500,12 @@ a[href^="/profile/"]:active {
     padding-right: 0.5rem;
   }
 
-  /* Prevent horizontal spill in the center column at 80% */
-  html.desktop-width-compact .desktop-app-shell .flex-1.min-w-0 {
+  /* Prevent horizontal spill in the center column at 80%.
+     Scoped to the scroll column on purpose: `.flex-1.min-w-0` is a ubiquitous
+     utility, so the old blanket selector hit every flex child in the shell.
+     `overflow-x: hidden` also forces a non-`visible` overflow-y, which put a
+     stray scrollbar on the post author row (it overflows its box by ~2px). */
+  html.desktop-width-compact .desktop-app-shell .app-main-scroll {
     overflow-x: hidden;
   }
 

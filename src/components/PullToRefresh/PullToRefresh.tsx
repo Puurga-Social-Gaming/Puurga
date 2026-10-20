@@ -15,6 +15,9 @@ const PullToRefresh: React.FC<PullToRefreshProps> = ({
   const [pullDistance, setPullDistance] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const [pullPhase, setPullPhase] = useState<'idle' | 'pulling' | 'ready' | 'refreshing'>('idle');
+  // Keep transform applied for one transition cycle after settling so the
+  // snap-back animates, then drop it entirely (see style below).
+  const [settling, setSettling] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const startY = useRef(0);
   const scrollContainerRef = useRef<HTMLElement | null>(null);
@@ -37,6 +40,19 @@ const PullToRefresh: React.FC<PullToRefreshProps> = ({
   useEffect(() => {
     pullDistanceRef.current = pullDistance;
   }, [pullDistance]);
+
+  // Any non-`none` transform on this wrapper turns it into the containing
+  // block for every position:fixed descendant (status viewer, create-status
+  // modal), pinning them to this element instead of the viewport. So the
+  // transform must be removed completely once the snap-back has settled.
+  useEffect(() => {
+    if (pullDistance > 0 || refreshing) {
+      setSettling(true);
+      return;
+    }
+    const t = setTimeout(() => setSettling(false), 320);
+    return () => clearTimeout(t);
+  }, [pullDistance, refreshing]);
 
   useEffect(() => {
     refreshingRef.current = refreshing;
@@ -143,10 +159,14 @@ const PullToRefresh: React.FC<PullToRefreshProps> = ({
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
-      style={{
-        transform: `translateY(${pullDistance}px)`,
-        transition: isPulling.current ? 'none' : 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-      }}
+      style={
+        pullDistance > 0 || settling
+          ? {
+              transform: `translateY(${pullDistance}px)`,
+              transition: isPulling.current ? 'none' : 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+            }
+          : { transform: undefined, transition: undefined }
+      }
     >
       {(pullPhase !== 'idle' || refreshing) && (
         <div

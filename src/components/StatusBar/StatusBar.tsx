@@ -1,4 +1,5 @@
 import React, { Suspense, useEffect, useState, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { Plus, X, Image, Send, ChevronLeft, ChevronRight, Pause, Play, Smile, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import imageCompression from 'browser-image-compression';
@@ -603,7 +604,10 @@ const getStatusRingColor = (status: Status) => {
 
       {/* ═══════════════════════════════════════════════════════════ */}
       {/* STATUS VIEWER – Fullscreen Instagram/WhatsApp story style */}
+      {/* Portalled to document.body so no transformed/scrolling ancestor */}
+      {/* can trap it or paint the sidebar over it.                      */}
       {/* ═══════════════════════════════════════════════════════════ */}
+      {createPortal(
       <AnimatePresence>
         {selectedStatus && selectedStatusIndex !== null && (
           <motion.div
@@ -611,10 +615,10 @@ const getStatusRingColor = (status: Status) => {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="fixed inset-0 h-[100dvh] w-screen z-[9999] bg-black flex items-center justify-center overflow-hidden"
+            className="fixed inset-0 z-[9999] bg-black flex items-center justify-center overflow-hidden"
           >
             {/* Fullscreen story container */}
-            <div className="relative w-full h-full sm:max-w-md sm:max-h-[90vh] sm:rounded-2xl overflow-hidden flex flex-col mx-auto">
+            <div className="relative w-full h-full sm:w-auto sm:max-w-md sm:h-full sm:max-h-[90dvh] sm:rounded-2xl overflow-hidden flex flex-col mx-auto">
 
               {/* Progress bars - Instagram style */}
               <div className="absolute top-0 left-0 right-0 z-30 flex gap-1 px-2 pt-2 sm:pt-3">
@@ -806,7 +810,9 @@ const getStatusRingColor = (status: Status) => {
             </div>
           </motion.div>
         )}
-      </AnimatePresence>
+      </AnimatePresence>,
+      document.body
+      )}
     </div>
   );
 };

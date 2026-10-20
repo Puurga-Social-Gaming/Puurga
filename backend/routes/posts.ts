@@ -292,7 +292,7 @@ router.get('/:id', auth, async (req: AuthRequest, res) => {
     const postId = req.params.id;
     const currentUserId = req.user?.id;
 
-    const [postResults] = await sequelize.query(
+    const postResults = await sequelize.query(
       `SELECT * FROM posts WHERE id = ? LIMIT 1`,
       {
         replacements: [postId],
@@ -348,7 +348,7 @@ router.post('/:id/purge', auth, validateNotGhosted, async (req, res) => {
     const postId = req.params.id;
     const userId = req.user.id;
 
-    const [postResults] = await sequelize.query(
+    const postResults = await sequelize.query(
       `SELECT * FROM posts WHERE id = ? LIMIT 1`,
       {
         replacements: [postId],
@@ -538,7 +538,7 @@ router.put('/:id', auth, async (req: AuthRequest, res) => {
     }
 
     // Check if the post exists and belongs to the user
-    const [editPostResults] = await sequelize.query(
+    const editPostResults = await sequelize.query(
       `SELECT id, user_id FROM posts WHERE id = ? LIMIT 1`,
       {
         replacements: [postId],
@@ -580,7 +580,7 @@ router.put('/:id', auth, async (req: AuthRequest, res) => {
 
     // Update the post
     await Post.update(updateData, { where: { id: postId } });
-    const [postResults2] = await sequelize.query(
+    const postResults2 = await sequelize.query(
       `SELECT * FROM posts WHERE id = ? LIMIT 1`,
       {
         replacements: [postId],
@@ -607,7 +607,7 @@ router.delete('/:id', auth, async (req: AuthRequest, res) => {
     const userId = req.user.id;
 
     // Check if the post exists and belongs to the user
-    const [editPostResults] = await sequelize.query(
+    const editPostResults = await sequelize.query(
       `SELECT id, user_id FROM posts WHERE id = ? LIMIT 1`,
       {
         replacements: [postId],
@@ -702,7 +702,7 @@ router.post('/:postId/react', auth, validateNotGhosted, async (req: AuthRequest,
           await CreditService.awardCredits(userId, 1, 'like', 'Like post');
           
           // Award +2 to post owner
-          const [postResults3] = await sequelize.query(
+          const postResults3 = await sequelize.query(
             `SELECT user_id FROM posts WHERE id = ? LIMIT 1`,
             {
               replacements: [postId],

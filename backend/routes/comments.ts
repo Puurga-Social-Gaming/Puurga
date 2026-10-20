@@ -173,7 +173,7 @@ router.post('/posts/:postId/comments', auth, validateNotGhosted, async (req: Aut
     }
 
     // Check if post exists
-    const [postResults] = await sequelize.query(
+    const postResults = await sequelize.query(
       `SELECT id, user_id FROM posts WHERE id = ? LIMIT 1`,
       {
         replacements: [postId],

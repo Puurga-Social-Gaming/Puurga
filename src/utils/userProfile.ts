@@ -74,58 +74,66 @@ export function normalizeAppUser(
   raw: Record<string, unknown>,
   emailFallback?: string | null,
 ): AppUser {
-  const meta = (raw.user_metadata as Record<string, unknown> | undefined) ?? {};
+  // Some endpoints serialize a Sequelize model instance directly, so the real
+  // columns live under `dataValues` (alongside `_previousDataValues`, `uniqno`,
+  // `_changed`, `_options`). Flatten first — otherwise the id lookup is
+  // undefined, `user.id` becomes '' and ownership checks fail everywhere.
+  const dataValues = raw?.dataValues as Record<string, unknown> | undefined;
+  const src: Record<string, unknown> =
+    dataValues && typeof dataValues === 'object' ? { ...dataValues, ...raw } : raw;
+
+  const meta = (src.user_metadata as Record<string, unknown> | undefined) ?? {};
   const email =
-    (raw.email as string | undefined) ||
+    (src.email as string | undefined) ||
     emailFallback ||
     '';
 
   const name = resolveDisplayName({
-    full_name: raw.full_name as string | undefined,
-    name: raw.name as string | undefined,
+    full_name: src.full_name as string | undefined,
+    name: src.name as string | undefined,
     metadata: meta,
     email,
   });
 
   const username = resolveUsername({
-    username: raw.username as string | undefined,
+    username: src.username as string | undefined,
     metadata: meta,
     email,
-    userId: raw.id as string | undefined,
+    userId: src.id as string | undefined,
   });
 
-  const credits = Number(raw.purga_points ?? raw.credits ?? 0);
+  const credits = Number(src.purga_points ?? src.credits ?? 0);
 
   return {
-    id: String(raw.id ?? ''),
+    id: String(src.id ?? ''),
     name,
     username,
     email,
-    avatar: (raw.avatar_url as string | null | undefined) ?? (raw.avatar as string | null | undefined) ?? null,
-    coverPhoto: (raw.cover_photo as string | null | undefined) ?? (raw.coverPhoto as string | null | undefined) ?? null,
-    bio: (raw.bio as string | undefined) ?? '',
-    location: (raw.location as string | undefined) ?? '',
-    website: (raw.website as string | undefined) ?? '',
-    createdAt: (raw.created_at as string | undefined) ?? (raw.createdAt as string | undefined) ?? new Date().toISOString(),
-    role: (raw.role as AppUser['role']) ?? 'user',
-    isBlocked: Boolean(raw.is_blocked ?? false),
-    isOnline: Boolean(raw.isOnline ?? false),
-    isFriend: Boolean(raw.isFriend ?? false),
-    occupation: (raw.occupation as string | undefined) ?? '',
-    education: (raw.education as string | undefined) ?? '',
-    relationship: (raw.relationship as string | undefined) ?? '',
-    isPrivate: Boolean(raw.is_private ?? false),
-    hideFromSuggestions: Boolean(raw.hide_from_suggestions ?? false),
-    messageRequests: (raw.message_requests as AppUser['messageRequests']) ?? 'everyone',
-    showReadReceipts: Boolean(raw.show_read_receipts ?? true),
-    showOnlineStatus: Boolean(raw.show_online_status ?? true),
-    commentPrivacy: (raw.comment_privacy as AppUser['commentPrivacy']) ?? 'everyone',
-    storyPrivacy: (raw.story_privacy as AppUser['storyPrivacy']) ?? 'everyone',
-    isVerified: Boolean(raw.isVerified ?? false),
-    joinDate: (raw.joinDate as string | undefined) ?? (raw.created_at as string | undefined),
-    postCount: Number(raw.postCount ?? 0),
-    totalLikes: Number(raw.totalLikes ?? 0),
-    stats: (raw.stats as AppUser['stats']) ?? {
+    avatar: (src.avatar_url as string | null | undefined) ?? (src.avatar as string | null | undefined) ?? null,
+    coverPhoto: (src.cover_photo as string | null | undefined) ?? (src.coverPhoto as string | null | undefined) ?? null,
+    bio: (src.bio as string | undefined) ?? '',
+    location: (src.location as string | undefined) ?? '',
+    website: (src.website as string | undefined) ?? '',
+    createdAt: (src.created_at as string | undefined) ?? (src.createdAt as string | undefined) ?? new Date().toISOString(),
+    role: (src.role as AppUser['role']) ?? 'user',
+    isBlocked: Boolean(src.is_blocked ?? false),
+    isOnline: Boolean(src.isOnline ?? false),
+    isFriend: Boolean(src.isFriend ?? false),
+    occupation: (src.occupation as string | undefined) ?? '',
+    education: (src.education as string | undefined) ?? '',
+    relationship: (src.relationship as string | undefined) ?? '',
+    isPrivate: Boolean(src.is_private ?? false),
+    hideFromSuggestions: Boolean(src.hide_from_suggestions ?? false),
+    messageRequests: (src.message_requests as AppUser['messageRequests']) ?? 'everyone',
+    showReadReceipts: Boolean(src.show_read_receipts ?? true),
+    showOnlineStatus: Boolean(src.show_online_status ?? true),
+    commentPrivacy: (src.comment_privacy as AppUser['commentPrivacy']) ?? 'everyone',
+    storyPrivacy: (src.story_privacy as AppUser['storyPrivacy']) ?? 'everyone',
+    isVerified: Boolean(src.isVerified ?? false),
+    joinDate: (src.joinDate as string | undefined) ?? (src.created_at as string | undefined),
+    postCount: Number(src.postCount ?? 0),
+    totalLikes: Number(src.totalLikes ?? 0),
+    stats: (src.stats as AppUser['stats']) ?? {
       posts: 0,
       followers: 0,
       following: 0,
@@ -135,13 +143,13 @@ export function normalizeAppUser(
     },
     credits,
     purga_points: credits,
-    isGhost: Boolean(raw.is_ghost ?? raw.isGhost ?? false),
-    purgeCount: Number(raw.purge_count ?? raw.purgeCount ?? 0),
+    isGhost: Boolean(src.is_ghost ?? src.isGhost ?? false),
+    purgeCount: Number(src.purge_count ?? src.purgeCount ?? 0),
     certificationSlug:
-      (raw.certificationSlug as string | null | undefined) ??
-      (raw.certification_slug as string | null | undefined) ??
+      (src.certificationSlug as string | null | undefined) ??
+      (src.certification_slug as string | null | undefined) ??
       null,
-    logoCertified: Boolean(raw.logoCertified ?? raw.logo_certified ?? false),
+    logoCertified: Boolean(src.logoCertified ?? src.logo_certified ?? false),
   };
 }
 

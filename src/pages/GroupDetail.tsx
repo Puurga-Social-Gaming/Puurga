@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { Suspense, useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Users, Send, ArrowLeft, Settings, UserPlus, LogOut, Crown, Shield, X, Copy, RefreshCw, Link as LinkIcon, Film } from 'lucide-react';
+import { Users, Send, ArrowLeft, Settings, UserPlus, LogOut, Crown, Shield, X, Copy, RefreshCw, Link as LinkIcon, Film, Smile } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import api from '../api/api';
 import toast from 'react-hot-toast';
@@ -11,6 +11,12 @@ import ContentTranslator from '../components/ContentTranslator';
 import { extractUrls } from '../utils/linkParser';
 import { useWebSocket } from '../hooks/useWebSocket';
 import ProfileLink from '../components/Profile/ProfileLink';
+import type { EmojiClickData, Theme } from 'emoji-picker-react';
+import { retryableLazy } from '../utils/retryableLazy';
+
+// Same lazy-loading approach as CreatePost — keeps the emoji bundle off the
+// initial group page payload.
+const EmojiPicker = retryableLazy(() => import('emoji-picker-react'));
 
 interface GroupMember {
   id: string;
@@ -75,6 +81,24 @@ const GroupDetail: React.FC = () => {
   const [messages, setMessages] = useState<GroupMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [sendingMessage, setSendingMessage] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const emojiPickerRef = useRef<HTMLDivElement>(null);
+
+  // Close the emoji picker when clicking/tapping outside of it
+  useEffect(() => {
+    if (!showEmojiPicker) return;
+    const onPointerDown = (e: MouseEvent | TouchEvent) => {
+      if (emojiPickerRef.current && !emojiPickerRef.current.contains(e.target as Node)) {
+        setShowEmojiPicker(false);
+      }
+    };
+    document.addEventListener('mousedown', onPointerDown);
+    document.addEventListener('touchstart', onPointerDown);
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown);
+      document.removeEventListener('touchstart', onPointerDown);
+    };
+  }, [showEmojiPicker]);
   const [loading, setLoading] = useState(false);
   const [selectedImages, setSelectedImages] = useState<File[]>([]);
   const [selectedVideos, setSelectedVideos] = useState<File[]>([]);
@@ -804,6 +828,38 @@ const GroupDetail: React.FC = () => {
                     multiple
                     className="hidden"
                   />
+                  {/* Emoji — lets a member send a smiley on its own, no media needed */}
+                  <div className="relative" ref={emojiPickerRef}>
+                    <button
+                      type="button"
+                      onClick={() => setShowEmojiPicker((v) => !v)}
+                      className="p-2.5 text-muted hover:text-accent rounded-full hover:bg-accent/10"
+                      aria-label="Add emoji"
+                      title="Add emoji"
+                    >
+                      <Smile size={20} />
+                    </button>
+                    {showEmojiPicker && (
+                      <div className="absolute bottom-12 left-0 z-50 shadow-2xl">
+                        <Suspense fallback={<div className="w-[280px] h-[320px] bg-card animate-pulse rounded-lg" />}>
+                          <EmojiPicker
+                            onEmojiClick={(emoji: EmojiClickData) => {
+                              setNewMessage((prev) => prev + emoji.emoji);
+                              setShowEmojiPicker(false);
+                            }}
+                            autoFocusSearch={false}
+                            theme={'dark' as Theme}
+                            width={280}
+                            height={320}
+                            searchDisabled
+                            skinTonesDisabled
+                            lazyLoadEmojis
+                            emojiStyle={'native' as any}
+                          />
+                        </Suspense>
+                      </div>
+                    )}
+                  </div>
                   <input
                     type="text"
                     value={newMessage}

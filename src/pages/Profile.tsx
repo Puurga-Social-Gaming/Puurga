@@ -6,7 +6,7 @@ import api from '../lib/axios';
 import {
   Camera, Settings, Heart, Calendar, MapPin, Loader2, AlertCircle, AlertTriangle,
   Link2, Briefcase, GraduationCap, ChevronUp, ChevronDown, Trophy, Flame, Gamepad2,
-  Shield, Pencil, ImagePlus, BadgeCheck,
+  Shield, ImagePlus, BadgeCheck,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import Avatar from '../components/Avatar';
@@ -236,20 +236,9 @@ const Profile: React.FC = () => {
           <div className="absolute inset-0 bg-gradient-to-t from-background via-background/20 to-transparent pointer-events-none" />
           <div className="absolute inset-0 bg-gradient-to-r from-background/40 via-transparent to-transparent pointer-events-none" />
 
-          {/* Cover change — always available */}
-          <button
-            type="button"
-            onClick={() => coverPhotoRef.current?.click()}
-            disabled={uploadingCover}
-            className="absolute bottom-3 right-3 sm:bottom-4 sm:right-4 z-10 flex items-center gap-2 px-3 py-2 rounded-xl bg-black/55 backdrop-blur-md text-white text-sm font-medium border border-white/15 hover:bg-black/75 transition-all shadow-lg opacity-100 sm:opacity-0 sm:group-hover/cover:opacity-100 focus:opacity-100"
-          >
-            {uploadingCover ? (
-              <Loader2 size={15} className="animate-spin" />
-            ) : (
-              <ImagePlus size={15} />
-            )}
-            {profileData.coverPhoto ? t('profile.changeCover') : 'Add cover'}
-          </button>
+          {/* Cover change lives in the actions row ("Cover") and in
+              Settings → Photos ("Change cover"). A third floating pill used to
+              sit here and overlapped the "Get verified" button. */}
           <input
             type="file"
             ref={coverPhotoRef}
@@ -333,22 +322,11 @@ const Profile: React.FC = () => {
                   variant="default"
                   size="sm"
                   onClick={() => coverPhotoRef.current?.click()}
+                  disabled={uploadingCover}
                   className="gap-1.5"
                 >
                   <ImagePlus size={14} />
                   Cover
-                </Button>
-                <Button
-                  variant="primary"
-                  size="sm"
-                  onClick={() => {
-                    setActiveTab('settings');
-                    setIsEditMode(true);
-                  }}
-                  className="gap-1.5"
-                >
-                  <Pencil size={14} />
-                  {t('profile.editProfile')}
                 </Button>
               </div>
             </div>
@@ -608,17 +586,9 @@ const Profile: React.FC = () => {
               </div>
             </div>
 
-            <div className="rounded-xl border border-border bg-card/40 p-4 space-y-3">
-              <p className="text-xs font-medium text-muted uppercase tracking-wide">Photos</p>
-              <div className="flex flex-wrap gap-2">
-                <Button variant="default" size="sm" onClick={() => coverPhotoRef.current?.click()} className="gap-1.5">
-                  <ImagePlus size={14} /> Change cover
-                </Button>
-                <Button variant="default" size="sm" onClick={() => profilePictureRef.current?.click()} className="gap-1.5">
-                  <Camera size={14} /> Change avatar
-                </Button>
-              </div>
-            </div>
+            {/* Photos are changed via the avatar overlay and the "Cover"
+                button in the hero actions — a separate "Photos" card here
+                duplicated both. */}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {['name', 'username', 'email', 'location', 'website', 'occupation', 'education'].map((field) => (

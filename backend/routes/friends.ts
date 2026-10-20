@@ -3,136 +3,71 @@ import { requireSupabase } from '../config/supabase';
 import { supabaseAuth as auth, AuthRequest } from '../middleware/supabaseAuth';
 import { normalizeImageUrl } from '../utils/url';
 import { getAcceptedFriendIds, removeFriendship } from '../utils/friendRelations';
+import { Profile, FriendRequest, Op } from '../models';
 
 const router = express.Router();
 
 // Get suggested friends
+// Resolved against the local PostgreSQL database. The previous version went
+// through a Supabase RPC; in local mode `requireSupabase()` returns a noop
+// proxy that resolves to `[]`, which is truthy — so the route short-circuited
+// and every caller always received an empty list.
 router.get('/suggestions', auth, async (req: AuthRequest, res) => {
-  const supabase = requireSupabase();
   try {
     const { user } = req;
     if (!user) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    // Step 1: Try to use efficient RPC call first
-    try {
-      const { data: rpcData, error: rpcError } = await supabase
-        .rpc('get_friend_suggestions', { p_user_id: user.id, p_limit: 10 });
+    // Exclude self, existing friends, and anyone with a request in flight
+    const excluded = new Set<string>([user.id]);
 
-      if (!rpcError && rpcData) {
-        // Disable caching to ensure real-time updates
-        res.set('Cache-Control', 'no-store');
-
-        // Filter and map results, ensuring current user is never included
-        const results = rpcData
-          .filter((s: any) => s.id !== user.id) // Safety: exclude current user
-          .map((s: any) => ({
-            id: s.id,
-            name: s.full_name || 'Unknown',
-            username: s.username || 'user',
-            avatar: normalizeImageUrl(s.avatar_url),
-            status: 'none', // RPC filters out pending/friends
-          }));
-        return res.json(results);
-      }
-    } catch (ignore) {
-      // Fallback to legacy method if RPC fails or doesn't exist
+    for (const id of await getAcceptedFriendIds(user.id)) {
+      excluded.add(id);
     }
 
-    // --- LEGACY FALLBACK (Inefficient but reliable) ---
-    // Queries existing relations to exclude them
-    const { data: friends, error: friendsError } = await supabase
-      .from('friends')
-      .select('user_id_1, user_id_2')
-      .or(`user_id_1.eq.${user.id},user_id_2.eq.${user.id}`);
+    const requests = await FriendRequest.findAll({
+      where: {
+        [Op.or]: [{ sender_id: user.id }, { receiver_id: user.id }],
+      },
+      attributes: ['sender_id', 'receiver_id', 'status'],
+    });
 
-    const { data: requests, error: requestsError } = await supabase
-      .from('friend_requests')
-      .select('sender_id, receiver_id, status')
-      .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`);
-
-    if (friendsError || requestsError) {
-      const err = friendsError || requestsError;
-      console.error('Error fetching relations:', err);
-      // Handle missing tables gracefully
-      if (err && ((err as any).code === '42P01' || (err as any).code === '42703')) {
-        // Tables don't exist, so user has no friends/requests. Proceed with empty lists.
-        const friendIds = new Set();
-        const requestMap = new Map();
-
-        // ... continue to suggestions logic ...
-        // Since we can't easily jump, let's just return empty suggestions for now
-        // or actually, if tables are missing, we should just return random profiles
-        // But for safety, let's return empty array if tables are completely missing
-        return res.json([]);
-      }
-      return res.status(500).json({
-        error: 'Failed to fetch user relations',
-        details: err?.message || 'Unknown error'
-      });
-    }
-
-    const safeFriends = friends || [];
-    const safeRequests = requests || [];
-
-    const friendIds = new Set(safeFriends.map(f => (f.user_id_1 === user.id ? f.user_id_2 : f.user_id_1)));
-    const requestMap = new Map();
-    safeRequests.forEach(r => {
+    const requestMap = new Map<string, string>();
+    for (const r of requests) {
       const otherUserId = r.sender_id === user.id ? r.receiver_id : r.sender_id;
-      // Prioritize 'pending' status if multiple requests exist (e.g., one rejected, one pending)
+      if (!otherUserId) continue;
+      // Prioritize 'pending' if multiple requests exist (e.g. one rejected, one pending)
       if (r.status === 'pending' || !requestMap.has(otherUserId)) {
         requestMap.set(otherUserId, r.status);
       }
-    });
-
-    // Step 2: Fetch all profiles, excluding the user and their existing friends.
-    // Also exclude pending and accepted requests from the friend_requests table.
-    const friendRequestIds = safeRequests
-      .filter(r => r.status === 'pending' || r.status === 'accepted')
-      .map(r => (r.sender_id === user.id ? r.receiver_id : r.sender_id));
-
-    const excludedIds = Array.from(new Set([
-      user.id,
-      ...Array.from(friendIds),
-      ...friendRequestIds
-    ]));
-
-    // Build filter to exclude IDs - Supabase doesn't support .not('id', 'in', ...) easily for large lists
-    // So we fetch all and filter client-side.
-    // OPTIMIZATION: Get newest users first (most likely to be relevant/active) and limit 100
-    const query = supabase
-      .from('profiles')
-      .select('id, full_name, username, avatar_url')
-      .neq('id', user.id) // Always exclude self
-      // .not('id', 'in', `(${Array.from(friendIds).slice(0, 50).join(',')})`) // Optional: exclude first 50 friends to help
-      .order('created_at', { ascending: false })
-      .limit(100);
-
-    const { data: allSuggestions, error } = await query;
-
-    if (error) {
-      // If table is missing in Supabase (42P01) or column missing (42703), return empty list gracefully
-      if ((error as any).code === '42P01' || (error as any).code === '42703') {
-        return res.json([]);
+      // Never suggest someone we already have a pending/accepted exchange with
+      if (r.status === 'pending' || r.status === 'accepted') {
+        excluded.add(otherUserId);
       }
-      throw error;
     }
 
-    // Filter out excluded IDs
-    const suggestions = (allSuggestions || []).filter((s: any) => !excludedIds.includes(s.id)).slice(0, 20);
+    const suggestions = await Profile.findAll({
+      where: {
+        id: { [Op.notIn]: Array.from(excluded) },
+        hide_from_suggestions: false,
+        is_blocked: false,
+      },
+      attributes: ['id', 'full_name', 'username', 'avatar_url'],
+      order: [['created_at', 'DESC']],
+      limit: 20,
+    });
 
-    // Step 3: Map the status to each suggestion.
-    const results = (suggestions || []).map((s: any) => ({
-      id: s.id,
-      name: s.full_name || 'Unknown',
-      username: s.username || 'user',
-      avatar: normalizeImageUrl(s.avatar_url),
-      // The status is 'pending' if the user sent the request.
-      status: requestMap.get(s.id) === 'pending' ? 'pending' : 'none',
-    }));
-
-    res.json(results);
+    res.set('Cache-Control', 'no-store');
+    res.json(
+      suggestions.map((s) => ({
+        id: s.id,
+        name: s.full_name || 'Unknown',
+        username: s.username || 'user',
+        avatar: normalizeImageUrl(s.avatar_url),
+        status: requestMap.get(s.id) === 'pending' ? 'pending' : 'none',
+      })),
+    );
   } catch (error) {
     console.error('Error fetching friend suggestions:', error);
     res.status(500).json({
