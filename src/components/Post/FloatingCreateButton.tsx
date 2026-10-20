@@ -35,10 +35,11 @@ const FloatingCreateButton: React.FC<FloatingCreateButtonProps> = ({ onPostCreat
         dragElastic={0.1}
         initial={{ scale: 0 }}
         animate={{ scale: 1 }}
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.95 }}
+        whileHover={{ scale: 1.12, boxShadow: '0 8px 30px rgba(0,0,0,0.25)' }}
+        whileTap={{ scale: 0.88 }}
+        transition={{ type: 'spring', stiffness: 400, damping: 15 }}
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-28 right-4 lg:bottom-10 z-[100] w-14 h-14 flex items-center justify-center rounded-full bg-accent text-black shadow-xl shadow-black/15 transition-all border border-accent/50 hover:opacity-90 hover:rotate-12 dark:bg-white/20 dark:text-white dark:border-white/30 dark:ring-1 dark:ring-white/20 dark:shadow-white/5 dark:hover:bg-white/30 fixed-in-shell-content-br"
+        className="fixed bottom-28 right-4 lg:bottom-10 z-[100] w-14 h-14 flex items-center justify-center rounded-full bg-accent/80 backdrop-blur-sm text-black shadow-lg shadow-black/10 border border-accent/40 hover:bg-accent/95 active:bg-accent/70 transition-colors duration-150 dark:bg-white/15 dark:text-white dark:border-white/25 dark:ring-1 dark:ring-white/15 dark:shadow-white/5 dark:hover:bg-white/25 fixed-in-shell-content-br"
         aria-label="Create post"
         style={{ touchAction: 'none' }}
       >

@@ -29,6 +29,7 @@ const Login: React.FC = () => {
   const [showWelcome, setShowWelcome] = useState(false);
   const [oauthLoading, setOauthLoading] = useState(false);
   const [loggedInUser, setLoggedInUser] = useState<{ name: string; username: string; avatar?: string | null } | null>(null);
+  const [backendConnected, setBackendConnected] = useState(false);
 
   const { login, loading } = useAuth();
   const navigate = useNavigate();
@@ -57,6 +58,27 @@ const Login: React.FC = () => {
       setRememberMe(true);
     }
   }, [location]);
+
+  // Check backend connectivity
+  useEffect(() => {
+    const checkBackend = async () => {
+      try {
+        const response = await fetch('http://localhost:3005/api/health', {
+          method: 'GET',
+          signal: AbortSignal.timeout(5000)
+        });
+        if (response.ok) {
+          setBackendConnected(true);
+        }
+      } catch (err) {
+        setBackendConnected(false);
+      }
+    };
+
+    checkBackend();
+    const interval = setInterval(checkBackend, 10000); // Check every 10 seconds
+    return () => clearInterval(interval);
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -147,9 +169,22 @@ const Login: React.FC = () => {
       initial={{ x: 0 }}
       animate={{ x: 0 }}
       transition={{ type: "spring", duration: 0.5 }}
-      className="min-h-screen flex items-center justify-center px-4"
+      className="min-h-screen flex items-center justify-center px-4 relative"
       style={{ backgroundColor: 'rgb(var(--bg))', color: 'rgb(var(--fg))' }}
     >
+      {/* Backend connectivity indicator */}
+      <div className="absolute top-4 right-4 flex items-center gap-2">
+        <div
+          className={`w-3 h-3 rounded-full ${
+            backendConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'
+          }`}
+          title={backendConnected ? 'Backend connected' : 'Backend disconnected'}
+        />
+        <span className="text-xs" style={{ color: 'rgb(var(--muted))' }}>
+          {backendConnected ? 'Backend' : 'Offline'}
+        </span>
+      </div>
+
       <div className="login-container w-full max-w-md space-y-8 transition-transform duration-300">
         <div className="text-center">
           <PuurgaLogo size={48} className="mx-auto" />
