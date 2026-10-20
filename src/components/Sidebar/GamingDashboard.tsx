@@ -13,7 +13,7 @@ const GAME_ICONS: Record<string, string> = {
   watchman: '🛡️',
   redemption: '✨',
   'purga-rift': '🌀',
-  'cyber-runner': '🏃',
+  'wazaledo': '🏃',
 };
 
 const DIFFICULTY_COLOR: Record<string, string> = {

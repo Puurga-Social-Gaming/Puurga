@@ -26,13 +26,13 @@ const HeroBanner: React.FC<HeroBannerProps> = ({
   const [isHovering, setIsHovering] = useState(false);
 
   const displayGame = featuredGame || lastPlayedGame;
-  const isCyberRunner = displayGame?.id === 'cyber-runner';
+  const isWazaledo = displayGame?.id === 'wazaledo';
 
   useEffect(() => {
-    if (bgVideoRef.current && isCyberRunner) {
+    if (bgVideoRef.current && isWazaledo) {
       bgVideoRef.current.playbackRate = 0.7;
     }
-  }, [isCyberRunner]);
+  }, [isWazaledo]);
 
   // Desktop: hover to play/stop preview
   const handleMouseEnter = useCallback(() => {
@@ -75,7 +75,7 @@ const HeroBanner: React.FC<HeroBannerProps> = ({
 
   if (!displayGame) return null;
 
-  const showPreviewVideo = isCyberRunner && isHovering;
+  const showPreviewVideo = isWazaledo && isHovering;
 
   return (
     <section
@@ -86,7 +86,7 @@ const HeroBanner: React.FC<HeroBannerProps> = ({
     >
       {/* Dynamic blur background */}
       <div className="absolute inset-0">
-        {isCyberRunner ? (
+        {isWazaledo ? (
           <video
             ref={bgVideoRef}
             src={CYBER_RUNNER_VIDEO}
@@ -107,7 +107,7 @@ const HeroBanner: React.FC<HeroBannerProps> = ({
       </div>
 
       {/* Hover preview video overlay (desktop: hover, mobile: in viewport) */}
-      {isCyberRunner && (
+      {isWazaledo && (
         <div className={`absolute inset-0 flex items-center justify-center transition-opacity duration-500 ${showPreviewVideo ? 'opacity-100' : 'opacity-0'}`}>
           <video
             ref={previewVideoRef}

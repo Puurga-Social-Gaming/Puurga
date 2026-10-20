@@ -65,9 +65,9 @@ const PurgaGames: React.FC = () => {
     return games;
   }, [mainGames, selectedCategory, search]);
 
-  // Featured game — always promote Cyber Runner
+  // Featured game — always promote Wazaledo
   const featuredGame = useMemo(() => {
-    return mainGames.find(g => g.id === 'cyber-runner') || mainGames[0] || null;
+    return mainGames.find(g => g.id === 'wazaledo') || mainGames[0] || null;
   }, [mainGames]);
 
   // Last played game

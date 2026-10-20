@@ -207,15 +207,15 @@ export default function Home() {
       link: '/puurga-games?play=purga-rift'
     },
     {
-      id: 'puurga-slot-2',
-      name: 'Cyber Runner',
+      id: 'wazaledo',
+      name: 'Wazaledo',
       description: 'Run, slash, and survive through five network phases.',
       image: '/images/games/cyber-runner-cover.svg',
       color: 'orange',
       players: '1.2K',
       rating: 4.8,
       available: true,
-      link: '/puurga-games?play=puurga-slot-2'
+      link: '/games/wazaledo'
     }
   ];
 
