@@ -197,10 +197,6 @@ const Post: React.FC<PostProps> = ({ post, onUpdate, variant = 'feed' }) => {
   };
 
   const handlePurgeClick = async () => {
-    if (isOwner) {
-      toast.error(t('post.cannotPurgeOwn', 'You cannot purge your own posts'), { duration: 3000 });
-      return;
-    }
     if (isPurging || isPurged) return;
     try {
       setIsPurging(true);
@@ -490,8 +486,7 @@ const Post: React.FC<PostProps> = ({ post, onUpdate, variant = 'feed' }) => {
             data-capture-ignore="true"
           >
             <div className="flex items-center gap-1">
-              {!isOwner && (
-                <motion.button
+              <motion.button
                   whileTap={{ scale: 0.92 }}
                   onClick={handlePurgeClick}
                   disabled={isPurging}
@@ -509,7 +504,6 @@ const Post: React.FC<PostProps> = ({ post, onUpdate, variant = 'feed' }) => {
                   />
                   <span className="text-[11.5px] font-medium tabular-nums">{localPurges}</span>
                 </motion.button>
-              )}
               <PostReactions postId={post.id} initialReactions={post.reactions || {}} onReactionChange={handleReactionChange} />
               <motion.button
                 ref={commentButtonRef}

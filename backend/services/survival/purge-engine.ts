@@ -42,10 +42,8 @@ interface PurgeConsequenceResult {
 export class PurgeEngine {
   static async validatePurge(userId: string, postId: string, targetUserId: string): Promise<PurgeValidationResult> {
     const supabaseClient = requireSupabase();
-    if (String(userId) === String(targetUserId)) {
-      return { valid: false, error: 'Cannot purge your own post', code: 'OWN_POST' };
-    }
-
+    // Allow users to purge their own posts (removed OWN_POST restriction)
+    
     const { data: existingPurge, error: existingError } = await supabaseClient
       .from('post_purges')
       .select('id')
