@@ -16,6 +16,7 @@ import LevelUpAnimation from './components/Progression/LevelUpAnimation';
 const Home = retryableLazy(() => import('./pages/Home'));
 const Profile = retryableLazy(() => import('./pages/Profile'));
 const Notifications = retryableLazy(() => import('./pages/Notifications/Notifications'));
+const WhatsNew = retryableLazy(() => import('./pages/WhatsNew/WhatsNew'));
 const Login = retryableLazy(() => import('./pages/Login'));
 const Register = retryableLazy(() => import('./pages/Register'));
 const ForgotPassword = retryableLazy(() => import('./pages/ForgotPassword'));
@@ -154,6 +155,7 @@ const router = createBrowserRouter(
         <Route path="/post/:postId" element={<PostDetail />} />
         <Route path="/profile" element={<Profile />} />
         <Route path="/notifications" element={<Notifications />} />
+        <Route path="/whats-new" element={<WhatsNew />} />
         <Route path="/messages" element={<Messages />} />
         <Route path="/groups" element={<Groups />} />
         <Route path="/groups/:id" element={<GroupDetail />} />

@@ -22,6 +22,7 @@ import WebSocketManager from './websocketManager';
 import { createServer } from 'http';
 import authRoutes from './routes/auth';
 import notificationRoutes from './routes/notifications';
+import changelogRoutes from './routes/changelog';
 import userRoutes from './routes/users';
 import friendsRoutes from './routes/friends';
 import friendRequestsRoutes from './routes/friendRequests';
@@ -210,6 +211,9 @@ app.use('/api/auth', authRoutes);
 
 // Use notifications routes
 app.use('/api/notifications', notificationRoutes);
+
+// Use changelog routes (What's New)
+app.use('/api/changelog', changelogRoutes);
 
 // Use user routes
 app.use('/api/users', userRoutes);

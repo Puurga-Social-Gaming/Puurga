@@ -1,4 +1,6 @@
-import { requireSupabase } from '../config/supabase';
+import { requireSupabase, isSupabaseAvailable } from '../config/supabase';
+import { QueryTypes } from 'sequelize';
+import sequelize from '../config/database';
 import { wsManager } from '../websocketManager';
 import { normalizeImageUrl } from '../utils/url';
 import { areBlocked } from '../utils/friendRelations';
@@ -32,6 +34,7 @@ export type NotificationType =
   | 'security_alert'
   | 'maintenance'
   | 'system'
+  | 'changelog'
   // Existing
   | 'friend_request'
   | 'friend_request_accepted'
@@ -81,6 +84,7 @@ const TITLE_MAP: Record<string, string> = {
   verification: 'Verify Your Account',
   security_alert: 'Security Alert',
   maintenance: 'Maintenance Notice',
+  changelog: 'Purga Updated',
   friend_request: 'New Friend Request',
   friend_request_accepted: 'Friend Request Accepted',
   redemption: 'Redemption Complete',
@@ -240,7 +244,7 @@ export class NotificationService {
       'game_score',
       'game_high_score',
     ];
-    const system = ['welcome', 'verification', 'security_alert', 'maintenance'];
+    const system = ['welcome', 'verification', 'security_alert', 'maintenance', 'changelog'];
 
     if (social.includes(type)) return 'social';
     if (messaging.includes(type)) return 'messaging';
@@ -556,6 +560,13 @@ export class NotificationService {
   // ── Batch Deletion ────────────────────────────────────────
 
   static async deleteNotifications(userId: string, notificationIds: string[]): Promise<void> {
+    if (!isSupabaseAvailable) {
+      await sequelize.query(
+        `DELETE FROM notifications WHERE receiver_id = :userId AND id IN (:ids)`,
+        { replacements: { userId, ids: notificationIds }, type: QueryTypes.DELETE }
+      );
+      return;
+    }
     const supabase = requireSupabase();
     await supabase
       .from('notifications')
@@ -565,6 +576,14 @@ export class NotificationService {
   }
 
   static async markAsRead(userId: string, notificationIds: string[]): Promise<void> {
+    if (!isSupabaseAvailable) {
+      await sequelize.query(
+        `UPDATE notifications SET read = true, is_read = true
+         WHERE receiver_id = :userId AND id IN (:ids)`,
+        { replacements: { userId, ids: notificationIds }, type: QueryTypes.UPDATE }
+      );
+      return;
+    }
     const supabase = requireSupabase();
     await supabase
       .from('notifications')
@@ -574,15 +593,35 @@ export class NotificationService {
   }
 
   static async markAllAsRead(userId: string): Promise<void> {
+    if (!isSupabaseAvailable) {
+      // Changelog notifications stay until the user clicks them
+      await sequelize.query(
+        `UPDATE notifications SET read = true, is_read = true
+         WHERE receiver_id = :userId AND type <> 'changelog'
+           AND (read = false OR is_read = false)`,
+        { replacements: { userId }, type: QueryTypes.UPDATE }
+      );
+      return;
+    }
     const supabase = requireSupabase();
     await supabase
       .from('notifications')
       .update({ read: true, is_read: true })
       .eq('receiver_id', userId)
+      // Changelog notifications stay until the user clicks them
+      .neq('type', 'changelog')
       .or('read.eq.false,is_read.eq.false');
   }
 
   static async getUnreadCount(userId: string): Promise<number> {
+    if (!isSupabaseAvailable) {
+      const rows = await sequelize.query(
+        `SELECT COUNT(*)::int AS count FROM notifications
+         WHERE receiver_id = :userId AND (read = false OR is_read = false)`,
+        { replacements: { userId }, type: QueryTypes.SELECT }
+      ) as { count: number }[];
+      return rows?.[0]?.count || 0;
+    }
     const supabase = requireSupabase();
     const { count } = await supabase
       .from('notifications')

@@ -79,9 +79,10 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
   const markAllAsRead = useCallback(async () => {
     try {
       await api.put('/notifications/read-all');
-      setNotifications([]);
+      // Changelog notifications stay until the user clicks them
+      setNotifications(prev => prev.filter(n => n.type === 'changelog'));
     } catch (error) {
-      const unreadIds = notifications.filter(n => !n.read).map(n => n.id);
+      const unreadIds = notifications.filter(n => !n.read && n.type !== 'changelog').map(n => n.id);
       if (unreadIds.length > 0) {
         await markAsRead(unreadIds);
       }

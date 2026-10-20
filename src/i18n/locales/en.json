@@ -287,7 +287,15 @@
         "acceptSuccess": "Friend request accepted",
         "acceptFailed": "Failed to accept friend request",
         "rejectSuccess": "Friend request rejected",
-        "rejectFailed": "Failed to reject friend request"
+        "rejectFailed": "Failed to reject friend request",
+        "changelogTitle": "Purga Updated",
+        "changelogClickHint": "Click to see what changed"
+    },
+    "whatsNew": {
+        "title": "What's New",
+        "subtitle": "Every update, fix and improvement to Purga",
+        "empty": "No updates yet — check back soon",
+        "tryIt": "Try it"
     },
     "comments": {
         "loading": "Loading comments…",

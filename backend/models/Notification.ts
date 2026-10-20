@@ -7,6 +7,9 @@ interface NotificationAttributes {
   sender_id?: string;
   type: string;
   content?: string;
+  title?: string;
+  message?: string;
+  metadata?: Record<string, any>;
   read: boolean;
   created_at?: Date;
   post_id?: string;
@@ -31,6 +34,9 @@ class Notification extends Model<NotificationAttributes> implements Notification
   public sender_id?: string;
   public type!: string;
   public content?: string;
+  public title?: string;
+  public message?: string;
+  public metadata?: Record<string, any>;
   public read!: boolean;
   public readonly created_at!: Date;
   public post_id?: string;
@@ -82,6 +88,19 @@ Notification.init({
   content: {
     type: DataTypes.TEXT,
     allowNull: true
+  },
+  title: {
+    type: DataTypes.TEXT,
+    allowNull: true
+  },
+  message: {
+    type: DataTypes.TEXT,
+    allowNull: true
+  },
+  metadata: {
+    type: DataTypes.JSONB,
+    allowNull: true,
+    defaultValue: {}
   },
   read: {
     type: DataTypes.BOOLEAN,

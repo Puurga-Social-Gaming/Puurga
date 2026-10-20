@@ -11,6 +11,7 @@
     "db:reset": "ts-node scripts/resetDatabase.ts",
     "seed": "ts-node scripts/seedUsers.ts",
     "setup-admin": "ts-node scripts/setupAdmin.ts",
+    "changelog": "ts-node scripts/addChangelog.ts",
     "sync-users": "ts-node scripts/syncUsersToAuth.ts",
     "sync-users:cleanup-profiles": "ts-node scripts/syncUsersToAuth.ts --cleanup-profiles",
     "sync-users:cleanup-auth": "ts-node scripts/syncUsersToAuth.ts --cleanup-auth",

@@ -7,7 +7,7 @@ import {
   Bell, Heart, MessageCircle, UserPlus, UserCheck, UserX,
   Gamepad2, Reply, AtSign, Share2,
   Eye, ThumbsDown, MessageSquare, Trophy, Award,
-  AlertTriangle, Mail, Shield, Wrench, Ghost, Star, Flame
+  AlertTriangle, Mail, Shield, Wrench, Ghost, Star, Flame, Sparkles, RefreshCw, TrendingUp
 } from 'lucide-react';
 import Avatar from '../../components/Avatar';
 import ProfileLink from '../../components/Profile/ProfileLink';
@@ -46,6 +46,21 @@ const NOTIFICATION_ICONS: Partial<Record<NotificationType, React.ReactNode>> = {
   redemption_contribution: <Award size={14} className="text-yellow-500" />,
   friend_ghosted: <Ghost size={14} className="text-gray-400" />,
   purge: <AlertTriangle size={14} className="text-red-500" />,
+  changelog: <Sparkles size={14} className="text-violet-400" />,
+};
+
+const CHANGELOG_KIND_ICONS: Record<string, React.ReactNode> = {
+  added: <Sparkles size={14} className="text-green-400" />,
+  fixed: <Wrench size={14} className="text-red-400" />,
+  changed: <RefreshCw size={14} className="text-blue-400" />,
+  improved: <TrendingUp size={14} className="text-violet-400" />,
+};
+
+const CHANGELOG_KIND_COLORS: Record<string, string> = {
+  added: 'bg-green-500/15 text-green-400',
+  fixed: 'bg-red-500/15 text-red-400',
+  changed: 'bg-blue-500/15 text-blue-400',
+  improved: 'bg-violet-500/15 text-violet-400',
 };
 
 const NOTIFICATION_COLORS: Partial<Record<NotificationType, string>> = {
@@ -68,6 +83,7 @@ const NOTIFICATION_COLORS: Partial<Record<NotificationType, string>> = {
   redemption_contribution: 'border-l-yellow-500',
   friend_ghosted: 'border-l-gray-400',
   purge: 'border-l-red-500',
+  changelog: 'border-l-violet-500',
 };
 
 function Phone(props: any) {
@@ -128,6 +144,13 @@ const Notifications: React.FC = () => {
 
   const handleNotificationClick = async (notification: Notification) => {
     const { type, data, fromUser } = notification;
+
+    // Changelog: dismiss (stays until clicked) and take the user to the change
+    if (type === 'changelog') {
+      await dismissNotifications([notification.id]);
+      navigate(data?.route || '/whats-new');
+      return;
+    }
 
     const socialTypes = ['like', 'dislike', 'comment', 'reply', 'mention', 'share'];
     if (socialTypes.includes(type) && data?.postId) {
@@ -254,6 +277,45 @@ const Notifications: React.FC = () => {
                   {t('notifications.viewProfile')}
                 </button>
               )}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (notification.type === 'changelog') {
+      const kind = String(data.kind || 'changed');
+      return (
+        <div
+          key={notification.id}
+          onClick={() => handleNotificationClick(notification)}
+          className="cursor-pointer rounded-xl border border-border/60 bg-card/50 p-3 sm:p-3.5 transition-colors hover:bg-card/80 border-l-[3px] border-l-violet-500"
+        >
+          <div className="flex items-start gap-2.5 min-w-0">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-violet-500/15">
+              <Sparkles size={15} className="text-violet-400" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${CHANGELOG_KIND_COLORS[kind] || CHANGELOG_KIND_COLORS.changed}`}>
+                  {CHANGELOG_KIND_ICONS[kind] || CHANGELOG_KIND_ICONS.changed}
+                  {kind}
+                </span>
+                {data.version && (
+                  <span className="rounded-md bg-card px-1.5 py-0.5 text-[10px] font-medium text-muted border border-border/60">
+                    v{data.version}
+                  </span>
+                )}
+              </div>
+              <p className="text-[13px] font-semibold text-foreground leading-snug mt-1">
+                {notification.title || t('notifications.changelogTitle')}
+              </p>
+              {notification.message && (
+                <p className="text-[12px] text-muted leading-snug mt-0.5">{notification.message}</p>
+              )}
+              <p className="text-[11px] text-muted-light mt-1">
+                {formatDate(notification.createdAt)} · {t('notifications.changelogClickHint')}
+              </p>
             </div>
           </div>
         </div>

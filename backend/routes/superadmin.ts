@@ -16,6 +16,7 @@ import {
   upsertCertificationPricing,
 } from '../services/certificationPricing';
 import { RDC_MOBILE_MONEY_NETWORKS } from '../constants/paymentMethods';
+import { ChangelogService } from '../services/changelogService';
 
 const router = express.Router();
 
@@ -862,6 +863,74 @@ router.delete('/users/:id', async (req: any, res) => {
   } catch (error: any) {
     console.error('Error deleting user:', error);
     res.status(500).json({ error: error.message || 'Failed to delete user' });
+  }
+});
+
+/**
+ * GET /api/admin/changelog
+ * Changelog entries (newest first).
+ */
+router.get('/changelog', async (_req: any, res) => {
+  try {
+    const entries = await ChangelogService.listEntries(100);
+    res.json({ entries });
+  } catch (error: any) {
+    console.error('admin changelog list', error);
+    res.status(500).json({ error: error.message || 'Failed to load changelog' });
+  }
+});
+
+/**
+ * POST /api/admin/changelog
+ * Create a changelog entry and notify every user.
+ * body: { title, message?, kind?: 'added'|'fixed'|'changed'|'improved', route?, version? }
+ * `route` is the in-app path users are sent to when they click the notification.
+ */
+router.post('/changelog', async (req: any, res) => {
+  try {
+    const { title, message, kind, route, version } = req.body || {};
+    if (!title || typeof title !== 'string' || !title.trim()) {
+      return res.status(400).json({ error: 'title is required' });
+    }
+
+    const result = await ChangelogService.createEntry({
+      title,
+      message,
+      kind,
+      route,
+      version,
+      createdBy: req.user.id,
+    });
+
+    await logSuperAdminAction({
+      superadminId: req.user.id,
+      action: 'CHANGELOG_ENTRY_CREATE',
+      details: { entryId: result.entry.id, title: result.entry.title, notified: result.notified },
+    }).catch(() => null);
+
+    res.status(201).json(result);
+  } catch (error: any) {
+    console.error('admin changelog create', error);
+    res.status(500).json({ error: error.message || 'Failed to create changelog entry' });
+  }
+});
+
+/**
+ * DELETE /api/admin/changelog/:id
+ * Remove a changelog entry (and its notifications) everywhere.
+ */
+router.delete('/changelog/:id', async (req: any, res) => {
+  try {
+    await ChangelogService.deleteEntry(req.params.id);
+    await logSuperAdminAction({
+      superadminId: req.user.id,
+      action: 'CHANGELOG_ENTRY_DELETE',
+      details: { entryId: req.params.id },
+    }).catch(() => null);
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error('admin changelog delete', error);
+    res.status(500).json({ error: error.message || 'Failed to delete changelog entry' });
   }
 });
 

@@ -30,6 +30,7 @@ const NOTIFICATION_MESSAGES: Record<string, (name: string) => string> = {
   verification: () => `📧 Verify your email`,
   security_alert: () => `🔒 Security alert`,
   maintenance: () => `🔧 Scheduled maintenance`,
+  changelog: () => `✨ Purga Updated — see what's new`,
   friend_request: (name) => `👋 ${name} sent you a friend request!`,
   friend_request_accepted: (name) => `🎉 ${name} accepted your friend request!`,
   redemption: (name) => `✨ ${name} redeemed you from ghost mode!`,

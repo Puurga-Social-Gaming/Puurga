@@ -280,7 +280,7 @@ function getTypesForCategory(category: string): string[] {
     social: ['like', 'dislike', 'comment', 'reply', 'mention', 'follow', 'follow_accepted', 'share', 'profile_visit', 'friend_request', 'friend_request_accepted', 'friend_ghosted', 'redemption', 'redemption_contribution', 'purge'],
     messaging: ['message', 'group_message', 'message_reaction', 'missed_call'],
     gaming: ['resume_game', 'reward_reminder', 'tournament_reminder', 'challenge'],
-    system: ['welcome', 'verification', 'security_alert', 'maintenance'],
+    system: ['welcome', 'verification', 'security_alert', 'maintenance', 'changelog'],
   };
   return map[category] || [];
 }

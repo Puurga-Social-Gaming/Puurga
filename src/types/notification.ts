@@ -9,6 +9,7 @@ export type NotificationType =
   | 'game_score' | 'game_high_score'
   // System
   | 'welcome' | 'verification' | 'security_alert' | 'maintenance'
+  | 'changelog'
   // Legacy
   | 'friend_request' | 'friend_request_accepted'
   | 'redemption' | 'redemption_contribution' | 'friend_ghosted' | 'purge';
@@ -87,7 +88,7 @@ const NOTIFICATION_CATEGORIES: Record<string, NotificationType[]> = {
     'game_score',
     'game_high_score',
   ],
-  system: ['welcome', 'verification', 'security_alert', 'maintenance'],
+  system: ['welcome', 'verification', 'security_alert', 'maintenance', 'changelog'],
 };
 
 export function getNotificationCategory(type: NotificationType): string {
