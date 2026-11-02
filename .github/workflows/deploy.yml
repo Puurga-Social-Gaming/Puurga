@@ -1,22 +1,62 @@
-name: Deploy to DigitalOcean Droplet
+name: CI + Production Deploy
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
+  workflow_dispatch: {}
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
 
 jobs:
-  deploy:
+  build:
+    name: Build check
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: Deploy to Server via SSH
-        uses: appleboy/ssh-action@master
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
         with:
-          host: ${{ secrets.droplet_ip }} 
-          username: root
-          key: ${{ secrets.ssh_private_key }}
-          script: |
-            /var/www/Puurga/server-deploy.sh
+          node-version: 20
+
+      - name: Frontend install + build
+        run: |
+          npm ci
+          npm run build
+
+      - name: Backend typecheck
+        working-directory: backend
+        run: |
+          npm ci
+          npx tsc --noEmit
+
+  deploy:
+    name: Deploy to production server
+    needs: build
+    runs-on: ubuntu-latest
+    # Skips automatically until DO_HOST / DO_USERNAME / DO_SSH_KEY / DO_PORT
+    # secrets are configured (see GITHUB_SECRETS_SETUP.md).
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    env:
+      HAS_SECRETS: ${{ secrets.DO_HOST != '' && secrets.DO_USERNAME != '' && secrets.DO_SSH_KEY != '' }}
+    steps:
+      - name: Check SSH secrets
+        if: env.HAS_SECRETS != 'true'
+        run: |
+          echo "::warning::SSH deploy secrets not configured — build passed but nothing was deployed."
+          echo "Add DO_HOST, DO_USERNAME, DO_SSH_KEY, DO_PORT secrets to enable auto-deploy."
+          exit 0
+
+      - name: Deploy via SSH
+        if: env.HAS_SECRETS == 'true'
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DO_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -p ${{ secrets.DO_PORT }} ${{ secrets.DO_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
+          ssh -i ~/.ssh/deploy_key -p ${{ secrets.DO_PORT }} \
+            ${{ secrets.DO_USERNAME }}@${{ secrets.DO_HOST }} \
+            "cd ~/projects/Puurga && bash server-deploy.sh" 2>&1 | tail -50
