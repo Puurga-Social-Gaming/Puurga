@@ -8,7 +8,9 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "changelog": "npm run changelog --prefix backend --",
+    "role": "npm run role --prefix backend --"
   },
   "dependencies": {
     "@emoji-mart/data": "^1.2.1",
