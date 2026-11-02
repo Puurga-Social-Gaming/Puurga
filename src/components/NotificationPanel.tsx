@@ -1,5 +1,5 @@
 import React from 'react';
-import { useNotifications } from '../context/NotificationContext';
+import { useNotifications } from '../context/NotificationsContext';
 import { Notification } from '../types/notification';
 import { formatDistanceToNow } from 'date-fns';
 import { Bell, X } from 'lucide-react';

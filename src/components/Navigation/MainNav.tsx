@@ -18,7 +18,7 @@ import {
   Compass,
 } from 'lucide-react';
 import { LucideIcon } from 'lucide-react';
-import { useNotifications } from '../../context/NotificationContext';
+import { useNotifications } from '../../context/NotificationsContext';
 import { useMessages } from '../../context/MessagesContext';
 import { useUser } from '../../context/UserContext';
 import { useSurvival } from '../../context/SurvivalContext';

@@ -54,7 +54,6 @@ import { UserProvider } from './context/UserContext';
 import ProtectedRoute from './components/ProtectedRoute/index.tsx';
 import SuperAdminRoute from './components/SuperAdminRoute/index.tsx';
 import RootLayout from './components/RootLayout';
-import { NotificationProvider } from './context/NotificationContext';
 import { NotificationsProvider } from './context/NotificationsContext';
 import { SurvivalProvider } from './context/SurvivalContext';
 import { MessagesProvider } from './context/MessagesContext';
@@ -216,7 +215,6 @@ const App: React.FC = () => {
         <DevDetector />
         <UserProvider>
           <SurvivalProvider>
-          <NotificationProvider>
             <NotificationsProvider>
               <MessageNotificationProvider>
                 <MessagesProvider>
@@ -254,7 +252,6 @@ const App: React.FC = () => {
                 </MessagesProvider>
                 </MessageNotificationProvider>
             </NotificationsProvider>
-          </NotificationProvider>
           </SurvivalProvider>
         </UserProvider>
       </ErrorBoundary>
