@@ -10,6 +10,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "changelog": "npm run changelog --prefix backend --",
+    "changelog:pending": "npm run changelog:pending --prefix backend --",
     "role": "npm run role --prefix backend --"
   },
   "dependencies": {

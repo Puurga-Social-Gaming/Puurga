@@ -48,6 +48,14 @@ sudo nginx -t && sudo systemctl reload nginx || echo "⚠️  Nginx config uncha
 echo "🔄 Restarting backend..."
 pm2 restart puurga-backend
 
+# 8. Announce pending changelog entries
+#    Any .json file in backend/changelog-pending/ is posted now and all users
+#    get a notification. Posted files are moved to .posted/ (never re-sent).
+#    A posting failure must NOT fail the deploy — rerun manually with:
+#      npm run changelog:pending
+echo "📣 Posting changelog announcements..."
+cd backend && npm run changelog:pending || echo "⚠️  Changelog posting failed — rerun 'npm run changelog:pending' later" ; cd ..
+
 echo ""
 echo "✅ Deployment complete!"
 echo "   → Migrations applied"

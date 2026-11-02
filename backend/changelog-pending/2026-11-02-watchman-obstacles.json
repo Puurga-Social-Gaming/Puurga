@@ -1,0 +1,6 @@
+{
+  "title": "The Watchman: obstacles now play fair",
+  "message": "Obstacles no longer drain your health when you dodge them — only direct hits hurt now. And they travel the full screen from right to left instead of vanishing early.",
+  "kind": "fixed",
+  "route": "/games/watchman"
+}

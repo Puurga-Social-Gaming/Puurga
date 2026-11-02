@@ -12,6 +12,7 @@
     "seed": "ts-node scripts/seedUsers.ts",
     "setup-admin": "ts-node scripts/setupAdmin.ts",
     "changelog": "ts-node scripts/addChangelog.ts",
+    "changelog:pending": "ts-node scripts/postPendingChangelog.ts",
     "role": "ts-node scripts/setUserRole.ts",
     "sync-users": "ts-node scripts/syncUsersToAuth.ts",
     "sync-users:cleanup-profiles": "ts-node scripts/syncUsersToAuth.ts --cleanup-profiles",
