@@ -20,12 +20,14 @@ import {
   Ban,
   VolumeX,
   Volume2,
+  Flag,
 } from 'lucide-react';
 import api from '../lib/axios';
 import { supabase } from '../lib/supabaseClient';
 import { toast } from 'react-hot-toast';
 import Avatar from '../components/Avatar';
 import FriendRequestButton from '../components/FriendRequestButton/FriendRequestButton';
+import ReportDialog from '../components/Report/ReportDialog';
 import { DEFAULT_IMAGES } from '../constants/defaultImages';
 import { useUser } from '../context/UserContext';
 import { formatBioForDisplay } from '../utils/bioLimits';
@@ -81,7 +83,7 @@ const UserProfile: React.FC = () => {
   const [isBlocked, setIsBlocked] = useState(false);
   const [blockedByThem, setBlockedByThem] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
-  const [socialBusy, setSocialBusy] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);  const [socialBusy, setSocialBusy] = useState(false);
   const [purgingPostId, setPurgingPostId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -497,6 +499,14 @@ const UserProfile: React.FC = () => {
                       <Ban size={18} />
                       Block
                     </button>
+                    <button
+                      onClick={() => setReportOpen(true)}
+                      className="flex items-center gap-2 px-4 py-2 bg-card hover:bg-muted/40 text-muted border border-border rounded-lg transition-colors"
+                      title="Report this account"
+                    >
+                      <Flag size={18} />
+                      Report
+                    </button>
                   </>
                 )}
               </div>
@@ -731,6 +741,12 @@ const UserProfile: React.FC = () => {
         </div>
         )}
       </div>
+      <ReportDialog
+        isOpen={reportOpen && Boolean(profile?.id)}
+        onClose={() => setReportOpen(false)}
+        targetType="user"
+        targetId={profile?.id || ''}
+      />
     </motion.div>
   );
 };

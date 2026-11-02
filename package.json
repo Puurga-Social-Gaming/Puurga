@@ -11,7 +11,8 @@
     "preview": "vite preview",
     "changelog": "npm run changelog --prefix backend --",
     "changelog:pending": "npm run changelog:pending --prefix backend --",
-    "role": "npm run role --prefix backend --"
+    "role": "npm run role --prefix backend --",
+    "assets": "node scripts/generateAppAssets.mjs"
   },
   "dependencies": {
     "@emoji-mart/data": "^1.2.1",
@@ -53,6 +54,7 @@
   "devDependencies": {
     "@eslint/js": "^9.9.1",
     "@faker-js/faker": "^9.3.0",
+    "@resvg/resvg-js": "^2.6.2",
     "@types/bcrypt": "^5.0.2",
     "@types/browser-image-compression": "^1.0.13",
     "@types/react": "^18.3.16",

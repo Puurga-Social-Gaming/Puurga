@@ -11,6 +11,7 @@ import { User, Profile, Notification, Friendship } from '../models';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { v4 as uuidv4 } from 'uuid';
+import { deleteUserAccount } from '../services/accountDeletionService';
 
 const router = express.Router();
 
@@ -456,10 +457,11 @@ router.post('/change-email', auth, async (req, res) => {
 router.delete('/delete-account', auth, async (req, res) => {
   try {
     const isSuperAdmin = req.user.role === 'super_admin' || req.user.role === 'superadmin';
-    const { targetId } = req.body;
+    const { targetId, password } = req.body || {};
+    const selfDelete = !targetId || targetId === req.user.id;
     const userIdToDelete = (isSuperAdmin && targetId) ? targetId : req.user.id;
 
-    if (!isSuperAdmin && targetId && targetId !== req.user.id) {
+    if (!isSuperAdmin && !selfDelete) {
       return res.status(403).json({ message: 'Forbidden: Only super admins can delete other accounts' });
     }
 
@@ -468,28 +470,33 @@ router.delete('/delete-account', auth, async (req, res) => {
 
     // Prevent self-deletion of superadmin accounts
     if (targetUser && (targetUser.role === 'super_admin' || targetUser.role === 'superadmin')) {
-      return res.status(403).json({ 
+      return res.status(403).json({
         message: 'Cannot delete superadmin account for security reasons'
       });
     }
 
-    if (isSuperAdmin && targetId && targetId !== req.user.id) {
-      await logSuperAdminAction({
-        superadminId: req.user.id,
-        action: 'DELETE_USER_BYPASS',
-        targetId: targetId,
-        targetType: 'user',
-        details: { reason: 'Super Admin deletion request' },
-        ipAddress: req.ip,
-        userAgent: req.headers['user-agent']
-      });
+    // Self-deletion requires password confirmation (Google Play account safety)
+    if (selfDelete && targetUser?.password) {
+      if (!password || typeof password !== 'string') {
+        return res.status(400).json({ message: 'Password confirmation is required to delete your account' });
+      }
+      const valid = await bcrypt.compare(password, targetUser.password);
+      if (!valid) {
+        return res.status(401).json({ message: 'Incorrect password' });
+      }
     }
 
-    // Delete user profile (from both tables to be safe)
-    await Promise.all([
-      User.destroy({ where: { id: userIdToDelete } }),
-      Profile.destroy({ where: { id: userIdToDelete } })
-    ]);
+    // Full data wipe — content, social graph, settings, then profile + user.
+    try {
+      const result = await deleteUserAccount(userIdToDelete);
+      console.log(`🗑️ Account deleted (full wipe): ${userIdToDelete} — ${result.deletedTables.length} table(s) cleared, ${result.skippedTables.length} skipped`);
+    } catch (wipeError: any) {
+      console.error('Full account wipe failed:', wipeError);
+      return res.status(500).json({
+        message: 'Error deleting account',
+        details: wipeError instanceof Error ? wipeError.message : 'Unknown error'
+      });
+    }
 
     res.json({ message: `Account ${userIdToDelete} deleted successfully` });
   } catch (error) {

@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { MessageCircle, MoreHorizontal, Pencil, X, AlertTriangle, Skull, Ghost, Flame, ThumbsDown, Globe, Download, Loader2 } from 'lucide-react';
+import { MessageCircle, MoreHorizontal, Pencil, X, AlertTriangle, Skull, Ghost, Flame, ThumbsDown, Globe, Download, Loader2, Flag } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
@@ -23,6 +23,7 @@ import InlineTranslate from '../InlineTranslate';
 import CertificationBadges from '../Profile/CertificationBadges';
 import { downloadPostCapture } from '../../utils/downloadPostCapture';
 import { POST_PURGE_THRESHOLD } from '../../constants/purgeConstants';
+import ReportDialog from '../Report/ReportDialog';
 
 interface PostProps {
   post: PostType;
@@ -59,6 +60,7 @@ const Post: React.FC<PostProps> = ({ post, onUpdate, variant = 'feed' }) => {
   };
   const [showMenu, setShowMenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const [reportOpen, setReportOpen] = useState(false);
   const [showComments, setShowComments] = useState(false);
   const [commentCount, setCommentCount] = useState(post.comments || 0);
   const commentSectionRef = useRef<HTMLDivElement>(null);
@@ -345,15 +347,28 @@ const Post: React.FC<PostProps> = ({ post, onUpdate, variant = 'feed' }) => {
                         </button>
                       </>
                     ) : (
-                      <button
-                        onClick={handleDontLike}
-                        disabled={isPurging || isPurged}
-                        className="w-full px-3 py-2.5 text-left text-[12px] text-red-500 flex items-center gap-2 hover:bg-red-500/10 transition-colors disabled:opacity-50"
-                        type="button"
-                      >
-                        <ThumbsDown size={13} />
-                        {t('post.dontLike', "I don't like this")}
-                      </button>
+                      <>
+                        <button
+                          onClick={() => {
+                            setShowMenu(false);
+                            setReportOpen(true);
+                          }}
+                          className="w-full px-3 py-2.5 text-left text-[12px] text-foreground flex items-center gap-2 hover:bg-card-hover transition-colors"
+                          type="button"
+                        >
+                          <Flag size={13} />
+                          Report
+                        </button>
+                        <button
+                          onClick={handleDontLike}
+                          disabled={isPurging || isPurged}
+                          className="w-full px-3 py-2.5 text-left text-[12px] text-red-500 flex items-center gap-2 hover:bg-red-500/10 transition-colors disabled:opacity-50"
+                          type="button"
+                        >
+                          <ThumbsDown size={13} />
+                          {t('post.dontLike', "I don't like this")}
+                        </button>
+                      </>
                     )}
                   </motion.div>
                 )}
@@ -655,6 +670,14 @@ const Post: React.FC<PostProps> = ({ post, onUpdate, variant = 'feed' }) => {
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* Report dialog */}
+        <ReportDialog
+          isOpen={reportOpen}
+          onClose={() => setReportOpen(false)}
+          targetType="post"
+          targetId={post.id as string}
+        />
       </motion.div>
     </div>
   );

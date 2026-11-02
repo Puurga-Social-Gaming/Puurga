@@ -58,6 +58,7 @@ import cryptoRoutes from './routes/crypto';
 import certificationsRoutes from './routes/certifications';
 import progressionRoutes from './routes/progression';
 import achievementsRoutes from './routes/achievements';
+import reportRoutes from './routes/reports';
 import { errorHandler } from './middleware/errorHandler';
 import { PushNotificationService } from './services/pushNotificationService';
 import { progressionEngine } from './services/progressionEngine';
@@ -299,6 +300,7 @@ app.use('/api/crypto', cryptoRoutes);
 app.use('/api/certifications', certificationsRoutes);
 app.use('/api/progression', progressionRoutes);
 app.use('/api/achievements', achievementsRoutes);
+app.use('/api/reports', reportRoutes);
 
 // Global Error Handler (Must be last)
 app.use(errorHandler);

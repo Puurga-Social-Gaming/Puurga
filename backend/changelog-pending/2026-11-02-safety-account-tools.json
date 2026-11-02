@@ -1,0 +1,6 @@
+{
+  "title": "New safety & account tools",
+  "message": "You can now report any post or profile (report button in menus), and delete your own account permanently from Settings → Account & Legal — without contacting support. Privacy Policy and Terms of Service are now available in-app.",
+  "kind": "added",
+  "route": "/settings"
+}

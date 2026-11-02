@@ -299,6 +299,12 @@ const Login: React.FC = () => {
               {t('auth.signUp')}
             </Link>
           </p>
+
+          <p className="text-center text-[11px] mt-3" style={{ color: 'rgb(var(--muted))' }}>
+            <a href="/privacy-policy.html" target="_blank" rel="noopener noreferrer" className="hover:opacity-80 underline">Privacy Policy</a>
+            {' · '}
+            <a href="/terms-of-service.html" target="_blank" rel="noopener noreferrer" className="hover:opacity-80 underline">Terms of Service</a>
+          </p>
         </form>
       </div>
     </motion.div>

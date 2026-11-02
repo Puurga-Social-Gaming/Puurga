@@ -4,10 +4,12 @@ import { toast } from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 import {
   Bell, Shield, Eye, Globe, Moon, Sun, Loader2, Maximize2, Minimize2, Ban, VolumeX,
+  FileText, Scale, Trash2, X, AlertCircle,
 } from 'lucide-react';
 import Button from '../../components/ui/Button';
 import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
+import { useAuth } from '../../hooks/useAuth';
 import api from '../../lib/axios';
 import { useFontSizeStore, type FontSizeOption } from '../../store/fontSizeStore';
 import { useDesktopWidthStore } from '../../store/desktopWidthStore';
@@ -167,6 +169,11 @@ const Settings: React.FC = () => {
   const [blockedUsers, setBlockedUsers] = useState<any[]>([]);
   const [mutedUsers, setMutedUsers] = useState<any[]>([]);
   const [listsLoading, setListsLoading] = useState(false);
+  const { logout } = useAuth();
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [isDeleting, setIsDeleting] = useState(false);
   const activeLanguage = (i18n.language || 'en').split('-')[0];
   const [appSettings, setAppSettings] = useState<SettingsState>({
     dataCollection: true,
@@ -222,6 +229,29 @@ const Settings: React.FC = () => {
       toast.success('User unmuted');
     } catch (err: any) {
       toast.error(err.response?.data?.error || 'Failed to unmute');
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (isDeleting) return;
+    if (deleteConfirmText.trim().toUpperCase() !== 'DELETE') {
+      toast.error('Type DELETE to confirm');
+      return;
+    }
+    if (!deletePassword) {
+      toast.error('Enter your password to confirm deletion');
+      return;
+    }
+    setIsDeleting(true);
+    try {
+      await api.delete('/auth/delete-account', { data: { password: deletePassword } });
+      toast.success('Your account has been permanently deleted');
+      setDeleteModalOpen(false);
+      await logout();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || err.response?.data?.error || 'Failed to delete account');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -669,6 +699,47 @@ const Settings: React.FC = () => {
 
         <ProgressionSection />
 
+        {/* Account — legal links & deletion (Google Play requirement) */}
+        <SettingsSection
+          icon={<Shield className="w-5 h-5" />}
+          title="Account & Legal"
+          badge={
+            <span className="text-[10px] font-semibold bg-accent/15 text-foreground px-2 py-0.5 rounded-full border border-border">
+              Your data
+            </span>
+          }
+        >
+          <SettingRow title="Privacy Policy" description="What data we collect and why">
+            <a
+              href="/privacy-policy.html"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 text-sm text-accent hover:underline"
+            >
+              <FileText size={14} /> View
+            </a>
+          </SettingRow>
+          <SettingRow title="Terms of Service" description="The rules of using Puurga">
+            <a
+              href="/terms-of-service.html"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 text-sm text-accent hover:underline"
+            >
+              <Scale size={14} /> View
+            </a>
+          </SettingRow>
+          <SettingRow title="Delete Account" description="Permanently remove your account and its data">
+            <button
+              type="button"
+              onClick={() => setDeleteModalOpen(true)}
+              className="flex items-center gap-1.5 text-sm text-red-500 hover:text-red-400"
+            >
+              <Trash2 size={14} /> Delete
+            </button>
+          </SettingRow>
+        </SettingsSection>
+
         {(user?.role === 'admin' || user?.role === 'super_admin') && (
           <SettingsSection
             icon={<Shield className="w-5 h-5" />}
@@ -753,6 +824,63 @@ const Settings: React.FC = () => {
           </Button>
         </div>
       </form>
+
+      {/* Delete account confirmation modal */}
+      {deleteModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => !isDeleting && setDeleteModalOpen(false)} />
+          <div className="relative w-full max-w-sm bg-card border border-border rounded-2xl shadow-xl overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border/60">
+              <div className="flex items-center gap-2">
+                <AlertCircle size={16} className="text-red-500" />
+                <h3 className="font-semibold text-foreground text-sm">Delete your account?</h3>
+              </div>
+              <button onClick={() => setDeleteModalOpen(false)} className="p-1 text-muted hover:text-foreground rounded-lg" aria-label="Close" disabled={isDeleting}>
+                <X size={16} />
+              </button>
+            </div>
+            <div className="px-4 py-4 space-y-3">
+              <p className="text-[13px] text-foreground/80 leading-relaxed">
+                This permanently removes your profile, posts, comments, likes, friendships,
+                messages, and all account data. <span className="text-red-500 font-medium">This cannot be undone.</span>
+              </p>
+              <input
+                type="password"
+                value={deletePassword}
+                onChange={(e) => setDeletePassword(e.target.value)}
+                placeholder="Your password"
+                className="w-full px-3 py-2 rounded-lg bg-background-secondary border border-border text-[13px] text-foreground placeholder:text-muted focus:outline-none focus:border-accent"
+                autoComplete="current-password"
+              />
+              <input
+                type="text"
+                value={deleteConfirmText}
+                onChange={(e) => setDeleteConfirmText(e.target.value.slice(0, 10))}
+                placeholder='Type "DELETE" to confirm'
+                className="w-full px-3 py-2 rounded-lg bg-background-secondary border border-border text-[13px] text-foreground placeholder:text-muted focus:outline-none focus:border-accent"
+              />
+            </div>
+            <div className="px-4 py-3 border-t border-border/60 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setDeleteModalOpen(false)}
+                disabled={isDeleting}
+                className="flex-1 px-3 py-2 rounded-lg text-[13px] text-muted hover:text-foreground hover:bg-card-hover border border-border transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteAccount}
+                disabled={isDeleting}
+                className="flex-1 px-3 py-2 rounded-lg text-[13px] font-medium bg-red-600/20 hover:bg-red-600/40 text-red-500 border border-red-500/30 transition-colors disabled:opacity-50"
+              >
+                {isDeleting ? 'Deleting…' : 'Delete forever'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </motion.div>
   );
 };
