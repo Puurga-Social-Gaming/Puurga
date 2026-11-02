@@ -357,26 +357,10 @@ const PathOfTheWatchman = () => {
                     e.enemies.splice(i, 1);
                     setCombo(0);
                 }
-            } else {
-                const passedShooterX = e.player.x - (GAME_CONFIG.PLAYER_SIZE / 2) - (enemy.size / 2);
-                if (enemy.x < passedShooterX) {
-                    if (!shieldActive) {
-                        const damage = enemy.type === 'Sentinel' ? 12 : 6;
-                        setHealth(h => {
-                            const next = Math.max(0, h - damage);
-                            if (next === 0) {
-                                setGameState('GAMEOVER');
-                            }
-                            return next;
-                        });
-                        createParticles(e.player.x, e.player.y, '#ff4444', 8);
-                        shake(2);
-                        setCombo(0);
-                    }
-                    e.enemies.splice(i, 1);
-                } else if (enemy.x < -100) {
-                    e.enemies.splice(i, 1);
-                }
+            } else if (enemy.x < -(enemy.size + 50)) {
+                // Not shot in time — keeps flying past the Watchman off the left
+                // edge with no penalty. Health is only lost on a direct collision.
+                e.enemies.splice(i, 1);
             }
         }
 
