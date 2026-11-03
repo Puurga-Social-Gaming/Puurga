@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Mobile preview harness</title>
+<style>
+  html, body { margin: 0; background: #222; font-family: system-ui, sans-serif; }
+  .bar { color: #aaa; font-size: 12px; padding: 6px 10px; text-align: center; }
+  iframe { display: block; border: 0; width: 390px; height: 760px; background: #000; margin: 0 auto; }
+</style>
+</head>
+<body>
+  <div class="bar" id="status">booting…</div>
+  <iframe id="frame"></iframe>
+  <script>
+    const params = new URLSearchParams(location.search);
+    const w = parseInt(params.get('w') || '390', 10);
+    const h = parseInt(params.get('h') || '760', 10);
+    const path = params.get('path') || '/games/redemption';
+    const frame = document.getElementById('frame');
+    frame.style.width = w + 'px';
+    frame.style.height = h + 'px';
+
+    (async () => {
+      try {
+        // Auth stubs so ProtectedRoute/UserContext render the app shell
+        localStorage.setItem('token', 'preview-token');
+        localStorage.setItem('user', JSON.stringify({
+          id: 'preview-user',
+          full_name: 'Preview User',
+          username: 'preview_user',
+          email: 'preview@example.com',
+          credits: 1250,
+          purga_points: 1250,
+        }));
+
+        // API stub service worker (dev only)
+        if ('serviceWorker' in navigator) {
+          await navigator.serviceWorker.register('/_preview-sw.js');
+          await navigator.serviceWorker.ready;
+        }
+        document.getElementById('status').textContent =
+          `${w}×${h} — ${path} (stubbed API)`;
+      } catch (e) {
+        document.getElementById('status').textContent = 'stub failed: ' + e;
+      }
+      frame.src = path;
+    })();
+  </script>
+</body>
+</html>
